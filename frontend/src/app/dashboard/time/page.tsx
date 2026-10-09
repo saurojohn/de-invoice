@@ -38,6 +38,8 @@ interface TimeEntry {
   billable: boolean
   invoiceId: string | null
   invoice: { id: string; invoiceNumber: string; status: string } | null
+  pauseCount?: number // Tier 627
+  pausedSeconds?: number
 }
 interface Summary {
   minutes: number
@@ -57,6 +59,8 @@ interface Project {
   hourlyRate: string | number | null
   effectiveRate: string | number | null
   budgetHours: string | number | null
+  timeRoundingMinutes?: number | null // Tier 626
+  timeRoundingMode?: string | null
   active: boolean
   minutes: number
   openMinutes: number
@@ -110,7 +114,7 @@ const decimal = (raw: string): number | null => {
 }
 
 const BLANK = { date: "", customerId: "", projectId: "", duration: "", description: "", hourlyRate: "", billable: true }
-const BLANK_PROJECT = { name: "", customerId: "", hourlyRate: "", budgetHours: "" }
+const BLANK_PROJECT = { name: "", customerId: "", hourlyRate: "", budgetHours: "", rounding: "", roundingMode: "up" }
 
 export default function TimeTrackingPage() {
   const router = useRouter()
@@ -404,6 +408,32 @@ export default function TimeTrackingPage() {
     loadReport()
   }, [loadReport])
 
+  // Tier 628: the report as a file
+  const downloadReportCsv = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const qs = new URLSearchParams({ companyId, groupBy: reportBy })
+      if (reportFrom) qs.set("from", reportFrom)
+      if (reportTo) qs.set("to", reportTo)
+      const res = await apiFetch(`/api/v1/time-entries/report.csv?${qs.toString()}`, { throwOnError: false })
+      if (!res.ok) {
+        toast.error(t("time.reportCsvFailed"))
+        return
+      }
+      const url = window.URL.createObjectURL(await res.blob())
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Zeitauswertung_${reportBy}_${reportFrom || "alle"}_${reportTo || "alle"}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch {
+      toast.error(t("time.reportCsvFailed"))
+    }
+  }
+
   const discardTimer = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId || !confirm(t("time.timerConfirmDiscard"))) return
@@ -480,6 +510,9 @@ export default function TimeTrackingPage() {
         customerId: projectForm.customerId || null,
         hourlyRate: projectRate,
         budgetHours: projectBudget,
+        // Tier 626: empty = the customer's rule, else the company's
+        timeRoundingMinutes: projectForm.rounding === "" ? null : Number(projectForm.rounding),
+        timeRoundingMode: projectForm.rounding === "" || projectForm.rounding === "0" ? null : projectForm.roundingMode,
       })
       setProjectForm({ ...BLANK_PROJECT, customerId: projectForm.customerId })
       await loadProjects()
@@ -751,6 +784,35 @@ export default function TimeTrackingPage() {
                   />
                 </label>
               </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm mt-3">
+                <span className="text-gray-600 dark:text-gray-300">{t("time.rounding")}:</span>
+                <select
+                  className="h-9 border rounded-md px-2 bg-white dark:bg-gray-800"
+                  value={projectForm.rounding}
+                  onChange={(e) => setProjectForm({ ...projectForm, rounding: e.target.value })}
+                  aria-label={t("time.rounding")}
+                  data-testid="time-project-rounding"
+                >
+                  <option value="">{t("time.roundingInherit")}</option>
+                  {[0, 5, 6, 10, 15, 30, 60].map((m) => (
+                    <option key={m} value={m}>
+                      {m === 0 ? t("time.rounding_0") : t("time.roundingStep", { minutes: m })}
+                    </option>
+                  ))}
+                </select>
+                {projectForm.rounding !== "" && projectForm.rounding !== "0" && (
+                  <select
+                    className="h-9 border rounded-md px-2 bg-white dark:bg-gray-800"
+                    value={projectForm.roundingMode}
+                    onChange={(e) => setProjectForm({ ...projectForm, roundingMode: e.target.value })}
+                    aria-label={t("time.rounding")}
+                    data-testid="time-project-rounding-mode"
+                  >
+                    <option value="up">{t("time.roundingMode_up")}</option>
+                    <option value="nearest">{t("time.roundingMode_nearest")}</option>
+                  </select>
+                )}
+              </div>
               <Button className="mt-3" onClick={addProject} disabled={!projectValid || busy} data-testid="time-project-add">
                 {t("time.projectAdd")}
               </Button>
@@ -774,6 +836,14 @@ export default function TimeTrackingPage() {
                           <td className="py-2 pr-3">
                             {p.name}
                             {!p.active && <span className="ml-2 text-xs">({t("time.projectArchived")})</span>}
+                            {p.timeRoundingMinutes != null && (
+                              <span className="block text-xs text-gray-500 dark:text-gray-400" data-testid="time-project-rounding-own">
+                                {t("time.rounding")}:{" "}
+                                {p.timeRoundingMinutes === 0
+                                  ? t("time.rounding_0")
+                                  : `${t("time.roundingShort", { minutes: p.timeRoundingMinutes })}, ${t(p.timeRoundingMode === "nearest" ? "time.roundingMode_nearest" : "time.roundingMode_up")}`}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2 pr-3">{p.customer?.name || t("time.projectInternal")}</td>
                           <td className="py-2 pr-3 text-right whitespace-nowrap">
@@ -832,6 +902,9 @@ export default function TimeTrackingPage() {
                     </Button>
                   ))}
                 </div>
+                <Button size="sm" variant="outline" onClick={downloadReportCsv} disabled={!report || report.rows.length === 0} data-testid="time-report-csv">
+                  {t("time.reportCsv")}
+                </Button>
               </div>
               {!report || report.rows.length === 0 ? (
                 <p className="text-center text-gray-500 dark:text-gray-400 py-4" data-testid="time-report-empty">
@@ -981,7 +1054,14 @@ export default function TimeTrackingPage() {
                           )}
                         </td>
                         <td className="py-2 pr-3">{e.description}</td>
-                        <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(e.minutes)}</td>
+                        <td className="py-2 pr-3 text-right whitespace-nowrap">
+                          {hhmm(e.minutes)}
+                          {(e.pauseCount ?? 0) > 0 && (
+                            <span className="block text-xs text-gray-500 dark:text-gray-400" data-testid="time-row-pauses">
+                              {t("time.pauses", { count: e.pauseCount ?? 0, duration: hhmm(Math.round((e.pausedSeconds ?? 0) / 60)) })}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 pr-3 text-right whitespace-nowrap" data-testid="time-row-amount">
                           {amount === null ? "—" : money.format(amount)}
                         </td>

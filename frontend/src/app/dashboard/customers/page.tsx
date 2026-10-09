@@ -21,6 +21,8 @@ interface Customer {
   taxExempt?: boolean
   creditLimit?: number | null
   defaultHourlyRate?: number | string | null // Tier 616
+  timeRoundingMinutes?: number | null // Tier 626
+  timeRoundingMode?: string | null
   type: string
   address: { street?: string; city?: string; postalCode?: string; country?: string; leitwegId?: string }
   contact?: { email?: string; phone?: string }
@@ -229,6 +231,8 @@ export default function CustomersPage() {
     // no field and no endpoint accepted it, so it was always NULL.
     creditLimit: "",
     defaultHourlyRate: "",
+    timeRoundingMinutes: "",
+    timeRoundingMode: "up",
   })
 
   // Import state
@@ -274,6 +278,8 @@ export default function CustomersPage() {
         taxExempt: !!customer.taxExempt,
         creditLimit: customer.creditLimit != null ? String(customer.creditLimit) : "",
         defaultHourlyRate: customer.defaultHourlyRate != null ? String(Number(customer.defaultHourlyRate)) : "",
+        timeRoundingMinutes: customer.timeRoundingMinutes != null ? String(customer.timeRoundingMinutes) : "",
+        timeRoundingMode: customer.timeRoundingMode === "nearest" ? "nearest" : "up",
       })
     } else {
       setEditingCustomer(null)
@@ -293,6 +299,8 @@ export default function CustomersPage() {
         taxExempt: false,
         creditLimit: "",
         defaultHourlyRate: "",
+        timeRoundingMinutes: "",
+        timeRoundingMode: "up",
       })
       // Fetch the next K-NNNNN from the server so the user can
       // see what the auto-generated number will be. Best-effort:
@@ -360,6 +368,9 @@ export default function CustomersPage() {
       ...(form.creditLimit.trim() !== "" ? { creditLimit: Number(form.creditLimit) } : {}),
       // Tier 616: empty takes the rate away again
       defaultHourlyRate: form.defaultHourlyRate.trim() !== "" ? Number(form.defaultHourlyRate.replace(",", ".")) : null,
+      // Tier 626: empty = the company's rule
+      timeRoundingMinutes: form.timeRoundingMinutes === "" ? null : Number(form.timeRoundingMinutes),
+      timeRoundingMode: form.timeRoundingMinutes === "" || form.timeRoundingMinutes === "0" ? null : form.timeRoundingMode,
     }
 
     try {
@@ -1356,6 +1367,39 @@ export default function CustomersPage() {
                       onChange={(e) => setForm({ ...form, defaultHourlyRate: e.target.value })}
                       title={t("customer.defaultHourlyRateHint")}
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" htmlFor="customer-time-rounding">
+                      {t("customer.timeRounding")}
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        id="customer-time-rounding"
+                        data-testid="customer-time-rounding"
+                        className="h-10 border rounded-md px-2 bg-white dark:bg-gray-800 min-w-0 flex-1"
+                        value={form.timeRoundingMinutes}
+                        onChange={(e) => setForm({ ...form, timeRoundingMinutes: e.target.value })}
+                      >
+                        <option value="">{t("customer.timeRoundingInherit")}</option>
+                        {[0, 5, 6, 10, 15, 30, 60].map((m) => (
+                          <option key={m} value={m}>
+                            {m === 0 ? t("time.rounding_0") : t("time.roundingStep", { minutes: m })}
+                          </option>
+                        ))}
+                      </select>
+                      {form.timeRoundingMinutes !== "" && form.timeRoundingMinutes !== "0" && (
+                        <select
+                          data-testid="customer-time-rounding-mode"
+                          aria-label={t("customer.timeRounding")}
+                          className="h-10 border rounded-md px-2 bg-white dark:bg-gray-800"
+                          value={form.timeRoundingMode}
+                          onChange={(e) => setForm({ ...form, timeRoundingMode: e.target.value })}
+                        >
+                          <option value="up">{t("time.roundingMode_up")}</option>
+                          <option value="nearest">{t("time.roundingMode_nearest")}</option>
+                        </select>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

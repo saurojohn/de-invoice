@@ -137,6 +137,16 @@ export class CreateCustomerDto {
   @ValidateIf((_, v) => v !== null)
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
   defaultHourlyRate?: number | null
+
+  // Tier 626: this customer's own rounding of logged time — null: as the
+  // company; 0: do not round
+  @ValidateIf((_, v) => v !== null)
+  @IsIn([0, 5, 6, 10, 15, 30, 60], { message: 'timeRoundingMinutes muss 0, 5, 6, 10, 15, 30 oder 60 sein — oder null' }) @IsOptional()
+  timeRoundingMinutes?: number | null
+
+  @ValidateIf((_, v) => v !== null)
+  @IsIn(['up', 'nearest'], { message: 'timeRoundingMode muss up oder nearest sein — oder null' }) @IsOptional()
+  timeRoundingMode?: string | null
 }
 
 /**
@@ -195,4 +205,14 @@ export class UpdateCustomerDto {
   @ValidateIf((_, v) => v !== null)
   @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
   defaultHourlyRate?: number | null
+
+  // Tier 626: this customer's own rounding of logged time — null: as the
+  // company; 0: do not round
+  @ValidateIf((_, v) => v !== null)
+  @IsIn([0, 5, 6, 10, 15, 30, 60], { message: 'timeRoundingMinutes muss 0, 5, 6, 10, 15, 30 oder 60 sein — oder null' }) @IsOptional()
+  timeRoundingMinutes?: number | null
+
+  @ValidateIf((_, v) => v !== null)
+  @IsIn(['up', 'nearest'], { message: 'timeRoundingMode muss up oder nearest sein — oder null' }) @IsOptional()
+  timeRoundingMode?: string | null
 }

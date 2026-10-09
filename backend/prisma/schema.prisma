@@ -404,6 +404,10 @@ model Customer {
   timeEntries                TimeEntry[] // Tier 611
   /// Tier 616: the hourly rate (net) a new time entry for this customer starts with
   defaultHourlyRate          Decimal? @db.Decimal(12, 2)
+  /// Tier 626: this customer's own rounding rule for logged time (null = the company's;
+  /// 0 = do not round); mode "up" | "nearest"
+  timeRoundingMinutes        Int?
+  timeRoundingMode           String?
   timeProjects               TimeProject[] // Tier 616
   // Tier 112: SEPA pain.008 mandates signed by this
   // customer. One customer can sign multiple mandates
@@ -3551,6 +3555,9 @@ model TimeEntry {
   billable    Boolean   @default(true)
   invoiceId   String?
   invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  /// Tier 627: an entry written by a timer keeps its pauses: how many, how long
+  pauseCount    Int     @default(0)
+  pausedSeconds Int     @default(0)
   /// Tier 616: the project the hours belong to (below the customer)
   projectId   String?
   project     TimeProject? @relation(fields: [projectId], references: [id], onDelete: Restrict)
@@ -3576,6 +3583,9 @@ model TimeProject {
   /// net, per hour; null = the customer's default rate applies
   hourlyRate  Decimal?  @db.Decimal(12, 2)
   budgetHours Decimal?  @db.Decimal(10, 2)
+  /// Tier 626: the project's own rounding rule (null = the customer's, else the company's)
+  timeRoundingMinutes Int?
+  timeRoundingMode    String?
   active      Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -3598,6 +3608,8 @@ model RunningTimer {
   /// Tier 623: set while the timer is paused; the seconds of finished pauses
   pausedAt      DateTime?
   pausedSeconds Int       @default(0)
+  /// Tier 627: how many pauses were taken and ended
+  pauseCount    Int       @default(0)
 
   @@unique([companyId, userId])
 }

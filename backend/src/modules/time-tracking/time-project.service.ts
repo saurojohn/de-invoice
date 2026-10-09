@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
-import { rateOf } from './time-entry.service'
+import { ROUNDING_STEPS, rateOf } from './time-entry.service'
 
 /**
  * Tier 616 — projects below the customer.
@@ -18,6 +18,8 @@ export type TimeProjectInput = {
   hourlyRate?: unknown
   budgetHours?: unknown
   active?: unknown
+  timeRoundingMinutes?: unknown
+  timeRoundingMode?: unknown
 }
 
 @Injectable()
@@ -31,6 +33,8 @@ export class TimeProjectService {
       hourlyRate?: Prisma.Decimal | null
       budgetHours?: Prisma.Decimal | null
       active?: boolean
+      timeRoundingMinutes?: number | null
+      timeRoundingMode?: string | null
     } = {}
     if (!body || typeof body !== 'object') throw new BadRequestException('Das Projekt fehlt.')
     if (full || body.name !== undefined) {
@@ -62,6 +66,19 @@ export class TimeProjectService {
     if (body.active !== undefined) {
       if (typeof body.active !== 'boolean') throw new BadRequestException('active muss true oder false sein.')
       data.active = body.active
+    }
+    // Tier 626: the project's own rounding rule
+    if (body.timeRoundingMinutes !== undefined) {
+      const m = body.timeRoundingMinutes
+      if (m !== null && (typeof m !== 'number' || !ROUNDING_STEPS.includes(m))) {
+        throw new BadRequestException(`timeRoundingMinutes muss einer der Werte ${ROUNDING_STEPS.join(', ')} sein — oder null (wie beim Kunden).`)
+      }
+      data.timeRoundingMinutes = m as number | null
+    }
+    if (body.timeRoundingMode !== undefined) {
+      const mode = body.timeRoundingMode
+      if (mode !== null && mode !== 'up' && mode !== 'nearest') throw new BadRequestException('timeRoundingMode muss up oder nearest sein — oder null.')
+      data.timeRoundingMode = mode as string | null
     }
     return data
   }
@@ -122,6 +139,8 @@ export class TimeProjectService {
         hourlyRate: data.hourlyRate ?? null,
         budgetHours: data.budgetHours ?? null,
         active: data.active ?? true,
+        timeRoundingMinutes: data.timeRoundingMinutes ?? null,
+        timeRoundingMode: data.timeRoundingMode ?? null,
       },
     })
   }

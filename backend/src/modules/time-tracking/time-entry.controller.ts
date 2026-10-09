@@ -89,6 +89,15 @@ export class TimeEntryController {
     return this.service.report(this.company(companyId), { from, to, groupBy })
   }
 
+  // Tier 628
+  @Get('report.csv')
+  @Require('invoice.read')
+  async reportCsv(@Res() res: Response, @Query('companyId') companyId: string, @Query('from') from?: string, @Query('to') to?: string, @Query('groupBy') groupBy?: string) {
+    const { csv, filename } = await this.service.reportCsv(this.company(companyId), { from, to, groupBy })
+    res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${filename}"` })
+    res.send(csv)
+  }
+
   // Tier 624: the rounding rule — everyone reads it, the company's admin sets it
   @Get('settings')
   @Require('invoice.read')

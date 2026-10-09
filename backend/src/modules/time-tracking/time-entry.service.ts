@@ -140,7 +140,7 @@ export class TimeEntryService {
     if (!entry.projectId) return null
     const project = await this.prisma.timeProject.findFirst({
       where: { id: entry.projectId, companyId },
-      select: { id: true, customerId: true, hourlyRate: true, name: true },
+      select: { id: true, customerId: true, hourlyRate: true, name: true, timeRoundingMinutes: true, timeRoundingMode: true },
     })
     if (!project) throw new BadRequestException('Das Projekt gehört nicht zu dieser Firma.')
     if (project.customerId) {
@@ -262,12 +262,37 @@ export class TimeEntryService {
     return rule
   }
 
-  async create(companyId: string, userId: string | null, body: TimeEntryInput) {
+  /**
+   * Tier 626: the rule a duration is rounded by — the project's own, else
+   * the customer's own, else the company's. A rule of 0 minutes says "do not
+   * round" and ends the search like any other.
+   */
+  async roundingFor(
+    companyId: string,
+    customerId: string | null,
+    project: { timeRoundingMinutes: number | null; timeRoundingMode: string | null } | null,
+  ): Promise<Rounding> {
+    const own = (r: { timeRoundingMinutes: number | null; timeRoundingMode: string | null } | null | undefined): Rounding | null =>
+      r && r.timeRoundingMinutes !== null && ROUNDING_STEPS.includes(r.timeRoundingMinutes)
+        ? { minutes: r.timeRoundingMinutes, mode: r.timeRoundingMode === 'nearest' ? 'nearest' : 'up' }
+        : null
+    const ofProject = own(project)
+    if (ofProject) return ofProject
+    if (customerId) {
+      const ofCustomer = own(
+        await this.prisma.customer.findFirst({ where: { id: customerId, companyId }, select: { timeRoundingMinutes: true, timeRoundingMode: true } }),
+      )
+      if (ofCustomer) return ofCustomer
+    }
+    return this.rounding(companyId)
+  }
+
+  async create(companyId: string, userId: string | null, body: TimeEntryInput, pauses?: { count: number; seconds: number }) {
     const data = await this.parse(companyId, body, true)
-    // Tier 624: a duration is written as the company rounds it
-    data.minutes = rounded(data.minutes!, await this.rounding(companyId))
     const entry = { customerId: data.customerId ?? null, projectId: data.projectId ?? null }
     const project = await this.withProject(companyId, entry)
+    // Tier 624 / 626: a duration is written as the project, the customer or the company rounds it
+    data.minutes = rounded(data.minutes!, await this.roundingFor(companyId, entry.customerId, project))
     return this.prisma.timeEntry.create({
       data: {
         companyId,
@@ -280,6 +305,9 @@ export class TimeEntryService {
         // Tier 616: no rate given → the project's, else the customer's; null given → none
         hourlyRate: data.hourlyRate !== undefined ? data.hourlyRate : await this.defaultRate(companyId, entry.customerId, project),
         billable: data.billable ?? true,
+        // Tier 627: what a timer hands over
+        pauseCount: pauses?.count ?? 0,
+        pausedSeconds: pauses?.seconds ?? 0,
       },
       include: this.include,
     })
@@ -300,7 +328,7 @@ export class TimeEntryService {
   async update(id: string, companyId: string, body: TimeEntryInput) {
     const existing = await this.openEntry(id, companyId, 'geändert')
     const data = await this.parse(companyId, body, false)
-    if (data.minutes !== undefined) data.minutes = rounded(data.minutes, await this.rounding(companyId))
+    let project: Awaited<ReturnType<TimeEntryService['withProject']>> | undefined
     if (data.customerId !== undefined || data.projectId !== undefined) {
       const entry = {
         customerId: data.customerId !== undefined ? data.customerId : existing.customerId,
@@ -311,9 +339,16 @@ export class TimeEntryService {
         const old = await this.prisma.timeProject.findFirst({ where: { id: entry.projectId, companyId }, select: { customerId: true } })
         if (old?.customerId && old.customerId !== entry.customerId) entry.projectId = null
       }
-      await this.withProject(companyId, entry)
+      project = await this.withProject(companyId, entry)
       data.customerId = entry.customerId
       data.projectId = entry.projectId
+    }
+    if (data.minutes !== undefined) {
+      // by the rule of where the entry is (after this change)
+      const customerId = data.customerId !== undefined ? data.customerId : existing.customerId
+      const projectId = data.projectId !== undefined ? data.projectId : existing.projectId
+      if (project === undefined) project = await this.withProject(companyId, { customerId, projectId })
+      data.minutes = rounded(data.minutes, await this.roundingFor(companyId, customerId, project))
     }
     return this.prisma.timeEntry.update({ where: { id }, data, include: this.include })
   }
@@ -430,7 +465,11 @@ export class TimeEntryService {
       if (!timer) throw new BadRequestException('Es läuft kein Timer.')
       if (!timer.pausedAt) throw new BadRequestException('Der Timer läuft — er ist nicht angehalten.')
       const pause = Math.max(0, Math.round((Date.now() - timer.pausedAt.getTime()) / 1000))
-      await this.prisma.runningTimer.update({ where: { id: timer.id }, data: { pausedAt: null, pausedSeconds: timer.pausedSeconds + pause } })
+      await this.prisma.runningTimer.update({
+        where: { id: timer.id },
+        // Tier 627: a pause that has ended is counted
+        data: { pausedAt: null, pausedSeconds: timer.pausedSeconds + pause, pauseCount: timer.pauseCount + 1 },
+      })
       return { running: await this.timerOf(companyId, user) }
     })
   }
@@ -483,7 +522,9 @@ export class TimeEntryService {
         projectId: body?.projectId !== undefined ? body.projectId : timer.projectId,
         ...(body?.hourlyRate !== undefined ? { hourlyRate: body.hourlyRate } : {}),
         ...(body?.billable !== undefined ? { billable: body.billable } : {}),
-      })
+        // Tier 627: the pauses that ended go with the entry (a stop during a
+        // pause ends the work at the pause — that pause is no break in it)
+      }, { count: timer.pauseCount, seconds: timer.pausedSeconds })
       await this.prisma.runningTimer.delete({ where: { id: timer.id } })
       return { entry, capped: elapsed > 24 * 60 }
     })
@@ -552,5 +593,27 @@ export class TimeEntryService {
       { entries: 0, minutes: 0, billableMinutes: 0, billedMinutes: 0, openMinutes: 0, billedAmount: 0, openAmount: 0 },
     )
     return { groupBy, from: filter.from ?? null, to: filter.to ?? null, rows: out, total }
+  }
+
+  /**
+   * Tier 628: the report as a CSV — semicolons, a BOM for Excel, hours as
+   * decimals. A name that begins like a formula is written with a leading
+   * apostrophe (a customer may be called "=SUMME(…)").
+   */
+  async reportCsv(companyId: string, filter: { from?: string; to?: string; groupBy?: string }): Promise<{ csv: string; filename: string }> {
+    const r = await this.report(companyId, filter)
+    const cell = (v: unknown) => {
+      const s = v === null || v === undefined ? '' : String(v)
+      return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const text = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s)
+    const hours = (minutes: number) => (Math.round((minutes / 60) * 100) / 100).toFixed(2)
+    const first = r.groupBy === 'customer' ? 'Kunde' : r.groupBy === 'project' ? 'Projekt' : 'Mitarbeiter'
+    const header = [first, 'Einträge', 'Stunden', 'davon abrechenbar', 'davon abgerechnet', 'davon offen', 'abgerechnet EUR', 'offen EUR']
+    const line = (name: string, x: { entries: number; minutes: number; billableMinutes: number; billedMinutes: number; openMinutes: number; billedAmount: number; openAmount: number }) =>
+      [text(name), x.entries, hours(x.minutes), hours(x.billableMinutes), hours(x.billedMinutes), hours(x.openMinutes), x.billedAmount.toFixed(2), x.openAmount.toFixed(2)].map(cell).join(';')
+    const none = r.groupBy === 'customer' ? '(ohne Kunde)' : r.groupBy === 'project' ? '(ohne Projekt)' : '(unbekannt)'
+    const csv = '\uFEFF' + [header.map(cell).join(';'), ...r.rows.map((x) => line(x.name || none, x)), line('Summe', r.total)].join('\n') + '\n'
+    return { csv, filename: `Zeitauswertung_${r.groupBy}_${r.from ?? 'alle'}_${r.to ?? 'alle'}.csv` }
   }
 }

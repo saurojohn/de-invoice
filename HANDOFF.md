@@ -2649,6 +2649,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tiers 626–628 — whose rounding rule; the pauses on the entry; the report as a file
+
+The owner's fourth „都做“ of 09.10.2026, on the three things Tiers 621–625 still named as not built. Migration `20261009000007_rounding_per_customer_and_pauses` (additive).
+
+- **626 — a rule of the customer's and of the project's own.** `Customer.timeRoundingMinutes / timeRoundingMode` and the same two on `TimeProject`: `null` = inherit, `0` = do not round, else 5 / 6 / 10 / 15 / 30 / 60 with `up` | `nearest`. `roundingFor`: **the project's rule goes before the customer's, the customer's before the company's** — a rule of 0 ends the search like any other. A changed duration is rounded by the rule of where the entry is after the change. In the customer DTOs and form („Rundung erfasster Zeiten“), in the project form and list.
+- **627 — the pauses stay on the entry.** `RunningTimer.pauseCount` counts a pause when it **ends** (resume); stopping the timer hands `pauseCount` and `pausedSeconds` to the `TimeEntry` it writes. A stop during a pause ends the work at the pause — that pause is no break in it and is not counted. The list shows „2 Pause(n) · 0:40“ under the duration; a typed entry has none.
+- **628 — `GET /time-entries/report.csv`** (same parameters as the report): a BOM, semicolons, hours as decimals, a „Summe“ line that equals the report's total; named `Zeitauswertung_<grouping>_<from>_<to>.csv`. **A name that begins like a formula** (a customer called `=SUMME(A1:A9)`) is written with a leading apostrophe; one with a semicolon is quoted. Button „CSV exportieren“ on the report card.
+
+**Spec** `373-tier626-rundung-je-kunde-pausen-export.sh` (17 assertions; 14 fail on the code before). Playwright `rounding-per-customer-pauses-export-tier626.spec.ts` (customer form → 0:37 written as 0:45 → project rule → 0:30 → a timer's pause on its row → the downloaded file's header, row and sum).
+
+**Found alongside:** spec 370 asserted the status of a customer creation that ran inside `$( )` — a subshell, so `$STATUS` was the one of an earlier call. It creates the customer directly now. (Spec 373 stopped on the same pattern with „unbound variable“, which is how it was seen.)
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tiers 621–625 — five things Tiers 614–618 had listed as "not built"
 
 The owner's third „都做“ of 09.10.2026, on the list that closed the report on Tiers 614–620.
@@ -2663,7 +2675,7 @@ The owner's third „都做“ of 09.10.2026, on the list that closed the report
 
 **Found alongside:** at exactly 640 px the report table made the time page 80 px wider than the screen — the rule that lets a table scroll inside its card applies below 640 px only (Tier 596). The three tables of the time page scroll in their cards at every width now. (Found by the six-width measurement of Tier 620, before the push.)
 
-**Still not built:** a rounding rule per customer or project (it is the company's); the timer's pauses are not listed on the entry; the report has no export.
+**Not built in these tiers** — a rounding rule per customer or project, the pauses on the entry and the report's export followed in Tiers 626–628.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 620 — the dashboard at tablet width (CI red after Tiers 614–618)
 
@@ -8732,7 +8744,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 24. **Status 09.10.2026 — what is still open after Tier 608.** Since the review of 08.10. (item 23) three checks were done — a month reconciled by hand (the figures agree), every page walked in a browser, the cross-company test redone — and 24 tiers of fixes (585–608) came out of them, two of them leaks between companies (the activity log, Tier 589; the bulk download's manifest, Tier 592). What is left, by who has to move:
     - **The owner / operator, before anyone else uses it:** a server, domain, SMTP, `FINTS_PIN_ENC_KEY`, an off-site copy of backups and storage (item 22); the operator company's details, which are the Impressum now (Tier 604); a privacy policy and a processing agreement of its own — `/datenschutz` is a generic text; the cookie banner, which asks for consent to analytics and marketing that do not exist (Tiers 589–590); a licence for the code, if anyone else is to get it; the tax and legal decisions of items 5, 9, 12, 13, 15, 17–21, plus one more for the Steuerberater: Skonto is booked against 8400, not 8736 (Tiers 585–587).
-    - **Product scope — decided on 09.10.2026 („都做“, twice) and built:** the closing of the books (Tier 609), quotes and delivery notes (Tier 610), time tracking (Tier 611); then what those tiers had left out — the order confirmation (614), a quote invoiced and delivered in parts (615), projects and default hourly rates (616), the timer (617), the time sheet PDF (618). **Still to decide:** a per-invoice buyer reference (an authority's order number) next to the customer's Leitweg-ID (Tier 599); stock moved by a delivery note instead of the invoice; and what Tiers 621–625 — which built the five small things listed here before — still name as not built (a rounding rule per customer, an export of the hours report).
+    - **Product scope — decided on 09.10.2026 („都做“, twice) and built:** the closing of the books (Tier 609), quotes and delivery notes (Tier 610), time tracking (Tier 611); then what those tiers had left out — the order confirmation (614), a quote invoiced and delivered in parts (615), projects and default hourly rates (616), the timer (617), the time sheet PDF (618). **Still to decide:** a per-invoice buyer reference (an authority's order number) next to the customer's Leitweg-ID (Tier 599); stock moved by a delivery note instead of the invoice; (the small things Tiers 610–625 had listed as not built were all built by Tier 628).
     - **Unfinished and saying so** (unchanged): FinTS TAN and transfers, ELSTER transmission, E-Bilanz positions, cloud storage, the tax annexes' placeholders; no e-mail verification, account deletion or data-subject export; e-invoices by upload only, no automatic EN 16931 check on import; CSV import and the OCR proposal know one VAT rate; no Verfahrensdokumentation.
     - **Technical, found and not done:** the backend container runs as root, the compose file sets no `read_only` / `cap_drop` / `no-new-privileges` (item 23); `MailConfig.smtpPassword` in plain text; `release.yml` never run; flags read from an untyped body (`mockMode`, `dryRun` …) and the implicit conversion of numbers (`""` → 0) are not covered by Tier 606; the Leitweg-ID's check digits are not verified; five models without an index led by `companyId`, 227 `findMany` without `take`, no load test; two unit-test files, about 800 `any` in the backend.
     - **Interface, found and not done:** the accounting page — developer paths in its explanations, the private annexes offered to a GmbH, about 730 German words in the other languages; `/dashboard/v2`, the activity page's action names and parts of the import page untranslated; 72 form fields without a label; the dashboard's cards are not reachable by keyboard; on a phone, tables scroll sideways inside their box and `/dashboard/accounting` is 12 px too wide at 350 px.
@@ -8781,6 +8793,8 @@ finding critical/high issues. Future agents must respect them:
 - **A new document type is checked by calling the routes, not by reading the queries (Tier 612).** After adding quotes and delivery notes to the `Invoice` table, a scan of the code for invoice queries without a type filter looked clean — it counted `type: true` in a select and any mention of `invoiceNumber` as a filter, and skipped `findFirst`. Calling every write route with a quote's id and searching every GET response for its number found six places in an hour, one of them a voucher booked for a quote and one a customer marking a quote as paid.
 
 - **"Looked at on desktop and phone" skips the width where grids have the most columns per pixel (Tier 620).** A three-column grid at 768 px has narrower columns than the one-column layout at 390 px; a long German compound in a card title overflowed only there. Measure new UI at 375 / 640 / 768 / 1024 / 1280, in all three languages — it is one script and a minute.
+
+- **In a spec, `X=$(helper …)` runs the helper in a subshell (Tier 628).** Whatever it sets besides its output — `$STATUS`, `$BODY` — is gone; an assertion on `$STATUS` right after it tests an earlier call and passes for the wrong reason. Assert on a call made in the shell itself.
 
 ## 11. What to do when you start
 

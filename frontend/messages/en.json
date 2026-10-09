@@ -763,7 +763,9 @@
     "portalLinkCopied": "Copied!",
     "colStatus": "Status",
     "defaultHourlyRate": "Default hourly rate (€, net)",
-    "defaultHourlyRateHint": "What a new time entry for this customer starts with"
+    "defaultHourlyRateHint": "What a new time entry for this customer starts with",
+    "timeRounding": "Rounding of logged time",
+    "timeRoundingInherit": "as the company"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -4222,6 +4224,11 @@
     "reportTotal": "Total",
     "reportNone": "—",
     "reportEmpty": "No hours in this period.",
-    "reportFailed": "The report could not be loaded"
+    "reportFailed": "The report could not be loaded",
+    "roundingInherit": "as the customer",
+    "roundingShort": "{minutes} min",
+    "pauses": "{count} pause(s) · {duration}",
+    "reportCsv": "Export CSV",
+    "reportCsvFailed": "The export failed"
   }
 }

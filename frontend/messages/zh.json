@@ -763,7 +763,9 @@
     "portalLinkCopied": "已复制！",
     "colStatus": "状态",
     "defaultHourlyRate": "默认小时费率（€，不含税）",
-    "defaultHourlyRateHint": "该客户新建工时记录时的默认费率"
+    "defaultHourlyRateHint": "该客户新建工时记录时的默认费率",
+    "timeRounding": "工时取整",
+    "timeRoundingInherit": "沿用公司规则"
   },
   "dashboard": {
     "title": "仪表盘",
@@ -4222,6 +4224,11 @@
     "reportTotal": "合计",
     "reportNone": "—",
     "reportEmpty": "该期间没有工时。",
-    "reportFailed": "无法加载统计"
+    "reportFailed": "无法加载统计",
+    "roundingInherit": "沿用客户规则",
+    "roundingShort": "{minutes} 分钟",
+    "pauses": "暂停 {count} 次 · {duration}",
+    "reportCsv": "导出 CSV",
+    "reportCsvFailed": "导出失败"
   }
 }

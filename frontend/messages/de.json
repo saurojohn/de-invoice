@@ -763,7 +763,9 @@
     "portalLinkCopied": "Kopiert!",
     "colStatus": "Status",
     "defaultHourlyRate": "Standard-Stundensatz (€, netto)",
-    "defaultHourlyRateHint": "Vorbelegung für neue Zeiteinträge dieses Kunden"
+    "defaultHourlyRateHint": "Vorbelegung für neue Zeiteinträge dieses Kunden",
+    "timeRounding": "Rundung erfasster Zeiten",
+    "timeRoundingInherit": "wie in der Firma"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -4222,6 +4224,11 @@
     "reportTotal": "Summe",
     "reportNone": "—",
     "reportEmpty": "Keine Zeiten im Zeitraum.",
-    "reportFailed": "Die Auswertung konnte nicht geladen werden"
+    "reportFailed": "Die Auswertung konnte nicht geladen werden",
+    "roundingInherit": "wie beim Kunden",
+    "roundingShort": "{minutes} Min.",
+    "pauses": "{count} Pause(n) · {duration}",
+    "reportCsv": "CSV exportieren",
+    "reportCsvFailed": "Der Export ist fehlgeschlagen"
   }
 }
