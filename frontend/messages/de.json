@@ -4055,5 +4055,20 @@
     "copyAsDraftTitle": "Diese Rechnung als neuen Entwurf duplizieren",
     "frozenTitle": "Diese Rechnung ist eingefroren. Nur der Status kann noch geändert werden (Stornieren etc.).",
     "receivedEurTitle": "Der Betrag oben ist in der Währung der Rechnung. Was auf dem Euro-Konto ankam, ergibt den Kursgewinn oder -verlust."
+  },
+  "booksClosing": {
+    "title": "Bücher abschließen (Festschreibung)",
+    "hint": "Bis einschließlich des Abschlusstags lassen sich Rechnungen, Gutschriften, Zahlungen, Eingangsrechnungen, Kassenbuch- und Bankbuchungen, Belege und AfA-Buchungen nicht mehr anlegen, ändern oder löschen. Korrekturen gehören in den offenen Zeitraum (Storno, Gutschrift).",
+    "open": "Die Bücher sind nicht abgeschlossen.",
+    "closedUntil": "Abgeschlossen bis einschließlich {date}.",
+    "dateLabel": "Abschließen bis einschließlich",
+    "close": "Abschließen",
+    "lift": "Abschluss aufheben",
+    "liftWarning": "Der Abschluss wird vollständig aufgehoben — alle Zeiträume sind danach wieder änderbar. Der Vorgang wird mit Ihrer Begründung im Audit-Protokoll festgehalten.",
+    "reasonLabel": "Begründung (mindestens 5 Zeichen)",
+    "liftConfirm": "Abschluss jetzt aufheben",
+    "closedToast": "Bücher bis {date} abgeschlossen",
+    "reopenedToast": "Abschluss aufgehoben",
+    "failed": "Der Abschluss konnte nicht gespeichert werden"
   }
 }

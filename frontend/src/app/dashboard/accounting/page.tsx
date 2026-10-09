@@ -72,6 +72,7 @@ import { AnhangSection } from "./AnhangSection"
 import { BeraterPackagerSection } from "./BeraterPackagerSection"
 import { EBilanzTab } from "./EBilanzTab"
 import { GobdArchiveSection } from "./GobdArchiveSection"
+import { BooksClosingCard } from "@/components/BooksClosingCard"
 
 // The enriched Voucher summary returned by the
 // GET /api/v1/accounting/vouchers endpoint. The list
@@ -531,6 +532,8 @@ export default function AccountingPage() {
             </button>
           </div>
         </div>
+        {/* Tier 609: closing the books (Festschreibung) */}
+        <BooksClosingCard />
 
         <Card className="mb-4">
           <CardContent className="pt-6">

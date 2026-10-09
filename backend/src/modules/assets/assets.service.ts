@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
 import { computeAfaSummary } from './afa'
 import { assertNotFuture } from '../../common/business-date'
+import { assertBooksOpen } from '../reports/filed-period'
 
 /**
  * Tier 83+87: Anlagenverzeichnis (Asset Register)
@@ -376,6 +377,8 @@ export class AssetsService {
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
+    // Tier 609: the annual depreciation is dated 31.12. — not into closed books
+    await assertBooksOpen(this.prisma, companyId, [new Date(Date.UTC(year, 11, 31))], `die AfA-Buchung ${year}`)
 
     // Pre-check: refuse if any monthly
     // booking already exists for the year
@@ -525,6 +528,8 @@ export class AssetsService {
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
+    // Tier 609: twelve bookings, one per month end — none of them into closed books
+    await assertBooksOpen(this.prisma, companyId, Array.from({ length: 12 }, (_, m) => new Date(Date.UTC(year, m + 1, 0))), `die monatliche AfA-Buchung ${year}`)
 
     // Pre-check: refuse if any annual
     // booking already exists for the year
@@ -729,6 +734,8 @@ export class AssetsService {
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
+    // Tier 609: removes the year's depreciation bookings — not out of closed books
+    await assertBooksOpen(this.prisma, companyId, Array.from({ length: 12 }, (_, m) => new Date(Date.UTC(year, m + 1, 0))), `das Storno der AfA ${year}`)
 
     // Find all booked AfA rows for the year
     // (both annual + monthly modes — the

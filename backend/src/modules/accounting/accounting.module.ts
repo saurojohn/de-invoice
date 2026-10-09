@@ -98,10 +98,12 @@ import { AssetsModule } from '../assets/assets.module';
 // the December version for the year-end packager
 // (Berater can see the full-year summary).
 import { ReportsModule } from '../reports/reports.module';
+import { BooksClosingController } from './books-closing.controller';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule, InvoiceTemplateModule],
-  controllers: [AccountingController, VoucherTemplateController, JournalController, AnlageSOV2Controller],
+  imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule, InvoiceTemplateModule, AuditModule],
+  controllers: [AccountingController, VoucherTemplateController, JournalController, AnlageSOV2Controller, BooksClosingController],
   providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
   exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
 })

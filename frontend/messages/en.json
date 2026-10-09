@@ -4055,5 +4055,20 @@
     "copyAsDraftTitle": "Duplicate this invoice as a new draft",
     "frozenTitle": "This invoice is locked. Only its status can still change (cancelling etc.).",
     "receivedEurTitle": "The amount above is in the invoice's currency. What arrived on the euro account gives the exchange gain or loss."
+  },
+  "booksClosing": {
+    "title": "Close the books (Festschreibung)",
+    "hint": "Up to and including the closing day, invoices, credit notes, payments, supplier invoices, cashbook and bank bookings, vouchers and depreciation bookings can no longer be created, changed or deleted. Corrections belong into the open period (reversal, credit note).",
+    "open": "The books are not closed.",
+    "closedUntil": "Closed up to and including {date}.",
+    "dateLabel": "Close up to and including",
+    "close": "Close",
+    "lift": "Lift the closing",
+    "liftWarning": "The closing is lifted completely — every period can be changed again afterwards. This is recorded in the audit log with your reason.",
+    "reasonLabel": "Reason (at least 5 characters)",
+    "liftConfirm": "Lift the closing now",
+    "closedToast": "Books closed up to {date}",
+    "reopenedToast": "Closing lifted",
+    "failed": "The closing could not be saved"
   }
 }

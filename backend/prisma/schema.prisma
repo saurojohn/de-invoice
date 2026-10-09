@@ -37,6 +37,10 @@ model Company {
   website            String?
   registerEntry      String? // e.g. "HRB 12345 Amtsgericht Offenbach am Main"
   managingDirector   String? // Geschäftsführer / Inhaber
+  // Tier 609: the books are closed up to and including this day
+  // (Festschreibung). Nothing dated on or before it is written, changed or
+  // deleted any more — see reports/filed-period.ts `assertBooksOpen`.
+  booksClosedUntil   DateTime? @db.Date
   otherInfo          String? // misc. Impressum / footer info: WEEE number,
   // Kleinunternehmer §19 UStG disclaimer, etc.
   address            Json

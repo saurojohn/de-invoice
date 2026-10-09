@@ -1,4 +1,5 @@
 import { withKeyLock } from '../../common/key-lock';
+import { assertBooksOpen } from '../reports/filed-period';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { businessTodayDate } from '../../common/business-date';
 import { Prisma } from '@prisma/client';
@@ -79,6 +80,7 @@ export class VoucherService {
 
   private async createLocked(dto: CreateVoucherDto) {
     await this.assertAccountsBelongTo(dto.companyId, dto.lines);
+    await assertBooksOpen(this.prisma, dto.companyId, [dto.date], 'das Buchen eines Belegs'); // Tier 609
     // Validate debits = credits
     const totalDebit = dto.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
     const totalCredit = dto.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
@@ -320,6 +322,10 @@ export class VoucherService {
     if (!original) {
       throw new NotFoundException(`Voucher ${originalId} not found`);
     }
+    // Tier 609: the Storno is dated today — it is refused only if today
+    // itself lies in the closed period. Reversing a voucher of a closed
+    // year is exactly how a correction is made: in the open period.
+    await assertBooksOpen(this.prisma, companyId, [businessTodayDate()], 'ein Storno');
     // Don't allow reversing a voucher that's
     // already a Storno of something else (chain
     // of corrections would muddy the audit).
@@ -556,6 +562,8 @@ export class VoucherService {
         'Original ist bereits storniert — bitte den Korrekturbeleg direkt editieren.',
       );
     }
+    // Tier 609: the Storno is dated today, the corrected voucher as given.
+    await assertBooksOpen(this.prisma, companyId, [businessTodayDate(), correction.date], 'eine Korrekturbuchung');
     // Validation: at least 2 lines, Soll = Haben, every line has an accountId.
     if (correction.lines.length < 2) {
       throw new BadRequestException('Mindestens 2 Positionen erforderlich');
@@ -991,6 +999,7 @@ export class VoucherService {
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden');
     }
+    await assertBooksOpen(this.prisma, companyId, [invoice.issueDate], 'das Buchen eines Belegs'); // Tier 609
 
     const lines: CreateVoucherDto['lines'] = [];
     const total = parseFloat(invoice.total.toString());

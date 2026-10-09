@@ -2644,6 +2644,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 609 — closing the books (Festschreibung)
+
+The first of four things the owner asked for on 09.10.2026 („都做“: quotes, delivery notes, time tracking, closing of the books — §9 item 24). A submitted UStVA locked the documents of its period (Tier 537); nothing locked a manual voucher and nothing closed a year.
+
+**`Company.booksClosedUntil`** (a date; migration `20261009000001_books_closed_until`, additive). Up to and including that day nothing is written, changed or deleted:
+- everything that already asked `assertPeriodOpen` — invoices (issue, change, cancel, delete), credit notes, expenses (create, change, delete, e-invoice import, CSV import), cashbook entries, bank bookings — because `assertPeriodOpen` now asks `assertBooksOpen` first;
+- **payments**, whatever the taxation (they were checked only under Ist-Versteuerung, where they move VAT): a receipt is a booking of its day;
+- **manual vouchers**: create, the corrected voucher of a correction, the voucher generated from an invoice. A **Storno is dated today** and therefore goes through — that is how a closed period is corrected;
+- the **depreciation bookings**: annual (31.12.), monthly (each month end) and their Storno. These ask only `assertBooksOpen`, not the UStVA lock — depreciation has no VAT, and it is booked after December's return is in.
+The message names the day and both ways out (a correction in the open period, or lifting the closing).
+
+**`GET / PUT /accounting/books-closing`** (`accounting.read` / `company.update`): a later day closes more; an earlier day or `null` lifts the closing and needs a `reason`; not beyond today. Both are written to the company's audit log (`books.closed` / `books.reopened`, with the previous day and the reason), next to the automatic `company.updated` row. On the accounting page a card „Bücher abschließen (Festschreibung)“ shows the state, closes, and lifts with a reason; texts in three languages.
+
+**Spec** `364-tier609-buecher-abschliessen.sh` (29 assertions): what is refused in closed March — voucher, the closing day itself, expense create / change / delete, issuing a draft, cancelling, a payment, a correction dated into March, the depreciation of the year before; what works in April; a Storno and a credit note dated today; another company unaffected and unable to lift it; lifting without and with a reason; the audit rows. Playwright `books-closing-tier609.spec.ts`. *Not done:* no automatic closing (e.g. "close each month on the 10th"); the closing does not freeze master data (customers, accounts); `Mahnung` rows and customer-credit movements do not ask it. **The owner's development database gets the column the next time `start.sh` runs (`prisma migrate deploy`) — it was not touched.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 608 — the error page without the operator's part
 
 Tier 598's "left": `/dashboard/system-errors` is a company's own page (it lists the company's errors, Tier 550), but it asked for the operator's notification channels and alert threshold as every company — two 403s — and, on the 403, showed the threshold form with default values: a form a company could fill in and never save. The page asks `GET /auth/me` first and loads and shows those two cards for the operator only. The Playwright spec of Tier 598 now also opens the error page as another company: no 403, no threshold form, no test-notification button.

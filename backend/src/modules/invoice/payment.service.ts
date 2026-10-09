@@ -1,5 +1,5 @@
 import { besteuerungsart } from '../reports/ustva-ist';
-import { assertPeriodOpen } from '../reports/filed-period';
+import { assertBooksOpen, assertPeriodOpen } from '../reports/filed-period';
 import { withKeyLock } from '../../common/key-lock';
 import { InvoiceService } from './invoice.service';
 import { assertManualPaymentMethod } from './payment-methods';
@@ -150,6 +150,12 @@ export class PaymentService {
     if (!['Gutschrift', 'Guthaben', ADVANCE_SETTLEMENT_METHOD].includes(data.paymentMethod)
       && (invoice.type === 'PI' || (await besteuerungsart(this.prisma, companyId)) === 'ist')) {
       await assertPeriodOpen(this.prisma, companyId, [data.paymentDate], 'das Buchen einer Zahlung');
+    }
+    // Tier 609: closed books take no cash booking, whatever the taxation —
+    // a receipt is a booking of its day. (A credit note settling its invoice
+    // and an applied credit are no receipts.)
+    if (!['Gutschrift', 'Guthaben', ADVANCE_SETTLEMENT_METHOD].includes(data.paymentMethod)) {
+      await assertBooksOpen(this.prisma, companyId, [data.paymentDate], 'das Buchen einer Zahlung');
     }
     // Tier 462: only an issued document takes a payment. A cancelled invoice
     // turned "paid" (the Storno undone, back in the UStVA), a draft went
@@ -528,6 +534,9 @@ export class PaymentService {
     if (!['Gutschrift', 'Guthaben'].includes(payment.paymentMethod)
       && (payment.invoice.type === 'PI' || (await besteuerungsart(this.prisma, companyId)) === 'ist')) {
       await assertPeriodOpen(this.prisma, companyId, [payment.paymentDate], 'das Löschen einer Zahlung'); // Tier 537
+    }
+    if (!['Gutschrift', 'Guthaben'].includes(payment.paymentMethod)) {
+      await assertBooksOpen(this.prisma, companyId, [payment.paymentDate], 'das Löschen einer Zahlung'); // Tier 609
     }
     // Tier 460: what the payment caused goes with it — its overpayment credit
     // (refused if already used), a credit it applied, its Skonto credit note.
