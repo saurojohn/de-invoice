@@ -3595,6 +3595,9 @@ model RunningTimer {
   customerId  String?
   projectId   String?
   description String   @default("")
+  /// Tier 623: set while the timer is paused; the seconds of finished pauses
+  pausedAt      DateTime?
+  pausedSeconds Int       @default(0)
 
   @@unique([companyId, userId])
 }

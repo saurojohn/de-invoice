@@ -40,6 +40,16 @@ export const rateOf = (v: unknown, label: string): Prisma.Decimal => {
   return new Prisma.Decimal(v.toFixed(2))
 }
 
+/** Tier 624: the steps a duration can be rounded to */
+export const ROUNDING_STEPS = [0, 5, 6, 10, 15, 30, 60]
+export type Rounding = { minutes: number; mode: 'up' | 'nearest' }
+/** 37 min at "15 up" → 45; at "15 nearest" → 30 (but never 0); at most a day */
+export const rounded = (minutes: number, rule: Rounding): number => {
+  if (!rule.minutes) return minutes
+  const steps = rule.mode === 'nearest' ? Math.max(1, Math.round(minutes / rule.minutes)) : Math.ceil(minutes / rule.minutes)
+  return Math.min(24 * 60, steps * rule.minutes)
+}
+
 export type TimeEntryInput = {
   date?: unknown
   minutes?: unknown
@@ -225,8 +235,37 @@ export class TimeEntryService {
     }
   }
 
+  // ───────────────────────── Tier 624: the rounding rule ─────────────────────────
+
+  /** the company's rule: `Company.settings.timeRounding`, or none */
+  async rounding(companyId: string): Promise<Rounding> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } })
+    const r = ((company?.settings ?? {}) as { timeRounding?: { minutes?: unknown; mode?: unknown } }).timeRounding
+    const minutes = typeof r?.minutes === 'number' && ROUNDING_STEPS.includes(r.minutes) ? r.minutes : 0
+    return { minutes, mode: r?.mode === 'nearest' ? 'nearest' : 'up' }
+  }
+
+  async setRounding(companyId: string, body: { minutes?: unknown; mode?: unknown }) {
+    if (typeof body?.minutes !== 'number' || !ROUNDING_STEPS.includes(body.minutes)) {
+      throw new BadRequestException(`minutes muss einer der Werte ${ROUNDING_STEPS.join(', ')} sein (0 = nicht runden).`)
+    }
+    if (body.mode !== undefined && body.mode !== 'up' && body.mode !== 'nearest') {
+      throw new BadRequestException('mode muss up (aufrunden) oder nearest (kaufmännisch) sein.')
+    }
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } })
+    if (!company) throw new NotFoundException('Firma nicht gefunden')
+    const rule: Rounding = { minutes: body.minutes, mode: body.mode === 'nearest' ? 'nearest' : 'up' }
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: { ...((company.settings ?? {}) as Record<string, unknown>), timeRounding: rule } },
+    })
+    return rule
+  }
+
   async create(companyId: string, userId: string | null, body: TimeEntryInput) {
     const data = await this.parse(companyId, body, true)
+    // Tier 624: a duration is written as the company rounds it
+    data.minutes = rounded(data.minutes!, await this.rounding(companyId))
     const entry = { customerId: data.customerId ?? null, projectId: data.projectId ?? null }
     const project = await this.withProject(companyId, entry)
     return this.prisma.timeEntry.create({
@@ -261,6 +300,7 @@ export class TimeEntryService {
   async update(id: string, companyId: string, body: TimeEntryInput) {
     const existing = await this.openEntry(id, companyId, 'geändert')
     const data = await this.parse(companyId, body, false)
+    if (data.minutes !== undefined) data.minutes = rounded(data.minutes, await this.rounding(companyId))
     if (data.customerId !== undefined || data.projectId !== undefined) {
       const entry = {
         customerId: data.customerId !== undefined ? data.customerId : existing.customerId,
@@ -364,7 +404,35 @@ export class TimeEntryService {
   private async timerOf(companyId: string, userId: string) {
     const timer = await this.prisma.runningTimer.findFirst({ where: { companyId, userId } })
     if (!timer) return null
-    return { ...timer, elapsedSeconds: Math.max(0, Math.floor((Date.now() - timer.startedAt.getTime()) / 1000)) }
+    return { ...timer, paused: timer.pausedAt !== null, elapsedSeconds: Math.floor(TimeEntryService.elapsedMs(timer) / 1000) }
+  }
+
+  /** Tier 623: the time a timer has run — up to now, or up to its pause — without its pauses */
+  private static elapsedMs(timer: { startedAt: Date; pausedAt: Date | null; pausedSeconds: number }): number {
+    return Math.max(0, (timer.pausedAt ?? new Date()).getTime() - timer.startedAt.getTime() - timer.pausedSeconds * 1000)
+  }
+
+  async pauseTimer(companyId: string, userId: string | null) {
+    const user = this.user(userId)
+    return withKeyLock(`timer:${companyId}:${user}`, async () => {
+      const timer = await this.prisma.runningTimer.findFirst({ where: { companyId, userId: user } })
+      if (!timer) throw new BadRequestException('Es läuft kein Timer.')
+      if (timer.pausedAt) throw new BadRequestException('Der Timer ist bereits angehalten.')
+      await this.prisma.runningTimer.update({ where: { id: timer.id }, data: { pausedAt: new Date() } })
+      return { running: await this.timerOf(companyId, user) }
+    })
+  }
+
+  async resumeTimer(companyId: string, userId: string | null) {
+    const user = this.user(userId)
+    return withKeyLock(`timer:${companyId}:${user}`, async () => {
+      const timer = await this.prisma.runningTimer.findFirst({ where: { companyId, userId: user } })
+      if (!timer) throw new BadRequestException('Es läuft kein Timer.')
+      if (!timer.pausedAt) throw new BadRequestException('Der Timer läuft — er ist nicht angehalten.')
+      const pause = Math.max(0, Math.round((Date.now() - timer.pausedAt.getTime()) / 1000))
+      await this.prisma.runningTimer.update({ where: { id: timer.id }, data: { pausedAt: null, pausedSeconds: timer.pausedSeconds + pause } })
+      return { running: await this.timerOf(companyId, user) }
+    })
   }
 
   private user(userId: string | null): string {
@@ -405,7 +473,7 @@ export class TimeEntryService {
     return withKeyLock(`timer:${companyId}:${user}`, async () => {
       const timer = await this.prisma.runningTimer.findFirst({ where: { companyId, userId: user } })
       if (!timer) throw new BadRequestException('Es läuft kein Timer.')
-      const elapsed = Math.round((Date.now() - timer.startedAt.getTime()) / 60_000)
+      const elapsed = Math.round(TimeEntryService.elapsedMs(timer) / 60_000)
       const minutes = Math.min(24 * 60, Math.max(1, elapsed))
       const entry = await this.create(companyId, user, {
         date: businessDayIso(timer.startedAt),
@@ -425,5 +493,64 @@ export class TimeEntryService {
     const user = this.user(userId)
     const { count } = await this.prisma.runningTimer.deleteMany({ where: { companyId, userId: user } })
     return { discarded: count > 0 }
+  }
+
+  // ───────────────────────── Tier 625: who worked how much ─────────────────────────
+
+  /**
+   * The hours of a period, by employee, customer or project: all, billable,
+   * billed and open, and what the billable hours are worth at their rates.
+   */
+  async report(companyId: string, filter: { from?: string; to?: string; groupBy?: string }) {
+    const groupBy = filter.groupBy || 'user'
+    if (!['user', 'customer', 'project'].includes(groupBy)) throw new BadRequestException('groupBy muss user, customer oder project sein.')
+    const entries = await this.prisma.timeEntry.findMany({
+      where: this.where(companyId, { from: filter.from, to: filter.to }),
+      select: {
+        userId: true, customerId: true, projectId: true, minutes: true, billable: true, invoiceId: true, hourlyRate: true,
+        customer: { select: { name: true } }, project: { select: { name: true } },
+      },
+      take: 50_000,
+    })
+    type Row = { key: string | null; name: string; entries: number; minutes: number; billableMinutes: number; billedMinutes: number; openMinutes: number; billedCents: number; openCents: number }
+    const rows = new Map<string, Row>()
+    for (const e of entries) {
+      const key = groupBy === 'user' ? e.userId : groupBy === 'customer' ? e.customerId : e.projectId
+      const name = groupBy === 'customer' ? e.customer?.name ?? '' : groupBy === 'project' ? e.project?.name ?? '' : ''
+      const row = rows.get(key ?? '') ?? { key: key ?? null, name, entries: 0, minutes: 0, billableMinutes: 0, billedMinutes: 0, openMinutes: 0, billedCents: 0, openCents: 0 }
+      row.entries += 1
+      row.minutes += e.minutes
+      if (e.billable) {
+        row.billableMinutes += e.minutes
+        const cents = e.hourlyRate === null ? 0 : Math.round(amountOf(e.minutes, Number(e.hourlyRate)) * 100)
+        if (e.invoiceId) { row.billedMinutes += e.minutes; row.billedCents += cents }
+        else { row.openMinutes += e.minutes; row.openCents += cents }
+      }
+      rows.set(key ?? '', row)
+    }
+    if (groupBy === 'user') {
+      const ids = [...rows.values()].map((r) => r.key).filter((k): k is string => !!k)
+      // only names of users of this company
+      const users = ids.length
+        ? await this.prisma.user.findMany({
+            where: { id: { in: ids }, OR: [{ companyId }, { userCompanies: { some: { companyId } } }] },
+            select: { id: true, email: true, profile: true },
+          })
+        : []
+      const nameOf = new Map(users.map((u) => [u.id, (((u.profile ?? {}) as { name?: unknown }).name as string) || u.email]))
+      for (const r of rows.values()) r.name = r.key ? nameOf.get(r.key) ?? '' : ''
+    }
+    const out = [...rows.values()]
+      .sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name, 'de'))
+      .map(({ billedCents, openCents, ...r }) => ({ ...r, billedAmount: billedCents / 100, openAmount: openCents / 100 }))
+    const total = out.reduce(
+      (t, r) => ({
+        entries: t.entries + r.entries, minutes: t.minutes + r.minutes, billableMinutes: t.billableMinutes + r.billableMinutes,
+        billedMinutes: t.billedMinutes + r.billedMinutes, openMinutes: t.openMinutes + r.openMinutes,
+        billedAmount: Math.round((t.billedAmount + r.billedAmount) * 100) / 100, openAmount: Math.round((t.openAmount + r.openAmount) * 100) / 100,
+      }),
+      { entries: 0, minutes: 0, billableMinutes: 0, billedMinutes: 0, openMinutes: 0, billedAmount: 0, openAmount: 0 },
+    )
+    return { groupBy, from: filter.from ?? null, to: filter.to ?? null, rows: out, total }
   }
 }

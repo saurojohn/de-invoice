@@ -49,6 +49,7 @@ import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
 import { InvoiceService } from './invoice.service';
 import { ISSUED_AS, isNonFiscal } from './document-scope';
+import { generateTimesheetPdf } from '../time-tracking/timesheet-pdf';
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
 import {
   generateInvoicePDF,
@@ -72,6 +73,9 @@ export interface SendInvoiceEmailOptions {
   // Tier 129: source for the EmailSend audit row
   // (manual button click vs recurring cron tick).
   source?: 'manual' | 'recurring';
+  // Tier 622: an invoice over logged hours takes its Stundennachweis along —
+  // unless this says false
+  attachTimesheet?: boolean;
 }
 
 export interface SendInvoiceEmailResult {
@@ -83,6 +87,7 @@ export interface SendInvoiceEmailResult {
   recipient?: string;
   cc?: string[];
   subject?: string;
+  attachments?: string[];
   smtpConfigured?: boolean;
   language?: 'de' | 'en' | 'zh';
   error?: string;
@@ -238,19 +243,37 @@ export class InvoiceEmailService {
       }
     }
 
+    // Tier 622: the hours billed with this invoice, as a second PDF
+    const attachments = [{ filename: `${invoiceNumber}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }];
+    if (options.attachTimesheet !== false) {
+      const entries = await this.prisma.timeEntry.findMany({
+        where: { companyId, invoiceId },
+        include: { project: { select: { name: true } }, customer: { select: { name: true } } },
+        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+      });
+      if (entries.length > 0) {
+        attachments.push({
+          filename: `Stundennachweis_${invoiceNumber}.pdf`,
+          content: await generateTimesheetPdf({
+            companyName: company?.name || '',
+            companyAddress: (company?.address ?? null) as { street?: string; postalCode?: string; city?: string } | null,
+            customerName: customer?.name ?? null,
+            customerNumber: (customer as { customerNumber?: string | null } | null)?.customerNumber ?? null,
+            invoiceNumber,
+            entries,
+          }),
+          contentType: 'application/pdf',
+        });
+      }
+    }
+
     // Send
     const result = await this.mailService.send(companyId, {
       to: recipientEmail,
       cc: ccList.length ? ccList : undefined,
       subject,
       text,
-      attachments: [
-        {
-          filename: `${invoiceNumber}.pdf`,
-          content: pdfBuffer,
-          contentType: 'application/pdf',
-        },
-      ],
+      attachments,
     });
 
     // (Tier 495: a draft was issued above, before the PDF was rendered.)
@@ -271,7 +294,7 @@ export class InvoiceEmailService {
         recipientName,
         subject,
         bodyPreview: text.slice(0, 500),
-        attachmentPaths: [`${invoiceNumber}.pdf`],
+        attachmentPaths: attachments.map((a) => a.filename),
         status: smtpConfigured ? 'sent' : 'opened',
         sentAt: new Date(),
         createdById,
@@ -295,6 +318,7 @@ export class InvoiceEmailService {
       subject,
       smtpConfigured,
       language: lang,
+      attachments: attachments.map((a) => a.filename),
     };
   }
 

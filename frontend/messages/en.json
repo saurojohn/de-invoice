@@ -4059,7 +4059,8 @@
     "receivedEurTitle": "The amount above is in the invoice's currency. What arrived on the euro account gives the exchange gain or loss.",
     "sendByEmail": "Send by e-mail",
     "paymentLink": "Show payment link",
-    "paymentLinkCreating": "Creating link..."
+    "paymentLinkCreating": "Creating link...",
+    "attachTimesheet": "Attach the time sheet"
   },
   "booksClosing": {
     "title": "Close the books (Festschreibung)",
@@ -4125,7 +4126,11 @@
     "convertNoneLeft_DN": "Everything on this document has been delivered.",
     "convertSubmit_INV": "Create invoice draft",
     "convertSubmit_DN": "Create delivery note draft",
-    "convertInvalid": "A quantity between 0 and what is open"
+    "convertInvalid": "A quantity between 0 and what is open",
+    "progress_INV_partial": "partly invoiced",
+    "progress_INV_full": "invoiced",
+    "progress_DN_partial": "partly delivered",
+    "progress_DN_full": "delivered"
   },
   "time": {
     "title": "Time tracking",
@@ -4188,6 +4193,35 @@
     "timerCapped": "The timer ran for more than 24 hours — 24 hours were logged. Please check the entry.",
     "timesheet": "Time sheet (PDF)",
     "timesheetFailed": "The time sheet could not be created",
-    "timesheetOfInvoice": "Time sheet"
+    "timesheetOfInvoice": "Time sheet",
+    "timerPause": "Pause",
+    "timerResume": "Resume",
+    "timerPaused": "paused",
+    "rounding": "Rounding",
+    "rounding_0": "do not round",
+    "roundingStep": "to {minutes} min",
+    "roundingMode_up": "round up",
+    "roundingMode_nearest": "to the nearest",
+    "roundingHint": "Applies to new and changed durations — also when the timer is stopped.",
+    "roundingSaved": "Rounding saved",
+    "roundingFailed": "Only an administrator can change the rounding.",
+    "report": "Report",
+    "reportShow": "Show",
+    "reportHide": "Close",
+    "reportFrom": "From",
+    "reportTo": "To",
+    "reportBy_user": "Employee",
+    "reportBy_customer": "Customer",
+    "reportBy_project": "Project",
+    "reportHours": "Hours",
+    "reportBillable": "billable",
+    "reportBilled": "billed",
+    "reportOpen": "open",
+    "reportOpenAmount": "open (€)",
+    "reportBilledAmount": "billed (€)",
+    "reportTotal": "Total",
+    "reportNone": "—",
+    "reportEmpty": "No hours in this period.",
+    "reportFailed": "The report could not be loaded"
   }
 }

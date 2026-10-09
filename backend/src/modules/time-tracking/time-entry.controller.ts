@@ -82,6 +82,39 @@ export class TimeEntryController {
     res.end(pdf)
   }
 
+  // Tier 625
+  @Get('report')
+  @Require('invoice.read')
+  report(@Query('companyId') companyId: string, @Query('from') from?: string, @Query('to') to?: string, @Query('groupBy') groupBy?: string) {
+    return this.service.report(this.company(companyId), { from, to, groupBy })
+  }
+
+  // Tier 624: the rounding rule — everyone reads it, the company's admin sets it
+  @Get('settings')
+  @Require('invoice.read')
+  async settings(@Query('companyId') companyId: string) {
+    return { rounding: await this.service.rounding(this.company(companyId)) }
+  }
+
+  @Put('settings')
+  @Require('company.update')
+  async setSettings(@Query('companyId') companyId: string, @Body() body: { rounding?: { minutes?: unknown; mode?: unknown } }) {
+    return { rounding: await this.service.setRounding(this.company(companyId), body?.rounding ?? {}) }
+  }
+
+  // Tier 623
+  @Post('timer/pause')
+  @Require('invoice.write')
+  pauseTimer(@Query('companyId') companyId: string, @Req() req: any) {
+    return this.service.pauseTimer(this.company(companyId), req?.user?.id ?? null)
+  }
+
+  @Post('timer/resume')
+  @Require('invoice.write')
+  resumeTimer(@Query('companyId') companyId: string, @Req() req: any) {
+    return this.service.resumeTimer(this.company(companyId), req?.user?.id ?? null)
+  }
+
   @Get('timer')
   @Require('invoice.read')
   timer(@Query('companyId') companyId: string, @Req() req: any) {

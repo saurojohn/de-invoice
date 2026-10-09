@@ -4059,7 +4059,8 @@
     "receivedEurTitle": "上方金额为发票币种；欧元账户实际到账金额用于计算汇兑损益。",
     "sendByEmail": "通过邮件发送",
     "paymentLink": "显示付款链接",
-    "paymentLinkCreating": "正在生成链接..."
+    "paymentLinkCreating": "正在生成链接...",
+    "attachTimesheet": "附上工时明细"
   },
   "booksClosing": {
     "title": "账簿结账 (Festschreibung)",
@@ -4125,7 +4126,11 @@
     "convertNoneLeft_DN": "此单据已全部交货。",
     "convertSubmit_INV": "生成发票草稿",
     "convertSubmit_DN": "生成送货单草稿",
-    "convertInvalid": "数量须在 0 与未完成数量之间"
+    "convertInvalid": "数量须在 0 与未完成数量之间",
+    "progress_INV_partial": "部分开票",
+    "progress_INV_full": "已开票",
+    "progress_DN_partial": "部分交货",
+    "progress_DN_full": "已交货"
   },
   "time": {
     "title": "工时记录",
@@ -4188,6 +4193,35 @@
     "timerCapped": "计时超过 24 小时——已按 24 小时记录，请检查该条记录。",
     "timesheet": "工时明细（PDF）",
     "timesheetFailed": "无法生成工时明细",
-    "timesheetOfInvoice": "工时明细"
+    "timesheetOfInvoice": "工时明细",
+    "timerPause": "暂停",
+    "timerResume": "继续",
+    "timerPaused": "已暂停",
+    "rounding": "取整",
+    "rounding_0": "不取整",
+    "roundingStep": "按 {minutes} 分钟",
+    "roundingMode_up": "向上取整",
+    "roundingMode_nearest": "四舍五入",
+    "roundingHint": "适用于新建和修改的时长——停止计时时同样适用。",
+    "roundingSaved": "取整规则已保存",
+    "roundingFailed": "只有管理员可以修改取整规则。",
+    "report": "统计",
+    "reportShow": "显示",
+    "reportHide": "收起",
+    "reportFrom": "从",
+    "reportTo": "到",
+    "reportBy_user": "员工",
+    "reportBy_customer": "客户",
+    "reportBy_project": "项目",
+    "reportHours": "小时",
+    "reportBillable": "可计费",
+    "reportBilled": "已开票",
+    "reportOpen": "未开票",
+    "reportOpenAmount": "未开票（€）",
+    "reportBilledAmount": "已开票（€）",
+    "reportTotal": "合计",
+    "reportNone": "—",
+    "reportEmpty": "该期间没有工时。",
+    "reportFailed": "无法加载统计"
   }
 }

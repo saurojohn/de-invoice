@@ -65,6 +65,8 @@ interface Invoice {
   derivedDocuments?: { id: string; invoiceNumber: string; type: string; status: string }[]
   // Tier 615: per target type, what is still open of each line (item id → quantity)
   conversion?: Record<string, Record<string, number>>
+  // Tier 621: none | partial | full, per kind of follow-up document
+  progress?: Record<string, string>
   // Tier 618: how many time entries were billed with this invoice
   timeEntryCount?: number
 }
@@ -1355,6 +1357,7 @@ export default function InvoiceDetailPage() {
           overrideBody: bodyTouched ? emailBody : undefined,
           language: emailLang,
           createdById: userId,
+          ...((invoice.timeEntryCount ?? 0) > 0 ? { attachTimesheet } : {}),
         },
       )
       setSendResult({
@@ -1575,6 +1578,7 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  const [attachTimesheet, setAttachTimesheet] = useState(true) // Tier 622
   // Tier 618: the time sheet of the hours billed with this invoice
   const downloadTimesheet = async () => {
     if (!invoice) return
@@ -1701,6 +1705,17 @@ export default function InvoiceDetailPage() {
               >
                 {docTypeLabel(invoice.type)}
               </span>
+            )}
+            {(["INV", "DN"] as const).map((to) =>
+              invoice.progress?.[to] === "partial" || invoice.progress?.[to] === "full" ? (
+                <span
+                  key={to}
+                  className={`text-xs px-2 py-1 rounded ${invoice.progress[to] === "full" ? "bg-green-100 text-green-700 dark:text-green-300" : "bg-amber-100 text-amber-700 dark:text-amber-300"}`}
+                  data-testid={`conversion-progress-${to}`}
+                >
+                  {t(`docs.progress_${to}_${invoice.progress[to]}`)}
+                </span>
+              ) : null,
             )}
             {invoice.sourceDocument && (
               <a
@@ -3168,6 +3183,13 @@ export default function InvoiceDetailPage() {
                     server-side and attached automatically. */}
                 <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-3">
                   {t("invoicePage.attachment")} <span className="font-mono">{invoice?.invoiceNumber}.pdf</span> {t("invoicePage.autoAttached")}
+                  {/* Tier 622: an invoice over logged hours takes its time sheet along */}
+                  {(invoice?.timeEntryCount ?? 0) > 0 && (
+                    <label className="flex items-center gap-2 mt-2">
+                      <input type="checkbox" checked={attachTimesheet} onChange={(e) => setAttachTimesheet(e.target.checked)} data-testid="email-attach-timesheet" />
+                      {t("invoicePage.attachTimesheet")} <span className="font-mono">Stundennachweis_{invoice?.invoiceNumber}.pdf</span>
+                    </label>
+                  )}
                 </div>
 
                 {/* Action buttons */}

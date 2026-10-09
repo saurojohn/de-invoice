@@ -152,12 +152,52 @@ export class InvoiceService {
       this.prisma.invoice.count({ where }),
     ])
     return {
-      data,
+      data: await this.withProgress(companyId, data),
       total,
       page: pg,
       pageSize: ps,
       totalPages: Math.ceil(total / ps) || 1,
     }
+  }
+
+  /** Tier 621: none | partial | full — how much of the lines' quantities is taken */
+  private static progressOf(items: { id: string; quantity: unknown }[], open: Map<string, number> | Record<string, number>): 'none' | 'partial' | 'full' {
+    const rest = (id: string) => Math.abs((open instanceof Map ? open.get(id) : open[id]) ?? 0);
+    const all = items.reduce((s, i) => s + Math.abs(Number(i.quantity)), 0);
+    const left = items.reduce((s, i) => s + rest(i.id), 0);
+    if (all === 0 || left >= all - 1e-9) return 'none';
+    return left <= 1e-9 ? 'full' : 'partial';
+  }
+
+  /**
+   * Tier 621: the rows of a list that can be converted (quote, order
+   * confirmation, issued invoice) say how far they have been invoiced and
+   * delivered — `progress: { INV?: …, DN?: … }` — with one query for the page.
+   */
+  private async withProgress<T extends { id: string; type: string; status: string; items: { id: string; quantity: unknown }[] }>(companyId: string, rows: T[]) {
+    const sources = rows.filter((r) => InvoiceService.CONVERTIBLE[r.type] && !['cancelled', 'declined'].includes(r.status));
+    if (sources.length === 0) return rows;
+    const taken = await this.prisma.invoiceItem.findMany({
+      where: {
+        sourceItemId: { in: sources.flatMap((r) => r.items.map((i) => i.id)) },
+        invoice: { companyId, status: { not: 'cancelled' }, sourceDocumentId: { in: sources.map((r) => r.id) } },
+      },
+      select: { sourceItemId: true, quantity: true, invoice: { select: { type: true } } },
+    });
+    const sum = new Map<string, number>(); // "<type>:<sourceItemId>" → quantity taken
+    for (const t of taken) {
+      const key = `${t.invoice.type}:${t.sourceItemId}`;
+      sum.set(key, (sum.get(key) ?? 0) + Math.abs(Number(t.quantity)));
+    }
+    return rows.map((r) => {
+      if (!sources.includes(r)) return r;
+      const progress: Record<string, string> = {};
+      for (const to of InvoiceService.CONVERTIBLE[r.type].filter((x) => x !== 'OC')) {
+        const open = new Map(r.items.map((i) => [i.id, Math.max(0, Math.abs(Number(i.quantity)) - (sum.get(`${to}:${i.id}`) ?? 0))] as [string, number]));
+        progress[to] = InvoiceService.progressOf(r.items, open);
+      }
+      return { ...r, progress };
+    });
   }
 
   /**
@@ -362,9 +402,12 @@ export class InvoiceService {
         conversion[to] = Object.fromEntries(await this.openQuantities(companyId, invoice.id, invoice.items, to));
       }
     }
+    // Tier 621: …and in a word — none | partial | full — how far it is invoiced and delivered
+    const progress: Record<string, string> = {};
+    for (const to of Object.keys(conversion).filter((x) => x !== 'OC')) progress[to] = InvoiceService.progressOf(invoice.items, conversion[to]);
     // Tier 618: an invoice over logged hours has a time sheet
     const timeEntryCount = await this.prisma.timeEntry.count({ where: { companyId, invoiceId: id } });
-    return { ...invoice, sourceDocument, derivedDocuments, conversion, timeEntryCount, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
+    return { ...invoice, sourceDocument, derivedDocuments, conversion, progress, timeEntryCount, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
   }
 
   /**

@@ -22,6 +22,7 @@ interface Invoice {
   total: string
   status: string
   issueDate: string
+  progress?: Record<string, string> // Tier 621
 }
 
 function InvoicesPageInner() {
@@ -1237,6 +1238,15 @@ function InvoicesPageInner() {
                       <span className={`px-2 py-1 rounded text-xs ${getStatusColor(invoice.status)}`}>
                         {getStatusLabel(invoice.status)}
                       </span>
+                      {/* Tier 621: how far a quote / an order confirmation has been invoiced */}
+                      {(invoice.type === "QU" || invoice.type === "OC") && (invoice.progress?.INV === "partial" || invoice.progress?.INV === "full") && (
+                        <span
+                          className={`ml-1 px-2 py-1 rounded text-xs ${invoice.progress.INV === "full" ? "bg-green-100 text-green-700 dark:text-green-300" : "bg-amber-100 text-amber-700 dark:text-amber-300"}`}
+                          data-testid="row-progress"
+                        >
+                          {t(`docs.progress_INV_${invoice.progress.INV}`)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex flex-col items-end gap-1">

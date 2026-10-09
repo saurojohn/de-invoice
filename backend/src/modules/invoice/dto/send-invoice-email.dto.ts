@@ -60,6 +60,10 @@ export class InvoiceEmailFieldsDto {
   // HeaderAuthGuard (Tier 383) already requires this to be the caller.
   @IsOptional() @IsString() @MaxLength(64)
   createdById?: string
+
+  // Tier 622: false sends an invoice over logged hours without its Stundennachweis
+  @IsOptional() @StrictBoolean() @IsBoolean()
+  attachTimesheet?: boolean
 }
 
 export class SendInvoiceEmailDto extends InvoiceEmailFieldsDto {}

@@ -61,8 +61,24 @@ interface Project {
   minutes: number
   openMinutes: number
 }
+interface ReportRow {
+  key: string | null
+  name: string
+  entries: number
+  minutes: number
+  billableMinutes: number
+  billedMinutes: number
+  openMinutes: number
+  billedAmount: number
+  openAmount: number
+}
+interface Rounding {
+  minutes: number
+  mode: "up" | "nearest"
+}
 interface RunningTimer {
   startedAt: string
+  paused?: boolean // Tier 623
   elapsedSeconds: number
   customerId: string | null
   projectId: string | null
@@ -117,6 +133,14 @@ export default function TimeTrackingPage() {
   const [timerLoadedAt, setTimerLoadedAt] = useState(0)
   const [now, setNow] = useState(0)
   const [showProjects, setShowProjects] = useState(false)
+  // Tier 624: the company's rounding rule
+  const [rounding, setRounding] = useState<Rounding>({ minutes: 0, mode: "up" })
+  // Tier 625: who worked how much
+  const [showReport, setShowReport] = useState(false)
+  const [reportBy, setReportBy] = useState<"user" | "customer" | "project">("user")
+  const [reportFrom, setReportFrom] = useState("")
+  const [reportTo, setReportTo] = useState("")
+  const [report, setReport] = useState<{ rows: ReportRow[]; total: Omit<ReportRow, "key" | "name"> } | null>(null)
   const [projectForm, setProjectForm] = useState({ ...BLANK_PROJECT })
 
   const money = useMemo(
@@ -180,6 +204,12 @@ export default function TimeTrackingPage() {
       .then((r) => setCustomers((r.data || []).map((c) => ({ id: c.id, name: c.name, defaultHourlyRate: c.defaultHourlyRate ?? null }))))
       .catch(() => setCustomers([]))
     loadProjects()
+    apiGet<{ rounding: Rounding }>(`/api/v1/time-entries/settings?companyId=${companyId}`)
+      .then((r) => setRounding(r.rounding))
+      .catch(() => undefined)
+    const today = todayIso()
+    setReportFrom(`${today.slice(0, 8)}01`)
+    setReportTo(today)
     apiGet<{ running: RunningTimer | null }>(`/api/v1/time-entries/timer?companyId=${companyId}`)
       .then((r) => {
         applyTimer(r.running)
@@ -198,11 +228,11 @@ export default function TimeTrackingPage() {
 
   // the clock of a running timer
   useEffect(() => {
-    if (!timer) return
+    if (!timer || timer.paused) return
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [timer])
-  const elapsed = timer ? timer.elapsedSeconds + Math.max(0, Math.floor((now - timerLoadedAt) / 1000)) : 0
+  const elapsed = timer ? timer.elapsedSeconds + (timer.paused ? 0 : Math.max(0, Math.floor((now - timerLoadedAt) / 1000))) : 0
 
   /** the rate a new entry for this customer / project starts with */
   const defaultRateFor = (customerId: string, projectId: string): string => {
@@ -330,6 +360,50 @@ export default function TimeTrackingPage() {
       setBusy(false)
     }
   }
+  // Tier 623
+  const pauseOrResume = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !timer) return
+    setBusy(true)
+    try {
+      const r = await apiPost<{ running: RunningTimer }>(`/api/v1/time-entries/timer/${timer.paused ? "resume" : "pause"}?companyId=${companyId}`, {})
+      applyTimer(r.running)
+    } catch (err) {
+      fail(err, t("time.timerFailed"))
+    } finally {
+      setBusy(false)
+    }
+  }
+  // Tier 624
+  const saveRounding = async (next: Rounding) => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const r = await apiPut<{ rounding: Rounding }>(`/api/v1/time-entries/settings?companyId=${companyId}`, { rounding: next })
+      setRounding(r.rounding)
+      toast.success(t("time.roundingSaved"))
+    } catch (err) {
+      toast.error(err instanceof ApiError && err.status !== 403 ? err.message : t("time.roundingFailed"))
+    }
+  }
+  // Tier 625
+  const loadReport = useCallback(async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !showReport) return
+    try {
+      const qs = new URLSearchParams({ companyId, groupBy: reportBy })
+      if (reportFrom) qs.set("from", reportFrom)
+      if (reportTo) qs.set("to", reportTo)
+      setReport(await apiGet(`/api/v1/time-entries/report?${qs.toString()}`))
+    } catch (err) {
+      fail(err, t("time.reportFailed"))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showReport, reportBy, reportFrom, reportTo])
+  useEffect(() => {
+    loadReport()
+  }, [loadReport])
+
   const discardTimer = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId || !confirm(t("time.timerConfirmDiscard"))) return
@@ -467,8 +541,16 @@ export default function TimeTrackingPage() {
                   <span className="font-mono text-lg tabular-nums" data-testid="time-timer-clock">
                     {hhmmss(elapsed)}
                   </span>
+                  {timer.paused && (
+                    <span className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-700 dark:text-amber-300" data-testid="time-timer-paused">
+                      {t("time.timerPaused")}
+                    </span>
+                  )}
                   <Button onClick={stopTimer} disabled={busy} data-testid="time-timer-stop">
                     {t("time.timerStop")}
+                  </Button>
+                  <Button variant="outline" onClick={pauseOrResume} disabled={busy} data-testid="time-timer-pause">
+                    {timer.paused ? t("time.timerResume") : t("time.timerPause")}
                   </Button>
                   <Button variant="outline" onClick={discardTimer} disabled={busy} data-testid="time-timer-discard">
                     {t("time.timerDiscard")}
@@ -583,6 +665,35 @@ export default function TimeTrackingPage() {
                   {t("common.cancel")}
                 </Button>
               )}
+              {/* Tier 624: the rounding rule */}
+              <div className="ml-auto flex flex-wrap items-center gap-2 text-sm" data-testid="time-rounding" title={t("time.roundingHint")}>
+                <span className="text-gray-600 dark:text-gray-300">{t("time.rounding")}:</span>
+                <select
+                  className="h-9 border rounded-md px-2 bg-white dark:bg-gray-800"
+                  value={rounding.minutes}
+                  onChange={(e) => saveRounding({ ...rounding, minutes: Number(e.target.value) })}
+                  aria-label={t("time.rounding")}
+                  data-testid="time-rounding-minutes"
+                >
+                  {[0, 5, 6, 10, 15, 30, 60].map((m) => (
+                    <option key={m} value={m}>
+                      {m === 0 ? t("time.rounding_0") : t("time.roundingStep", { minutes: m })}
+                    </option>
+                  ))}
+                </select>
+                {rounding.minutes > 0 && (
+                  <select
+                    className="h-9 border rounded-md px-2 bg-white dark:bg-gray-800"
+                    value={rounding.mode}
+                    onChange={(e) => saveRounding({ ...rounding, mode: e.target.value as Rounding["mode"] })}
+                    aria-label={t("time.rounding")}
+                    data-testid="time-rounding-mode"
+                  >
+                    <option value="up">{t("time.roundingMode_up")}</option>
+                    <option value="nearest">{t("time.roundingMode_nearest")}</option>
+                  </select>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -644,7 +755,7 @@ export default function TimeTrackingPage() {
                 {t("time.projectAdd")}
               </Button>
               {projects.length > 0 && (
-                <table className="w-full text-sm mt-4" data-testid="time-project-table">
+                <div className="overflow-x-auto"><table className="w-full text-sm mt-4" data-testid="time-project-table">
                   <thead>
                     <tr className="text-left border-b">
                       <th className="py-2 pr-3">{t("time.projectName")}</th>
@@ -689,7 +800,79 @@ export default function TimeTrackingPage() {
                       )
                     })}
                   </tbody>
-                </table>
+                </table></div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Tier 625: who worked how much */}
+        <Card data-testid="time-report">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>{t("time.report")}</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setShowReport(!showReport)} data-testid="time-report-toggle" aria-expanded={showReport}>
+              {showReport ? t("time.reportHide") : t("time.reportShow")}
+            </Button>
+          </CardHeader>
+          {showReport && (
+            <CardContent>
+              <div className="flex flex-wrap gap-3 items-end mb-4">
+                <label className="block text-sm">
+                  <span className="block font-medium mb-1">{t("time.reportFrom")}</span>
+                  <Input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} data-testid="time-report-from" />
+                </label>
+                <label className="block text-sm">
+                  <span className="block font-medium mb-1">{t("time.reportTo")}</span>
+                  <Input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} data-testid="time-report-to" />
+                </label>
+                <div className="flex gap-2" role="group">
+                  {(["user", "customer", "project"] as const).map((g) => (
+                    <Button key={g} size="sm" variant={reportBy === g ? "default" : "outline"} onClick={() => setReportBy(g)} data-testid={`time-report-by-${g}`}>
+                      {t(`time.reportBy_${g}`)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {!report || report.rows.length === 0 ? (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-4" data-testid="time-report-empty">
+                  {t("time.reportEmpty")}
+                </p>
+              ) : (
+                <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="time-report-table">
+                  <thead>
+                    <tr className="text-left border-b">
+                      <th className="py-2 pr-3">{t(`time.reportBy_${reportBy}`)}</th>
+                      <th className="py-2 pr-3 text-right">{t("time.reportHours")}</th>
+                      <th className="py-2 pr-3 text-right">{t("time.reportBillable")}</th>
+                      <th className="py-2 pr-3 text-right">{t("time.reportBilled")}</th>
+                      <th className="py-2 pr-3 text-right">{t("time.reportOpen")}</th>
+                      <th className="py-2 pr-3 text-right">{t("time.reportBilledAmount")}</th>
+                      <th className="py-2 text-right">{t("time.reportOpenAmount")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.rows.map((r) => (
+                      <tr key={r.key ?? "-"} className="border-b" data-testid="time-report-row">
+                        <td className="py-2 pr-3">{r.name || t("time.reportNone")}</td>
+                        <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(r.minutes)}</td>
+                        <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(r.billableMinutes)}</td>
+                        <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(r.billedMinutes)}</td>
+                        <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(r.openMinutes)}</td>
+                        <td className="py-2 pr-3 text-right whitespace-nowrap">{money.format(r.billedAmount)}</td>
+                        <td className="py-2 text-right whitespace-nowrap">{money.format(r.openAmount)}</td>
+                      </tr>
+                    ))}
+                    <tr className="font-semibold" data-testid="time-report-total">
+                      <td className="py-2 pr-3">{t("time.reportTotal")}</td>
+                      <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(report.total.minutes)}</td>
+                      <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(report.total.billableMinutes)}</td>
+                      <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(report.total.billedMinutes)}</td>
+                      <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(report.total.openMinutes)}</td>
+                      <td className="py-2 pr-3 text-right whitespace-nowrap">{money.format(report.total.billedAmount)}</td>
+                      <td className="py-2 text-right whitespace-nowrap">{money.format(report.total.openAmount)}</td>
+                    </tr>
+                  </tbody>
+                </table></div>
               )}
             </CardContent>
           )}
@@ -770,7 +953,7 @@ export default function TimeTrackingPage() {
                 {t("time.empty")}
               </p>
             ) : (
-              <table className="w-full text-sm" data-testid="time-table">
+              <div className="overflow-x-auto"><table className="w-full text-sm" data-testid="time-table">
                 <thead>
                   <tr className="text-left border-b">
                     <th className="py-2 pr-3">{t("time.date")}</th>
@@ -829,7 +1012,7 @@ export default function TimeTrackingPage() {
                     )
                   })}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </CardContent>
         </Card>

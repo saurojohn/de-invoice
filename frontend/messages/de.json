@@ -4059,7 +4059,8 @@
     "receivedEurTitle": "Der Betrag oben ist in der Währung der Rechnung. Was auf dem Euro-Konto ankam, ergibt den Kursgewinn oder -verlust.",
     "sendByEmail": "Per E-Mail senden",
     "paymentLink": "Zahlungslink anzeigen",
-    "paymentLinkCreating": "Erstelle Link..."
+    "paymentLinkCreating": "Erstelle Link...",
+    "attachTimesheet": "Stundennachweis anhängen"
   },
   "booksClosing": {
     "title": "Bücher abschließen (Festschreibung)",
@@ -4125,7 +4126,11 @@
     "convertNoneLeft_DN": "Aus diesem Dokument ist bereits alles geliefert.",
     "convertSubmit_INV": "Rechnungsentwurf erstellen",
     "convertSubmit_DN": "Lieferscheinentwurf erstellen",
-    "convertInvalid": "Menge zwischen 0 und dem offenen Rest"
+    "convertInvalid": "Menge zwischen 0 und dem offenen Rest",
+    "progress_INV_partial": "teilweise abgerechnet",
+    "progress_INV_full": "abgerechnet",
+    "progress_DN_partial": "teilweise geliefert",
+    "progress_DN_full": "geliefert"
   },
   "time": {
     "title": "Zeiterfassung",
@@ -4188,6 +4193,35 @@
     "timerCapped": "Der Timer lief länger als 24 Stunden — erfasst wurden 24 Stunden. Bitte prüfen Sie den Eintrag.",
     "timesheet": "Stundennachweis (PDF)",
     "timesheetFailed": "Der Stundennachweis konnte nicht erstellt werden",
-    "timesheetOfInvoice": "Stundennachweis"
+    "timesheetOfInvoice": "Stundennachweis",
+    "timerPause": "Pause",
+    "timerResume": "Fortsetzen",
+    "timerPaused": "angehalten",
+    "rounding": "Rundung",
+    "rounding_0": "nicht runden",
+    "roundingStep": "auf {minutes} Min.",
+    "roundingMode_up": "aufrunden",
+    "roundingMode_nearest": "kaufmännisch",
+    "roundingHint": "Gilt für neue und geänderte Dauern — auch beim Stoppen des Timers.",
+    "roundingSaved": "Rundung gespeichert",
+    "roundingFailed": "Die Rundung kann nur ein Administrator ändern.",
+    "report": "Auswertung",
+    "reportShow": "Anzeigen",
+    "reportHide": "Schließen",
+    "reportFrom": "Von",
+    "reportTo": "Bis",
+    "reportBy_user": "Mitarbeiter",
+    "reportBy_customer": "Kunde",
+    "reportBy_project": "Projekt",
+    "reportHours": "Stunden",
+    "reportBillable": "abrechenbar",
+    "reportBilled": "abgerechnet",
+    "reportOpen": "offen",
+    "reportOpenAmount": "offen (€)",
+    "reportBilledAmount": "abgerechnet (€)",
+    "reportTotal": "Summe",
+    "reportNone": "—",
+    "reportEmpty": "Keine Zeiten im Zeitraum.",
+    "reportFailed": "Die Auswertung konnte nicht geladen werden"
   }
 }
