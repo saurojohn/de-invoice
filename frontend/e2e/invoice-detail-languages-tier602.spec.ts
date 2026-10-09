@@ -44,14 +44,14 @@ test("the invoice page in German, Chinese and English", async ({ page, request }
     await page.waitForLoadState("networkidle")
     return (await page.locator("body").innerText()).replace(/\s+/g, " ")
   }
-  const GERMAN = ["Rechnungsinformationen", "Positionen", "Einzelpreis", "Zwischensumme (Netto):", "PDF herunterladen", "Fälligkeitsdatum"]
+  const GERMAN = ["Rechnungsinformationen", "Positionen", "Einzelpreis", "Zwischensumme (Netto):", "PDF herunterladen", "Fälligkeitsdatum", "Per E-Mail senden"] // the last since Tier 619
   const de = await open("de")
   for (const s of GERMAN) expect(de, `German: ${s}`).toContain(s)
   const zh = await open("zh")
-  for (const s of ["发票信息", "明细", "单价", "小计（净额）：", "下载 PDF", "到期日"]) expect(zh, `Chinese: ${s}`).toContain(s)
+  for (const s of ["发票信息", "明细", "单价", "小计（净额）：", "下载 PDF", "到期日", "通过邮件发送"]) expect(zh, `Chinese: ${s}`).toContain(s)
   for (const s of GERMAN) expect(zh, `Chinese page still says ${s}`).not.toContain(s)
   const en = await open("en")
-  for (const s of ["Invoice details", "Line items", "Unit price", "Subtotal (net):", "Download PDF", "Due date"]) expect(en, `English: ${s}`).toContain(s)
+  for (const s of ["Invoice details", "Line items", "Unit price", "Subtotal (net):", "Download PDF", "Due date", "Send by e-mail"]) expect(en, `English: ${s}`).toContain(s)
   for (const s of GERMAN) expect(en, `English page still says ${s}`).not.toContain(s)
   for (const text of [de, zh, en]) expect(text).not.toMatch(/invoicePage\.[a-zA-Z0-9]+/)
 })

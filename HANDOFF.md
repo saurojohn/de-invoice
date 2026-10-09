@@ -2646,6 +2646,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 619 — three buttons of the invoice page that were German in every language
+
+Walking the screens of Tiers 614–618 in Chinese and English (list, document page, the quantity dialog, time page, dashboard — no raw key, no console error, nothing wider than 390 px) showed what Tier 602 had left on the invoice page's header: „Per E-Mail senden“, „Zahlungslink anzeigen“ / „Erstelle Link...“ and „Löschen“ were literals. They are `invoicePage.sendByEmail`, `.paymentLink`, `.paymentLinkCreating` and `.delete` now; the German texts are unchanged (specs match them). `invoice-detail-languages-tier602` asserts the first in all three languages.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tiers 616–618 — time tracking: default rates and projects, the timer, the time sheet
 
 The other four of the owner's „都做“ of 09.10.2026 (see Tiers 614–615). One migration, `20261009000005_time_projects_and_timer` (additive).

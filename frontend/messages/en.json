@@ -4056,7 +4056,10 @@
     "giroCodeTitle": "Download the GiroCode (EPC QR code) as PNG — scan it with a banking app",
     "copyAsDraftTitle": "Duplicate this invoice as a new draft",
     "frozenTitle": "This invoice is locked. Only its status can still change (cancelling etc.).",
-    "receivedEurTitle": "The amount above is in the invoice's currency. What arrived on the euro account gives the exchange gain or loss."
+    "receivedEurTitle": "The amount above is in the invoice's currency. What arrived on the euro account gives the exchange gain or loss.",
+    "sendByEmail": "Send by e-mail",
+    "paymentLink": "Show payment link",
+    "paymentLinkCreating": "Creating link..."
   },
   "booksClosing": {
     "title": "Close the books (Festschreibung)",

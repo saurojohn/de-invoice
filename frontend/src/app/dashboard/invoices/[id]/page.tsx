@@ -1727,7 +1727,7 @@ export default function InvoiceDetailPage() {
           </div>
           <div className="flex gap-2 items-center flex-wrap">
             <Button variant="outline" onClick={openEmailModal} disabled={sending}>
-              {sending ? "Wird gesendet..." : "Per E-Mail senden"}
+              {sending ? t("common2.sending") : t("invoicePage.sendByEmail")}
             </Button>
             {/* Tier 33: payment link for the customer portal.
                 First click mints the link via the backend.
@@ -1742,9 +1742,7 @@ export default function InvoiceDetailPage() {
                 disabled={portalLinkGenerating}
                 data-testid="invoice-portal-link-button"
               >
-                {portalLinkGenerating
-                  ? "Erstelle Link..."
-                  : "Zahlungslink anzeigen"}
+                {portalLinkGenerating ? t("invoicePage.paymentLinkCreating") : t("invoicePage.paymentLink")}
               </Button>
             )}
             {sendResult && (
@@ -1867,7 +1865,7 @@ export default function InvoiceDetailPage() {
                   disabled={deleting}
                   className="text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50"
                 >
-                  {deleting ? "..." : "Löschen"}
+                  {deleting ? "..." : t("invoicePage.delete")}
                 </Button>
               </>
             )}

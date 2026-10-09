@@ -4056,7 +4056,10 @@
     "giroCodeTitle": "下载 GiroCode（EPC 二维码）PNG，可用银行 App 扫描",
     "copyAsDraftTitle": "将此发票复制为新草稿",
     "frozenTitle": "此发票已锁定，只能更改状态（如作废）。",
-    "receivedEurTitle": "上方金额为发票币种；欧元账户实际到账金额用于计算汇兑损益。"
+    "receivedEurTitle": "上方金额为发票币种；欧元账户实际到账金额用于计算汇兑损益。",
+    "sendByEmail": "通过邮件发送",
+    "paymentLink": "显示付款链接",
+    "paymentLinkCreating": "正在生成链接..."
   },
   "booksClosing": {
     "title": "账簿结账 (Festschreibung)",

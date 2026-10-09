@@ -4056,7 +4056,10 @@
     "giroCodeTitle": "GiroCode (EPC QR-Code) als PNG herunterladen — mit der Banking-App scannen",
     "copyAsDraftTitle": "Diese Rechnung als neuen Entwurf duplizieren",
     "frozenTitle": "Diese Rechnung ist eingefroren. Nur der Status kann noch geändert werden (Stornieren etc.).",
-    "receivedEurTitle": "Der Betrag oben ist in der Währung der Rechnung. Was auf dem Euro-Konto ankam, ergibt den Kursgewinn oder -verlust."
+    "receivedEurTitle": "Der Betrag oben ist in der Währung der Rechnung. Was auf dem Euro-Konto ankam, ergibt den Kursgewinn oder -verlust.",
+    "sendByEmail": "Per E-Mail senden",
+    "paymentLink": "Zahlungslink anzeigen",
+    "paymentLinkCreating": "Erstelle Link..."
   },
   "booksClosing": {
     "title": "Bücher abschließen (Festschreibung)",
