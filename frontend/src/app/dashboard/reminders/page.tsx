@@ -21,6 +21,8 @@ interface OverdueInvoice {
     }
   }
   total: string
+  // Tier 638: the total less payments and credit notes
+  openAmount?: string
   dueDate: string
   daysOverdue: number
   reminderCount: number
@@ -347,8 +349,13 @@ export default function RemindersPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                        <span data-testid="reminder-amount">{fmtMoney(invoice.total)} €</span>
+                        <span data-testid="reminder-amount">{fmtMoney(invoice.openAmount ?? invoice.total)} €</span>
                       </div>
+                      {invoice.openAmount !== undefined && Number(invoice.openAmount) !== Number(invoice.total) && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400" data-testid="reminder-invoice-total">
+                          {t("reminder.ofInvoiceTotal", { total: fmtMoney(invoice.total) })}
+                        </div>
+                      )}
                       <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                         {new Date(invoice.dueDate).toLocaleDateString(getDateLocale())}
                       </div>

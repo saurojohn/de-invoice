@@ -72,6 +72,14 @@ export function readDunningConfig(settings: unknown): DunningConfig {
   return merged
 }
 
+/** The invoice's total less its payments (credit notes are among them, Tier 422). */
+const openOf = (inv: { total: unknown; payments: Array<{ amount: unknown }> }): number =>
+  Math.max(0, Math.round((Number(inv.total) - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)) * 100) / 100)
+
+/** 1190 → "1.190,00", as a German letter writes an amount. */
+const germanAmount = (n: number): string =>
+  n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 export interface OverdueInvoice {
   id: string;
   invoiceNumber: string;
@@ -89,6 +97,8 @@ export interface OverdueInvoice {
     };
   };
   total: string;
+  /** Tier 638: the total less what was paid or credited — what the reminder is about. */
+  openAmount?: string;
   dueDate: string;
   // Rechnungsdatum — needed by the Mahnung PDF and
   // by the auto-reminder cron (which renders the
@@ -208,6 +218,7 @@ export class ReminderService {
         language: true,
         costCenter: true,
         costObject: true,
+        payments: { select: { amount: true } },
         customer: {
           select: {
             id: true,
@@ -335,6 +346,7 @@ export class ReminderService {
           address: inv.customer.address as any,
         },
         total: inv.total.toString(),
+        openAmount: openOf(inv).toString(),
         dueDate: inv.dueDate!.toISOString(),
         issueDate: inv.issueDate.toISOString(),
         daysOverdue,
@@ -493,12 +505,18 @@ ${company.name}`,
     const existing = await this.prisma.reminderTemplate.findUnique({
       where: { companyId_level: { companyId, level } },
     })
+    const defaults = this.defaultTemplates()
+    // Tier 638: a row nobody edited is a copy of the default made on the
+    // first request — it follows the default when that is corrected.
+    if (existing?.isDefault && (existing.subject !== defaults[level].subject || existing.body !== defaults[level].body)) {
+      return this.prisma.reminderTemplate.update({
+        where: { companyId_level: { companyId, level } },
+        data: { subject: defaults[level].subject, body: defaults[level].body },
+      })
+    }
     if (existing) return existing
 
     // Seed defaults for the level the caller asked for.
-    // Use the same wording the previous generateReminderEmail
-    // hard-coded — preserves the user-visible behaviour.
-    const defaults = this.defaultTemplates()
     return this.prisma.reminderTemplate.create({
       data: {
         companyId,
@@ -521,7 +539,7 @@ ${company.name}`,
         subject: 'Erinnerung: Rechnung {{invoiceNumber}} ist überfällig',
         body: `Sehr geehrte/r {{customerName}},
 
-hiermit möchten wir Sie freundlich daran erinnern, dass die Rechnung {{invoiceNumber}} vom {{dueDateFormatted}} mit einem Betrag von EUR {{totalAmount}} bereits überfällig ist.
+hiermit möchten wir Sie freundlich daran erinnern, dass aus der Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, noch {{openAmount}} EUR offen sind.
 
 Die Zahlung ist seit {{daysOverdue}} Tag(en) überfällig.
 
@@ -538,9 +556,9 @@ Mit freundlichen Grüßen,
         subject: '2. Mahnung: Rechnung {{invoiceNumber}} - Zahlung sofort erforderlich',
         body: `Sehr geehrte/r {{customerName}},
 
-leider mussten wir feststellen, dass die Rechnung {{invoiceNumber}} vom {{dueDateFormatted}} trotz unserer ersten Erinnerung noch nicht beglichen wurde.
+leider mussten wir feststellen, dass die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, trotz unserer ersten Erinnerung noch nicht beglichen wurde.
 
-Fälliger Betrag: EUR {{totalAmount}}
+Offener Betrag: {{openAmount}} EUR
 Überfällig seit: {{daysOverdue}} Tag(en)
 
 Wir bitten Sie, den offenen Betrag unverzüglich, spätestens jedoch innerhalb von 7 Tagen, auf folgendes Konto zu überweisen:
@@ -556,9 +574,9 @@ Mit freundlichen Grüßen,
         subject: 'Letzte Mahnung: Rechnung {{invoiceNumber}} - Außergerichtliches Inkasso',
         body: `Sehr geehrte/r {{customerName}},
 
-trotz mehrfacher Aufforderung bleibt die Rechnung {{invoiceNumber}} vom {{dueDateFormatted}} weiterhin unbeglichen.
+trotz mehrfacher Aufforderung bleibt die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, weiterhin unbeglichen.
 
-Offener Betrag: EUR {{totalAmount}}
+Offener Betrag: {{openAmount}} EUR
 Überfällig seit: {{daysOverdue}} Tag(en)
 
 Dies ist unsere LETZTE Mahnung. Wir fordern Sie auf, den offenen Betrag innerhalb von 5 Tagen auf folgendes Konto zu überweisen:
@@ -610,12 +628,21 @@ Mit freundlichen Grüßen,
 
     const customerName =
       (invoice.customer.contact as any)?.name || invoice.customer.name
-    const totalAmount = parseFloat(invoice.total.toString()).toFixed(2)
-    const dueDateFormatted = new Date(invoice.dueDate!).toLocaleDateString('de-DE', {
+    // Tier 638: the text asked for the invoice's total — "Offener Betrag: EUR
+    // 1190.00" under an invoice of which 190 € were paid, while the PDF in
+    // the same e-mail said 1 000 € (Tier 421) — and called the due date the
+    // invoice's date ("Rechnung … vom 31. August", issued on the 17th).
+    // {{totalAmount}} is what the three texts always used it for: the amount
+    // to pay. The invoice's own total is {{invoiceTotal}}.
+    const total = Number(invoice.total)
+    const open = await this.openBalance(invoice.id, total)
+    const longDate = (d: Date) => new Date(d).toLocaleDateString('de-DE', {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
+      timeZone: 'UTC',
     })
+    const dueDateFormatted = longDate(invoice.dueDate!)
     const daysOverdue = daysOverdueOf(invoice.dueDate)
     const bank = (company as any).bankInfo || {}
     const bankInfo = [
@@ -628,7 +655,10 @@ Mit freundlichen Grüßen,
     const ctx: Record<string, string | number> = {
       customerName,
       invoiceNumber: invoice.invoiceNumber,
-      totalAmount,
+      totalAmount: germanAmount(open),
+      openAmount: germanAmount(open),
+      invoiceTotal: germanAmount(total),
+      issueDateFormatted: longDate(invoice.issueDate),
       dueDateFormatted,
       daysOverdue,
       bankInfo: bankInfo || '(Bankverbindung fehlt — bitte unter Einstellungen ergänzen)',
@@ -742,14 +772,17 @@ Mit freundlichen Grüßen,
           type: 'INV',
         },
       }),
-      this.prisma.invoice.aggregate({
+      // Tier 638: what is open, not what was invoiced — a part payment
+      // leaves the status at 'sent', and the page said 2 380 € were overdue
+      // where 2 000 € were.
+      this.prisma.invoice.findMany({
         where: {
           companyId,
           status: 'sent',
           dueDate: { lt: today },
           type: 'INV',
         },
-        _sum: { total: true },
+        select: { total: true, payments: { select: { amount: true } } },
       }),
       this.prisma.emailSend.count({
         where: {
@@ -764,7 +797,7 @@ Mit freundlichen Grüßen,
 
     return {
       overdueCount,
-      totalOverdueAmount: totalOverdueAmount._sum.total?.toString() || '0',
+      totalOverdueAmount: (Math.round(totalOverdueAmount.reduce((sum, inv) => sum + openOf(inv), 0) * 100) / 100).toString(),
       recentReminders,
     };
   }

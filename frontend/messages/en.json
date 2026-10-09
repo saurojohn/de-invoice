@@ -1607,6 +1607,7 @@
     "startDateLabel": "Start date"
   },
   "reminder": {
+    "ofInvoiceTotal": "of {total} € invoiced",
     "title": "Payment Reminders",
     "overdueInvoices": "Overdue Invoices",
     "overdueAmount": "Overdue Total Amount",

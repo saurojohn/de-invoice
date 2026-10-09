@@ -1607,6 +1607,7 @@
     "startDateLabel": "开始日期"
   },
   "reminder": {
+    "ofInvoiceTotal": "发票金额 {total} €",
     "title": "付款提醒",
     "overdueInvoices": "逾期发票",
     "overdueAmount": "逾期总额",

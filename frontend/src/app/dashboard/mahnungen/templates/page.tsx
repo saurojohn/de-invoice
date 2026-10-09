@@ -51,7 +51,7 @@ interface Template {
   isDefault: boolean
 }
 
-// The 7 placeholders the backend resolves. Listed
+// The placeholders the backend resolves. Listed
 // here (in addition to being read from the rendered
 // preview) so the editor can show them as
 // "click-to-insert" tokens. Source of truth is
@@ -60,7 +60,12 @@ interface Template {
 const PLACEHOLDERS: { key: string; label: string }[] = [
   { key: "customerName", label: "Kundenname" },
   { key: "invoiceNumber", label: "Rechnungsnummer" },
-  { key: "totalAmount", label: "Betrag (EUR)" },
+  // Tier 638: what is still open — the invoice's total less payments and
+  // credit notes. {{totalAmount}} gives the same (it used to be the total).
+  { key: "openAmount", label: "Offener Betrag" },
+  { key: "totalAmount", label: "Offener Betrag (wie openAmount)" },
+  { key: "invoiceTotal", label: "Rechnungsbetrag" },
+  { key: "issueDateFormatted", label: "Rechnungsdatum" },
   { key: "dueDateFormatted", label: "Fälligkeitsdatum" },
   { key: "daysOverdue", label: "Tage überfällig" },
   { key: "bankInfo", label: "Bankverbindung" },
