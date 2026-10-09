@@ -1013,7 +1013,10 @@ export default function DashboardPage() {
 
         {/* Quick Actions */}
         <h2 className="text-xl font-semibold mb-4">{t("dashboard.quickActions")}</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* Tier 620: a card is as wide as its column, and a title that is one long
+            word („Auftragsbestätigungen“) breaks instead of widening the page —
+            at 768 px the three columns were 25 px wider than the screen */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 [&>*]:min-w-0 [&_h3]:[overflow-wrap:anywhere]">
           <Card
             className="cursor-pointer hover:shadow-lg transition-shadow border-blue-300 dark:border-blue-700 bg-blue-50/50"
             onClick={() => router.push("/dashboard/invoices/create")}

@@ -2646,6 +2646,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 620 — the dashboard at tablet width (CI red after Tiers 614–618)
+
+**CI run 37933441777 (commit `50006c9`) failed in one Playwright test:** `mobile-responsive-tier121` — „tablet 768x1024: dashboard renders without horizontal overflow“, body 805 px wide. Backend e2e was green (370 passed / 1 skipped), Playwright 1028 passed / 1 failed. Cause: the dashboard card added in Tier 614 is titled „Auftragsbestätigungen“ — one word, wider than a column of the three-column grid at 768 px; a grid item is at least as wide as its content, so the grid grew. I had looked at the new screens at 1280 and 390 px only, and the spec that checks 768 px hard-codes port 3001 and is not run locally. Fix: the card grid's items get `min-w-0` and its titles `overflow-wrap: anywhere`. Then every new or changed page was measured at **375, 640, 768, 820, 1024 and 1280 px in de / en / zh**: none wider than its viewport. `mobile-width-tier596.spec.ts` (runs locally) now checks the dashboard at 768, 820 and 1024 px.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 619 — three buttons of the invoice page that were German in every language
 
 Walking the screens of Tiers 614–618 in Chinese and English (list, document page, the quantity dialog, time page, dashboard — no raw key, no console error, nothing wider than 390 px) showed what Tier 602 had left on the invoice page's header: „Per E-Mail senden“, „Zahlungslink anzeigen“ / „Erstelle Link...“ and „Löschen“ were literals. They are `invoicePage.sendByEmail`, `.paymentLink`, `.paymentLinkCreating` and `.delete` now; the German texts are unchanged (specs match them). `invoice-detail-languages-tier602` asserts the first in all three languages.
@@ -8756,6 +8760,8 @@ finding critical/high issues. Future agents must respect them:
 - **A CSS rule for "every X" matches things you did not picture (Tier 603).** `.flex:has(> button) { flex-wrap: wrap }`, meant for button rows, matched `<body>` and widened 23 pages. After a global style change, run the page walk over ALL pages again (`$S/review/ui/walk.js mobile`), not only over the pages the change was for — and measure narrower than the test (350 px), because the CI machine's fonts are wider than macOS's.
 
 - **A new document type is checked by calling the routes, not by reading the queries (Tier 612).** After adding quotes and delivery notes to the `Invoice` table, a scan of the code for invoice queries without a type filter looked clean — it counted `type: true` in a select and any mention of `invoiceNumber` as a filter, and skipped `findFirst`. Calling every write route with a quote's id and searching every GET response for its number found six places in an hour, one of them a voucher booked for a quote and one a customer marking a quote as paid.
+
+- **"Looked at on desktop and phone" skips the width where grids have the most columns per pixel (Tier 620).** A three-column grid at 768 px has narrower columns than the one-column layout at 390 px; a long German compound in a card title overflowed only there. Measure new UI at 375 / 640 / 768 / 1024 / 1280, in all three languages — it is one script and a minute.
 
 ## 11. What to do when you start
 

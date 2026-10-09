@@ -58,3 +58,35 @@ test("the pages that were wider than a phone fit now", async ({ page, request })
   }
   expect(tooWide, "pages wider than the 390 px screen").toEqual([])
 })
+
+// Tier 620: a dashboard card titled with one long word („Auftragsbestätigungen“,
+// Tier 614) made the three-column grid 25 px wider than a tablet.
+for (const width of [768, 820, 1024]) {
+  test(`the dashboard fits ${width} px`, async ({ page, request }) => {
+    const tag = `t620-${width}-${Date.now()}`
+    const reg = await (await request.post(`${API}/api/v1/auth/register`, {
+      data: { email: `${tag}@example.test`, password: "Tier620-e2e", companyName: `${tag} GmbH` },
+    })).json()
+    const userId: string = reg.user.id
+    const companyId: string = reg.user.companyId || reg.company.id
+    await page.context().addCookies([
+      { name: "x-user-id", value: userId, domain: "localhost", path: "/" },
+      { name: "x-company-id", value: companyId, domain: "localhost", path: "/" },
+    ])
+    await page.addInitScript(
+      ({ userId, companyId }: { userId: string; companyId: string }) => {
+        localStorage.setItem("userId", userId)
+        localStorage.setItem("companyId", companyId)
+        localStorage.setItem("locale", "de")
+        localStorage.setItem("cookie-consent", JSON.stringify({ necessary: true, analytics: false, marketing: false, savedAt: "2026-10-08T00:00:00.000Z" }))
+      },
+      { userId, companyId },
+    )
+    await page.setViewportSize({ width, height: 1024 })
+    await page.goto("/dashboard")
+    await expect(page.getByTestId("card-order-confirmations")).toBeVisible({ timeout: 60_000 })
+    await page.waitForLoadState("networkidle").catch(() => undefined)
+    const over = await page.evaluate(() => document.body.scrollWidth - window.innerWidth)
+    expect(over, `the dashboard is ${over} px wider than ${width} px`).toBeLessThanOrEqual(1)
+  })
+}
