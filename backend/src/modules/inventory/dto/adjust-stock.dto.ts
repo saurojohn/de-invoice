@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 378 — PUT /inventory/:productId/adjust.
  *
@@ -11,7 +12,7 @@ import { IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf }
 
 export class AdjustStockDto {
   // Product.stockQuantity / ProductStockHistory.quantity are Decimal(12,4).
-  @IsNumber({}, { message: 'Menge muss eine Zahl sein' })
+  @StrictNumber() @IsNumber({}, { message: 'Menge muss eine Zahl sein' })
   @Min(0, { message: 'Menge darf nicht negativ sein' })
   @Max(99999999.9999)
   quantity!: number

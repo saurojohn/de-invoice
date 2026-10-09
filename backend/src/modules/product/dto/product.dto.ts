@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import {
   IsString,
   IsOptional,
@@ -36,7 +37,7 @@ export class CreateProductDto {
   // Prices / VAT are stored as strings in the DB (Decimal). Coerce
   // numbers safely so a missing field becomes 0 rather than NaN.
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Ungültiger Preis' })
+  @StrictNumber() @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Ungültiger Preis' })
   @Min(0, { message: 'Preis darf nicht negativ sein' })
   basePrice!: number;
 
@@ -53,7 +54,7 @@ export class CreateProductDto {
     return n > 1 ? n / 100 : n
   })
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Ungültiger MwSt-Satz' })
+  @StrictNumber() @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Ungültiger MwSt-Satz' })
   @Min(0, { message: 'MwSt-Satz darf nicht negativ sein' })
   @Max(1, { message: 'MwSt-Satz darf höchstens 100 % sein' })
   @IsOptional()
@@ -64,13 +65,13 @@ export class CreateProductDto {
   description?: string;
 
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @IsOptional()
   stockQuantity?: number;
 
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @IsOptional()
   lowStockThreshold?: number;
@@ -115,13 +116,13 @@ export class UpdateProductDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 4 })
+  @StrictNumber() @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
   basePrice?: number;
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   purchasePrice?: number;
 
@@ -131,20 +132,20 @@ export class UpdateProductDto {
    */
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(9.9999)
   vatRate?: number;
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   stockQuantity?: number;
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   lowStockThreshold?: number;
 

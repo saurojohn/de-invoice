@@ -2650,6 +2650,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 633 — a number in a request is a number, or the digits for one
+
+Tier 606's other half, named in §9 item 24 („the implicit conversion of numbers (`""` → 0) is not covered“). The ValidationPipe runs with `enableImplicitConversion`; for a property typed `number` that is `Number(value)` before any decorator sees the value. Measured:
+
+| sent | arrived as | result before |
+|---|---|---|
+| `{"amount": true}` on a payment | 1 | **a payment of 1,00 € booked** |
+| `{"unitPrice": true}` on an invoice line | 1 | an invoice line at 1,00 € |
+| `{"basePrice": ""}` on a product | 0 | a product priced 0 |
+| `{"creditLimit": "", "paymentTerms": ""}` on a customer | 0, 0 | credit limit 0 and „sofort fällig“ |
+
+On invoices, expenses and payments an empty string was caught by the business checks („Betrag muss größer als 0 sein“) — by luck of the next rule, not by validation.
+
+**`StrictNumber()`** (`common/strict-number.ts`) reads the value as it was sent: a number is itself; **digits in a string are the number** (forms and query strings send strings — „19“, „12.50“); **an empty string is "not given"** (an optional field stays untouched, a required one is refused); anything else — `true`, `[]`, „12abc“ — is left as it is, so `@IsNumber()` / `@IsInt()` refuse it. It stands in front of **all 141 `@IsNumber()` / `@IsInt()` in 26 files**; spec 362's static part keeps it there (as it does for `@StrictBoolean()`).
+
+Spec 362 +11 (29 assertions): the static check; a payment of `true` / `""` / „12abc“ refused and nothing booked, of „19“ and 100 booked; an invoice line priced `true` / `false` / `[]` / `{}` refused, „12.50“ taken; an empty credit limit and payment terms leave both as they were; a product without a price refused.
+
+**What changes for a caller:** an optional number sent as `""` no longer becomes 0 — it is ignored. To set something to 0, send 0.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 632 — the flags in bodies that are no validated classes; the operator's routes, called
 
 Two more of §9 item 24's leftovers.
@@ -8787,7 +8806,7 @@ frontend's build arg, and the frontend image refuses to build without it.
     - **The owner / operator, before anyone else uses it:** a server, domain, SMTP, `FINTS_PIN_ENC_KEY`, an off-site copy of backups and storage (item 22); the operator company's details, which are the Impressum now (Tier 604); a privacy policy and a processing agreement of its own — `/datenschutz` is a generic text; the cookie banner, which asks for consent to analytics and marketing that do not exist (Tiers 589–590); a licence for the code, if anyone else is to get it; the tax and legal decisions of items 5, 9, 12, 13, 15, 17–21, plus one more for the Steuerberater: Skonto is booked against 8400, not 8736 (Tiers 585–587).
     - **Product scope — decided on 09.10.2026 („都做“, twice) and built:** the closing of the books (Tier 609), quotes and delivery notes (Tier 610), time tracking (Tier 611); then what those tiers had left out — the order confirmation (614), a quote invoiced and delivered in parts (615), projects and default hourly rates (616), the timer (617), the time sheet PDF (618). **Still to decide:** a per-invoice buyer reference (an authority's order number) next to the customer's Leitweg-ID (Tier 599); stock moved by a delivery note instead of the invoice; (the small things Tiers 610–625 had listed as not built were all built by Tier 628).
     - **Unfinished and saying so** (unchanged): FinTS TAN and transfers, ELSTER transmission, E-Bilanz positions, cloud storage, the tax annexes' placeholders; no e-mail verification, account deletion or data-subject export; e-invoices by upload only, no automatic EN 16931 check on import; CSV import and the OCR proposal know one VAT rate; no Verfahrensdokumentation.
-    - **Technical, found and not done:** the backend container runs as root, the compose file sets no `read_only` / `cap_drop` / `no-new-privileges` (item 23); (`MailConfig.smtpPassword` is sealed since Tier 630;) `release.yml` never run; the implicit conversion of numbers (`""` → 0) is not covered by Tier 606 (the flags in untyped bodies: Tier 632); the Leitweg-ID's check digits are not verified; five models without an index led by `companyId`, 227 `findMany` without `take`, no load test; two unit-test files, about 800 `any` in the backend.
+    - **Technical, found and not done:** the backend container runs as root, the compose file sets no `read_only` / `cap_drop` / `no-new-privileges` (item 23); (`MailConfig.smtpPassword` is sealed since Tier 630;) `release.yml` never run; (the implicit conversion of numbers: Tier 633; the flags in untyped bodies: Tier 632;) the Leitweg-ID's check digits are not verified; five models without an index led by `companyId`, 227 `findMany` without `take`, no load test; two unit-test files, about 800 `any` in the backend.
     - **Interface, found and not done:** the accounting page — developer paths in its explanations, the private annexes offered to a GmbH, about 730 German words in the other languages; `/dashboard/v2`, the activity page's action names and parts of the import page untranslated; 72 form fields without a label; the dashboard's cards are not reachable by keyboard; on a phone, tables scroll sideways inside their box and `/dashboard/accounting` is 12 px too wide at 350 px.
     - **What the three checks did not cover:** the reconciliation — a real exchange rate, Ist-Versteuerung, a Kleinunternehmer, the balance sheet, OSS, the bank import, dunning; the page walk — clicking through tasks, other browsers, a real device, a screen reader; the cross-company test — 26 of 74 GET routes with a path parameter had no live target (roles inside one company: done in Tier 629; one customer against another in the portal: Tier 631; the operator's routes: Tier 632).
 

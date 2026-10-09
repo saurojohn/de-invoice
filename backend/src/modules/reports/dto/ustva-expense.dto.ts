@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 213 — request DTO for the UStVa create-expense
  * endpoint. Mirrors the UStVa expense (Eingangsrechnung
@@ -50,25 +51,25 @@ export class CreateUstvaExpenseDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   netAmount?: number
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   vatAmount?: number
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   grossAmount?: number
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(9.9999)
   vatRate?: number

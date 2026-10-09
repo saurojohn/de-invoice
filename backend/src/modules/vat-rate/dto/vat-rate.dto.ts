@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 211 — request DTOs for VatRateController.
  *
@@ -38,7 +39,7 @@ export class CreateVatRateDto {
    * covers the realistic 0% / 7% / 19% / 20% range.
    */
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(9.9999)
   rate!: number

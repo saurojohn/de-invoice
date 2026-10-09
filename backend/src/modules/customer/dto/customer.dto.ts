@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import {
   IsString,
   IsOptional,
@@ -114,7 +115,7 @@ export class CreateCustomerDto {
   @IsOptional()
   contact?: CustomerContactDto;
 
-  @IsInt()
+  @StrictNumber() @IsInt()
   @Min(0)
   @Max(365)
   @IsOptional()
@@ -129,13 +130,13 @@ export class CreateCustomerDto {
   // credit-utilisation report, but no endpoint accepted it — the whitelist
   // rejected it with 400 and the form had no field, so no customer could
   // ever have one.
-  @IsNumber() @Min(0) @IsOptional()
+  @StrictNumber() @IsNumber() @Min(0) @IsOptional()
   creditLimit?: number
 
   // Tier 616: the hourly rate (net) a new time entry for this customer
   // starts with; null takes it away again
   @ValidateIf((_, v) => v !== null)
-  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
+  @StrictNumber() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
   defaultHourlyRate?: number | null
 
   // Tier 626: this customer's own rounding of logged time — null: as the
@@ -184,7 +185,7 @@ export class UpdateCustomerDto {
   @IsOptional()
   contact?: CustomerContactDto
 
-  @IsInt() @Min(0) @Max(365) @IsOptional()
+  @StrictNumber() @IsInt() @Min(0) @Max(365) @IsOptional()
   paymentTerms?: number
 
   @IsArray() @IsString({ each: true }) @IsOptional()
@@ -197,13 +198,13 @@ export class UpdateCustomerDto {
   // credit-utilisation report, but no endpoint accepted it — the whitelist
   // rejected it with 400 and the form had no field, so no customer could
   // ever have one.
-  @IsNumber() @Min(0) @IsOptional()
+  @StrictNumber() @IsNumber() @Min(0) @IsOptional()
   creditLimit?: number
 
   // Tier 616: the hourly rate (net) a new time entry for this customer
   // starts with; null takes it away again
   @ValidateIf((_, v) => v !== null)
-  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
+  @StrictNumber() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
   defaultHourlyRate?: number | null
 
   // Tier 626: this customer's own rounding of logged time — null: as the

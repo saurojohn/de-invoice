@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsNotEmpty, Matches, Max, MaxLength, Min } from 'class-validator'
 
 import { StrictBoolean } from '../../../common/strict-boolean'
@@ -39,12 +40,12 @@ export class BookExpenseDto {
   expenseId?: string
 
   // 0…1 (0.19 = 19 %). The service picks the Vorsteuer account from this.
-  @IsOptional() @IsNumber({}, { message: 'vatRate muss eine Zahl sein' })
+  @IsOptional() @StrictNumber() @IsNumber({}, { message: 'vatRate muss eine Zahl sein' })
   @Min(0) @Max(1, { message: 'vatRate muss zwischen 0 und 1 liegen (0.19 = 19 %)' })
   vatRate?: number
 
   // Upper bound against the transaction amount is checked in the service.
-  @IsOptional() @IsNumber({}, { message: 'vatAmount muss eine Zahl sein' })
+  @IsOptional() @StrictNumber() @IsNumber({}, { message: 'vatAmount muss eine Zahl sein' })
   @Min(0, { message: 'vatAmount darf nicht negativ sein' })
   vatAmount?: number
 
@@ -57,7 +58,7 @@ export class BookExpenseDto {
 export class SuggestMatchesDto {
   // Already clamped to 0…100 in the service; rejected here instead of silently
   // clamped. 0 disables auto-confirm.
-  @IsOptional() @IsInt({ message: 'autoConfirmThreshold muss eine ganze Zahl sein' })
+  @IsOptional() @StrictNumber() @IsInt({ message: 'autoConfirmThreshold muss eine ganze Zahl sein' })
   @Min(0) @Max(100, { message: 'autoConfirmThreshold muss zwischen 0 und 100 liegen' })
   autoConfirmThreshold?: number
 }

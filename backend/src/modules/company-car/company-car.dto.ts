@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../common/strict-number'
 import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator'
 import { COMPANY_CAR_METHODS } from './private-use'
 
@@ -7,7 +8,7 @@ export class CreateCompanyCarDto {
   name!: string
 
   /** gross list price at first registration */
-  @IsNumber() @Min(1000) @Max(9999999)
+  @StrictNumber() @IsNumber() @Min(1000) @Max(9999999)
   listPrice!: number
 
   @IsIn(COMPANY_CAR_METHODS as unknown as string[])
@@ -20,11 +21,11 @@ export class CreateCompanyCarDto {
   untilDate?: string | null
 
   /** Tier 541: one-way distance home – business in km (none: no such trips) */
-  @IsOptional() @IsInt() @Min(1) @Max(500)
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(500)
   commuteKm?: number | null
 
   /** Tier 541: days per month with that trip (default 15) */
-  @IsOptional() @IsInt() @Min(0) @Max(31)
+  @IsOptional() @StrictNumber() @IsInt() @Min(0) @Max(31)
   commuteDays?: number | null
 }
 
@@ -34,9 +35,9 @@ export class EndCompanyCarDto {
   untilDate?: string | null
 
   /** Tier 541: the trips home – business can be set or changed later (null: none) */
-  @IsOptional() @IsInt() @Min(1) @Max(500)
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(500)
   commuteKm?: number | null
 
-  @IsOptional() @IsInt() @Min(0) @Max(31)
+  @IsOptional() @StrictNumber() @IsInt() @Min(0) @Max(31)
   commuteDays?: number | null
 }

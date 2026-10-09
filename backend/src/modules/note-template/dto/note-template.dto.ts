@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator'
 
 /**
@@ -15,7 +16,7 @@ export class CreateNoteTemplateDto {
   @IsString() @IsNotEmpty({ message: 'text is required' }) @MaxLength(NOTE_TEXT_MAX)
   text!: string
 
-  @IsOptional() @IsInt() @Min(0) @Max(9999)
+  @IsOptional() @StrictNumber() @IsInt() @Min(0) @Max(9999)
   sortOrder?: number
 }
 
@@ -26,7 +27,7 @@ export class UpdateNoteTemplateDto {
   @IsOptional() @IsString() @MaxLength(NOTE_TEXT_MAX)
   text?: string
 
-  @IsOptional() @IsInt() @Min(0) @Max(9999)
+  @IsOptional() @StrictNumber() @IsInt() @Min(0) @Max(9999)
   sortOrder?: number
 }
 

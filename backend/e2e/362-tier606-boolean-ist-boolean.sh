@@ -32,6 +32,26 @@ PY
 [[ "$(echo "$REPORT" | sed -n 1p)" -ge 30 ]] && pass "found the boolean properties ($(echo "$REPORT" | sed -n 1p))" || fail "only $(echo "$REPORT" | sed -n 1p) @IsBoolean() found — the check is looking in the wrong place"
 assert_eq "each @IsBoolean() has @StrictBoolean() in front of it" "$(echo "$REPORT" | sed -n 2p)" "-"
 
+note "=== 1b. Tier 633: every number property reads its value strictly (static) ==="
+REPORT=$(python3 - "$SCRIPT_DIR/../src" <<'PY'
+import os, re, sys
+n = 0; bad = []
+for dp, dn, fn in os.walk(sys.argv[1]):
+    for f in fn:
+        if not f.endswith('.ts') or f == 'strict-number.ts': continue
+        p = os.path.join(dp, f); s = open(p, encoding='utf-8').read()
+        for m in re.finditer(r'@Is(?:Number|Int)\(', s):
+            line = s[s.rfind('\n', 0, m.start()) + 1:m.start()]
+            if line.lstrip().startswith(('//', '*', '/*')): continue
+            n += 1
+            if not line.endswith('@StrictNumber() '):
+                bad.append('%s:%d' % (os.path.relpath(p, sys.argv[1]), s.count('\n', 0, m.start()) + 1))
+print(n); print(','.join(bad) or '-')
+PY
+)
+[[ "$(echo "$REPORT" | sed -n 1p)" -ge 120 ]] && pass "found the number properties ($(echo "$REPORT" | sed -n 1p))" || fail "only $(echo "$REPORT" | sed -n 1p) @IsNumber() / @IsInt() found — the check is looking in the wrong place"
+assert_eq "each @IsNumber() / @IsInt() has @StrictNumber() in front of it" "$(echo "$REPORT" | sed -n 2p)" "-"
+
 note "=== 2. measured on three routes ==="
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier606-e2e\",\"companyName\":\"$TAG GmbH\"}" \
@@ -75,4 +95,27 @@ AS POST "/api/v1/customers/import?companyId=$C" '{"rows":[],"verifyVat":"false"}
 assert_eq "customer import: verifyVat \"nein\" is refused, \"false\" is false" "$A $([[ "$STATUS" == 20* ]] && echo ok || echo "$STATUS")" "400 ok"
 AS POST "/api/v1/fints/connections?companyId=$C" '{"companyId":"'$C'","blz":"12345678","userId":"x","label":"Test","pin":"12345","mockMode":"nein"}'
 assert_eq "FinTS connection: mockMode \"nein\" is refused with the reason (was: the demo bank)" "$STATUS/$(echo "$BODY" | grep -c 'mockMode muss true oder false sein')/$(q "select count(*) from \"FinTSConnection\" where \"companyId\"='$C'" 2>/dev/null || echo 0)" "400/1/0"
+
+note "=== Tier 633: a number is a number, or the digits for one ==="
+# The implicit conversion is Number(value): true was 1 and "" was 0.
+AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$K'","issueDate":"'$DAY'","items":[{"description":"x","quantity":1,"unitPrice":100,"vatRate":0.19}]}'; INV=$(json_field "$BODY" id)
+fixture_issuer "$C"
+AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"sent"}'
+assert_eq "fixture: an issued invoice over 119 €" "$STATUS $(q "select status from \"Invoice\" where id='$INV'")" "200 sent"
+pay() { AS POST "/api/v1/invoices/$INV/payments?companyId=$C" '{"amount":'"$1"',"paymentDate":"'$DAY'","paymentMethod":"bank_transfer"}'; echo "$STATUS/$(q "select coalesce(sum(amount),0)::numeric(12,2) from \"Payment\" where \"invoiceId\"='$INV'")"; }
+assert_eq "a payment of true: 400, nothing booked (was: 1,00 € booked)" "$(pay true)" "400/0.00"
+assert_eq "…of \"\": 400" "$(pay '""')" "400/0.00"
+assert_eq "…of \"12abc\": 400" "$(pay '"12abc"')" "400/0.00"
+assert_eq "…of \"19\" (digits in a string): 19,00 € — forms send strings" "$(pay '"19"')" "201/19.00"
+assert_eq "…of 100: the rest" "$(pay 100)" "201/119.00"
+line() { AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$K'","issueDate":"'$DAY'","items":[{"description":"x","quantity":1,"unitPrice":'"$1"',"vatRate":0.19}]}'; echo "$STATUS"; }
+assert_eq "an invoice line priced true / false / [] / {}: 400 each (true was a line at 1,00 €)" "$(line true) $(line false) $(line '[]') $(line '{}')" "400 400 400 400"
+assert_eq "…priced \"12.50\": taken" "$(line '"12.50"')/$(q "select max(\"unitPrice\")::numeric(12,2) from \"InvoiceItem\" i join \"Invoice\" v on v.id=i.\"invoiceId\" where v.\"companyId\"='$C' and \"unitPrice\"=12.5")" "201/12.50"
+AS PUT "/api/v1/customers/$K?companyId=$C" '{"creditLimit":5000,"paymentTerms":14}'
+AS PUT "/api/v1/customers/$K?companyId=$C" '{"creditLimit":"","paymentTerms":""}'
+assert_eq "an empty field is 'not given': the credit limit and the payment terms stay (was: both set to 0)" "$STATUS $(q "select \"creditLimit\"::numeric(12,2) || '/' || \"paymentTerms\" from \"Customer\" where id='$K'")" "200 5000.00/14"
+AS POST "/api/v1/products?companyId=$C" '{"name":"'$TAG' ohne Preis","basePrice":""}'
+prod() { AS POST "/api/v1/products?companyId=$C" '{"name":"'$TAG' P'"$RANDOM"'","basePrice":10,"vatRate":'"$1"'}'; echo "$STATUS/$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin).get('vatRate'))" 2>/dev/null)"; }
+assert_eq "a field with a conversion of its own keeps it: a product's VAT rate sent as 19, \"19\" or 0.07 — and true is refused there too" "$(prod 19) $(prod '"19"') $(prod 0.07) $(prod true | cut -d/ -f1)" "201/0.19 201/0.19 201/0.07 400"
+assert_eq "a product whose required price is empty: 400 (was: priced 0)" "$STATUS/$(q "select count(*) from \"Product\" where \"companyId\"='$C' and name='$TAG ohne Preis'")" "400/0"
 summary

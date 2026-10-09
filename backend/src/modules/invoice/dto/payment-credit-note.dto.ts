@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 374 — request DTOs for POST /invoices/:id/payments and
  * POST /invoices/:id/credit-note.
@@ -37,7 +38,7 @@ const DECIMAL_12_4_MAX = 99999999.9999
 export class CreatePaymentDto {
   // No lower bound here: PaymentService answers amount <= 0 with
   // "Betrag muss größer als 0 sein", which e2e 149 relies on.
-  @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
+  @StrictNumber() @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
   @Max(DECIMAL_12_4_MAX, { message: 'Betrag darf höchstens 99999999.9999 sein' })
   amount!: number
 
@@ -60,7 +61,7 @@ export class CreatePaymentDto {
   receiptNumber?: string
 
   // Tier 540: what arrived in EUR for a payment of a foreign-currency invoice
-  @IsOptional() @IsNumber({}, { message: 'Euro-Betrag muss eine Zahl sein' })
+  @IsOptional() @StrictNumber() @IsNumber({}, { message: 'Euro-Betrag muss eine Zahl sein' })
   @Max(DECIMAL_12_4_MAX)
   eurAmount?: number
 }
@@ -70,19 +71,19 @@ export class CreditNoteLineDto {
   description!: string
 
   @IsOptional()
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(-DECIMAL_12_4_MAX)
   @Max(DECIMAL_12_4_MAX)
   quantity?: number
 
   // Sign is irrelevant: the service stores -abs(unitPrice).
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(-DECIMAL_12_4_MAX)
   @Max(DECIMAL_12_4_MAX)
   unitPrice!: number
 
   @IsOptional()
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0, { message: 'MwSt-Satz darf nicht negativ sein' })
   @Max(1, { message: 'MwSt-Satz ist ein Anteil (z. B. 0.19), höchstens 1' })
   vatRate?: number
@@ -93,7 +94,7 @@ export class CreateCreditNoteDto {
   // 0, a negative number or a non-number used to silently become a full
   // refund. The frontend only sends amount when it is > 0.
   @IsOptional()
-  @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
+  @StrictNumber() @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
   @Min(0.0001, { message: 'Betrag muss größer als 0 sein' })
   @Max(DECIMAL_12_4_MAX, { message: 'Betrag darf höchstens 99999999.9999 sein' })
   amount?: number
@@ -112,7 +113,7 @@ export class CreateCreditNoteDto {
 /** Tier 430: booking a payment the customer reported — every field optional. */
 export class BookPaymentNoticeDto {
   @IsOptional()
-  @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
+  @StrictNumber() @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
   @Max(DECIMAL_12_4_MAX, { message: 'Betrag darf höchstens 99999999.9999 sein' })
   amount?: number
 

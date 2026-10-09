@@ -42,8 +42,8 @@ note "=== 1. the customer's default rate ==="
 # (not through customer(): its $( ) is a subshell — the status asserted here was the one of an earlier call)
 AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business","address":{"street":"Ring 2","postalCode":"80331","city":"München","country":"DE"},"defaultHourlyRate":80}'; K=$(json_field "$BODY" id)
 assert_eq "a customer with a default rate of 80 € (was: 400, no such field)" "$STATUS $(q "select \"defaultHourlyRate\"::numeric(10,2) from \"Customer\" where id='$K'")" "201 80.00"
-for bad in '{"defaultHourlyRate":-1}' '{"defaultHourlyRate":80.123}' '{"defaultHourlyRate":"80"}' '{"defaultHourlyRate":100001}'; do AS PUT "/api/v1/customers/$K?companyId=$C" "$bad"; R="${R:-}$STATUS "; done
-assert_eq "not a rate: -1, three decimals, a string, 100 001" "$R$(q "select \"defaultHourlyRate\"::numeric(10,2) from \"Customer\" where id='$K'")" "400 400 400 400 80.00"
+for bad in '{"defaultHourlyRate":-1}' '{"defaultHourlyRate":80.123}' '{"defaultHourlyRate":"achtzig"}' '{"defaultHourlyRate":100001}'; do AS PUT "/api/v1/customers/$K?companyId=$C" "$bad"; R="${R:-}$STATUS "; done
+assert_eq "not a rate: -1, three decimals, a word (digits in a string are a number since Tier 633), 100 001" "$R$(q "select \"defaultHourlyRate\"::numeric(10,2) from \"Customer\" where id='$K'")" "400 400 400 400 80.00"
 AS PUT "/api/v1/customers/$K?companyId=$C" '{"defaultHourlyRate":null}'; A="$STATUS $(q "select \"defaultHourlyRate\" is null from \"Customer\" where id='$K'")"
 AS PUT "/api/v1/customers/$K?companyId=$C" '{"defaultHourlyRate":80}'
 assert_eq "null takes it away, a number sets it again" "$A / $STATUS" "200 t / 200"

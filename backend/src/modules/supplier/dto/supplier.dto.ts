@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 210 — request DTOs for SupplierController.
  *
@@ -100,7 +101,7 @@ export class CreateSupplierDto {
   @Type(() => BankInfoDto)
   bankInfo?: BankInfoDto
 
-  @IsInt() @IsOptional() @Min(0) @Max(365)
+  @StrictNumber() @IsInt() @IsOptional() @Min(0) @Max(365)
   paymentTerms?: number
 
   @IsObject() @IsOptional()
@@ -135,7 +136,7 @@ export class UpdateSupplierDto {
   @Type(() => BankInfoDto)
   bankInfo?: BankInfoDto
 
-  @IsInt() @IsOptional() @Min(0) @Max(365)
+  @StrictNumber() @IsInt() @IsOptional() @Min(0) @Max(365)
   paymentTerms?: number
 
   @IsObject() @IsOptional()

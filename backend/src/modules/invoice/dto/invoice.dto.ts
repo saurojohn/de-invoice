@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength, IsInt, Min, Max, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -11,7 +12,7 @@ export class InvoiceItemDto {
   // with "numeric field overflow" — a 500 for a client error. The range is
   // symmetric on purpose: this only turns that 500 into a 400 and does not
   // decide whether negative lines are allowed.
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(-99999999.9999)
   @Max(99999999.9999)
   quantity!: number;
@@ -22,7 +23,7 @@ export class InvoiceItemDto {
   
   // Tier 372: same column limit as quantity (Decimal(12,4)); symmetric, so a
   // negative adjustment line stays possible.
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(-99999999.9999)
   @Max(99999999.9999)
   unitPrice!: number;
@@ -31,7 +32,7 @@ export class InvoiceItemDto {
   // (expense, cashbook, product all use @Min(0) @Max(1)) and like the frontend
   // sends it (0.19). This had no bounds, so vatRate: 19 reached the
   // Decimal(5,4) column and failed with a numeric overflow → HTTP 500.
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @IsOptional()
   @Min(0, { message: 'MwSt-Satz darf nicht negativ sein' })
   @Max(1, { message: 'MwSt-Satz ist ein Anteil (z. B. 0.19), höchstens 1' })
@@ -110,19 +111,19 @@ export class CreateInvoiceDto {
   // below is @Min(0) @Max(100); the column is Decimal(5,2), so >999.99 was a
   // numeric overflow → 500. discountAmount is bounded to its Decimal(12,4)
   // column only.
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @IsOptional()
   @Min(0)
   @Max(100)
   discountPercent?: number;
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @IsOptional()
   @Min(-99999999.9999)
   @Max(99999999.9999)
   discountAmount?: number;
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @IsOptional()
   paymentTerms?: number;
 
@@ -139,9 +140,9 @@ export class CreateInvoiceDto {
   // renders the standard "Zahlbar bis ... mit X% Skonto"
   // line. Values > 100 (percent) or > 365 (days) are
   // rejected — these are clearly mis-typed.
-  @IsNumber() @IsOptional() @Max(100) @Min(0)
+  @StrictNumber() @IsNumber() @IsOptional() @Max(100) @Min(0)
   skontoPercent?: number;
-  @IsInt() @IsOptional() @Max(365) @Min(0)
+  @StrictNumber() @IsInt() @IsOptional() @Max(365) @Min(0)
   skontoDays?: number;
 
   @IsArray()
@@ -226,9 +227,9 @@ export class UpdateInvoiceDto {
   @IsString() @IsOptional() language?: string;
   @IsString() @IsOptional() notes?: string;
   // Tier 372: same bounds as CreateInvoiceDto (see there).
-  @IsNumber() @IsOptional() @Min(0) @Max(100) discountPercent?: number;
-  @IsNumber() @IsOptional() @Min(-99999999.9999) @Max(99999999.9999) discountAmount?: number;
-  @IsNumber() @IsOptional() paymentTerms?: number;
+  @StrictNumber() @IsNumber() @IsOptional() @Min(0) @Max(100) discountPercent?: number;
+  @StrictNumber() @IsNumber() @IsOptional() @Min(-99999999.9999) @Max(99999999.9999) discountAmount?: number;
+  @StrictNumber() @IsNumber() @IsOptional() paymentTerms?: number;
   @IsString() @IsOptional() paymentMethod?: string;
   @IsString() @IsOptional() templateType?: string;
   // Tier 52: Skonto (cash discount for early payment).
@@ -236,9 +237,9 @@ export class UpdateInvoiceDto {
   // renders the standard "Zahlbar bis ... mit X% Skonto"
   // line. Values > 100 (percent) or > 365 (days) are
   // rejected — these are clearly mis-typed.
-  @IsNumber() @IsOptional() @Max(100) @Min(0)
+  @StrictNumber() @IsNumber() @IsOptional() @Max(100) @Min(0)
   skontoPercent?: number;
-  @IsInt() @IsOptional() @Max(365) @Min(0)
+  @StrictNumber() @IsInt() @IsOptional() @Max(365) @Min(0)
   skontoDays?: number;
   @IsArray() @ValidateNested({ each: true }) @Type(() => InvoiceItemDto)
   @IsOptional() items?: InvoiceItemDto[];

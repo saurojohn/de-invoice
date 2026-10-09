@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import {
   IsArray,
   IsBoolean,
@@ -56,7 +57,7 @@ export class RecurringItemDto {
   @IsString()
   productNumber?: string | null
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(-DEC_12_4)
   @Max(DEC_12_4)
   quantity!: number
@@ -65,13 +66,13 @@ export class RecurringItemDto {
   @IsString()
   unit?: string | null
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(-DEC_12_4)
   @Max(DEC_12_4)
   unitPrice!: number
 
   // A fraction, like the invoice / expense / cashbook / product DTOs (0.19).
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0, { message: 'MwSt-Satz darf nicht negativ sein' })
   @Max(1, { message: 'MwSt-Satz ist ein Anteil (z. B. 0.19), höchstens 1' })
   vatRate!: number
@@ -100,13 +101,13 @@ export class CreateRecurringInvoiceDto {
 
   // Min 1: an interval count of 0 would never advance nextRunAt.
   @IsOptional()
-  @IsInt()
+  @StrictNumber() @IsInt()
   @Min(1)
   @Max(2147483647)
   intervalCount?: number
 
   @IsOptional()
-  @IsInt()
+  @StrictNumber() @IsInt()
   @Min(1)
   @Max(31)
   dayOfMonth?: number
@@ -165,8 +166,8 @@ export class UpdateRecurringInvoiceDto {
   @IsOptional() @IsString() name?: string
   @IsOptional() @IsString() customerId?: string
   @IsOptional() @IsIn(INTERVALS) interval?: 'monthly' | 'quarterly' | 'yearly' | 'weekly'
-  @IsOptional() @IsInt() @Min(1) @Max(2147483647) intervalCount?: number
-  @IsOptional() @IsInt() @Min(1) @Max(31) dayOfMonth?: number
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(2147483647) intervalCount?: number
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(31) dayOfMonth?: number
   @IsOptional() @Matches(DATE_ONLY, { message: DATE_ONLY_MSG }) startDate?: string
   @IsOptional() @Matches(DATE_ONLY, { message: DATE_ONLY_MSG }) endDate?: string | null
   @IsOptional() @IsDateString() pausedUntil?: string | null

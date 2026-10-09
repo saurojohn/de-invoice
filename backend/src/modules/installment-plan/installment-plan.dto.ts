@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../common/strict-number'
 import { IsInt, IsNumber, IsOptional, IsString, Max, Min, IsDateString, IsNotEmpty, MaxLength, IsBoolean } from 'class-validator'
 
 import { StrictBoolean } from '../../common/strict-boolean'
@@ -12,18 +13,18 @@ export class CreateInstallmentPlanDto {
   @IsString()
   invoiceId!: string
 
-  @IsInt()
+  @StrictNumber() @IsInt()
   @Min(2) @Max(120)
   installmentCount!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0.01)
   totalAmount!: number
 
   @IsDateString()
   firstDueDate!: string
 
-  @IsOptional() @IsInt() @Min(1) @Max(365)
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(365)
   intervalDays?: number
 
   @IsOptional() @IsString()
@@ -38,7 +39,7 @@ export class CreateInstallmentPlanDto {
  * `status` + the parent Plan's `status`.
  */
 export class PayInstallmentDto {
-  @IsNumber() @Min(0.01)
+  @StrictNumber() @IsNumber() @Min(0.01)
   amount!: number
 
   @IsOptional() @IsDateString()
@@ -65,14 +66,14 @@ export class CreateInstallmentPlanFromInvoiceDto {
   @IsString() @IsNotEmpty()
   invoiceId!: string
 
-  @IsInt({ message: 'installmentCount muss eine ganze Zahl sein' })
+  @StrictNumber() @IsInt({ message: 'installmentCount muss eine ganze Zahl sein' })
   @Min(2) @Max(120)
   installmentCount!: number
 
   @IsDateString({ strict: true }, { message: 'firstDueDate ist kein gültiges Datum' })
   firstDueDate!: string
 
-  @IsOptional() @IsInt() @Min(1) @Max(365)
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(365)
   intervalDays?: number
 
   @IsOptional() @IsString() @MaxLength(2000)

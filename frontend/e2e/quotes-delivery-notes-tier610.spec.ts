@@ -44,7 +44,7 @@ test("a quote is written, offered and becomes an invoice and a delivery note", a
   // the dashboard leads to the quotes
   await page.goto("/dashboard")
   await page.getByTestId("card-quotes").click({ timeout: 60_000 })
-  await expect(page).toHaveURL(/\/dashboard\/invoices\?type=QU/)
+  await expect(page).toHaveURL(/\/dashboard\/invoices\?type=QU/, { timeout: 60_000 })
   await expect(page.getByTestId("invoices-title")).toHaveText("Angebote", { timeout: 60_000 })
   await expect(page.getByTestId("status-chip-offered")).toBeVisible()
   await expect(page.getByTestId("status-chip-paid")).toHaveCount(0)
@@ -52,7 +52,7 @@ test("a quote is written, offered and becomes an invoice and a delivery note", a
 
   // write one
   await page.getByTestId("invoices-new-button").click()
-  await expect(page).toHaveURL(/\/dashboard\/invoices\/create\?type=QU/)
+  await expect(page).toHaveURL(/\/dashboard\/invoices\/create\?type=QU/, { timeout: 60_000 })
   await expect(page.getByText("Gültig für")).toBeVisible({ timeout: 60_000 })
   await page.getByTestId("invoice-customer-search").fill(tag)
   await page.getByTestId("invoice-customer-option").filter({ hasText: customerName }).click()

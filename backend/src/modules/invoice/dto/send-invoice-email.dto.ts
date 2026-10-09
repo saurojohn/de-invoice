@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import {
   ArrayMaxSize,
   IsArray,
@@ -78,6 +79,6 @@ export class BulkSendInvoiceEmailDto extends InvoiceEmailFieldsDto {
   dryRun?: boolean
 
   // Clamped to 1…10 in the handler; rejected here rather than silently clamped.
-  @IsOptional() @IsInt() @Min(1) @Max(10, { message: 'concurrency muss zwischen 1 und 10 liegen' })
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(10, { message: 'concurrency muss zwischen 1 und 10 liegen' })
   concurrency?: number
 }

@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 212 — request DTO for the createVoucher endpoint.
  *
@@ -57,14 +58,14 @@ export class CreateVoucherLineDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(DECIMAL_12_4_MAX)
   debit?: number
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(DECIMAL_12_4_MAX)
   credit?: number
@@ -75,14 +76,14 @@ export class CreateVoucherLineDto {
    */
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(9.9999)
   vatRate?: number
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(DECIMAL_12_4_MAX)
   vatAmount?: number

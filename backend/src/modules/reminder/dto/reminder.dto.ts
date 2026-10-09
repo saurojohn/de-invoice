@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Request bodies for the reminder / Mahnung routes.
  *
@@ -91,19 +92,19 @@ export class BulkSendReminderDto {
 const unlessAbsent = () => ValidateIf((_, v) => v !== undefined)
 
 export class ReminderFeesDto {
-  @unlessAbsent() @IsNumber({}, { message: 'Mahngebühr muss eine Zahl sein' }) @Min(0) @Max(1000)
+  @unlessAbsent() @StrictNumber() @IsNumber({}, { message: 'Mahngebühr muss eine Zahl sein' }) @Min(0) @Max(1000)
   first?: number
 
-  @unlessAbsent() @IsNumber({}, { message: 'Mahngebühr muss eine Zahl sein' }) @Min(0) @Max(1000)
+  @unlessAbsent() @StrictNumber() @IsNumber({}, { message: 'Mahngebühr muss eine Zahl sein' }) @Min(0) @Max(1000)
   second?: number
 
-  @unlessAbsent() @IsNumber({}, { message: 'Mahngebühr muss eine Zahl sein' }) @Min(0) @Max(1000)
+  @unlessAbsent() @StrictNumber() @IsNumber({}, { message: 'Mahngebühr muss eine Zahl sein' }) @Min(0) @Max(1000)
   final?: number
 }
 
 export class FeeConfigDto {
   // § 288 BGB: 5 or 9 points over the base rate; 50 is the handler's own ceiling.
-  @unlessAbsent() @IsNumber({}, { message: 'verzugszinsPct muss eine Zahl sein' })
+  @unlessAbsent() @StrictNumber() @IsNumber({}, { message: 'verzugszinsPct muss eine Zahl sein' })
   @Min(0, { message: 'verzugszinsPct darf nicht negativ sein' })
   @Max(50, { message: 'verzugszinsPct darf höchstens 50 sein' })
   verzugszinsPct?: number

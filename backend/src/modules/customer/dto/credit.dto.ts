@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 383 — request DTOs for the customer credit-balance and payment
  * allocation routes.
@@ -23,7 +24,7 @@ const YMD = /^\d{4}-\d{2}-\d{2}/
 
 export class CreditAdjustDto {
   // Signed: + adds credit, - uses credit (e2e 85 sends -20). 0 is refused by the service.
-  @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
+  @StrictNumber() @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
   @Min(-MAX) @Max(MAX, { message: 'Betrag darf höchstens 99999999.9999 sein' })
   amount!: number
 
@@ -35,7 +36,7 @@ export class CreditAdjustDto {
 }
 
 export class CreditPayoutDto {
-  @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
+  @StrictNumber() @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
   @Max(MAX, { message: 'Betrag darf höchstens 99999999.9999 sein' })
   amount!: number
 
@@ -57,7 +58,7 @@ export class ApplyCreditDto {
   @IsString() @IsNotEmpty() @MaxLength(64)
   invoiceId!: string
 
-  @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
+  @StrictNumber() @IsNumber({}, { message: 'Betrag muss eine Zahl sein' })
   @Max(MAX, { message: 'Betrag darf höchstens 99999999.9999 sein' })
   amount!: number
 
@@ -67,7 +68,7 @@ export class ApplyCreditDto {
 
 export class AllocatePaymentDto {
   // amount <= 0 answers the handler's own "amount must be a positive number".
-  @IsNumber({}, { message: 'amount must be a positive number' })
+  @StrictNumber() @IsNumber({}, { message: 'amount must be a positive number' })
   @Max(MAX, { message: 'amount darf höchstens 99999999.9999 sein' })
   amount!: number
 

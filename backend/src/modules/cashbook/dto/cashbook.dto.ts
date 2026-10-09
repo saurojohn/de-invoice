@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 211 — request DTOs for CashbookController.
  *
@@ -53,7 +54,7 @@ export class CreateCashBookEntryDto {
   description!: string
 
   @Type(() => Number)
-  @IsNumber({}, { message: "Betrag muss eine Zahl sein" })
+  @StrictNumber() @IsNumber({}, { message: "Betrag muss eine Zahl sein" })
   @Max(DECIMAL_12_4_MAX, { message: "Betrag darf höchstens 99999999.9999 sein" })
   amount!: number
 
@@ -61,7 +62,7 @@ export class CreateCashBookEntryDto {
   @IsOptional()
   @ValidateIf((_o, v) => v !== null)
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(1, { message: "vatRate ist ein Anteil (z. B. 0.19), höchstens 1" })
   vatRate?: number | null
@@ -105,7 +106,7 @@ export class CloseCashBookDayDto {
   @IsDateString({ strict: true }, { message: `date ${DATE_MESSAGE}` })
   date!: string
 
-  @IsNumber({}, { message: "physicalCount is required (number)" })
+  @StrictNumber() @IsNumber({}, { message: "physicalCount is required (number)" })
   @Min(-DECIMAL_12_4_MAX)
   @Max(DECIMAL_12_4_MAX)
   physicalCount!: number
@@ -136,14 +137,14 @@ export class UpdateCashBookEntryDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   amount?: number
 
   @IsOptional()
   @ValidateIf((_o, v) => v !== null)
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(1)
   vatRate?: number | null

@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import { IsNumber, Min } from 'class-validator'
 
 /**
@@ -47,28 +48,28 @@ export function StrictlyIncreasingThresholds(
 }
 
 export class DunningConfigDto {
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(1)
   @StrictlyIncreasingThresholds()
   level1Days!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(2)
   level2Days!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(3)
   level3Days!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   level1Fee!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   level2Fee!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   level3Fee!: number
 }

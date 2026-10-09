@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 213 — request DTOs for UstvaController.
  *
@@ -36,7 +37,7 @@ import { StrictBoolean } from "../../../common/strict-boolean"
  * Lines 20-23 of the official UStVa form.
  */
 export class UstvaSalesByRateDto {
-  @IsNumber() @Min(0) @Max(9.9999)
+  @StrictNumber() @IsNumber() @Min(0) @Max(9.9999)
   rate!: number
 
   @IsString() @MaxLength(50)
@@ -44,25 +45,25 @@ export class UstvaSalesByRateDto {
 
   // Tier 417: a month whose credit notes exceed its sales has a negative
   // base and tax; @Min(0) made that month's filing unsaveable (400).
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   net!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   vat!: number
 }
 
 /** Tier 417: a net / tax pair (igE, § 13b purchases). */
 export class UstvaNetVatDto {
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   net!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   vat!: number
 }
 
 /** Tier 417: igE per rate. */
 export class UstvaRateNetVatDto extends UstvaNetVatDto {
-  @IsNumber() @Min(0) @Max(9.9999)
+  @StrictNumber() @IsNumber() @Min(0) @Max(9.9999)
   rate!: number
 }
 
@@ -75,22 +76,22 @@ export class UstvaRateNetVatDto extends UstvaNetVatDto {
 // ELSTER writes it signed (elster.service fmt13). Min(0) refused to save that
 // UStVA (400), as Tier 417 found for the sales side.
 export class UstvaVorsteuerDto {
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   from19!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   from7!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   fromIgE!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   fromReverseCharge!: number
 
-  @IsNumber() @IsOptional()
+  @StrictNumber() @IsNumber() @IsOptional()
   fromOther?: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   total!: number
 }
 
@@ -98,10 +99,10 @@ export class UstvaVorsteuerDto {
  * Counts (informational, for the dashboard widget).
  */
 export class UstvaCountsDto {
-  @IsInt() @Min(0)
+  @StrictNumber() @IsInt() @Min(0)
   invoices!: number
 
-  @IsInt() @Min(0)
+  @StrictNumber() @IsInt() @Min(0)
   expenses!: number
 }
 
@@ -115,13 +116,13 @@ export class UstvaDataDto {
   @IsString()
   companyId!: string
 
-  @IsInt() @Min(2000) @Max(2100)
+  @StrictNumber() @IsInt() @Min(2000) @Max(2100)
   year!: number
 
-  @IsInt() @IsOptional() @Min(1) @Max(4)
+  @StrictNumber() @IsInt() @IsOptional() @Min(1) @Max(4)
   quarter?: number
 
-  @IsInt() @IsOptional() @Min(1) @Max(12)
+  @StrictNumber() @IsInt() @IsOptional() @Min(1) @Max(12)
   month?: number
 
   @IsString() @MinLength(1) @MaxLength(50)
@@ -137,27 +138,27 @@ export class UstvaDataDto {
   salesByRate!: UstvaSalesByRateDto[]
 
   // Tier 417: signed — credit notes subtract (see UstvaSalesByRateDto).
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   igL!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   export!: number
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   otherExempt!: number
 
-  @IsNumber() @Min(0)
+  @StrictNumber() @IsNumber() @Min(0)
   reverseCharge!: number
 
   // Tier 417: the fields compute() now returns. Optional, so a filing saved
   // by an older page still validates.
-  @IsNumber() @IsOptional()
+  @StrictNumber() @IsNumber() @IsOptional()
   reverseChargeSales?: number
 
-  @IsNumber() @IsOptional()
+  @StrictNumber() @IsNumber() @IsOptional()
   euServicesSales?: number
 
-  @IsNumber() @IsOptional()
+  @StrictNumber() @IsNumber() @IsOptional()
   nonTaxableOther?: number
 
   @IsOptional() @ValidateNested() @Type(() => UstvaNetVatDto)
@@ -180,19 +181,19 @@ export class UstvaDataDto {
   @Type(() => UstvaVorsteuerDto)
   vorsteuer!: UstvaVorsteuerDto
 
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   umsatzsteuer!: number
 
-  @IsNumber() // Tier 463: negative with supplier credit notes
+  @StrictNumber() @IsNumber() // Tier 463: negative with supplier credit notes
   vorsteuerSum!: number
 
   /** Zahllast (positive) / Erstattung (negative). */
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   differenzbetrag!: number
 
   /** Tier 501: Kz 39 — the Sondervorauszahlung deducted in December. */
   @IsOptional()
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   sondervorauszahlung?: number
 
   @ValidateNested()
@@ -233,7 +234,7 @@ export class RecordUstvaPaymentDto {
   paidAt?: string | null;
 
   @IsOptional()
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   amount?: number;
 }
 
@@ -252,14 +253,14 @@ export class CreateUstPaymentDto {
   @IsIn(['ustja', 'sondervorauszahlung', 'sonstige'])
   kind!: 'ustja' | 'sondervorauszahlung' | 'sonstige'
 
-  @IsInt() @Min(2000) @Max(2100)
+  @StrictNumber() @IsInt() @Min(2000) @Max(2100)
   year!: number
 
   @IsDateString()
   paidAt!: string
 
   /** positive: paid to the Finanzamt, negative: refunded */
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   amount!: number
 
   @IsOptional() @IsString() @MaxLength(500)

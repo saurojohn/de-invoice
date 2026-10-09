@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 377 — request DTOs for AssetsController.
  *
@@ -30,16 +31,16 @@ export class CreateAssetDto {
   @IsDateString({}, { message: 'anschaffungsDatum muss ein gültiges Datum sein' })
   anschaffungsDatum!: string
 
-  @IsNumber({}, { message: 'Anschaffungskosten müssen eine Zahl sein' })
+  @StrictNumber() @IsNumber({}, { message: 'Anschaffungskosten müssen eine Zahl sein' })
   @Max(DECIMAL_14_4_MAX, { message: 'Anschaffungskosten dürfen höchstens 9999999999.9999 sein' })
   anschaffungsKosten!: number
 
-  @IsInt({ message: 'Nutzungsdauer muss eine ganze Zahl von Monaten sein' })
+  @StrictNumber() @IsInt({ message: 'Nutzungsdauer muss eine ganze Zahl von Monaten sein' })
   @Max(1200)
   nutzungsdauerMonate!: number
 
   @IsOptional()
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Max(DECIMAL_14_4_MAX)
   restwert?: number
 
@@ -65,17 +66,17 @@ export class UpdateAssetDto {
   anschaffungsDatum?: string
 
   @IsOptional()
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Max(DECIMAL_14_4_MAX)
   anschaffungsKosten?: number
 
   @IsOptional()
-  @IsInt({ message: 'Nutzungsdauer muss eine ganze Zahl von Monaten sein' })
+  @StrictNumber() @IsInt({ message: 'Nutzungsdauer muss eine ganze Zahl von Monaten sein' })
   @Max(1200)
   nutzungsdauerMonate?: number
 
   @IsOptional()
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Max(DECIMAL_14_4_MAX)
   restwert?: number
 
@@ -94,7 +95,7 @@ export class DisposeAssetDto {
   verkauftAm!: string
 
   @IsOptional()
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0, { message: 'Verkaufspreis darf nicht negativ sein' })
   @Max(DECIMAL_14_4_MAX)
   verkaufsPreis?: number

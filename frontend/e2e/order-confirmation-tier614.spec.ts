@@ -45,7 +45,7 @@ test("a quote becomes an order confirmation, and that the invoice", async ({ pag
   // the dashboard has the list, still empty
   await page.goto("/dashboard")
   await page.getByTestId("card-order-confirmations").click({ timeout: 60_000 })
-  await expect(page).toHaveURL(/\/dashboard\/invoices\?type=OC/)
+  await expect(page).toHaveURL(/\/dashboard\/invoices\?type=OC/, { timeout: 60_000 })
   await expect(page.getByTestId("invoices-title")).toHaveText("Auftragsbestätigungen", { timeout: 60_000 })
   await expect(page.getByTestId("invoices-new-button")).toHaveText("Neue Auftragsbestätigung")
   await expect(page.getByText("Noch keine Auftragsbestätigungen.")).toBeVisible()

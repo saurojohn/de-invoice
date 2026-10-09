@@ -22,6 +22,7 @@
  * produces it from NaN, which the old code stored as 0.
  */
 import { Type } from 'class-transformer'
+import { StrictNumber } from '../../../common/strict-number'
 import {
   ArrayMaxSize,
   IsArray,
@@ -96,7 +97,7 @@ function IsKennzifferAmounts(options?: ValidationOptions): PropertyDecorator {
 }
 
 class YearDto {
-  @IsInt({ message: YEAR_MESSAGE }) @Min(2000, { message: YEAR_MESSAGE }) @Max(2100, { message: YEAR_MESSAGE })
+  @StrictNumber() @IsInt({ message: YEAR_MESSAGE }) @Min(2000, { message: YEAR_MESSAGE }) @Max(2100, { message: YEAR_MESSAGE })
   year!: number
 }
 

@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 211 — request DTOs for ExpenseController.
  *
@@ -46,25 +47,25 @@ export class CreateExpenseDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   netAmount?: number
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   vatAmount?: number
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   grossAmount?: number
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @StrictNumber() @IsNumber()
   @Min(0)
   @Max(1)
   vatRate?: number
@@ -145,16 +146,16 @@ export class UpdateExpenseDto {
   @IsString() @IsOptional()
   supplierId?: string
 
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  @IsOptional() @Type(() => Number) @StrictNumber() @IsNumber() @Min(0)
   netAmount?: number
 
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  @IsOptional() @Type(() => Number) @StrictNumber() @IsNumber() @Min(0)
   vatAmount?: number
 
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  @IsOptional() @Type(() => Number) @StrictNumber() @IsNumber() @Min(0)
   grossAmount?: number
 
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(1)
+  @IsOptional() @Type(() => Number) @StrictNumber() @IsNumber() @Min(0) @Max(1)
   vatRate?: number
 
   @IsString() @IsOptional() @MaxLength(100)

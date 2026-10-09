@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 import { RECHTSFORMEN } from '../rechtsform';
 import {
   IsString,
@@ -181,7 +182,7 @@ export class UpdateCompanyDto {
   @MaxLength(20)
   invoicePrefix?: string;
 
-  @IsInt()
+  @StrictNumber() @IsInt()
   @Min(0)
   @Max(365)
   @IsOptional()

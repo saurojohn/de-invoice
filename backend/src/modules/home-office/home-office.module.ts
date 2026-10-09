@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../common/strict-number'
 import { BadRequestException, Body, Controller, Delete, Get, Injectable, Module, NotFoundException, Param, Put, Query } from '@nestjs/common'
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator'
 import { Require } from '../../auth/roles.decorator'
@@ -11,11 +12,11 @@ export class SetHomeOfficeDto {
   method!: string
 
   /** Tagespauschale: days mainly worked at home (counted up to 210) */
-  @IsOptional() @IsInt() @Min(0) @Max(366)
+  @IsOptional() @StrictNumber() @IsInt() @Min(0) @Max(366)
   days?: number
 
   /** Jahrespauschale: months the home office was the centre of the work */
-  @IsOptional() @IsInt() @Min(1) @Max(12)
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(12)
   months?: number
 }
 

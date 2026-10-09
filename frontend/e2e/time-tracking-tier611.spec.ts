@@ -41,7 +41,7 @@ test("hours are logged, summed and billed into an invoice draft", async ({ page,
   // the dashboard leads there
   await page.goto("/dashboard")
   await page.getByTestId("card-time").click({ timeout: 60_000 })
-  await expect(page).toHaveURL(/\/dashboard\/time$/)
+  await expect(page).toHaveURL(/\/dashboard\/time$/, { timeout: 60_000 })
   await expect(page.getByTestId("time-empty")).toBeVisible({ timeout: 60_000 })
   const save = page.getByTestId("time-save")
   await expect(save).toBeDisabled()

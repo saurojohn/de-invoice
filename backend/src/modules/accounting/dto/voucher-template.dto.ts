@@ -1,3 +1,4 @@
+import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 210 — request DTOs for VoucherTemplateController.
  *
@@ -87,7 +88,7 @@ export class UpdateVoucherTemplateDto {
  * ("Betrag muss > 0 sein").
  */
 export class ApplyVoucherTemplateDto {
-  @IsNumber({}, { message: "Betrag muss eine Zahl sein" })
+  @StrictNumber() @IsNumber({}, { message: "Betrag muss eine Zahl sein" })
   @Max(99999999.9999, { message: "Betrag darf höchstens 99999999.9999 sein" })
   amount!: number
 
