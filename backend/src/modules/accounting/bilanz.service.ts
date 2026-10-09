@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { NOT_AFA_BOOKING } from './booked-afa'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
@@ -668,7 +669,7 @@ export class BilanzService {
       where: { id: companyId },
     })
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 50 }))
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',

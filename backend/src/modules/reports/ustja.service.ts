@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { UstvaData, UstvaService } from './ustva.service'
@@ -221,7 +222,7 @@ export class UstjaService {
       where: { id: companyId },
     })
 
-    const doc = new PDFDocument({ size: 'A4', margin: 40 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 40 }))
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',

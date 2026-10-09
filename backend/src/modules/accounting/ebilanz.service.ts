@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import {
   Injectable,
   BadRequestException,
@@ -447,7 +448,7 @@ export class EBilanzService {
 
     // Lazy import to keep the bundle light.
     const PDFDocument = (await import("pdfkit")).default
-    const doc = new PDFDocument({ size: "A4", margin: 40 })
+    const doc = flowFromLeft(new PDFDocument({ size: "A4", margin: 40 }))
     doc.pipe(res)
 
     // Group positions by section in the

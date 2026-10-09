@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { expenseCost } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
@@ -599,7 +600,7 @@ export class GuVService {
       where: { id: companyId },
     })
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 50 }))
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',

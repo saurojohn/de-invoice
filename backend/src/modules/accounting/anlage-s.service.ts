@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { kursdifferenzen } from './kursdifferenzen'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable } from '@nestjs/common'
@@ -410,7 +411,7 @@ export class AnlageSService {
     const data = await this.compute(companyId, year)
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 50 }))
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',

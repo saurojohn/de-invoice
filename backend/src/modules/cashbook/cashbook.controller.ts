@@ -1,3 +1,4 @@
+import { printableText } from '../../common/pdf-flow'
 import { queryDate, requiredQueryDate, queryInt, requiredQueryInt, YEAR, MONTH } from '../../common/query';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, Res } from '@nestjs/common';
 import type { Response } from 'express';
@@ -322,7 +323,7 @@ export class CashBookController {
     const PDFDocument = (await import('pdfkit')).default
     const QRCode = (await import('qrcode')).default
     const company = await this.svc.getCompanyHeader(companyId)
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const doc = printableText(new PDFDocument({ size: 'A4', margin: 50 }))
     res.setHeader('Content-Type', 'application/pdf')
     const dateSlug = dateStr.slice(0, 10)
     res.setHeader(

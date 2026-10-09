@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { resolveRechtsform, isKapitalgesellschaft as isKapitalgesellschaftFn } from '../company/rechtsform'
 import { expenseCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { nonDeductibleGifts } from './gifts'
@@ -371,7 +372,7 @@ export class KSt1Service {
     const data = await this.compute(companyId, year)
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
 
-    const doc = new PDFDocument({ size: 'A4', margin: 40 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 40 }))
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',

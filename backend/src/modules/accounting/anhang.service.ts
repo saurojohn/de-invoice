@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { BilanzService, BilanzResult } from './bilanz.service'
@@ -445,7 +446,7 @@ export class AnhangService {
   async renderPdf(companyId: string, year: number, res: Response): Promise<void> {
     const data = await this.compute(companyId, year)
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 50 }))
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',

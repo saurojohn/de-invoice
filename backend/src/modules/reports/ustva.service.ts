@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { assertPeriodOpen } from './filed-period';
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
@@ -591,7 +592,7 @@ export class UstvaService {
     )
 
     const PDFDocument = (await import('pdfkit')).default
-    const doc = new PDFDocument({ size: 'A4', layout: 'portrait', margin: 50 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', layout: 'portrait', margin: 50 }))
     doc.pipe(res)
 
     // Header

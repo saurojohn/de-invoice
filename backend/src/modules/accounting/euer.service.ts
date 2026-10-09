@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { kursdifferenzen } from './kursdifferenzen'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable } from '@nestjs/common';
@@ -432,7 +433,7 @@ export class EuerService {
     const data = await this.compute(companyId, year)
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 50 }))
     doc.pipe(res)
     this.renderEurBody(doc, data, company)
     doc.end()
@@ -449,7 +450,7 @@ export class EuerService {
     const data = await this.compute(companyId, year)
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 50 }))
     const chunks: Buffer[] = []
     const sink = new (require('stream').Writable)({
       write(chunk: Buffer, _enc: string, cb: () => void) {

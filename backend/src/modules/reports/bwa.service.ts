@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals } from '../assets/disposals'
 import { expenseCost } from '../accounting/expense-cost'
 import { Injectable } from '@nestjs/common'
@@ -869,7 +870,7 @@ export class BwaService {
       `attachment; filename="BWA-${year}-${String(month).padStart(2, '0')}.pdf"`,
     )
 
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 40 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', layout: 'landscape', margin: 40 }))
     doc.pipe(res)
 
     // Header
@@ -907,6 +908,8 @@ export class BwaService {
     doc.text('Δ %', colChange, headerY, { width: 95, align: 'right' })
     doc.moveDown(0.4)
     doc.moveTo(40, doc.y).lineTo(740, doc.y).stroke()
+    // Tier 644: the first row stood on the rule
+    doc.moveDown(0.3)
 
     // Body rows
     doc.font('Helvetica').fontSize(9)

@@ -39,6 +39,7 @@
 //     <company> · Seite N von M ·
 //     erstellt am <date>"
 
+import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable } from '@nestjs/common'
 import PDFDocument from 'pdfkit'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -217,7 +218,7 @@ export class JournalService {
       }
     }
 
-    const doc = new PDFDocument({
+    const doc = flowFromLeft(new PDFDocument({
       size: 'A4',
       margins: { top: 50, bottom: 50, left: 50, right: 50 },
       info: {
@@ -226,7 +227,7 @@ export class JournalService {
         Subject: 'GoBD-konformes Buchungsjournal (§146 AO)',
         Creator: 'de-invoice',
       },
-    })
+    }))
     const chunks: Buffer[] = []
     doc.on('data', (c) => chunks.push(c))
     const done = new Promise<Buffer>((resolve) =>

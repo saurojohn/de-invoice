@@ -1,3 +1,4 @@
+import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -422,7 +423,7 @@ export class AnlageKAPService {
       `attachment; filename="Anlage-KAP-VORSCHAU-${year}.pdf"`,
     )
 
-    const doc = new PDFDocument({ size: 'A4', margin: 40 })
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 40 }))
     doc.pipe(res)
 
     // Header

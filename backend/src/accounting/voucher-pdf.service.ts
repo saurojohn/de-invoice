@@ -36,6 +36,7 @@
  *   └────────────────────────────────────────┘
  */
 
+import { printableText } from "../common/pdf-flow"
 import PDFDocument from "pdfkit"
 
 interface VoucherLineForPdf {
@@ -98,10 +99,10 @@ const STATUS_LABEL_DE: Record<string, string> = {
 
 export function generateVoucherPDF(input: VoucherPdfInput): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({
+    const doc = printableText(new PDFDocument({
       size: "A4",
       margins: { top: 50, left: 50, right: 50, bottom: 50 },
-    })
+    }))
 
     const chunks: Buffer[] = []
     doc.on("data", (c) => chunks.push(c))
