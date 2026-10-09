@@ -144,6 +144,11 @@ K3=$(customer Dritter)
 te '{"date":"'$TODAY'","minutes":15,"description":"Erstgespräch","customerId":"'$K3'"}'
 AS DELETE "/api/v1/customers/$K3?companyId=$C"
 assert_eq "a customer with hours on record is not deleted" "$STATUS/$(echo "$BODY" | grep -c 'Zeiteintr')/$(q "select count(*) from \"Customer\" where id='$K3'")" "400/1/1"
+K4=$(customer Vierter)
+AS POST "/api/v1/customers/merge/preview?companyId=$C" '{"sourceId":"'$K3'","targetId":"'$K4'"}'; PRE=$(field "d['counts']['timeEntries']")
+AS POST "/api/v1/customers/merge?companyId=$C" '{"sourceId":"'$K3'","targetId":"'$K4'"}'
+assert_eq "merging that customer into another takes the hours along — the preview says so" \
+  "$PRE $STATUS $(field "d['moved']['timeEntries']") $(q "select count(*) from \"TimeEntry\" where \"customerId\"='$K4'")/$(q "select count(*) from \"Customer\" where id='$K3'")" "1 200 1 1/0"
 assert_eq "the audit log has the entries: written, changed, deleted" \
   "$(q "select string_agg(distinct action, ' ' order by action) from \"AuditLog\" where \"companyId\"='$C' and action like 'timeentry.%'")" "timeentry.created timeentry.deleted timeentry.updated"
 summary

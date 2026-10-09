@@ -1230,6 +1230,7 @@ export class CustomerService {
       customerCreditTx,
       customerInternalNotes,
       customerPortalSessions,
+      timeEntries,
     ] = await Promise.all([
       this.prisma.invoice.count({
         where: { companyId, customerId: sourceId },
@@ -1255,6 +1256,7 @@ export class CustomerService {
       this.prisma.customerPortalSession.count({
         where: { companyId, customerId: sourceId },
       }),
+      this.prisma.timeEntry.count({ where: { companyId, customerId: sourceId } }), // Tier 611
     ])
 
     // Tags: union of both customers' tag arrays,
@@ -1285,6 +1287,7 @@ export class CustomerService {
         customerCreditTx,
         customerInternalNotes,
         customerPortalSessions,
+        timeEntries,
       },
       mergedTags,
     }
@@ -1389,7 +1392,7 @@ export class CustomerService {
         data: { customerId: targetId },
       })
       // Tier 611: the hours logged for the merged customer
-      await tx.timeEntry.updateMany({
+      const timeEntryUpdate = await tx.timeEntry.updateMany({
         where: { companyId, customerId: sourceId },
         data: { customerId: targetId },
       })
@@ -1433,6 +1436,7 @@ export class CustomerService {
         customerCreditTx: creditUpdate.count,
         customerInternalNotes: internalNoteUpdate.count,
         customerPortalSessions: portalSessionUpdate.count,
+        timeEntries: timeEntryUpdate.count,
       }
     })
 
