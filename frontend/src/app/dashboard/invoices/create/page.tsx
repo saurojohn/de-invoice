@@ -1278,7 +1278,12 @@ function CreateInvoicePageInner() {
                       key={type}
                       type="button"
                       data-testid={`invoice-type-${type}`}
+                      // Tier 613: a saved document keeps its type (and its number circle) —
+                      // the backend ignored a changed type, the form pretended to take it
+                      disabled={isEdit && invoiceType !== type}
+                      aria-pressed={invoiceType === type}
                       onClick={() => {
+                        if (isEdit) return
                         // When switching between invoice types, clear
                         // type-specific state (reference invoice for CN,
                         // customer for the rest) so the form starts clean.
@@ -1292,6 +1297,8 @@ function CreateInvoicePageInner() {
                         setCustomerSearch("")
                       }}
                       className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        isEdit && invoiceType !== type ? 'opacity-40 cursor-not-allowed ' : ''
+                      }${
                         invoiceType === type
                           ? 'border-blue-500 bg-blue-50 text-blue-700 dark:text-blue-300'
                           : 'border-gray dark:border-gray-700-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-900'

@@ -2644,6 +2644,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 613 — a draft quote of another day; the type of a saved document
+
+Two things from reading Tier 610 again:
+- **A quote or delivery note draft dated on another day could be edited (Tier 610) but not deleted** — the page offered „Löschen“ and the backend answered 403 „nur am Ausstellungstag“. That rule protects an invoice's number circle on the day after; a non-fiscal draft has never left the house. It is deleted on any day now (still only the last number of its circle — otherwise it is cancelled), and its number goes to the next quote. An invoice draft of another day is not deleted, as before.
+- **The invoice form let the type be switched while editing** — and cleared the customer on the click. The backend never changed the type of a saved document (measured: a `PUT` with another `type` returns 200 and keeps type and number), so the form pretended. In edit mode the other types are disabled now; the chosen one carries `aria-pressed`.
+
+Spec 365 +5 (40 assertions): the old draft changed, not turned into an invoice by an edit, deleted, its number reused, the invoice draft kept. Playwright `quotes-delivery-notes-tier610` checks the disabled types on the edit form.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 612 — a quote is not booked, not dunned and not the customer's bill
 
 Tier 610's check that no *figure* moves compared reports. This is the other half: every write route that names an invoice was called with an offered quote and a delivered delivery note (18 routes), and every GET route of a company holding both was searched for them (1 194 requests). The first scan of the code for untyped invoice queries had missed these — it treated any query mentioning `invoiceNumber` or `type: true` (a select) as filtered, and did not look at `findFirst` at all. **Lesson (§10): a new document type is checked by calling the routes, not by reading the queries.**
@@ -2698,7 +2706,7 @@ The second and third of the four things the owner asked for on 09.10.2026 (§9 i
 - **`GET /reports/customers` counted every document of a customer** — no status and no type filter, unlike its three siblings in the same file: a draft, a cancelled invoice and a Proforma were "pending" (measured with a quote: 3,57 Mio. € of open claims nobody owed). And a paid invoice *replaced* the customer's paid sum by its own total instead of adding to it (two paid invoices of 3 272 € showed 1 190 € paid). It now counts issued sales documents (`paid`, `sent`, `overdue` of `SALES_TYPES`), sums in Decimal, rounds to the cent.
 - **„Zeige {shown} von {total} 2 / 2“** under the invoice list: the translation's placeholders were never filled. Now „Zeige 2 von 2“.
 
-**Spec** `365-tier610-angebot-und-lieferschein.sh` (35 assertions; 29 fail on the old code): number circles; every allowed and refused status; the nine things refused; both PDFs plain; the three conversions, the four refused ones and another company's 404; **UStVA, aging, P&L, dashboard, customer report, reminders, EÜR, DATEV preview, invoice list and customer list byte-identical before and after a quote and a delivery note over 1 190 000 €**; e-mail status and text; the customer report's five figures. Playwright `quotes-delivery-notes-tier610.spec.ts`: dashboard card → list → form → quote page → offered → invoice → back (accepted, lists the invoice) → delivery note → lists by type → Chinese.
+**Spec** `365-tier610-angebot-und-lieferschein.sh` (35 assertions, 40 since Tier 613; 29 fail on the old code): number circles; every allowed and refused status; the nine things refused; both PDFs plain; the three conversions, the four refused ones and another company's 404; **UStVA, aging, P&L, dashboard, customer report, reminders, EÜR, DATEV preview, invoice list and customer list byte-identical before and after a quote and a delivery note over 1 190 000 €**; e-mail status and text; the customer report's five figures. Playwright `quotes-delivery-notes-tier610.spec.ts`: dashboard card → list → form → quote page → offered → invoice → back (accepted, lists the invoice) → delivery note → lists by type → Chinese.
 
 **Decisions taken (the owner may reverse them):**
 - A delivery note moves **no stock** — the invoice does (Tier 520), and both moving it would count a delivery twice. A company that delivers before it invoices sees the stock fall only with the invoice.

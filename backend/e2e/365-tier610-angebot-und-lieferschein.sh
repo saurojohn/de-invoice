@@ -164,4 +164,19 @@ AS GET "/api/v1/reports/customers?companyId=$C&startDate=$YEAR-01-01&endDate=$YE
 assert_eq "three issued invoices: 416,50 invoiced, 97,50 paid, 319,00 open (was: draft, cancelled and quote counted as open)" \
   "$(field "[(c['totalInvoices'], c['totalAmount'], c['paidAmount'], c['pendingAmount'], c['overdueAmount']) for c in d['customers'] if c['customerId']=='$K2']")" \
   "[(3, 416.5, 97.5, 319, 0)]"
+
+note "=== 8. a draft from another day (Tier 613) ==="
+old() { AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$K'","type":"'$1'","issueDate":"'$YEAR'-01-15","dueDate":"2099-01-31","items":[{"description":"Ware","quantity":1,"unit":"Stk","unitPrice":100,"vatRate":0.19}]}'; I=$(json_field "$BODY" id); }
+old QU; OLDQ=$I; NUM=$(of "$OLDQ" '"invoiceNumber"')
+AS PUT "/api/v1/invoices/$OLDQ?companyId=$C" '{"customerId":"'$K'","issueDate":"'$YEAR'-01-15","items":[{"description":"Ware","quantity":1,"unit":"Stk","unitPrice":150,"vatRate":0.19}]}'
+assert_eq "a quote draft dated 15.01. is still changed" "$STATUS $(of "$OLDQ" 'total::numeric(12,2)')" "200 178.50"
+AS PUT "/api/v1/invoices/$OLDQ?companyId=$C" '{"customerId":"'$K'","type":"INV","issueDate":"'$YEAR'-01-15","items":[{"description":"Ware","quantity":1,"unit":"Stk","unitPrice":150,"vatRate":0.19}]}'
+assert_eq "…but does not become an invoice by an edit: it keeps its type and its number" "$(of "$OLDQ" 'type, "invoiceNumber"')" "QU|$NUM"
+AS DELETE "/api/v1/invoices/$OLDQ?companyId=$C"
+assert_eq "…and deleted (was: 403, only on the day it is dated)" "$STATUS $(q "select count(*) from \"Invoice\" where id='$OLDQ'")" "200 0"
+doc QU
+assert_eq "its number is used by the next quote" "$(of "$I" '"invoiceNumber"')" "$NUM"
+old INV; OLDI=$I
+AS DELETE "/api/v1/invoices/$OLDI?companyId=$C"
+assert_eq "an invoice draft of another day is not deleted, as before" "$STATUS $(q "select count(*) from \"Invoice\" where id='$OLDI'")" "403 1"
 summary

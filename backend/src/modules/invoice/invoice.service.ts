@@ -1276,7 +1276,9 @@ export class InvoiceService {
     // a hard delete would silently wipe a record that exists in
     // the customer's inbox. Use status='cancelled' for past-date
     // removal of intent (the "soft delete" we had before).
-    if (!this.isToday(existing.issueDate)) {
+    // Tier 613: a quote or delivery note that is still a draft has never left
+    // the house — it is deleted on any day (the page offers it, Tier 610).
+    if (!this.isToday(existing.issueDate) && !(isNonFiscal(existing.type) && existing.status === 'draft')) {
       throw new ForbiddenException(
         'Rechnung kann nur am Ausstellungstag gelöscht werden. Für ältere Rechnungen den Status auf "Storniert" setzen.',
       );

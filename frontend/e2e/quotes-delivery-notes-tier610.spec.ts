@@ -77,6 +77,14 @@ test("a quote is written, offered and becomes an invoice and a delivery note", a
   const status = page.getByTestId("invoice-status-select")
   await expect(status.locator("option")).toHaveText(["Entwurf", "Angeboten", "Angenommen", "Abgelehnt", "Storniert"])
 
+  // editing keeps the type (Tier 613): the other types cannot be picked
+  await page.getByRole("button", { name: "Bearbeiten" }).click()
+  await expect(page.getByTestId("invoice-type-QU")).toHaveAttribute("aria-pressed", "true", { timeout: 60_000 })
+  await expect(page.getByTestId("invoice-type-INV")).toBeDisabled()
+  await expect(page.getByTestId("invoice-type-DN")).toBeDisabled()
+  await page.goto(quoteUrl)
+  await expect(title).toHaveText(quoteNumber, { timeout: 60_000 })
+
   // offer it, then: the invoice
   await status.selectOption("offered")
   await expect(status).toHaveValue("offered")
