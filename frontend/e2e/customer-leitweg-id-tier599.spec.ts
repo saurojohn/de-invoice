@@ -20,7 +20,7 @@ test("the Leitweg-ID of a customer is shown, changed and kept", async ({ page, r
   const q = `companyId=${companyId}`
   const created = await (await request.post(`${API}/api/v1/customers?${q}`, {
     headers: H,
-    data: { name: `${tag} Bundesamt`, type: "business", address: { street: "Behördenstr. 1", postalCode: "53111", city: "Bonn", country: "DE", leitwegId: "991-12345-67" } },
+    data: { name: `${tag} Bundesamt`, type: "business", address: { street: "Behördenstr. 1", postalCode: "53111", city: "Bonn", country: "DE", leitwegId: "991-12345-73" } },
   })).json()
   expect(created.id, "fixture: a customer with a Leitweg-ID").toBeTruthy()
   const stored = async () => (await (await request.get(`${API}/api/v1/customers/${created.id}?${q}`, { headers: H })).json()).address
@@ -40,19 +40,19 @@ test("the Leitweg-ID of a customer is shown, changed and kept", async ({ page, r
   await page.goto("/dashboard/customers")
   await page.getByTestId("customer-edit-button").first().click({ timeout: 60_000 })
   const field = page.getByTestId("customer-leitweg-id")
-  await expect(field).toHaveValue("991-12345-67")
+  await expect(field).toHaveValue("991-12345-73")
 
   // saving without touching it keeps it (the form sends the whole address)
   await page.locator('form button[type="submit"]').click()
   await expect(field).toBeHidden({ timeout: 30_000 })
-  expect((await stored()).leitwegId).toBe("991-12345-67")
+  expect((await stored()).leitwegId).toBe("991-12345-73")
 
   // a wrong one is refused with the reason, a right one is saved
   await page.getByTestId("customer-edit-button").first().click()
   await field.fill("Bundesamt Bonn")
   await page.locator('form button[type="submit"]').click()
   await expect(page.locator("body")).toContainText("Leitweg-ID: bitte im Format der Behörde", { timeout: 30_000 })
-  expect((await stored()).leitwegId).toBe("991-12345-67")
+  expect((await stored()).leitwegId).toBe("991-12345-73")
   await field.fill("04011000-1234512345-06")
   await page.locator('form button[type="submit"]').click()
   await expect(field).toBeHidden({ timeout: 30_000 })

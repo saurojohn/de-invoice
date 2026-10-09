@@ -33,15 +33,15 @@ ref() { # invoice id → the XRechnung's BuyerReference
 }
 
 note "=== 1. a customer with a Leitweg-ID ==="
-AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Bundesamt","type":"business","contact":{"email":"amt@example.test"},"address":{'"$ADDR"',"leitwegId":"991-12345-67"}}'
+AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Bundesamt","type":"business","contact":{"email":"amt@example.test"},"address":{'"$ADDR"',"leitwegId":"991-12345-73"}}'
 K=$(json_field "$BODY" id)
-assert_eq "created with it (was: 400 „property leitwegId should not exist“)" "$STATUS/$(stored)" "201/991-12345-67"
+assert_eq "created with it (was: 400 „property leitwegId should not exist“)" "$STATUS/$(stored)" "201/991-12345-73"
 AS GET "/api/v1/customers/$K?companyId=$C"
-assert_eq "…and it comes back with the customer" "$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin)['address'].get('leitwegId'))")" "991-12345-67"
+assert_eq "…and it comes back with the customer" "$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin)['address'].get('leitwegId'))")" "991-12345-73"
 AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$K'","issueDate":"'$TODAY'","items":[{"description":"Gutachten","quantity":1,"unit":"Stk","unitPrice":500,"vatRate":0.19}]}'
 I=$(json_field "$BODY" id)
 AS PUT "/api/v1/invoices/$I/status?companyId=$C" '{"status":"sent"}'
-assert_eq "the XRechnung's BuyerReference is the Leitweg-ID (was: the customer's name)" "$(ref "$I")" "991-12345-67"
+assert_eq "the XRechnung's BuyerReference is the Leitweg-ID (was: the customer's name)" "$(ref "$I")" "991-12345-73"
 
 note "=== 2. changing and removing it ==="
 AS PUT "/api/v1/customers/$K?companyId=$C" '{"address":{'"$ADDR"',"leitwegId":"04011000-1234512345-06"}}'
@@ -56,6 +56,15 @@ no "free text" "Bundesamt Bonn"
 no "no check digits" "991-12345"
 no "one check digit" "991-12345-6"
 no "markup" "991-<b>-67"
+# Tier 634: the check digits (ISO 7064 Mod 97-10) — the shape alone let a mistyped address through
+no "the right shape, wrong check digits (was: stored)" "991-12345-67"
+no "one digit of the address mistyped" "04011000-1234512346-06"
+no "two digits swapped" "04011000-1234521345-06"
+assert_eq "…and the answer says it is the check digits" "$(echo "$BODY" | grep -c 'Prüfziffern passen nicht')" "1"
+yes() { AS PUT "/api/v1/customers/$K?companyId=$C" '{"address":{'"$ADDR"',"leitwegId":"'"$1"'"}}'; echo "$STATUS/$(stored)"; }
+assert_eq "three published addresses are taken: a federal one, one with letters (KoSIT's test address), one in lower case" \
+  "$(yes 991-01484-64) $(yes 991-33333TEST-33) $(yes 991-33333test-33)" "200/991-01484-64 200/991-33333TEST-33 200/991-33333test-33"
+AS PUT "/api/v1/customers/$K?companyId=$C" '{"address":{'"$ADDR"'}}'
 AS PUT "/api/v1/customers/$K?companyId=$C" '{"address":{'"$ADDR"',"leitwegId":""}}'
 assert_eq "an empty field is accepted" "$STATUS" "200"
 rm -rf "$D"

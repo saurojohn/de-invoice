@@ -49,7 +49,7 @@ export interface XRechnungSupplier {
   legalName?: string
   /** Tier 412: Handelsregister entry (BT-30) */
   registerEntry?: string
-  /** German Leitweg-ID for B2G invoices (e.g. "991-12345-67") */
+  /** German Leitweg-ID for B2G invoices (e.g. "04011000-1234512345-06") */
   leitwegId?: string
   /** Electronic address (Peppol-ID or email-as-EM) */
   electronicAddress?: {
@@ -78,7 +78,7 @@ export interface XRechnungCustomer {
   email?: string
   /** BuyerReference (e.g. Leitweg-ID for B2G, internal purchase order ref) */
   buyerReference?: string
-  /** German Leitweg-ID for B2G buyer (e.g. "991-12345-67") */
+  /** German Leitweg-ID for B2G buyer (e.g. "04011000-1234512345-06") */
   leitwegId?: string
 }
 

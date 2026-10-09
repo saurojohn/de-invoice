@@ -11,7 +11,6 @@ import {
   ValidateNested,
   IsObject,
   ValidateIf,
-  Matches,
   MinLength,
   MaxLength,
   IsNotEmpty,
@@ -19,6 +18,7 @@ import {
   IsArray,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
+import { IsLeitwegId } from '../../../common/leitweg-id';
 import { CUSTOMER_NAME_MAX, CUSTOMER_VAT_ID_MAX } from '../customer.service';
 
 import { StrictBoolean } from '../../../common/strict-boolean'
@@ -47,9 +47,8 @@ export class CustomerAddressDto {
    */
   @ValidateIf((o) => o.leitwegId !== undefined && o.leitwegId !== null && o.leitwegId !== '')
   @IsString()
-  @Matches(/^[0-9]{2,12}(-[0-9A-Za-z]{1,30})?-[0-9]{2}$/, {
-    message: 'Leitweg-ID: bitte im Format der Behörde angeben, z. B. 991-12345-67 (Grobadresse, ggf. Feinadresse, zwei Prüfziffern).',
-  })
+  // Tier 634: the shape and the check digits (common/leitweg-id.ts)
+  @IsLeitwegId()
   leitwegId?: string;
 }
 

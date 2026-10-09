@@ -1302,7 +1302,7 @@ export default function CustomersPage() {
                     data-testid="customer-leitweg-id"
                     value={form.leitwegId}
                     onChange={(e) => setForm({ ...form, leitwegId: e.target.value })}
-                    placeholder="991-12345-67"
+                    placeholder="04011000-1234512345-06"
                   />
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("leitwegId.description")} — {t("leitwegId.format")}</p>
                 </div>
