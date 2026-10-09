@@ -29,6 +29,28 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Tier 629: a 403 from the roles guard names the role the action takes
+ * (`requiredRole`). Its message is an internal action name — „Unzureichende
+ * Berechtigung: users.read“ on the dunning-fee settings — so the pages, which
+ * show `error.message`, get a sentence a member can read instead. The
+ * original stays in `body.message`.
+ */
+const ROLE_NAMES: Record<string, Record<string, string>> = {
+  de: { admin: "Administrator", accountant: "Buchhalter", viewer: "Betrachter" },
+  en: { admin: "administrator", accountant: "accountant", viewer: "viewer" },
+  zh: { admin: "管理员", accountant: "会计", viewer: "只读成员" },
+}
+export function forbiddenMessage(requiredRole: string): string {
+  const locale = (typeof window !== "undefined" && localStorage.getItem("locale")) || "de"
+  const role = (ROLE_NAMES[locale] || ROLE_NAMES.de)[requiredRole] || requiredRole
+  if (locale === "en") return `Your role in this company does not allow this — it takes the role "${role}".`
+  if (locale === "zh") return `您在该公司的角色无权执行此操作——需要"${role}"角色。`
+  return `Dafür reicht Ihre Rolle in dieser Firma nicht aus — erforderlich ist die Rolle „${role}“.`
+}
+/** true for an error that says "your role does not allow this" */
+export const isForbidden = (err: unknown): boolean => err instanceof ApiError && err.status === 403
+
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
 function authHeaders(): Record<string, string> {
@@ -113,9 +135,12 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
   })
   if (throwOnError && !res.ok) {
     const data = await res.json().catch(() => ({}))
-    const msg = Array.isArray(data.message)
-      ? data.message.join(", ")
-      : data.message || `HTTP ${res.status}`
+    const msg =
+      res.status === 403 && typeof data.requiredRole === "string"
+        ? forbiddenMessage(data.requiredRole)
+        : Array.isArray(data.message)
+          ? data.message.join(", ")
+          : data.message || `HTTP ${res.status}`
     // Tier 300: auto-logout on 401. A 401 means our
     // userId/companyId headers are stale or invalid
     // (e.g. PG was rebuilt, fixture-survival rule

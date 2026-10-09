@@ -128,9 +128,19 @@ export default function DashboardPage() {
   // that answer every company but the operator's with „dem Betreiber der
   // Installation vorbehalten“. Shown only to the operator.
   const [operator, setOperator] = useState(false)
+  // Tier 629: likewise the cards of pages a member's role cannot open — the
+  // audit trail and the activity log take an accountant, the company's
+  // settings, its invoice templates and its error list an administrator.
+  // Until the role is known nothing is hidden (an admin's dashboard does not flicker).
+  const [role, setRole] = useState<string | null>(null)
+  const isAdmin = role === null || role === "admin"
+  const isAccountant = role === null || role === "admin" || role === "accountant" || role === "berater"
   useEffect(() => {
-    apiGet<{ operator?: boolean }>("/api/v1/auth/me")
-      .then((me) => setOperator(me?.operator === true))
+    apiGet<{ operator?: boolean; role?: string }>("/api/v1/auth/me")
+      .then((me) => {
+        setOperator(me?.operator === true)
+        setRole(me?.role || null)
+      })
       .catch(() => setOperator(false))
   }, [])
   const [monthlyRevenue, setMonthlyRevenue] = useState<Array<{ month: string; totalAmount: number; invoiceCount?: number }>>([])
@@ -1093,7 +1103,8 @@ export default function DashboardPage() {
               Customers because that's the primary use
               case ("I have 200 customers in a CSV, just
               import them"). Tier 13. */}
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/import")}>
+          {isAccountant && (
+          <Card data-testid="dashboard-card-import" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/import")}>
             <CardHeader>
               <CardTitle>📥 {t("import.title") || "Bulk-Import"}</CardTitle>
             </CardHeader>
@@ -1101,6 +1112,7 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("import.subtitle") || "CSV-Import für Kunden, Produkte und Eingangsrechnungen"}</p>
             </CardContent>
           </Card>
+          )}
           {/* Inventory card — placed right after Products
               because the inventory is per-product (you
               adjust stock on a product, see a list of
@@ -1165,7 +1177,8 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardRemindersDesc")}</p>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/system-errors")}>
+          {isAdmin && (
+          <Card data-testid="dashboard-card-system-errors" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/system-errors")}>
             <CardHeader>
               <CardTitle className="text-orange-600 dark:text-orange-400">{t("dashboard.cardSystemErrorsTitle")}</CardTitle>
             </CardHeader>
@@ -1173,6 +1186,7 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardSystemErrorsDesc")}</p>
             </CardContent>
           </Card>
+          )}
           {operator && (<>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/system-health")} data-testid="dashboard-card-system-health">
             <CardHeader>
@@ -1191,6 +1205,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
           </>)}
+          {isAccountant && (
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/audit")} data-testid="dashboard-card-audit">
             <CardHeader>
               <CardTitle className="text-purple-600 dark:text-purple-400">{t("dashboard.cardAuditTitle")}</CardTitle>
@@ -1199,6 +1214,8 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardAuditDesc")}</p>
             </CardContent>
           </Card>
+          )}
+          {isAccountant && (
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/activity")} data-testid="dashboard-card-activity">
             <CardHeader>
               <CardTitle className="text-rose-600 dark:text-rose-400">{t("dashboard.cardActivityTitle")}</CardTitle>
@@ -1207,6 +1224,7 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardActivityDesc")}</p>
             </CardContent>
           </Card>
+          )}
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/security")}>
             <CardHeader>
               <CardTitle className="text-blue-600 dark:text-blue-400">{t("dashboard.cardSecurityTitle")}</CardTitle>
@@ -1301,7 +1319,8 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardBankingDesc")}</p>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoice-templates")}>
+          {isAdmin && (
+          <Card data-testid="dashboard-card-invoice-templates" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoice-templates")}>
             <CardHeader>
               <CardTitle className="text-blue-700 dark:text-blue-300">{t("invoiceTemplates.title")}</CardTitle>
             </CardHeader>
@@ -1309,6 +1328,7 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("invoiceTemplates.subtitle")}</p>
             </CardContent>
           </Card>
+          )}
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/suppliers")}>
             <CardHeader>
               <CardTitle className="text-orange-700 dark:text-orange-300">{t("dashboard.cardSuppliersTitle")}</CardTitle>
@@ -1356,7 +1376,8 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("directDebit.subtitle")}</p>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/settings")}>
+          {isAdmin && (
+          <Card data-testid="dashboard-card-settings" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/settings")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardSettingsTitle")}</CardTitle>
             </CardHeader>
@@ -1364,6 +1385,7 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardSettingsDesc")}</p>
             </CardContent>
           </Card>
+          )}
         </div>
       </div>
     </main>

@@ -165,12 +165,25 @@ export class UsersService {
     return (rank[effective] ?? -1) >= (rank[required] ?? 99);
   }
 
+  /** Tier 629: the role an action takes — for the 403 that names it */
+  static requiredRole(action: string): string | null {
+    return PERMISSIONS[action] ?? null;
+  }
+
   /**
    * Throw ForbiddenException if the given role cannot perform the action.
    */
   static requireRole(role: string | null | undefined, action: keyof typeof PERMISSIONS) {
     if (!this.can(role, action)) {
-      throw new ForbiddenException(`Unzureichende Berechtigung: ${action}`);
+      // Tier 629: as the roles guard answers — with the role the action takes
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: `Unzureichende Berechtigung: ${action}`,
+        action,
+        requiredRole: this.requiredRole(action),
+        role: role ?? null,
+      });
     }
   }
 

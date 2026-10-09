@@ -9,10 +9,13 @@ import {
   Body,
   Param,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { MailService } from './mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
+import { isSystemAdmin } from '../../auth/system-admin.guard';
+import { isSealed, sealSecret, secretEncryptionAvailable } from '../../common/secret-crypto';
 
 interface MailConfigDto {
   smtpHost: string;
@@ -34,12 +37,29 @@ export class MailController {
 
   @Require('company.read')
   @Get('config')
-  async getConfig(@Query('companyId') companyId: string) {
+  async getConfig(@Query('companyId') companyId: string, @Req() req: any) {
     if (!companyId) throw new BadRequestException('companyId is required');
     const cfg = await this.prisma.mailConfig.findUnique({ where: { companyId } });
     if (!cfg) {
+      // Tier 630: the installation's own SMTP account (host, user, sender) is
+      // the operator's. It was returned to every company without a mail
+      // configuration "as initial values for the form" — every member of
+      // every company could read the operator's mail server and account
+      // name. A company learns only whether the installation sends for it.
+      const installationSender = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
+      if (!(await isSystemAdmin(this.prisma, req?.user))) {
+        return {
+          configured: false,
+          smtpHost: '', smtpPort: 587, smtpSecure: false, smtpUser: '', smtpPassword: '',
+          fromName: '', fromEmail: '',
+          enabled: true,
+          source: 'env',
+          installationSender,
+        };
+      }
       // Return env fallback as initial values for the UI form (without password)
       return {
+        installationSender,
         configured: false,
         smtpHost: process.env.SMTP_HOST || '',
         smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
@@ -65,6 +85,9 @@ export class MailController {
       enabled: cfg.enabled,
       source: 'database',
       updatedAt: cfg.updatedAt,
+      // Tier 630: whether the stored password is sealed (the installation has its key)
+      passwordEncrypted: isSealed(cfg.smtpPassword),
+      encryptionAvailable: secretEncryptionAvailable(),
     };
   }
 
@@ -84,10 +107,14 @@ export class MailController {
       smtpPort: dto.smtpPort ?? 587,
       smtpSecure: dto.smtpSecure ?? false,
       smtpUser: dto.smtpUser,
-      // If password is empty and a config exists, keep the old password
-      smtpPassword: dto.smtpPassword && dto.smtpPassword.length > 0
-        ? dto.smtpPassword
-        : (await this.prisma.mailConfig.findUnique({ where: { companyId } }))?.smtpPassword || '',
+      // If password is empty and a config exists, keep the old password.
+      // Tier 630: either way it is stored sealed (AES-256-GCM under the
+      // installation's key) — it was kept as typed.
+      smtpPassword: sealSecret(
+        dto.smtpPassword && dto.smtpPassword.length > 0
+          ? dto.smtpPassword
+          : (await this.prisma.mailConfig.findUnique({ where: { companyId } }))?.smtpPassword || '',
+      ),
       fromName: dto.fromName || 'Ihre Firma',
       fromEmail: dto.fromEmail || dto.smtpUser,
       enabled: dto.enabled ?? true,

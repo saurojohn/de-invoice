@@ -1378,7 +1378,10 @@
     "testOk": "Connection OK",
     "testFailed": "Connection failed",
     "source": "Source",
-    "sourceEnv": "not yet overridden"
+    "sourceEnv": "not yet overridden",
+    "installationSender": "without an account of its own, the installation sends for this company",
+    "passwordEncrypted": "the password is stored encrypted",
+    "passwordPlain": "the password is stored unencrypted (the installation lacks the key FINTS_PIN_ENC_KEY)"
   },
   "nav": {
     "dashboard": "Dashboard",

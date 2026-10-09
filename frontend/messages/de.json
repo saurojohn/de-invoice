@@ -1378,7 +1378,10 @@
     "testOk": "Verbindung OK",
     "testFailed": "Verbindung fehlgeschlagen",
     "source": "Quelle",
-    "sourceEnv": "noch nicht überschrieben"
+    "sourceEnv": "noch nicht überschrieben",
+    "installationSender": "ohne eigenes Konto versendet die Installation für diese Firma",
+    "passwordEncrypted": "das Passwort ist verschlüsselt gespeichert",
+    "passwordPlain": "das Passwort ist unverschlüsselt gespeichert (der Installation fehlt der Schlüssel FINTS_PIN_ENC_KEY)"
   },
   "nav": {
     "dashboard": "Dashboard",

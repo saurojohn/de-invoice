@@ -26,6 +26,10 @@ cd "$SCRIPT_DIR/.."
 
 OUT=$(DATABASE_URL="$URL" npx prisma migrate deploy 2>&1)
 grep -q "All migrations have been successfully applied" <<<"$OUT" && pass "every migration applies to an empty database" || fail "migrate deploy: $(tail -5 <<<"$OUT")"
+# Tier 630: Prisma's "Update available" box goes to stderr, which is read here
+# as part of the difference — outside CI it appears about once a day and
+# counted as ten lines of schema drift.
+export PRISMA_HIDE_UPDATE_MESSAGE=1
 DIFF=$(npx prisma migrate diff --from-url "$URL" --to-schema-datamodel prisma/schema.prisma --script 2>&1 | grep -v "search_tsv" | grep -v "^--" | grep -v "^[[:space:]]*$" || true)
 assert_eq "…and the result is the schema (was: 14 tables and 11 columns short)" "$(grep -c . <<<"$DIFF" || true)" "0"
 [[ -n "$DIFF" ]] && echo "$DIFF" | head -20

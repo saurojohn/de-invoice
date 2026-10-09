@@ -67,7 +67,7 @@ export default function UsersPage() {
   // dashboard with an explanatory message rather than showing a
   // confusing "no access" warning in place.
   useEffect(() => {
-    if (error && /Unzureichende Berechtigung|Forbidden/i.test(error)) {
+    if (error && /Unzureichende Berechtigung|Forbidden|reicht Ihre Rolle|Your role in this company|角色无权/i.test(error)) {
       router.replace("/dashboard?notice=" + encodeURIComponent("Benutzerverwaltung erfordert Administrator-Rechte."))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

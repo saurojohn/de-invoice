@@ -1378,7 +1378,10 @@
     "testOk": "连接成功",
     "testFailed": "连接失败",
     "source": "数据源",
-    "sourceEnv": "尚未被覆盖"
+    "sourceEnv": "尚未被覆盖",
+    "installationSender": "未配置自己的邮箱时，由本安装统一代发",
+    "passwordEncrypted": "密码已加密存储",
+    "passwordPlain": "密码未加密存储（本安装缺少密钥 FINTS_PIN_ENC_KEY）"
   },
   "nav": {
     "dashboard": "仪表盘",

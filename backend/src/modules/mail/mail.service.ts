@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { isSealed, openSecret, sealSecret, secretEncryptionAvailable } from '../../common/secret-crypto';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -27,8 +28,26 @@ interface ResolvedConfig {
 }
 
 @Injectable()
-export class MailService {
+export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
+
+  /**
+   * Tier 630: SMTP passwords stored before this tier (or while the
+   * installation had no key) are sealed once the key is there.
+   */
+  async onModuleInit() {
+    if (!secretEncryptionAvailable()) return;
+    try {
+      const plain = (await this.prisma.mailConfig.findMany({ select: { id: true, smtpPassword: true } }))
+        .filter((c) => c.smtpPassword && !isSealed(c.smtpPassword));
+      for (const c of plain) {
+        await this.prisma.mailConfig.update({ where: { id: c.id }, data: { smtpPassword: sealSecret(c.smtpPassword) } });
+      }
+      if (plain.length) this.logger.log(`[mail] ${plain.length} SMTP-Passwort/-Passwörter verschlüsselt abgelegt`);
+    } catch (e) {
+      this.logger.warn(`[mail] SMTP-Passwörter konnten beim Start nicht verschlüsselt werden: ${(e as Error)?.message}`);
+    }
+  }
   private transporter: nodemailer.Transporter | null = null;
   private transporterKey: string | null = null; // signature of current transporter
   private configured = false;
@@ -43,13 +62,18 @@ export class MailService {
     // 1) Per-company DB config
     if (companyId) {
       const cfg = await this.prisma.mailConfig.findUnique({ where: { companyId } });
-      if (cfg && cfg.enabled && cfg.smtpHost && cfg.smtpUser && cfg.smtpPassword) {
+      // Tier 630: the password is stored sealed
+      const password = cfg ? openSecret(cfg.smtpPassword) : null;
+      if (cfg && cfg.smtpPassword && password === null) {
+        this.logger.warn(`[mail] das SMTP-Passwort der Firma ${companyId} lässt sich nicht entschlüsseln (FINTS_PIN_ENC_KEY fehlt oder wurde geändert) — bitte neu eingeben`);
+      }
+      if (cfg && cfg.enabled && cfg.smtpHost && cfg.smtpUser && password) {
         return {
           host: cfg.smtpHost,
           port: cfg.smtpPort,
           secure: cfg.smtpSecure,
           user: cfg.smtpUser,
-          pass: cfg.smtpPassword,
+          pass: password,
           fromName: cfg.fromName,
           fromEmail: cfg.fromEmail,
           enabled: cfg.enabled,

@@ -48,13 +48,25 @@ export class RolesGuard implements CanActivate {
     if (!action) return true
 
     const role = req.user?.role
+    // Tier 629: the answer names the role the action takes. The message is an
+    // internal action name („users.read“ stands for "admin" on routes that
+    // have nothing to do with users) — a page can now say "Administrator".
+    const refused = () =>
+      new ForbiddenException({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: `Unzureichende Berechtigung: ${action}`,
+        action,
+        requiredRole: UsersService.requiredRole(action),
+        role: role ?? null,
+      })
     if (!role) {
       // No authenticated user — for role-protected routes, treat as
       // forbidden (defence in depth).
-      throw new ForbiddenException(`Unzureichende Berechtigung: ${action}`)
+      throw refused()
     }
     if (!UsersService.can(role, action as any)) {
-      throw new ForbiddenException(`Unzureichende Berechtigung: ${action}`)
+      throw refused()
     }
     // Tier 71: Read-Only Modus check.
     //

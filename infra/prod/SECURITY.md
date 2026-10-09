@@ -54,7 +54,7 @@ a Hetzner account).
 |---|---------|--------|-------------|
 | 1 | `JWT_SECRET` ≥ 64 hex chars | 📋 | Set in `.env` (runbook §"Rotate JWT_SECRET") |
 | 2 | `POSTGRES_PASSWORD` ≥ 32 random chars | 📋 | Set in `.env` |
-| 3 | `FINTS_PIN_ENC_KEY` ≥ 32 hex chars | 📋 | Set in `.env` (real-bank mode) |
+| 3 | `FINTS_PIN_ENC_KEY` ≥ 32 hex chars | 📋 | Set in `.env` — it seals the FinTS PINs **and, since Tier 630, each company's SMTP password** (`MailConfig.smtpPassword`); without it an SMTP password is stored as typed |
 | 4 | bcrypt password hashing | ✅ | Backend uses bcrypt cost 12 |
 | 5 | Throttling on `/api/v1/auth/login` | ✅ | NestJS `@Throttle(5, 60)` |
 | 6 | CORS allowlist (FRONTEND_URL only) | ✅ | Backend reads `FRONTEND_URL` env var |
