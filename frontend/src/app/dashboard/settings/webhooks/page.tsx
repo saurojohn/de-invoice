@@ -877,6 +877,7 @@ export default function WebhooksPage() {
                   fetchDeadLetter(companyId, v || undefined)
                 }}
                 data-testid="dead-letter-event-type-filter"
+                aria-label={t("webhooks.deliveries.eventType")}
                 className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               >
                 <option value="">

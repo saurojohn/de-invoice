@@ -175,6 +175,7 @@ export default function EmailCenterPage() {
                 className="flex-1 min-w-[200px] border rounded px-3 py-2 text-sm"
               />
               <select
+                aria-label={t("email.colStatus")}
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
                 className="border rounded px-3 py-2 text-sm"

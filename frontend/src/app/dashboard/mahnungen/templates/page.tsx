@@ -433,6 +433,7 @@ export default function MahnungTemplatesPage() {
                       }))
                     }
                     className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 text-sm"
+                    aria-label={t("mahnung.templatesSubject")}
                     data-testid="mahnung-templates-subject"
                   />
                 </CardContent>
@@ -456,6 +457,7 @@ export default function MahnungTemplatesPage() {
                     }
                     rows={14}
                     className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 text-sm font-mono"
+                    aria-label={t("mahnung.templatesBody")}
                     data-testid="mahnung-templates-body"
                   />
                 </CardContent>

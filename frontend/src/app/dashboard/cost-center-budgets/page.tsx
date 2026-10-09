@@ -304,6 +304,7 @@ export default function CostCenterBudgetsPage() {
             <div className="flex items-center gap-2">
               <select
                 data-testid="budget-year-select"
+                aria-label={t("costCenterReport.filterYear")}
                 value={year}
                 onChange={(e) => setYear(Number(e.target.value))}
                 className="border rounded px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"

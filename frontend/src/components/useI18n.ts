@@ -54,6 +54,9 @@ export function useI18n() {
     setMounted(true)
     const saved = localStorage.getItem("locale") || "de"
     setLocale(saved)
+    // The document says which language it is in — a screen reader picks its
+    // voice by it, a browser its hyphenation and its offer to translate.
+    document.documentElement.lang = saved
   }, [])
 
   // Walk the nested object by dotted-key path. Returns the

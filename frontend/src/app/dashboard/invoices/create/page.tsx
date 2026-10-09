@@ -1804,6 +1804,7 @@ function CreateInvoicePageInner() {
                       value={form.servicePeriodEnd}
                       onChange={(e) => setForm({ ...form, servicePeriodEnd: e.target.value })}
                       title={t("invoice.servicePeriodHint")}
+                      aria-label={`${t("invoice.servicePeriod")} – ${t("common2.to")}`}
                       data-testid="service-period-end"
                     />
                   </div>
@@ -1951,6 +1952,7 @@ function CreateInvoicePageInner() {
                       placeholder={t("invoice.productNumber")}
                       title={t("invoice.productNumberSearchHint")}
                       className="font-mono text-sm"
+                      aria-label={t("invoice.productNumber")}
                       data-testid="item-product-number"
                       {...(() => {
                         const matches = productNumberMatches()
@@ -2018,6 +2020,7 @@ function CreateInvoicePageInner() {
                   <div className="col-span-4 relative">
                     <Input
                       value={item.description}
+                      aria-label={t("invoice.description")}
                       data-testid="item-description"
                       onChange={(e) => {
                         const items = [...form.items]
@@ -2070,6 +2073,7 @@ function CreateInvoicePageInner() {
                       min="1"
                       value={item.quantity}
                       className="w-16"
+                      aria-label={t("invoice.quantity")}
                       data-testid="item-quantity"
                       onChange={(e) => {
                         const items = [...form.items]
@@ -2080,6 +2084,7 @@ function CreateInvoicePageInner() {
                     <Input
                       value={item.unit}
                       className="w-16"
+                      aria-label={t("invoice.unit")}
                       onChange={(e) => {
                         const items = [...form.items]
                         items[index].unit = e.target.value
@@ -2093,6 +2098,7 @@ function CreateInvoicePageInner() {
                       step="0.01"
                       min="0"
                       value={item.unitPrice}
+                      aria-label={t("invoice.unitPrice")}
                       data-testid="item-unit-price"
                       onChange={(e) => {
                         const items = [...form.items]
@@ -2104,6 +2110,7 @@ function CreateInvoicePageInner() {
                   <div className="col-span-1">
                     <select
                       data-testid={`invoice-item-vat-${index}`}
+                      aria-label={t("invoice.vatRate")}
                       className="w-full h-10 border rounded-md px-1 text-sm"
                       value={item.vatRate}
                       onChange={(e) => {
@@ -2372,6 +2379,7 @@ function CreateInvoicePageInner() {
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
                     placeholder={t("common2.additionalNotes")}
+                    aria-label={t("invoice.notes")}
                     data-testid="invoice-notes-input"
                   />
                 </div>

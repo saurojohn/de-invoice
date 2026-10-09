@@ -8,6 +8,7 @@ import { GlobalErrorCapture } from "@/components/GlobalErrorCapture";
 import AuthCookieSync from "@/components/AuthCookieSync";
 import AuthenticatedDownloads from "@/components/AuthenticatedDownloads";
 import GlobalSearch from "@/components/GlobalSearch";
+import FieldLabels from "@/components/FieldLabels";
 import { ReadOnlyProvider } from "@/components/ReadOnlyBanner";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CookieBanner } from "@/components/CookieBanner";
@@ -51,7 +52,9 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      // German is the language of a first visit and of the pages that do not
+      // ask (Impressum, Datenschutz); useI18n sets the chosen one.
+      lang="de"
       // The pre-hydration Script (below) reads
       // localStorage + OS preference and adds the
       // `dark` class to <html> BEFORE React hydrates.
@@ -82,7 +85,7 @@ export default function RootLayout({
           {THEME_PREHYDRATION_SCRIPT}
         </Script>
       </head>
-      <body className="min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-x-hidden"><AuthCookieSync /><ToastProvider><AuthenticatedDownloads /><GlobalErrorCapture><ReadOnlyProvider>{children}<SiteFooter /></ReadOnlyProvider></GlobalErrorCapture><GlobalSearch /><CookieBanner /></ToastProvider></body>
+      <body className="min-h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-x-hidden"><AuthCookieSync /><ToastProvider><AuthenticatedDownloads /><GlobalErrorCapture><ReadOnlyProvider>{children}<SiteFooter /></ReadOnlyProvider></GlobalErrorCapture><GlobalSearch /><CookieBanner /><FieldLabels /></ToastProvider></body>
     </html>
   );
 }

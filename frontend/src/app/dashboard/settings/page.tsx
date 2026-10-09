@@ -1026,6 +1026,7 @@ export default function SettingsPage() {
                         setForm({ ...form, address: { ...form.address, city: e.target.value } })
                       }
                       placeholder={t("settings.placeholderCity")}
+                      aria-label={t("settings.city")}
                       className="flex-1"
                     />
                   </div>

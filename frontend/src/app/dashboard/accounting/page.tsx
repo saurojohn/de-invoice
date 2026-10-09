@@ -549,6 +549,7 @@ export default function AccountingPage() {
               <select
                 value={referenceType}
                 onChange={(e) => setReferenceType(e.target.value)}
+                aria-label={t("accounting.voucherType")}
                 className="border rounded px-3 py-2 text-sm"
               >
                 <option value="">{t("accounting.allTypes")}</option>
@@ -561,6 +562,7 @@ export default function AccountingPage() {
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
+                aria-label={t("accounting.status")}
                 className="border rounded px-3 py-2 text-sm"
               >
                 <option value="">{t("accounting.allStatuses")}</option>

@@ -528,6 +528,7 @@ export default function ExpensesPage() {
               <select
                 value={supplierId}
                 onChange={(e) => setSupplierId(e.target.value)}
+                aria-label={t("expenses.supplier")}
                 className="border rounded px-3 py-2 text-sm"
               >
                 <option value="">{t("expenses.allSuppliers")}</option>
@@ -538,6 +539,7 @@ export default function ExpensesPage() {
                 ))}
               </select>
               <select
+                aria-label={t("common.status")}
                 value={state}
                 onChange={(e) =>
                   setState(
