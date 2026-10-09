@@ -1,4 +1,5 @@
 import { businessTodayDate } from '../../common/business-date';
+import { NON_FISCAL_TYPES, isNonFiscal } from '../invoice/document-scope';
 import { daysOverdue as daysOverdueOf } from './days-overdue';
 import { verzugszinsen } from './basiszinssatz';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
@@ -160,7 +161,7 @@ export class ReminderService {
    */
   async latestInvoiceId(companyId: string): Promise<string | null> {
     const r = await this.prisma.invoice.findFirst({
-      where: { companyId },
+      where: { companyId, type: { notIn: NON_FISCAL_TYPES } }, // Tier 612: an invoice, not a quote
       orderBy: { createdAt: 'desc' },
       select: { id: true },
     });
@@ -656,6 +657,13 @@ Mit freundlichen Grüßen,
     if (!invoice) {
       // Tier 378: plain Error → 500 for an unknown or foreign invoice id.
       throw new NotFoundException('Rechnung nicht gefunden');
+    }
+    // Tier 612: a missing or unknown level answered 500; a quote got a reminder text.
+    if (!['first', 'second', 'final'].includes(level)) {
+      throw new BadRequestException('level muss first, second oder final sein');
+    }
+    if (isNonFiscal(invoice.type)) {
+      throw new BadRequestException('Zu einem Angebot oder Lieferschein gibt es keine Mahnung.');
     }
 
     const company = await this.prisma.company.findUnique({

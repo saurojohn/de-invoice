@@ -2644,6 +2644,20 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 612 — a quote is not booked, not dunned and not the customer's bill
+
+Tier 610's check that no *figure* moves compared reports. This is the other half: every write route that names an invoice was called with an offered quote and a delivered delivery note (18 routes), and every GET route of a company holding both was searched for them (1 194 requests). The first scan of the code for untyped invoice queries had missed these — it treated any query mentioning `invoiceNumber` or `type: true` (a select) as filtered, and did not look at `findFirst` at all. **Lesson (§10): a new document type is checked by calling the routes, not by reading the queries.**
+
+- **`POST /accounting/vouchers/generate/:invoiceId` never asked what it was booking.** It booked 1400 an 4200 / 2200 for the quote and the delivery note — and, long before Tier 610, for a **draft**, a **cancelled** invoice and a **Proforma** (201 each, measured). It now books issued sales documents only (`SALES_TYPES`, `ISSUED_STATUSES`); the message says which of the two is missing. A **credit note** was booked with a negative Soll and Haben (−59,50 / −50,00 / −9,50) — it is now the reversed booking with positive amounts („Gutschrift CN-…“). The frontend does not call this route; it exists for API use.
+- **`POST /mahnungspausen`** with a quote's id created a dunning pause → 400.
+- **`GET /reminders/:invoiceId/email-data`**: a reminder text for a quote → 400. And, for any invoice, a missing or unknown `level` answered **500** → 400.
+- **`GET /customers/:id/summary`**: `lastInvoice` was the newest document of any type → the newest that is not a quote or delivery note. The template preview's "latest invoice" likewise.
+- **The customer portal** (`/customer-portal/*`, the customer's own login): listed the quote and the delivery note among the invoices, opened their page and PDF, and **accepted „Ich habe bezahlt“ for a quote** (201 — a payment notice on a document that takes no payment). All four queries exclude the non-fiscal types now; by id they answer 404.
+
+Looked at and left: the audit log shows quotes and delivery notes (it should); the global search finds them by number (it should); bulk e-mail by explicit ids sends a quote with the quote's text (Tier 610); a reminder, an instalment plan, a cashbook receipt and a payment on a quote were already refused by their status or by Tier 610.
+
+**Spec** `367-tier612-angebot-wird-nicht-gebucht.sh` (16 assertions; 9 fail on the code before): the five documents that are not booked, the invoice's and the credit note's voucher lines, no negative line; pause and reminder text; the summary; the portal's list and the three by-id routes.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 611 — time tracking (Zeiterfassung)
 
 The last of the four things the owner asked for on 09.10.2026 (§9 item 24). Hours worked had no place in the system; the invoice lines of a freelancer or an agency were typed by hand.
@@ -8683,6 +8697,8 @@ finding critical/high issues. Future agents must respect them:
     (Tiers 346–348, 362b).
 
 - **A CSS rule for "every X" matches things you did not picture (Tier 603).** `.flex:has(> button) { flex-wrap: wrap }`, meant for button rows, matched `<body>` and widened 23 pages. After a global style change, run the page walk over ALL pages again (`$S/review/ui/walk.js mobile`), not only over the pages the change was for — and measure narrower than the test (350 px), because the CI machine's fonts are wider than macOS's.
+
+- **A new document type is checked by calling the routes, not by reading the queries (Tier 612).** After adding quotes and delivery notes to the `Invoice` table, a scan of the code for invoice queries without a type filter looked clean — it counted `type: true` in a select and any mention of `invoiceNumber` as a filter, and skipped `findFirst`. Calling every write route with a quote's id and searching every GET response for its number found six places in an hour, one of them a voucher booked for a quote and one a customer marking a quote as paid.
 
 ## 11. What to do when you start
 

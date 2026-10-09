@@ -1,5 +1,6 @@
 import { withKeyLock } from '../../common/key-lock';
 import { assertBooksOpen } from '../reports/filed-period';
+import { DOCUMENT_NAMES, ISSUED_STATUSES, SALES_TYPES } from '../invoice/document-scope';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { businessTodayDate } from '../../common/business-date';
 import { Prisma } from '@prisma/client';
@@ -999,6 +1000,19 @@ export class VoucherService {
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden');
     }
+    // Tier 612: booked is revenue that exists — an issued invoice, receipt or
+    // credit note. This route booked 1400 an 4200 / 2200 for a draft, for a
+    // cancelled invoice, for a Proforma, and (since Tier 610) for a quote.
+    if (!SALES_TYPES.includes(invoice.type)) {
+      throw new BadRequestException(`Ein Dokument der Art „${DOCUMENT_NAMES[invoice.type] ?? invoice.type}“ ist kein Umsatz und wird nicht gebucht.`);
+    }
+    if (!ISSUED_STATUSES.includes(invoice.status)) {
+      throw new BadRequestException(
+        invoice.status === 'draft'
+          ? 'Die Rechnung ist ein Entwurf — gebucht wird sie, wenn sie ausgestellt ist.'
+          : 'Die Rechnung ist storniert und wird nicht gebucht.',
+      );
+    }
     await assertBooksOpen(this.prisma, companyId, [invoice.issueDate], 'das Buchen eines Belegs'); // Tier 609
 
     const lines: CreateVoucherDto['lines'] = [];
@@ -1060,12 +1074,23 @@ export class VoucherService {
       });
     }
 
+    // Tier 612: a credit note reverses the booking — sides swapped, amounts
+    // positive. It was written with a negative Soll and Haben (-100 / -84,03
+    // / -15,97), which no manual voucher may have.
+    if (total < 0) {
+      for (const line of lines) {
+        const { debit, credit } = line;
+        line.debit = credit !== undefined ? -credit : undefined;
+        line.credit = debit !== undefined ? -debit : undefined;
+      }
+    }
+
     return this.prisma.voucher.create({
       data: {
         companyId,
         voucherNumber: await this.generateVoucherNumber(companyId, invoice.issueDate),
         date: invoice.issueDate,
-        description: `Verkauf Rechnung ${invoice.invoiceNumber}`,
+        description: total < 0 ? `Gutschrift ${invoice.invoiceNumber}` : `Verkauf Rechnung ${invoice.invoiceNumber}`,
         referenceType: 'invoice',
         status: 'posted',
         invoiceRef: { connect: { id: invoiceId } },

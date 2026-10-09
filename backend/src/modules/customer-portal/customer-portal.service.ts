@@ -57,6 +57,7 @@
  *     nightly job — not in this tier).
  */
 import { daysOverdue as daysOverdueOf } from '../reminder/days-overdue';
+import { NON_FISCAL_TYPES } from '../invoice/document-scope';
 import { advanceDeductionFor } from '../invoice/advance';
 import {
   BadRequestException,
@@ -315,7 +316,7 @@ export class CustomerPortalService {
     // natural reading order on the portal.
     const rawInvoices = await this.prisma.invoice.findMany({
       // Tier 496: a draft is internal — not shown to the customer.
-      where: { customerId: session.customerId, companyId: session.companyId, status: { not: 'draft' } },
+      where: { customerId: session.customerId, companyId: session.companyId, status: { not: 'draft' }, type: { notIn: NON_FISCAL_TYPES } }, // Tier 612
       orderBy: { issueDate: 'desc' },
       select: {
         id: true,
@@ -436,6 +437,7 @@ export class CustomerPortalService {
         customerId: session.customerId,
         companyId: session.companyId,
         status: { not: 'draft' }, // Tier 496
+        type: { notIn: NON_FISCAL_TYPES }, // Tier 612: the portal is about invoices
       },
       // Tier 545: what the customer sees is what is on the invoice — named
       // field by field. This returned the whole row: the cost centre and cost
@@ -507,6 +509,7 @@ export class CustomerPortalService {
         customerId: session.customerId,
         companyId: session.companyId,
         status: { not: 'draft' }, // Tier 496
+        type: { notIn: NON_FISCAL_TYPES }, // Tier 612: the portal is about invoices
       },
       include: {
         items: true,
@@ -550,6 +553,7 @@ export class CustomerPortalService {
         customerId: session.customerId,
         companyId: session.companyId,
         status: { not: 'draft' }, // Tier 496
+        type: { notIn: NON_FISCAL_TYPES }, // Tier 612: the portal is about invoices
       },
       include: { payments: { select: { amount: true } } },
     })

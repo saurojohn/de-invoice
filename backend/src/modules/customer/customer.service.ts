@@ -272,7 +272,7 @@ export class CustomerService {
       }),
       // Most recent invoice (any status) for "last activity"
       this.prisma.invoice.findFirst({
-        where: { companyId, customerId: id },
+        where: { companyId, customerId: id, type: { notIn: ['QU', 'DN'] } }, // Tier 612: the last invoice, not the last quote
         orderBy: { issueDate: 'desc' },
         select: { id: true, invoiceNumber: true, issueDate: true, total: true, status: true, type: true },
       }),

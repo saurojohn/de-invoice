@@ -185,9 +185,11 @@ export class MahnungspauseService {
     } else {
       const i = await this.prisma.invoice.findFirst({
         where: { id: input.invoiceId!, companyId },
-        select: { id: true },
+        select: { id: true, type: true },
       })
       if (!i) throw new BadRequestException('Rechnung nicht gefunden')
+      // Tier 612: nothing is dunned on a quote or a delivery note — nothing to pause
+      if (['QU', 'DN'].includes(i.type)) throw new BadRequestException('Ein Angebot oder Lieferschein wird nicht gemahnt — eine Mahnpause gibt es dazu nicht.')
     }
 
     return this.prisma.mahnungspause.create({
