@@ -239,6 +239,8 @@ jobs:
       # docker host.
       - name: Start sidecar postgres
         run: |
+          # Tier 635b: Docker Hub or one of its mirrors (the anonymous pull limit)
+          bash "$GITHUB_WORKSPACE/backend/scripts/ci-pull-image.sh" postgres:16-alpine
           docker run -d --name de-invoice-postgres \
             -e POSTGRES_USER=de_invoice \
             -e POSTGRES_PASSWORD=de_invoice_pass \
@@ -482,6 +484,8 @@ jobs:
         working-directory: backend
       - name: Start sidecar postgres
         run: |
+          # Tier 635b: Docker Hub or one of its mirrors (the anonymous pull limit)
+          bash "$GITHUB_WORKSPACE/backend/scripts/ci-pull-image.sh" postgres:16-alpine
           docker run -d --name de-invoice-postgres \
             -e POSTGRES_USER=de_invoice \
             -e POSTGRES_PASSWORD=de_invoice_pass \
