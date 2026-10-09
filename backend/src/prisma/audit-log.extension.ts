@@ -198,6 +198,7 @@ const AUDITED_MODELS = new Set<string>([
   'Payment',
   'Mahnung',
   'Mahnungspause',
+  'TimeEntry', // Tier 611: hours with a rate are money to be invoiced
   'InstallmentPlan',
   'Installment',
   // Tier 430: a payment the customer reported, and who booked or dismissed it.

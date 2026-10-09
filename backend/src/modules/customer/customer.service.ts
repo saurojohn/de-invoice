@@ -1388,6 +1388,11 @@ export class CustomerService {
         where: { companyId, customerId: sourceId },
         data: { customerId: targetId },
       })
+      // Tier 611: the hours logged for the merged customer
+      await tx.timeEntry.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
       const sepaUpdate = await tx.sepaDirectDebitMandate.updateMany({
         where: { companyId, customerId: sourceId },
         data: { customerId: targetId },
@@ -1479,6 +1484,13 @@ export class CustomerService {
     if (invoiceCount > 0) {
       throw new BadRequestException(
         `Kunde hat ${invoiceCount} Rechnung(en) und kann nicht gelöscht werden. Archivieren Sie den Kunden stattdessen.`
+      )
+    }
+    // Tier 611: hours logged for the customer are a record of work done
+    const timeEntryCount = await this.prisma.timeEntry.count({ where: { companyId, customerId: customer.id } })
+    if (timeEntryCount > 0) {
+      throw new BadRequestException(
+        `Kunde hat ${timeEntryCount} Zeiteinträge und kann nicht gelöscht werden. Archivieren Sie den Kunden stattdessen.`
       )
     }
     await this.prisma.customer.delete({ where: { id: customer.id } })

@@ -94,6 +94,7 @@ model Company {
   errorEvents                ErrorEvent[]
   emailSends                 EmailSend[]
   mahnungspausen             Mahnungspause[]
+  timeEntries                TimeEntry[] // Tier 611
   paymentNotices             PaymentNotice[]
   bankStatements             BankStatement[]
   fintsConnections           FinTSConnection[]
@@ -398,6 +399,7 @@ model Customer {
   // this customer — or invoice-level — for one specific
   // invoice; the latter is recorded on Invoice.mahnungspausen.)
   mahnungspausen          Mahnungspause[]
+  timeEntries                TimeEntry[] // Tier 611
   // Tier 112: SEPA pain.008 mandates signed by this
   // customer. One customer can sign multiple mandates
   // (e.g. one per subscription, one per product line).
@@ -933,6 +935,7 @@ model Invoice {
   // can be tied to a single invoice, not the whole
   // customer).
   mahnungspausen            Mahnungspause[]
+  timeEntries                TimeEntry[] // Tier 611
   // Tier 51: 1:1 back-relation to the (optional) Ratenplan
   // attached to this invoice. Null when no Ratenplan was
   // set up — the invoice is paid in one lump.
@@ -3515,5 +3518,32 @@ model PaymentNotice {
   resolvedById String?
 
   @@index([companyId, status])
+  @@index([invoiceId])
+}
+
+/// Tier 611 — time tracking: hours worked on a day, with or without a
+/// customer and an hourly rate. `invoiceId` is set when the entry has been
+/// billed; deleting that invoice (a draft) opens the entry again.
+model TimeEntry {
+  id          String    @id @default(uuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  /// who wrote it down (no relation: a user's removal keeps the hours)
+  userId      String?
+  date        DateTime  @db.Date
+  minutes     Int
+  description String
+  /// net, per hour; null = not priced (yet)
+  hourlyRate  Decimal?  @db.Decimal(12, 2)
+  billable    Boolean   @default(true)
+  invoiceId   String?
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([companyId, date])
+  @@index([companyId, customerId, invoiceId])
   @@index([invoiceId])
 }

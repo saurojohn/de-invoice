@@ -1546,6 +1546,11 @@ export class InvoiceService {
       // not the issued invoice.
       data: { status, ...(issuing ? { pdfPath: null } : {}) },
     });
+    // Tier 611: the hours billed with a cancelled invoice are open again —
+    // they are invoiced anew. (A deleted draft opens them through the FK.)
+    if (status === 'cancelled' && before.status !== 'cancelled') {
+      await this.prisma.timeEntry.updateMany({ where: { companyId, invoiceId: id }, data: { invoiceId: null } });
+    }
     if (advance) {
       try {
         await this.settleAdvance(before, companyId, advance)

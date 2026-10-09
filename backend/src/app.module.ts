@@ -70,6 +70,7 @@ import { BeraterModule } from './modules/berater/berater.module';
 // Anlagevermögen + 7a Abschreibungen positions
 // on the § 266 HGB / § 275 HGB reports.
 import { AssetsModule } from './modules/assets/assets.module';
+import { TimeTrackingModule } from './modules/time-tracking/time-tracking.module';
 import { UserSessionModule } from './auth/user-session.module';
 
 @Module({
@@ -154,6 +155,7 @@ import { UserSessionModule } from './auth/user-session.module';
     HealthModule,
     BeraterModule,
     AssetsModule,
+    TimeTrackingModule, // Tier 611
     WebhookModule,
     AuditModule,
     SigningModule,

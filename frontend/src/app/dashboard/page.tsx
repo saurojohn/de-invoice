@@ -1053,6 +1053,15 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("docs.cardDeliveryNotesDesc")}</p>
             </CardContent>
           </Card>
+          {/* Tier 611: time tracking */}
+          <Card data-testid="card-time" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/time")}>
+            <CardHeader>
+              <CardTitle>{t("time.cardTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("time.cardDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/customers")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardCustomerTitle")}</CardTitle>
