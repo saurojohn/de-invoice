@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
+import { usePicker, PICKED } from "@/lib/picker"
 
 interface ProductStock {
   id: string
@@ -134,6 +135,7 @@ export default function InventoryPage() {
   const [newProductMode, setNewProductMode] = useState<"search" | "create">("search")
   const [newProductSearch, setNewProductSearch] = useState("")
   const [showNewProductDropdown, setShowNewProductDropdown] = useState(false)
+  const picker = usePicker()
   // Re-use the already-loaded `products` list
   // (trackInventory=true items). We don't re-fetch the
   // full catalog here because (a) the inventory page
@@ -981,6 +983,7 @@ export default function InventoryPage() {
                         onChange={(e) => {
                           setNewProductSearch(e.target.value)
                           setShowNewProductDropdown(e.target.value.trim().length > 0)
+                          picker.reset()
                           // Pre-fill the create-mode name so
                           // the user can switch without losing
                           // their typing.
@@ -996,16 +999,29 @@ export default function InventoryPage() {
                         }}
                         placeholder={t("inventory.searchProductPlaceholder")}
                         title={t("inventory.searchExistingProductHint")}
+                        data-testid="inventory-product-search"
+                        {...picker.input(
+                          "inventory-product-options",
+                          showNewProductDropdown,
+                          newProductMatches.length || 1,
+                          (i) => {
+                            if (newProductMatches.length) return selectExistingProduct(newProductMatches[i])
+                            setNewProductMode("create")
+                            setShowNewProductDropdown(false)
+                          },
+                          () => setShowNewProductDropdown(false),
+                        )}
                       />
                       {showNewProductDropdown && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
+                        <div id="inventory-product-options" role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
                           {newProductMatches.length === 0 ? (
                             <>
                               <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm border-b">
                                 {t("inventory.noProductsFound")}
                               </div>
                               <div
-                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t"
+                                {...picker.option("inventory-product-options", 0)}
+                                className={`px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t ${PICKED}`}
                                 onMouseDown={(e) => {
                                   e.preventDefault()
                                   setNewProductMode("create")
@@ -1016,10 +1032,11 @@ export default function InventoryPage() {
                               </div>
                             </>
                           ) : (
-                            newProductMatches.map((p) => (
+                            newProductMatches.map((p, i) => (
                               <div
                                 key={p.id}
-                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                                {...picker.option("inventory-product-options", i)}
+                                className={`px-3 py-2 hover:bg-blue-50 cursor-pointer ${PICKED}`}
                                 onMouseDown={(e) => {
                                   e.preventDefault()
                                   selectExistingProduct(p)

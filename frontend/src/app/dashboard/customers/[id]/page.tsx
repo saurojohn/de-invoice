@@ -1461,7 +1461,12 @@ export default function CustomerDetailPage() {
                             onClick={() => router.push(`/dashboard/invoices/${inv.id}`)}
                             data-testid="tab-invoices-row"
                           >
-                            <td className="py-2 font-mono">{inv.invoiceNumber}</td>
+                            {/* The row opens the invoice on a click; the number is the link for everyone who does not click. */}
+                            <td className="py-2 font-mono">
+                              <Link href={`/dashboard/invoices/${inv.id}`} onClick={(e) => e.stopPropagation()} data-testid="tab-invoices-link" className="hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
+                                {inv.invoiceNumber}
+                              </Link>
+                            </td>
                             <td className="py-2">{fmtDateDE(inv.issueDate)}</td>
                             <td className="py-2">{fmtDateDE(inv.dueDate)}</td>
                             <td className="py-2 text-gray-600">{getTypeLabel(inv.type, t)}</td>
@@ -1527,7 +1532,11 @@ export default function CustomerDetailPage() {
                         onClick={() => router.push(`/dashboard/installment-plans`)}
                         data-testid="tab-plans-row"
                       >
-                        <td className="py-2">{p.interval} × {p.installmentCount}</td>
+                        <td className="py-2">
+                          <Link href="/dashboard/installment-plans" onClick={(e) => e.stopPropagation()} className="hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
+                            {p.interval} × {p.installmentCount}
+                          </Link>
+                        </td>
                         <td className="py-2">{fmtDateDE(p.startDate)}</td>
                         <td className="py-2 text-right font-mono">{fmtEur(p.totalAmount)}</td>
                         <td className="py-2 text-right font-mono">{fmtEur(p.paidAmount)}</td>
@@ -2013,7 +2022,14 @@ export default function CustomerDetailPage() {
                           {fmtDateDE(e.sentAt || e.createdAt)}
                         </td>
                         <td className="px-2 py-2 text-gray-900 dark:text-gray-100">
-                          {e.subject || "—"}
+                          <button
+                            type="button"
+                            data-testid="tab-emails-open"
+                            onClick={(ev) => { ev.stopPropagation(); setEmailDetail(e) }}
+                            className="text-left hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                          >
+                            {e.subject || "—"}
+                          </button>
                         </td>
                         <td className="px-2 py-2 text-gray-600 dark:text-gray-400 text-xs">
                           {e.templateType || "—"}

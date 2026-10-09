@@ -14,6 +14,7 @@ import { useToast } from "@/components/useToast"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
 import { computeInvoiceAmounts } from "@/lib/invoice-amounts"
+import { usePicker, PICKED } from "@/lib/picker"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC'
 type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
@@ -134,6 +135,7 @@ function CreateInvoicePageInner() {
   // that opens the newProductModal.
   const [productNumberSearch, setProductNumberSearch] = useState("")
   const [showProductNumberDropdown, setShowProductNumberDropdown] = useState(false)
+  const picker = usePicker()
   // Inline modal for "create a new product from the line item".
   // The field set mirrors the products page's create/edit
   // form 1:1 (see src/app/dashboard/products/page.tsx) so the
@@ -590,6 +592,15 @@ function CreateInvoicePageInner() {
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
   )
+
+  // The article number's field searches the number first, then the name.
+  const productNumberMatches = () => {
+    const q = productNumberSearch.trim().toLowerCase()
+    return products.filter(p =>
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.name && p.name.toLowerCase().includes(q))
+    ).slice(0, 5)
+  }
 
   const filteredInvoices = invoices.filter(inv =>
     inv.invoiceNumber.toLowerCase().includes(invoiceSearch.toLowerCase())
@@ -1335,6 +1346,7 @@ function CreateInvoicePageInner() {
                   onChange={(e) => {
                     setCustomerSearch(e.target.value)
                     setShowCustomerDropdown(true)
+                    picker.reset()
                     setForm({ ...form, customerId: "" })
                   }}
                   onFocus={() => setShowCustomerDropdown(customerSearch.length > 0 || true)}
@@ -1349,9 +1361,16 @@ function CreateInvoicePageInner() {
                   required={invoiceType !== 'CN'}
                   readOnly={invoiceType === 'CN' && !!form.customerId}
                   data-testid="invoice-customer-search"
+                  {...picker.input(
+                    "customer-options",
+                    showCustomerDropdown,
+                    filteredCustomers.length || 1,
+                    (i) => (filteredCustomers.length ? selectCustomer(filteredCustomers[i]) : openNewCustomerModal()),
+                    () => setShowCustomerDropdown(false),
+                  )}
                 />
                 {showCustomerDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-64 overflow-y-auto z-10">
+                  <div id="customer-options" role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-64 overflow-y-auto z-10">
                     {filteredCustomers.length === 0 ? (
                       <>
                         <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm border-b">
@@ -1362,7 +1381,8 @@ function CreateInvoicePageInner() {
                             name is pre-filled in the modal so
                             the user doesn't have to retype. */}
                         <div
-                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t"
+                          {...picker.option("customer-options", 0)}
+                          className={`px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t ${PICKED}`}
                           onMouseDown={(e) => {
                             // Use onMouseDown so the click
                             // fires BEFORE the input's blur
@@ -1375,11 +1395,12 @@ function CreateInvoicePageInner() {
                         </div>
                       </>
                     ) : (
-                      filteredCustomers.map((c) => (
+                      filteredCustomers.map((c, i) => (
                         <div
                           key={c.id}
                           data-testid="invoice-customer-option"
-                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0"
+                          {...picker.option("customer-options", i)}
+                          className={`px-3 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 ${PICKED}`}
                           onMouseDown={(e) => {
                             // onMouseDown so the click fires
                             // before the input's blur closes
@@ -1427,22 +1448,32 @@ function CreateInvoicePageInner() {
                     onChange={(e) => {
                       setInvoiceSearch(e.target.value)
                       setShowInvoiceDropdown(e.target.value.length > 0)
+                      picker.reset()
                       setForm({ ...form, referenceInvoiceId: "" })
                     }}
                     onFocus={() => setShowInvoiceDropdown(invoiceSearch.length > 0 || true)}
                     placeholder={t("common2.searchInvoiceNumber")}
+                    data-testid="invoice-reference-search"
+                    {...picker.input(
+                      "reference-invoice-options",
+                      showInvoiceDropdown && !!invoiceSearch,
+                      filteredInvoices.length,
+                      (i) => selectReferenceInvoice(filteredInvoices[i]),
+                      () => setShowInvoiceDropdown(false),
+                    )}
                   />
                   {showInvoiceDropdown && invoiceSearch && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-48 overflow-y-auto z-10">
+                    <div id="reference-invoice-options" role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-48 overflow-y-auto z-10">
                       {filteredInvoices.length === 0 ? (
                         <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">
                           {t("common2.noInvoicesFound")}
                         </div>
                       ) : (
-                        filteredInvoices.map((inv) => (
+                        filteredInvoices.map((inv, i) => (
                           <div
                             key={inv.id}
-                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                            {...picker.option("reference-invoice-options", i)}
+                            className={`px-3 py-2 hover:bg-blue-50 cursor-pointer ${PICKED}`}
                             onClick={() => selectReferenceInvoice(inv)}
                           >
                             <div className="font-medium text-sm">{inv.invoiceNumber}</div>
@@ -1894,6 +1925,7 @@ function CreateInvoicePageInner() {
                         setProductNumberSearch(e.target.value)
                         setShowProductNumberDropdown(e.target.value.trim().length > 0)
                         setActiveItemIndex(index)
+                        picker.reset()
                         // Close the description-triggered
                         // dropdown to avoid two competing
                         // pickers on the same row.
@@ -1919,20 +1951,22 @@ function CreateInvoicePageInner() {
                       placeholder={t("invoice.productNumber")}
                       title={t("invoice.productNumberSearchHint")}
                       className="font-mono text-sm"
+                      data-testid="item-product-number"
+                      {...(() => {
+                        const matches = productNumberMatches()
+                        return picker.input(
+                          `product-number-options-${index}`,
+                          showProductNumberDropdown && activeItemIndex === index && !!productNumberSearch,
+                          matches.length || 1,
+                          (i) => (matches.length ? selectProduct(matches[i], index) : openNewProductModal(index)),
+                          () => setShowProductNumberDropdown(false),
+                        )
+                      })()}
                     />
                     {showProductNumberDropdown && activeItemIndex === index && productNumberSearch && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
+                      <div id={`product-number-options-${index}`} role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-56 overflow-y-auto z-20">
                         {(() => {
-                          // Filter by SKU first (exact prefix
-                          // match) then by name. The user is
-                          // typing into a SKU field, so
-                          // SKU-prefix matches are most
-                          // relevant.
-                          const q = productNumberSearch.trim().toLowerCase()
-                          const matches = products.filter(p =>
-                            (p.sku && p.sku.toLowerCase().includes(q)) ||
-                            (p.name && p.name.toLowerCase().includes(q))
-                          ).slice(0, 5)
+                          const matches = productNumberMatches()
                           if (matches.length === 0) {
                             return (
                               <>
@@ -1945,7 +1979,8 @@ function CreateInvoicePageInner() {
                                     SKU; user can edit before
                                     saving. */}
                                 <div
-                                  className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t"
+                                  {...picker.option(`product-number-options-${index}`, 0)}
+                                  className={`px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-700 dark:text-blue-300 text-sm font-medium border-t ${PICKED}`}
                                   onMouseDown={(e) => {
                                     // Use onMouseDown so the
                                     // click fires BEFORE the
@@ -1960,10 +1995,11 @@ function CreateInvoicePageInner() {
                               </>
                             )
                           }
-                          return matches.map((p) => (
+                          return matches.map((p, i) => (
                             <div
                               key={p.id}
-                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                              {...picker.option(`product-number-options-${index}`, i)}
+                              className={`px-3 py-2 hover:bg-blue-50 cursor-pointer ${PICKED}`}
                               onMouseDown={(e) => {
                                 e.preventDefault()
                                 selectProduct(p, index)
@@ -1991,22 +2027,31 @@ function CreateInvoicePageInner() {
                         setProductSearch(e.target.value)
                         setShowProductDropdown(e.target.value.length > 0)
                         setActiveItemIndex(index)
+                        picker.reset()
                       }}
                       onFocus={() => {
                         setActiveItemIndex(index)
                         setShowProductDropdown(item.description.length > 0)
                       }}
                       placeholder={t("common2.productSearch")}
+                      {...picker.input(
+                        `product-options-${index}`,
+                        showProductDropdown && activeItemIndex === index && !!productSearch,
+                        Math.min(filteredProducts.length, 5),
+                        (i) => selectProduct(filteredProducts[i], index),
+                        () => setShowProductDropdown(false),
+                      )}
                     />
                     {showProductDropdown && activeItemIndex === index && productSearch && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-40 overflow-y-auto z-10">
+                      <div id={`product-options-${index}`} role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-40 overflow-y-auto z-10">
                         {filteredProducts.length === 0 ? (
                           <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">{t("errors.noProductsFound")}</div>
                         ) : (
-                          filteredProducts.slice(0, 5).map((p) => (
+                          filteredProducts.slice(0, 5).map((p, i) => (
                             <div
                               key={p.id}
-                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                              {...picker.option(`product-options-${index}`, i)}
+                              className={`px-3 py-2 hover:bg-blue-50 cursor-pointer ${PICKED}`}
                               onClick={() => selectProduct(p, index)}
                             >
                               <div className="font-medium text-sm">{p.name}</div>

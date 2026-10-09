@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { todayIso } from "@/lib/today"
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
@@ -678,7 +679,9 @@ export default function AccountingPage() {
                         }
                       >
                         <td className="py-3 px-4 font-mono text-sm">
-                          {v.voucherNumber}
+                          <Link href={`/dashboard/accounting/vouchers/${v.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
+                            {v.voucherNumber}
+                          </Link>
                         </td>
                         <td className="py-3 px-4 text-sm">
                           {formatDate(v.date)}

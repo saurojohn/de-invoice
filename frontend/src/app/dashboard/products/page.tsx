@@ -328,11 +328,14 @@ export default function ProductsPage() {
                 {products.map((product) => (
                   <tr key={product.id} className="hover:bg-gray-50 dark:bg-gray-900" data-testid="product-row" data-product-sku={product.sku}>
                     <td className="px-4 py-3">{product.sku || "-"}</td>
-                    <td
-                      className="px-4 py-3 font-medium cursor-pointer"
-                      onClick={() => openModal(product)}
-                    >
-                      {product.name}
+                    <td className="px-4 py-3 font-medium">
+                      <button
+                        type="button"
+                        onClick={() => openModal(product)}
+                        className="text-left cursor-pointer hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                      >
+                        {product.name}
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-xs ${product.type === "good" ? "bg-blue-100 text-blue-700 dark:text-blue-300" : "bg-purple-100 text-purple-700 dark:text-purple-300"}`}>

@@ -258,12 +258,14 @@ export default function TwoFactorPage() {
               </p>
               <ul className="grid grid-cols-2 gap-2 font-mono text-sm" data-testid="two-factor-recovery-codes-list">
                 {recoveryCodes.map((c) => (
-                  <li
-                    key={c}
-                    onClick={() => copyCode(c)}
-                    className="cursor-pointer bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded text-center"
-                  >
-                    {c}
+                  <li key={c}>
+                    <button
+                      type="button"
+                      onClick={() => copyCode(c)}
+                      className="w-full cursor-pointer bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                      {c}
+                    </button>
                   </li>
                 ))}
               </ul>
