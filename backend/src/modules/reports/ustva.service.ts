@@ -618,6 +618,8 @@ export class UstvaService {
     doc.text('USt', 480, headerY, { width: 90, align: 'right' })
     doc.moveDown(0.3)
     doc.moveTo(50, doc.y).lineTo(570, doc.y).stroke()
+    // Tier 643: the first row was written on the rule and looked struck through
+    doc.moveDown(0.3)
 
     doc.font('Helvetica')
     if (data.salesByRate.length === 0) {
@@ -636,7 +638,7 @@ export class UstvaService {
 
     // Section 2: Sonderfälle
     doc.moveDown(0.4)
-    doc.fontSize(11).font('Helvetica-Bold').text('2. Sonderfälle')
+    doc.fontSize(11).font('Helvetica-Bold').text('2. Sonderfälle', 50, doc.y, { width: 520 })
     doc.moveDown(0.2)
     doc.fontSize(9).font('Helvetica')
     const sY = doc.y
@@ -666,7 +668,7 @@ export class UstvaService {
     row('Sonstige Leistungen an Unternehmer in der EU (Kz 21)', data.euServicesSales)
     row('Übrige nicht steuerbare Umsätze (Kz 45)', data.nonTaxableOther)
     doc.moveDown(0.5)
-    doc.fontSize(11).font('Helvetica-Bold').text('Steuer als Leistungsempfänger')
+    doc.fontSize(11).font('Helvetica-Bold').text('Steuer als Leistungsempfänger', 50, doc.y, { width: 520 })
     doc.fontSize(9).font('Helvetica')
     row('Innergemeinschaftliche Erwerbe (Kz 89 / 93)', data.intraEuAcquisitions.net, data.intraEuAcquisitions.vat)
     row('§ 13b: Leistungen aus dem übrigen Gemeinschaftsgebiet (Kz 46 / 47)', data.reverseChargeEuServices.net, data.reverseChargeEuServices.vat)
@@ -674,7 +676,7 @@ export class UstvaService {
 
     // Section 3: Vorsteuer (input tax deduction)
     doc.moveDown(0.5)
-    doc.fontSize(11).font('Helvetica-Bold').text('3. Abziehbare Vorsteuer')
+    doc.fontSize(11).font('Helvetica-Bold').text('3. Abziehbare Vorsteuer', 50, doc.y, { width: 520 })
     doc.moveDown(0.2)
     doc.fontSize(9).font('Helvetica')
     const vY = doc.y
@@ -716,7 +718,7 @@ export class UstvaService {
     doc.moveDown(0.4)
     const zY2 = doc.y
     doc.text('abzüglich Vorsteuer:', 50, zY2, { width: 350 })
-    doc.text(this.fmtEur(-data.vorsteuerSum), 380, zY2, { width: 90, align: 'right' })
+    doc.text(this.fmtEur(data.vorsteuerSum ? -data.vorsteuerSum : 0), 380, zY2, { width: 90, align: 'right' })
     doc.moveDown(0.4)
     doc.moveTo(50, doc.y).lineTo(570, doc.y).stroke()
     doc.moveDown(0.3)
@@ -734,11 +736,26 @@ export class UstvaService {
     // Footer: count + GoBD note
     doc.moveDown(1.5)
     doc.font('Helvetica').fontSize(8)
+    // Tier 643: from the left margin — after a right-aligned amount the cursor
+    // stands in the amount's column, and the headings above and this footer
+    // were set there, 90 pt wide ("Steuer als L / eistungsem / pfänger").
     doc.text(
       `Basiert auf ${data.counts.invoices} Rechnungen + ${data.counts.expenses} Belegen.`,
+      50,
+      doc.y,
+      { width: 520 },
     )
+    // Tier 641: what is in no Kennzahl above, so the reader does not miss it
+    if (data.ossSales && (data.ossSales.net !== 0 || data.ossSales.vat !== 0)) {
+      doc.text(
+        `Nicht enthalten: Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz — netto ${this.fmtEur(data.ossSales.net)}, ` +
+        `Steuer ${this.fmtEur(data.ossSales.vat)}. Sie werden über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG).`,
+        { width: 520 },
+      )
+    }
     doc.text(
       'GoBD § 146 Abs. 1 AO: Dieser Ausdruck ist ein internes Berater-Dokument und ersetzt nicht die ELSTER-Übermittlung.',
+      { width: 520 },
     )
 
     doc.end()

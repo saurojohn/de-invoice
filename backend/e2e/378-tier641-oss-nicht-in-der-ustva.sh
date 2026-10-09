@@ -68,6 +68,26 @@ assert_eq "…and names what is declared elsewhere: 430,00 net, 78,75 tax" "$(fi
 SAVE=$(echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);d.update(taxNumber=None,notes=None,status='draft');print(json.dumps(d))")
 AS POST "/api/v1/ustva/filings?companyId=$C" "$SAVE"
 assert_eq "the return is saved as the page sends it back, the new field included" "$STATUS $(field "d['outputVat'], d['payableVat']")" "201 ('57', '57')"
+PDF=$(mktemp); curl -sS -o "$PDF" -w '' "$API/api/v1/ustva/ustva.pdf?companyId=$C&year=$Y0&month=$M0" -H "x-user-id: $U" -H "x-company-id: $C"
+# Tier 643: a heading or footer line written without a position started
+# where the last amount's column begins (x = 480 or 380, 90 points wide) and
+# broke into "Steuer als L / eistungsem / pfänger". An amount is set flush
+# right in its column and never starts at the column's left edge.
+assert_eq "the UStVA as a PDF: one page, and no line of text starts at the left edge of an amount column (was: the headings and the footer, 14 lines)" \
+  "$(head -c 4 "$PDF") $(python3 - "$PDF" <<'PY'
+import re, sys, zlib
+d = open(sys.argv[1], 'rb').read()
+pages = len(re.findall(rb'/Type\s*/Page[^s]', d))
+xs = set()
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.S):
+    try: t = zlib.decompress(m.group(1))
+    except Exception: continue
+    # "1 0 0 1 x y Tm" places each line of text
+    xs.update(round(float(x)) for x in re.findall(rb'1 0 0 1 ([0-9.]+) [0-9.]+ Tm', t))
+print(pages, sorted(x for x in xs if x in (380, 480)), 50 in xs)
+PY
+)" "%PDF 1 [] True"
+rm -f "$PDF"
 oss "$Y0" "$Q0"
 assert_eq "the OSS report has those sales, as before" "$STATUS $(lines) $(field "d['totals']['vatAmount'], d['totals']['vatDue'], d['corrections']")" \
   "200 [('AT', 0.2, 200, 40, 1), ('FR', 0.055, 50, 2.75, 1), ('FR', 0.2, 180, 36, 2)] (78.75, 78.75, [])"
