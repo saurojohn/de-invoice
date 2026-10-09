@@ -1,4 +1,5 @@
 import { MOCK_BANK_REFUSED, mockBankAllowed } from './mock-mode';
+import { strictFlag } from '../../common/strict-boolean'
 import { pinEncryptionAvailable } from './pin-crypto';
 import { SystemAdminGuard } from '../../auth/system-admin.guard';
 import {
@@ -172,7 +173,8 @@ export class FinTsController {
     }
     // Tier 568: the default is the demo bank only where the demo bank is
     // allowed (mock-mode.ts); asked for explicitly where it is not: 400.
-    const mockMode = body.mockMode ?? mockBankAllowed()
+    // Tier 632: a flag, not a truthy value — "false" opened the demo bank
+    const mockMode = strictFlag(body.mockMode, 'mockMode') ?? mockBankAllowed()
     if (mockMode && !mockBankAllowed()) throw new BadRequestException(MOCK_BANK_REFUSED)
     // A real connection needs the PIN stored encrypted. Without the key it
     // was created anyway — with nothing but a hash of the PIN — and could

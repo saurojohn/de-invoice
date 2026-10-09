@@ -1,4 +1,5 @@
 import { queryInt } from '../../common/query';
+import { strictFlag } from '../../common/strict-boolean'
 import { assertImportRows } from '../../common/import-rows';
 import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Headers, HttpCode } from '@nestjs/common';
 import type { Response } from 'express';
@@ -849,7 +850,7 @@ export class CustomerController {
       // opt out by passing verifyVat: false (useful
       // for bulk migrations where the user will
       // re-verify interactively later).
-      verifyVat: body.verifyVat ?? true,
+      verifyVat: strictFlag(body.verifyVat, 'verifyVat') ?? true, // Tier 632
       maxVatVerifications: body.maxVatVerifications,
     })
   }

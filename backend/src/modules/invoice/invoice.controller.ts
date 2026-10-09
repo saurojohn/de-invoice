@@ -1,4 +1,5 @@
 import { businessTodayIso } from '../../common/business-date'
+import { strictFlag } from '../../common/strict-boolean'
 import { queryInt } from '../../common/query';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
 import { assertManualPaymentMethod } from './payment-methods';
@@ -1368,6 +1369,8 @@ export class InvoiceController {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')
     }
+    // Tier 632: read as the DTO of bulk-send-email reads it ("false" was a dry run)
+    const dryRun = strictFlag(body?.dryRun, 'dryRun')
     if (!body?.dateFrom && !body?.dateTo) {
       throw new BadRequestException(
         'dateFrom oder dateTo ist erforderlich (gleiche Logik wie der CSV-Export)',
@@ -1414,7 +1417,7 @@ export class InvoiceController {
       overrideSubject: body.overrideSubject,
       overrideBody: body.overrideBody,
       concurrency: body.concurrency,
-      dryRun: body.dryRun,
+      dryRun,
     })
   }
 

@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common'
 import { Transform } from 'class-transformer'
 
 /**
@@ -24,3 +25,17 @@ export const StrictBoolean = () =>
     if (raw === false || raw === 'false' || raw === '0' || raw === 0) return false
     return raw
   })
+
+/**
+ * Tier 632: the same reading for a flag in a body that is no validated class
+ * (an inline type gets no ValidationPipe): true / false and their spellings
+ * as `StrictBoolean` reads them, `undefined` when the flag is absent — and a
+ * 400 for anything else, instead of JavaScript's "every non-empty string is
+ * true" (`"false"` switched FinTS's demo bank on and a dry run).
+ */
+export function strictFlag(value: unknown, name: string): boolean | undefined {
+  if (value === undefined || value === null) return undefined
+  if (value === true || value === 'true' || value === '1' || value === 1) return true
+  if (value === false || value === 'false' || value === '0' || value === 0) return false
+  throw new BadRequestException(`${name} muss true oder false sein`)
+}

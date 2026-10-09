@@ -62,4 +62,17 @@ assert_eq "expense creditNote \"false\": an ordinary expense (was: a credit note
 assert_eq "expense creditNote true: a credit note" "$(exp B-2 ',"creditNote":true')" "201/-100.00/false"
 assert_eq "expense isReverseCharge \"false\": not § 13b (was: § 13b)" "$(exp B-3 ',"isReverseCharge":"false"')" "201/100.00/false"
 assert_eq "expense isReverseCharge \"nein\": 400, nothing stored" "$(exp B-4 ',"isReverseCharge":"nein"')" "400/-"
+
+note "=== Tier 632: three flags in bodies that are no validated classes ==="
+# An inline body type gets no ValidationPipe; these three read their flag as a
+# truthy value — "false" was a dry run, the demo bank, a VIES check.
+DAY=$(TZ=Europe/Berlin date +%F)
+AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$K'","issueDate":"'$DAY'","items":[{"description":"x","quantity":1,"unitPrice":10,"vatRate":0.19}]}'
+by_filter() { AS POST "/api/v1/invoices/bulk-send-by-filter?companyId=$C" '{"dateFrom":"'$DAY'","dateTo":"'$DAY'","dryRun":'"$1"'}'; echo "$STATUS/$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin).get('dryRun'))" 2>/dev/null)"; }
+assert_eq "bulk send by filter: dryRun \"false\" is no dry run (was: one), true is, a word is refused" "$(by_filter '"false"') $(by_filter true) $(by_filter '"vielleicht"' | cut -d/ -f1)" "201/False 201/True 400"
+AS POST "/api/v1/customers/import?companyId=$C" '{"rows":[],"verifyVat":"nein"}'; A=$STATUS
+AS POST "/api/v1/customers/import?companyId=$C" '{"rows":[],"verifyVat":"false"}'
+assert_eq "customer import: verifyVat \"nein\" is refused, \"false\" is false" "$A $([[ "$STATUS" == 20* ]] && echo ok || echo "$STATUS")" "400 ok"
+AS POST "/api/v1/fints/connections?companyId=$C" '{"companyId":"'$C'","blz":"12345678","userId":"x","label":"Test","pin":"12345","mockMode":"nein"}'
+assert_eq "FinTS connection: mockMode \"nein\" is refused with the reason (was: the demo bank)" "$STATUS/$(echo "$BODY" | grep -c 'mockMode muss true oder false sein')/$(q "select count(*) from \"FinTSConnection\" where \"companyId\"='$C'" 2>/dev/null || echo 0)" "400/1/0"
 summary
