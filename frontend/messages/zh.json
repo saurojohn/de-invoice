@@ -1,5 +1,8 @@
 {
   "accounting": {
+    "formsOtherTitle": "不适用于法律形式“{rechtsform}”",
+    "formsOtherHint": "这些表格属于其他法律形式或个人报税。仍可使用。法律形式在 设置 → 公司 中设定。",
+    "formsOtherHintDerived": "这些表格属于其他法律形式或个人报税。仍可使用。法律形式是根据公司名称推断的——可在 设置 → 公司 中明确设定。",
     "title": "会计",
     "vouchers": "记账凭证",
     "voucherList": "凭证列表",

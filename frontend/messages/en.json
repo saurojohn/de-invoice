@@ -1,5 +1,8 @@
 {
   "accounting": {
+    "formsOtherTitle": "Not for the legal form “{rechtsform}”",
+    "formsOtherHint": "These forms belong to other legal forms or to a private tax return. They remain usable. The legal form is set under Settings → Company.",
+    "formsOtherHintDerived": "These forms belong to other legal forms or to a private tax return. They remain usable. The legal form was derived from the company name — it can be set under Settings → Company.",
     "title": "Accounting",
     "vouchers": "Accounting Vouchers",
     "voucherList": "Voucher List",

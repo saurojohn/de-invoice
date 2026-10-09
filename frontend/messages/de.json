@@ -1,5 +1,8 @@
 {
   "accounting": {
+    "formsOtherTitle": "Für die Rechtsform „{rechtsform}“ nicht einschlägig",
+    "formsOtherHint": "Diese Formulare gehören zu anderen Rechtsformen oder zur privaten Steuererklärung. Sie bleiben benutzbar. Die Rechtsform steht unter Einstellungen → Unternehmen.",
+    "formsOtherHintDerived": "Diese Formulare gehören zu anderen Rechtsformen oder zur privaten Steuererklärung. Sie bleiben benutzbar. Die Rechtsform ist aus dem Firmennamen abgeleitet — unter Einstellungen → Unternehmen lässt sie sich festlegen.",
     "title": "Buchhaltung",
     "vouchers": "Buchungsbelege",
     "voucherList": "Belegliste",

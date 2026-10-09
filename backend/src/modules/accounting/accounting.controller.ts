@@ -1,5 +1,5 @@
 import { queryDate, queryInt } from '../../common/query';
-import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards, HttpException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards, HttpException, NotFoundException } from '@nestjs/common';
 import { Response } from 'express';
 import { AccountService } from './account.service';
 import { CreateAccountDto } from './dto/account.dto';
@@ -64,6 +64,7 @@ import { AnlageAUSService } from './anlage-aus.service';
 // Reuses AnlageGService for the underlying
 // gewerbeertrag + hebesatz + freibetrag.
 import { GewstService } from './gewst.service';
+import { applicableTaxForms } from '../company/tax-forms';
 import { BilanzService } from './bilanz.service';
 import { GuVService } from './guv.service';
 import { AnhangService } from './anhang.service';
@@ -1644,6 +1645,20 @@ export class AccountingController {
    * Berater replaces it with the real equity
    * from the SKR03 / Handelsregister.
    */
+  /** Tier 643: the forms a company of this legal form files (company/tax-forms.ts). */
+  @Require('accounting.read')
+  @Get('forms')
+  @UseGuards(HeaderAuthGuard)
+  async getForms(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { rechtsform: true, gewinnermittlung: true, settings: true, legalName: true, name: true },
+    })
+    if (!company) throw new NotFoundException('Firma nicht gefunden')
+    return applicableTaxForms(company)
+  }
+
   @Require('accounting.read')
   @Get('bilanz')
   @UseGuards(HeaderAuthGuard)

@@ -163,7 +163,70 @@ function getCompanyId(): string {
   return localStorage.getItem("companyId") || ""
 }
 
+const SECTION_ORDER = ["beraterPackager", "euer", "anlageS", "anlageV", "anlageKAP", "anlageG", "anlageN", "kst1", "anlageR", "anlageKind", "anlageSO", "anlageAUS", "ustja", "gewst", "bilanz", "guv", "anhang", "ebilanz", "gobdArchive"]
+
 export default function AccountingPage() {
+  // Tier 643: which forms the company's legal form files
+  const [taxForms, setTaxForms] = useState<{
+    rechtsform: string | null
+    rechtsformSource: "gesetzt" | "abgeleitet" | null
+    forms: string[]
+    other: string[]
+  } | null>(null)
+  // The sections are placed once the answer is there (or has failed): placed
+  // before and moved after, each would load its figures twice.
+  const [taxFormsReady, setTaxFormsReady] = useState(false)
+  useEffect(() => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) {
+      setTaxFormsReady(true)
+      return
+    }
+    apiGet<NonNullable<typeof taxForms>>(`/api/v1/accounting/forms?companyId=${companyId}`)
+      .then(setTaxForms)
+      .catch(() => setTaxForms(null))
+      .finally(() => setTaxFormsReady(true))
+  }, [])
+  const sections: Record<string, React.ReactNode> = {
+    // Tier 85: Anlage Steuererklärung packager — top-of-page callout
+    beraterPackager: <BeraterPackagerSection />,
+    // Tier 76: Anlage EÜR — yearly tax-filing preview
+    euer: <EuerSection />,
+    // Tier 80: Anlage S (§ 18 EStG self-employment)
+    anlageS: <AnlageSSection />,
+    // Tier 92: Anlage V (§ 21 EStG rental / leasing income)
+    anlageV: <AnlageVSection />,
+    // Tier 98: Anlage KAP (§ 20 EStG capital income)
+    anlageKAP: <AnlageKAPSection />,
+    // Tier 100: Anlage G (§ 15 EStG trade / commercial)
+    anlageG: <AnlageGSection />,
+    // Tier 101: Anlage N (§ 3 EStG employment income)
+    anlageN: <AnlageNSection />,
+    // Tier 102: KSt 1 (§ 1 KStG corporate tax — primary for GmbH)
+    kst1: <KSt1Section />,
+    // Tier 103: Anlage R (§ 22 EStG pension income)
+    anlageR: <AnlageRSection />,
+    // Tier 104: Anlage Kind (§ 32 EStG Kinderfreibetrag + Kindergeld)
+    anlageKind: <AnlageKindSection />,
+    // Tier 109: Anlage SO (§ 22 EStG sonstige Einkünfte)
+    anlageSO: <AnlageSOSection />,
+    // Tier 110: Anlage AUS (§ 34d EStG ausländische Einkünfte)
+    anlageAUS: <AnlageAUSSection />,
+    // Tier 105: UStJA (§ 18 Abs. 3 UStG annual VAT return)
+    ustja: <UstjaSection />,
+    // Tier 106: GewSt-Erklärung (BMF Vordruck GewSt 1A 2024 trade tax)
+    gewst: <GewstSection />,
+    // Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot)
+    bilanz: <BilanzSection />,
+    // Tier 82: G+V Vorschau (§ 275 Abs. 2 HGB Gesamtkostenverfahren)
+    guv: <GuVSection />,
+    // Tier 84: Anhang zum Jahresabschluss (§ 284 HGB)
+    anhang: <AnhangSection />,
+    // Tier 88: E-Bilanz (XBRL) — BMF eBilanz-in-xtml VORSCHAU
+    ebilanz: <EBilanzTab />,
+    // Tier 77: GoBD-Archiv (§ 147 AO 10-year retention)
+    gobdArchive: <GobdArchiveSection />,
+  }
   const router = useRouter()
   const { t, locale, getDateLocale } = useI18n()  // all used by fmt/format helpers below
   const toast = useToast()
@@ -1189,62 +1252,28 @@ export default function AccountingPage() {
         </div>
       )}
 
-      {/* Tier 85: Anlage Steuererklärung packager — top-of-page callout */}
-      <BeraterPackagerSection />
-
-      {/* Tier 76: Anlage EÜR — yearly tax-filing preview */}
-      <EuerSection />
-
-      {/* Tier 80: Anlage S (§ 18 EStG self-employment) */}
-      <AnlageSSection />
-
-      {/* Tier 92: Anlage V (§ 21 EStG rental / leasing income) */}
-      <AnlageVSection />
-
-      {/* Tier 98: Anlage KAP (§ 20 EStG capital income) */}
-      <AnlageKAPSection />
-
-      {/* Tier 100: Anlage G (§ 15 EStG trade / commercial) */}
-      <AnlageGSection />
-
-      {/* Tier 101: Anlage N (§ 3 EStG employment income) */}
-      <AnlageNSection />
-
-      {/* Tier 102: KSt 1 (§ 1 KStG corporate tax — primary for GmbH) */}
-      <KSt1Section />
-
-      {/* Tier 103: Anlage R (§ 22 EStG pension income) */}
-      <AnlageRSection />
-
-      {/* Tier 104: Anlage Kind (§ 32 EStG Kinderfreibetrag + Kindergeld) */}
-      <AnlageKindSection />
-
-      {/* Tier 109: Anlage SO (§ 22 EStG sonstige Einkünfte) */}
-      <AnlageSOSection />
-
-      {/* Tier 110: Anlage AUS (§ 34d EStG ausländische Einkünfte) */}
-      <AnlageAUSSection />
-
-      {/* Tier 105: UStJA (§ 18 Abs. 3 UStG annual VAT return) */}
-      <UstjaSection />
-
-      {/* Tier 106: GewSt-Erklärung (BMF Vordruck GewSt 1A 2024 trade tax) */}
-      <GewstSection />
-
-      {/* Tier 81: Bilanz Vorschau (§ 266 HGB year-end snapshot) */}
-      <BilanzSection />
-
-      {/* Tier 82: G+V Vorschau (§ 275 Abs. 2 HGB Gesamtkostenverfahren) */}
-      <GuVSection />
-
-      {/* Tier 84: Anhang zum Jahresabschluss (§ 284 HGB) */}
-      <AnhangSection />
-
-      {/* Tier 88: E-Bilanz (XBRL) — BMF eBilanz-in-xtml VORSCHAU */}
-      <EBilanzTab />
-
-      {/* Tier 77: GoBD-Archiv (§ 147 AO 10-year retention) */}
-      <GobdArchiveSection />
+      {/* Tier 643: the forms a company of this legal form files come first
+          (GET /accounting/forms); the others follow under a line that says
+          so. Nothing is hidden — with an unknown legal form the order is the
+          old one. */}
+      {taxFormsReady && (taxForms?.rechtsform ? taxForms.forms : SECTION_ORDER).map((key) => (
+        <div key={key} data-form-section={key}>{sections[key]}</div>
+      ))}
+      {taxFormsReady && taxForms?.rechtsform && taxForms.other.length > 0 && (
+        <>
+          <div className="mt-10 mb-4 border-t pt-6" data-testid="forms-other">
+            <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+              {t("accounting.formsOtherTitle", { rechtsform: taxForms.rechtsform })}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {t(taxForms.rechtsformSource === "abgeleitet" ? "accounting.formsOtherHintDerived" : "accounting.formsOtherHint")}
+            </p>
+          </div>
+          {taxForms.other.map((key) => (
+            <div key={key} data-form-section={key}>{sections[key]}</div>
+          ))}
+        </>
+      )}
     </main>
   )
 }
