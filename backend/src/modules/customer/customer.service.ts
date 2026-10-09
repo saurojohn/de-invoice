@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { emailChanges, emailOfAnotherCustomer } from './customer-email'
 import { assertManualPaymentMethod } from '../invoice/payment-methods'
 import { normalizeVatId, vatIdFormatProblem, withCheckedVatId } from '../../common/vat-id'
 import { businessDayIso, businessTodayIso } from '../../common/business-date'
@@ -1090,6 +1091,16 @@ export class CustomerService {
     const existing = await this.findOne(id, companyId)
     // Tier 490: the USt-IdNr. normalised and checked (common/vat-id.ts)
     data = withCheckedVatId(data)
+    // Tier 631: as on create — not the e-mail address of another customer
+    // (asked only when the address changes — a customer that shares one from
+    // before this tier can still be edited)
+    if (
+      data?.contact?.email &&
+      emailChanges((existing.contact as { email?: string } | null)?.email, data.contact.email) &&
+      (await emailOfAnotherCustomer(this.prisma, companyId, data.contact.email, existing.id))
+    ) {
+      throw new ConflictException(`Kunde mit E-Mail "${data.contact.email}" existiert bereits`)
+    }
     const updated = await this.prisma.customer.update({
       where: { id: existing.id },
       data,

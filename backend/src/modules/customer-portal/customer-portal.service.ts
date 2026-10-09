@@ -58,6 +58,8 @@
  */
 import { daysOverdue as daysOverdueOf } from '../reminder/days-overdue';
 import { NON_FISCAL_TYPES } from '../invoice/document-scope';
+import { withCheckedVatId } from '../../common/vat-id';
+import { emailChanges, emailOfAnotherCustomer } from '../customer/customer-email';
 import { advanceDeductionFor } from '../invoice/advance';
 import {
   BadRequestException,
@@ -645,6 +647,21 @@ export class CustomerPortalService {
           `Ungültige E-Mail-Adresse: ${e}`,
         )
       }
+    }
+
+    // Tier 631: the customer's own form asks what the company's form asks.
+    // The USt-IdNr. was stored as typed („DE000“) — the company's form
+    // checks and normalises it (Tier 490); it decides how the customer is taxed.
+    if (patch.vatId !== undefined) patch = withCheckedVatId(patch)
+    // …and an address that is another customer's is refused: the portal's
+    // session link goes to it. (Measured: customer X took customer Y's
+    // address; the next link Y asked for could have opened X's account.)
+    if (
+      patch.contact?.email &&
+      emailChanges((c.contact as { email?: string } | null)?.email, patch.contact.email) &&
+      (await emailOfAnotherCustomer(this.prisma, c.companyId, patch.contact.email, c.id))
+    ) {
+      throw new BadRequestException('Diese E-Mail-Adresse kann nicht verwendet werden.')
     }
 
     // Merge contact + address (don't replace)

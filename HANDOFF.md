@@ -2650,6 +2650,19 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 631 — the customer portal: one customer against another, and a customer's own record
+
+The second check §9 item 24 named as not done. A company with customers X and Y, a second company with Z; an issued invoice and a portal session for each.
+
+**Isolation holds.** X's session lists X's invoices; the page, the PDF and „Ich habe bezahlt“ of Y's and of Z's invoice answer 404; the profile takes no other customer's id and none of the fields a company decides (credit limit, payment terms, type, tags, number, rates).
+
+**What it found is in `PATCH /customer-portal/profile`** — the only place where someone outside the company writes:
+- **X could take Y's e-mail address** (200; two customers of one company with the same address). The address is the portal's login — `request-session` sends a link for "the customer with this address". Creating a customer has always refused a duplicate (409); changing one did not, in the portal **nor in the company's own form** (`PUT /customers/:id`, measured: 200). Both refuse it now (`customer-email.ts`: compared without regard to case, asked only when the address changes — so a customer that shares one from before can still be edited). The portal's answer does not say whose address it is.
+- **A USt-IdNr. was stored as typed** — „DE000“, or „de 136 695 976“ unnormalised. The company's form checks and normalises it (Tier 490, `withCheckedVatId`); the portal now does the same.
+- Looked at and left: a customer may correct its own name and address (the name printed on invoices already issued is the one snapped at issue); `address.country` is free text in both forms („Deutschland“ and „DE“ both occur) — the portal is no stricter than the company's form.
+
+**Spec** `375-tier631-kundenportal-eigene-daten.sh` (18 assertions; 6 fail on the code before — the twelve that hold are the isolation, which is now asserted).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tiers 629–630 — the roles inside a company, called; the SMTP password at rest
 
 „继续找和做剩下的所有问题“ (09.10.2026). The check §9 item 24 named as not done: **roles inside one company.** A company with an admin, an accountant and a viewer (two extra users granted through `UserCompany` on the throwaway database); **every one of the 508 routes called as the viewer, as the accountant and as the admin in read-only mode — 477 requests each** (auth, health and public routes aside) — and **all 45 dashboard pages opened in a browser as viewer and as accountant**.
@@ -8768,7 +8781,7 @@ frontend's build arg, and the frontend image refuses to build without it.
     - **Unfinished and saying so** (unchanged): FinTS TAN and transfers, ELSTER transmission, E-Bilanz positions, cloud storage, the tax annexes' placeholders; no e-mail verification, account deletion or data-subject export; e-invoices by upload only, no automatic EN 16931 check on import; CSV import and the OCR proposal know one VAT rate; no Verfahrensdokumentation.
     - **Technical, found and not done:** the backend container runs as root, the compose file sets no `read_only` / `cap_drop` / `no-new-privileges` (item 23); (`MailConfig.smtpPassword` is sealed since Tier 630;) `release.yml` never run; flags read from an untyped body (`mockMode`, `dryRun` …) and the implicit conversion of numbers (`""` → 0) are not covered by Tier 606; the Leitweg-ID's check digits are not verified; five models without an index led by `companyId`, 227 `findMany` without `take`, no load test; two unit-test files, about 800 `any` in the backend.
     - **Interface, found and not done:** the accounting page — developer paths in its explanations, the private annexes offered to a GmbH, about 730 German words in the other languages; `/dashboard/v2`, the activity page's action names and parts of the import page untranslated; 72 form fields without a label; the dashboard's cards are not reachable by keyboard; on a phone, tables scroll sideways inside their box and `/dashboard/accounting` is 12 px too wide at 350 px.
-    - **What the three checks did not cover:** the reconciliation — a real exchange rate, Ist-Versteuerung, a Kleinunternehmer, the balance sheet, OSS, the bank import, dunning; the page walk — clicking through tasks, other browsers, a real device, a screen reader; the cross-company test — 26 of 74 GET routes with a path parameter had no live target, one customer against another in the customer portal, the operator's routes (roles inside one company: done in Tier 629).
+    - **What the three checks did not cover:** the reconciliation — a real exchange rate, Ist-Versteuerung, a Kleinunternehmer, the balance sheet, OSS, the bank import, dunning; the page walk — clicking through tasks, other browsers, a real device, a screen reader; the cross-company test — 26 of 74 GET routes with a path parameter had no live target, the operator's routes (roles inside one company: done in Tier 629; one customer against another in the portal: Tier 631).
 
 ## 10. Critical patterns / lessons (must read)
 
