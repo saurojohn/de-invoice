@@ -2644,6 +2644,35 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 610 — quotes (Angebote) and delivery notes (Lieferscheine)
+
+The second and third of the four things the owner asked for on 09.10.2026 (§9 item 24). There was the invoice, the credit note, the Proforma and the receipt — no quote before the order, no delivery note with the goods.
+
+**Two document types in the `Invoice` table: `QU` (numbers `AN-YYYY-NNNNNN`) and `DN` (`LS-…`)**, each with its own number circle — the invoice numbers are untouched. They are **non-fiscal** (`document-scope.ts`: `NON_FISCAL_TYPES`, `isNonFiscal`); the reports select by allow-list (`SALES_TYPES`, `CLAIM_TYPES`), so neither type was in a figure to begin with. What had no type filter got one:
+- **a life of their own** (`NON_FISCAL_TRANSITIONS`): quote draft → `offered` → `accepted` | `declined`, delivery note draft → `delivered`, both → `cancelled`. `sent` / `paid` / `overdue` do not exist for them, and an invoice cannot be `offered`. None of the invoice's issuing rules apply (period lock, § 14 details, books closing) — a quote is no booking; a draft of either can be edited on any day;
+- **nothing an invoice has**: payment, credit note, XRechnung (both routes — the older `GET …/xrechnung` had no guard and answered 200 with an invoice XML of the quote, found while measuring), ZUGFeRD, validation, GiroCode and payment link answer 400; `…/pdf` always gives the plain PDF; GoBD export, GoBD archive, DATEV document images and the stock movements leave them out;
+- **the PDF** (`invoice-pdf.service.ts`): title „ANGEBOT“ / „LIEFERSCHEIN“, the quote with „Dieses Angebot ist gültig bis …“ (its `dueDate`) and without a Leistungsdatum; the delivery note with „Lieferdatum“, **without prices, VAT and totals**; neither with payment terms, Skonto or GiroCode. Both read (rendered and looked at);
+- **by e-mail**: a draft goes out as `offered` / `delivered` (it was set to `sent`, which a quote cannot be), with a text of its own in de / en / zh (the invoice text asked the customer to pay the quote by its validity date);
+- **the list**: `GET /invoices` without `type` is the list of invoices — quotes and delivery notes are listed with `type=QU` / `type=DN`. Everything built on that list (CSV export, bulk send, the customer's document count, the dashboard's recent activity) stays about invoices.
+
+**`POST /invoices/:id/convert {to}`** (`invoice.write`): quote → invoice (the offered quote becomes `accepted`), quote → delivery note, issued invoice → delivery note. The new document is a draft dated today with the same customer, lines and — for an invoice — discount, Skonto and VAT treatment; `Invoice.sourceDocumentId` (migration `20261009000002_invoice_source_document`, additive) links it back, and `GET /invoices/:id` returns `sourceDocument` and `derivedDocuments`. Not: delivery note → invoice, anything → quote, a cancelled or declined document, a draft invoice.
+
+**Frontend.** Dashboard cards „Angebote“ / „Lieferscheine“ → `/dashboard/invoices?type=QU|DN`: the list with its own title, „Neues Angebot“, and the statuses of that type as filter chips. The invoice form takes both types (`?type=` presets it; „Gültig für“ instead of „Zahlungsbedingungen“) and opens the new document's page after saving. The detail page shows a type badge, the statuses of the type, „In Rechnung umwandeln“ / „Lieferschein erstellen“, links to the source and to what was made from it, „Gültig bis“ — and hides the e-invoice buttons, GiroCode, payment link, PDF signature, payments and instalments. Namespace `docs` in de / en / zh.
+
+**Found alongside, fixed here:**
+- **`GET /reports/customers` counted every document of a customer** — no status and no type filter, unlike its three siblings in the same file: a draft, a cancelled invoice and a Proforma were "pending" (measured with a quote: 3,57 Mio. € of open claims nobody owed). And a paid invoice *replaced* the customer's paid sum by its own total instead of adding to it (two paid invoices of 3 272 € showed 1 190 € paid). It now counts issued sales documents (`paid`, `sent`, `overdue` of `SALES_TYPES`), sums in Decimal, rounds to the cent.
+- **„Zeige {shown} von {total} 2 / 2“** under the invoice list: the translation's placeholders were never filled. Now „Zeige 2 von 2“.
+
+**Spec** `365-tier610-angebot-und-lieferschein.sh` (35 assertions; 29 fail on the old code): number circles; every allowed and refused status; the nine things refused; both PDFs plain; the three conversions, the four refused ones and another company's 404; **UStVA, aging, P&L, dashboard, customer report, reminders, EÜR, DATEV preview, invoice list and customer list byte-identical before and after a quote and a delivery note over 1 190 000 €**; e-mail status and text; the customer report's five figures. Playwright `quotes-delivery-notes-tier610.spec.ts`: dashboard card → list → form → quote page → offered → invoice → back (accepted, lists the invoice) → delivery note → lists by type → Chinese.
+
+**Decisions taken (the owner may reverse them):**
+- A delivery note moves **no stock** — the invoice does (Tier 520), and both moving it would count a delivery twice. A company that delivers before it invoices sees the stock fall only with the invoice.
+- A quote's validity is its `dueDate`; there is no automatic "expired" status.
+- No order confirmation (Auftragsbestätigung) and no partial delivery / partial invoicing of a quote: a quote can be converted more than once, each time in full.
+- The footer text of the PDF template („Vielen Dank für Ihren Auftrag.“) is the company's and prints on a quote as well.
+
+**For the owner's dev database:** the two additive migrations of 09.10.2026 (`20261009000001_books_closed_until`, `20261009000002_invoice_source_document`) are applied by the next `start.sh` (`prisma migrate deploy`) — not by this session.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 609 — closing the books (Festschreibung)
 
 The first of four things the owner asked for on 09.10.2026 („都做“: quotes, delivery notes, time tracking, closing of the books — §9 item 24). A submitted UStVA locked the documents of its period (Tier 537); nothing locked a manual voucher and nothing closed a year.

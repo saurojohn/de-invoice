@@ -1194,6 +1194,7 @@ export async function collectBelegbilder(
       // of when it was paid.
       issueDate: { gte: startDate, lte: endDate },
       pdfPath: { not: null },
+      type: { notIn: ['QU', 'DN'] }, // Tier 610: quotes and delivery notes are no Belege
     },
     select: {
       invoiceNumber: true,

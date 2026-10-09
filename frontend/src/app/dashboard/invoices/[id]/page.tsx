@@ -59,6 +59,9 @@ interface Invoice {
   payments: { amount: string; paymentDate: string; paymentMethod: string }[]
   // Tier 473: a final invoice's Proforma (Tier 472)
   advanceInvoice?: { id: string; invoiceNumber: string } | null
+  // Tier 610: the quote behind an invoice, and what was made from a document
+  sourceDocument?: { id: string; invoiceNumber: string; type: string; status: string } | null
+  derivedDocuments?: { id: string; invoiceNumber: string; type: string; status: string }[]
 }
 
 interface Payment {
@@ -588,6 +591,10 @@ export default function InvoiceDetailPage() {
       paid: "Bezahlt",
       overdue: "Überfällig",
       cancelled: "Storniert",
+      offered: t("docs.statusOffered"),
+      accepted: t("docs.statusAccepted"),
+      declined: t("docs.statusDeclined"),
+      delivered: t("docs.statusDelivered"),
     }
     return labels[status] || status
   }
@@ -599,6 +606,10 @@ export default function InvoiceDetailPage() {
       paid: "bg-green-100 text-green-700 dark:text-green-300",
       overdue: "bg-red-100 text-red-700 dark:text-red-300",
       cancelled: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+      offered: "bg-blue-100 text-blue-700 dark:text-blue-300",
+      accepted: "bg-green-100 text-green-700 dark:text-green-300",
+      declined: "bg-red-100 text-red-700 dark:text-red-300",
+      delivered: "bg-green-100 text-green-700 dark:text-green-300",
     }
     return colors[status] || colors.draft
   }
@@ -641,6 +652,68 @@ export default function InvoiceDetailPage() {
   // messages/*.json 'billingEmail' namespace is for the
   // page-level i18n (button labels, modal title), not the
   // email body itself.
+  // Tier 610: a quote asks for an order, not for money; a delivery note for nothing
+  const DOCUMENT_TEMPLATES: Record<string, Record<"de" | "en" | "zh", { subject: string; body: string }>> = {
+    QU: {
+      de: {
+        subject: "Angebot {invoiceNumber} von {companyName}",
+        body:
+          "{salutation} {customerName},\n\n" +
+          "anbei erhalten Sie unser Angebot {invoiceNumber} über {amount}.\n\n" +
+          "Das Angebot ist gültig bis zum {dueDate}.\n\n" +
+          "Sie finden es im Anhang als PDF. Wir freuen uns auf Ihren Auftrag.\n\n" +
+          "Mit freundlichen Grüßen\n{companyName}",
+      },
+      en: {
+        subject: "Quote {invoiceNumber} from {companyName}",
+        body:
+          "{salutation} {customerName},\n\n" +
+          "Please find attached our quote {invoiceNumber} for {amount}.\n\n" +
+          "The quote is valid until {dueDate}.\n\n" +
+          "It is attached as a PDF. We look forward to your order.\n\n" +
+          "Kind regards,\n{companyName}",
+      },
+      zh: {
+        subject: "报价单 {invoiceNumber} 来自 {companyName}",
+        body:
+          "{salutation}{customerName}:\n\n" +
+          "随信附上我方报价单 {invoiceNumber},金额 {amount}。\n\n" +
+          "报价有效期至 {dueDate}。\n\n" +
+          "报价单以 PDF 格式附在邮件中,期待您的订单。\n\n" +
+          "此致\n敬礼\n\n" +
+          "{companyName}",
+      },
+    },
+    DN: {
+      de: {
+        subject: "Lieferschein {invoiceNumber} von {companyName}",
+        body:
+          "{salutation} {customerName},\n\n" +
+          "anbei erhalten Sie den Lieferschein {invoiceNumber} zu Ihrer Lieferung.\n\n" +
+          "Sie finden ihn im Anhang als PDF.\n\n" +
+          "Mit freundlichen Grüßen\n{companyName}",
+      },
+      en: {
+        subject: "Delivery note {invoiceNumber} from {companyName}",
+        body:
+          "{salutation} {customerName},\n\n" +
+          "Please find attached delivery note {invoiceNumber} for your delivery.\n\n" +
+          "It is attached as a PDF.\n\n" +
+          "Kind regards,\n{companyName}",
+      },
+      zh: {
+        subject: "送货单 {invoiceNumber} 来自 {companyName}",
+        body:
+          "{salutation}{customerName}:\n\n" +
+          "随信附上本次交货的送货单 {invoiceNumber}。\n\n" +
+          "送货单以 PDF 格式附在邮件中。\n\n" +
+          "此致\n敬礼\n\n" +
+          "{companyName}",
+      },
+    },
+  }
+  const emailTemplate = (lang: "de" | "en" | "zh") =>
+    (invoice && DOCUMENT_TEMPLATES[invoice.type]?.[lang]) || TEMPLATE_FALLBACK[lang]
   const TEMPLATE_FALLBACK: Record<"de" | "en" | "zh", { subject: string; body: string }> = {
     de: {
       subject: "Rechnung {invoiceNumber} von {companyName}",
@@ -1166,7 +1239,7 @@ export default function InvoiceDetailPage() {
     // template as the starting point (German is the
     // page-level locale; the form lets the user switch).
     const lang: "de" | "en" | "zh" = "de"
-    const tpl = TEMPLATE_FALLBACK[lang]
+    const tpl = emailTemplate(lang)
     const amount = fmtAmountForEmail(
       parseFloat(invoice.total || "0"),
       invoice.currency || "EUR",
@@ -1200,7 +1273,7 @@ export default function InvoiceDetailPage() {
   // chosen language; we don't try to translate it).
   const onEmailLangChange = (lang: "de" | "en" | "zh") => {
     setEmailLang(lang)
-    const tpl = TEMPLATE_FALLBACK[lang]
+    const tpl = emailTemplate(lang)
     const amount = fmtAmountForEmail(
       parseFloat(invoice?.total || "0"),
       invoice?.currency || "EUR",
@@ -1426,6 +1499,23 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  // Tier 610: quote → invoice / delivery note, invoice → delivery note
+  const [convertingTo, setConvertingTo] = useState<string | null>(null)
+  const convertTo = async (to: "INV" | "DN") => {
+    if (!invoice) return
+    if (!confirm(to === "INV" ? t("docs.confirmInvoice") : t("docs.confirmDeliveryNote"))) return
+    setConvertingTo(to)
+    try {
+      const companyId = localStorage.getItem("companyId")
+      const created = await apiPost<{ id: string }>(`/api/v1/invoices/${invoice.id}/convert?companyId=${companyId}`, { to })
+      router.push(`/dashboard/invoices/${created.id}`)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("docs.convertFailed"))
+    } finally {
+      setConvertingTo(null)
+    }
+  }
+
   const changeStatus = async (newStatus: string) => {
     if (!invoice || invoice.status === newStatus) return
     if (!confirm(`Status auf "${getStatusLabel(newStatus)}" setzen?`)) return
@@ -1470,6 +1560,14 @@ export default function InvoiceDetailPage() {
 
   if (loading) return <div className="p-8 text-center">{t("invoicePage.loading1")}</div>
   if (!invoice) return <div className="p-8 text-center">{t("invoicePage.notFound")}</div>
+  // Tier 610: a quote / a delivery note — no payment, e-invoice or reminder
+  const nonFiscal = invoice.type === "QU" || invoice.type === "DN"
+  const statusOptions =
+    invoice.type === "QU" ? ["draft", "offered", "accepted", "declined", "cancelled"]
+    : invoice.type === "DN" ? ["draft", "delivered", "cancelled"]
+    : ["draft", "sent", "paid", "overdue", "cancelled"]
+  const docTypeLabel = (ty: string) =>
+    ty === "QU" ? t("docs.typeQuote") : ty === "DN" ? t("docs.typeDeliveryNote") : ty === "INV" ? t("invoice.typeInvoice") : ty
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -1495,17 +1593,47 @@ export default function InvoiceDetailPage() {
                 through draft → sent → paid (or overdue/cancelled). */}
             <select
               value={invoice.status}
+              data-testid="invoice-status-select"
               disabled={statusChanging}
               onChange={(e) => changeStatus(e.target.value)}
               className={`text-sm rounded-full px-3 py-1 border-0 ${getStatusColor(invoice.status)} cursor-pointer`}
               style={{ fontWeight: 500 }}
             >
-              <option value="draft">{getStatusLabel("draft")}</option>
-              <option value="sent">{getStatusLabel("sent")}</option>
-              <option value="paid">{getStatusLabel("paid")}</option>
-              <option value="overdue">{getStatusLabel("overdue")}</option>
-              <option value="cancelled">{getStatusLabel("cancelled")}</option>
+              {statusOptions.map((st) => (
+                <option key={st} value={st}>{getStatusLabel(st)}</option>
+              ))}
             </select>
+            {nonFiscal && (
+              <span
+                className="text-xs px-2 py-1 rounded bg-teal-100 text-teal-700 dark:text-teal-300"
+                data-testid="document-type-badge"
+                title={t("docs.notAnInvoice")}
+              >
+                {docTypeLabel(invoice.type)}
+              </span>
+            )}
+            {invoice.sourceDocument && (
+              <a
+                href={`/dashboard/invoices/${invoice.sourceDocument.id}`}
+                className="text-sm text-gray-600 dark:text-gray-300 underline"
+                data-testid="source-document-link"
+              >
+                {t("docs.createdFrom")}: {invoice.sourceDocument.invoiceNumber}
+              </a>
+            )}
+            {(invoice.derivedDocuments || []).length > 0 && (
+              <span className="text-sm text-gray-600 dark:text-gray-300" data-testid="derived-documents">
+                {t("docs.derived")}:{" "}
+                {(invoice.derivedDocuments || []).map((d, i) => (
+                  <span key={d.id}>
+                    {i > 0 && ", "}
+                    <a href={`/dashboard/invoices/${d.id}`} className="underline" data-testid={`derived-document-${d.type}`}>
+                      {d.invoiceNumber}
+                    </a>
+                  </span>
+                ))}
+              </span>
+            )}
           </div>
           <div className="flex gap-2 items-center flex-wrap">
             <Button variant="outline" onClick={openEmailModal} disabled={sending}>
@@ -1517,7 +1645,7 @@ export default function InvoiceDetailPage() {
                 backend returns reused=true — same idem-
                 potent behaviour). Tier 496: not for a draft (no invoice
                 yet) or a cancelled one. */}
-            {!["draft", "cancelled"].includes(invoice.status) && (
+            {!nonFiscal && !["draft", "cancelled"].includes(invoice.status) && (
               <Button
                 variant="outline"
                 onClick={generatePortalLink}
@@ -1536,6 +1664,7 @@ export default function InvoiceDetailPage() {
                 {sendResult.ok ? "✓" : "✗"} {sendResult.message}
               </span>
             )}
+{!nonFiscal && (<>
             <Button
               variant="outline"
               onClick={downloadXRechnung}
@@ -1573,6 +1702,30 @@ export default function InvoiceDetailPage() {
             >
               {t("invoicePage.giroCode")}
             </Button>
+            </>)}
+            {/* Tier 610: the next document */}
+            {invoice.type === "QU" && !["cancelled", "declined"].includes(invoice.status) && (
+              <Button
+                variant="outline"
+                onClick={() => convertTo("INV")}
+                disabled={convertingTo !== null}
+                data-testid="convert-to-invoice"
+                className="border-teal-300 text-teal-700 dark:text-teal-300"
+              >
+                {convertingTo === "INV" ? "…" : t("docs.convertToInvoice")}
+              </Button>
+            )}
+            {((invoice.type === "QU" && !["cancelled", "declined"].includes(invoice.status)) ||
+              (invoice.type === "INV" && !["draft", "cancelled"].includes(invoice.status))) && (
+              <Button
+                variant="outline"
+                onClick={() => convertTo("DN")}
+                disabled={convertingTo !== null}
+                data-testid="convert-to-delivery-note"
+              >
+                {convertingTo === "DN" ? "…" : t("docs.createDeliveryNote")}
+              </Button>
+            )}
             <Button
               onClick={downloadPDF}
               data-testid="invoice-download-pdf"
@@ -1595,7 +1748,7 @@ export default function InvoiceDetailPage() {
                 {t("invoice.lockedByPayments")}
               </span>
             )}
-            {isToday && payments.length === 0 && (
+            {(isToday || (nonFiscal && invoice.status === "draft")) && payments.length === 0 && (
               <>
                 <Button
                   variant="outline"
@@ -1633,7 +1786,7 @@ export default function InvoiceDetailPage() {
             >
               {t("invoicePage.copyAsDraft")}
             </Button>
-            {!isToday && invoice && (
+            {!isToday && invoice && !(nonFiscal && invoice.status === "draft") && (
               <span
                 className="text-xs text-gray-500 dark:text-gray-400"
                 title={t("invoicePage.frozenTitle")}
@@ -1821,14 +1974,14 @@ export default function InvoiceDetailPage() {
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.issueDate")}</div><div>{formatDate(invoice.issueDate)}</div></div>
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.dueDate")}</div><div>{formatDate(invoice.dueDate)}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">{invoice.type === "QU" ? t("docs.validUntil") : t("invoicePage.dueDate")}</div><div data-testid="invoice-due-date">{formatDate(invoice.dueDate)}</div></div>
                 {/* Tier 492: the Leistungsdatum (§ 14 UStG) — the issue date when none is recorded, as on the PDF */}
                 {invoice.servicePeriodStart && invoice.servicePeriodEnd ? (
                   <div data-testid="leistungszeitraum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.servicePeriod")}</div><div>{formatDate(invoice.servicePeriodStart)} – {formatDate(invoice.servicePeriodEnd)}</div></div>
-                ) : (invoice.deliveryDate || !["PI", "CN"].includes(invoice.type)) && (
+                ) : (invoice.deliveryDate || !["PI", "CN", "QU"].includes(invoice.type)) && (
                   <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.deliveryDate")}</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div>{invoice.type}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div>{nonFiscal ? docTypeLabel(invoice.type) : invoice.type}</div></div>
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.currency")}</div><div>{invoice.currency}</div></div>
               </div>
             </CardContent>
@@ -1836,9 +1989,11 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Tier 72: PDF signature panel (GoBD § 146) */}
-        <div className="mb-6">
-          <PdfSignaturePanel invoiceId={String(params?.id || '')} />
-        </div>
+        {!nonFiscal && (
+          <div className="mb-6">
+            <PdfSignaturePanel invoiceId={String(params?.id || '')} />
+          </div>
+        )}
 
         {/* Items Table */}
         <Card className="mb-8">
@@ -1941,6 +2096,7 @@ export default function InvoiceDetailPage() {
         )}
 
         {/* Payments */}
+        {!nonFiscal && (<>
         <Card className="mt-6">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Zahlungen ({payments.length})</CardTitle>
@@ -2531,6 +2687,7 @@ export default function InvoiceDetailPage() {
             )}
           </CardContent>
         </Card>
+        </>)}
 
         {/* Notes */}
         {invoice.notes && (

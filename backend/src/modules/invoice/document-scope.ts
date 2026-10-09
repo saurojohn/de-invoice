@@ -35,3 +35,25 @@ export const CLAIM_TYPES = ['INV', 'RCV']
  * — the money arrived as the Proforma's payment.
  */
 export const NON_CASH_PAYMENT_METHODS = ['Gutschrift', 'Guthaben', 'Anzahlung']
+
+/**
+ * Tier 610 — documents that are no invoices: a quote (QU, „Angebot“, numbered
+ * AN-…) and a delivery note (DN, „Lieferschein“, LS-…). They live in the same
+ * table and share the editor and the PDF, and that is all: no claim, no VAT,
+ * no payment, no credit note, no stock movement, no e-invoice, no period lock.
+ * Every report selects by SALES_TYPES / CLAIM_TYPES, so they are in none.
+ * And they have statuses of their own, so nothing that asks for "sent" or
+ * "paid" documents (bank matching, direct debit, reminders) meets them:
+ *   quote          draft → offered → accepted | declined;   → cancelled
+ *   delivery note  draft → delivered;                        → cancelled
+ */
+export const NON_FISCAL_TYPES = ['QU', 'DN']
+export const isNonFiscal = (type: string | null | undefined): boolean => NON_FISCAL_TYPES.includes(String(type))
+export const NON_FISCAL_STATUSES = ['offered', 'accepted', 'declined', 'delivered']
+export const NON_FISCAL_TRANSITIONS: Record<string, Record<string, string[]>> = {
+  QU: { draft: ['offered', 'cancelled'], offered: ['accepted', 'declined', 'cancelled'], accepted: ['cancelled'], declined: [], cancelled: [] },
+  DN: { draft: ['delivered', 'cancelled'], delivered: ['cancelled'], cancelled: [] },
+}
+export const DOCUMENT_NAMES: Record<string, string> = {
+  INV: 'Rechnung', CN: 'Gutschrift', PI: 'Proforma-Rechnung', RCV: 'Quittung', QU: 'Angebot', DN: 'Lieferschein',
+}

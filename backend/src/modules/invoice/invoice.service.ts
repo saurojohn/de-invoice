@@ -28,7 +28,7 @@ import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
 import { ModuleRef } from '@nestjs/core';
 import { igLVatIdProblem } from './ust-behandlung-detector';
 import { businessDayIso, businessToday, businessTodayDate, businessTodayIso, dayStart } from '../../common/business-date'
-import { CLAIM_TYPES } from './document-scope';
+import { CLAIM_TYPES, DOCUMENT_NAMES, NON_FISCAL_STATUSES, NON_FISCAL_TRANSITIONS, NON_FISCAL_TYPES, isNonFiscal } from './document-scope';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 import { servicePeriodOf } from './service-period';
@@ -53,8 +53,8 @@ function vatRateOf(item: { vatRate?: number | null }): number {
   return item.vatRate ?? 0.19
 }
 
-export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV';
-const INVOICE_TYPES: readonly string[] = ['INV', 'CN', 'PI', 'RCV'];
+export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN';
+const INVOICE_TYPES: readonly string[] = ['INV', 'CN', 'PI', 'RCV', 'QU', 'DN'];
 
 export interface StockWarning {
   productId: string;
@@ -123,7 +123,9 @@ export class InvoiceService {
       }
     }
     if (customerId) where.customerId = customerId
-    if (type) where.type = type
+    // Tier 610: the list of invoices is not the list of quotes — a quote or a
+    // delivery note is listed when asked for (type=QU / type=DN)
+    where.type = type || { notIn: NON_FISCAL_TYPES }
     // Date range filter on issueDate. Use gte/lte on ISO date strings
     // (YYYY-MM-DD) so the same input shape works from the frontend
     // date picker without timezone drift.
@@ -309,7 +311,9 @@ export class InvoiceService {
         where.status = { in: statusList }
       }
     }
-    if (type) where.type = type
+    // Tier 610: the list of invoices is not the list of quotes — a quote or a
+    // delivery note is listed when asked for (type=QU / type=DN)
+    where.type = type || { notIn: NON_FISCAL_TYPES }
     if (dateFrom || dateTo) {
       where.issueDate = {}
       if (dateFrom) where.issueDate.gte = new Date(`${dateFrom}T00:00:00.000Z`)
@@ -340,10 +344,18 @@ export class InvoiceService {
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
+    // Tier 610: where it came from (the quote behind an invoice …) and what was made from it
+    const brief = { id: true, invoiceNumber: true, type: true, status: true, issueDate: true } as const
+    const [sourceDocument, derivedDocuments] = await Promise.all([
+      invoice.sourceDocumentId
+        ? this.prisma.invoice.findFirst({ where: { id: invoice.sourceDocumentId, companyId }, select: brief })
+        : Promise.resolve(null),
+      this.prisma.invoice.findMany({ where: { companyId, sourceDocumentId: id }, select: brief, orderBy: { createdAt: 'asc' } }),
+    ])
     // Tier 473: what a final invoice deducts, for every PDF / ZUGFeRD path
     // that loads the invoice here (the bulk export and GET …/zugferd did not
     // attach it).
-    return { ...invoice, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
+    return { ...invoice, sourceDocument, derivedDocuments, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
   }
 
   /**
@@ -1004,10 +1016,11 @@ export class InvoiceService {
       throw new NotFoundException('Rechnung nicht gefunden');
     }
     // Tier 537: an issued document of a submitted UStVA period
-    if (existing.status !== 'draft' && existing.type !== 'PI') {
+    if (existing.status !== 'draft' && existing.type !== 'PI' && !isNonFiscal(existing.type)) {
       await assertPeriodOpen(this.prisma, companyId, [existing.issueDate], 'das Ändern einer ausgestellten Rechnung');
     }
-    if (!this.isToday(existing.issueDate)) {
+    // Tier 610: the draft of a quote or delivery note is worked on for days
+    if (!this.isToday(existing.issueDate) && !(isNonFiscal(existing.type) && existing.status === 'draft')) {
       throw new ForbiddenException(
         'Rechnung kann nur am Ausstellungstag bearbeitet werden. Ältere Rechnungen sind eingefroren — stattdessen eine Gutschrift (CN) erstellen.',
       );
@@ -1255,7 +1268,7 @@ export class InvoiceService {
     if (!existing) {
       throw new NotFoundException('Rechnung nicht gefunden');
     }
-    if (existing.status !== 'draft' && existing.type !== 'PI') { // Tier 537
+    if (existing.status !== 'draft' && existing.type !== 'PI' && !isNonFiscal(existing.type)) { // Tier 537
       await assertPeriodOpen(this.prisma, companyId, [existing.issueDate], 'das Löschen einer ausgestellten Rechnung');
     }
     // Same-day rule applies to delete too. After the calendar
@@ -1364,12 +1377,100 @@ export class InvoiceService {
     return withKeyLock(`invoice:${id}`, () => this.updateStatusLocked(id, companyId, status));
   }
 
+  /** Tier 610: quote: draft → offered → accepted | declined; delivery note: draft → delivered; both → cancelled. */
+  private async updateNonFiscalStatus(before: { id: string; type: string; status: string; issueDate: Date; total: unknown }, companyId: string, status: string) {
+    if (status === before.status) return this.prisma.invoice.findFirst({ where: { id: before.id, companyId } });
+    const next = NON_FISCAL_TRANSITIONS[before.type]?.[before.status] ?? [];
+    if (!next.includes(status)) {
+      throw new BadRequestException(
+        `Ein Dokument der Art „${DOCUMENT_NAMES[before.type]}“ im Status „${before.status}“ kann nicht auf „${status}“ gesetzt werden` +
+        (next.length ? ` — möglich: ${next.join(', ')}.` : ' — der Status ist endgültig.'),
+      );
+    }
+    const issuing = before.status === 'draft' && status !== 'cancelled';
+    if (issuing && businessDayIso(new Date(before.issueDate)) > businessTodayIso()) {
+      throw new BadRequestException('Das Datum liegt in der Zukunft. Geben Sie das Dokument an diesem Tag heraus — oder legen Sie es mit dem heutigen Datum neu an.');
+    }
+    if (issuing && before.type === 'QU') assertPositiveTotal(Number(before.total));
+    return this.prisma.invoice.update({ where: { id: before.id }, data: { status, ...(issuing ? { pdfPath: null } : {}) } });
+  }
+
+  /**
+   * Tier 610: make the next document from this one —
+   *   a quote     → an invoice (the quote becomes "accepted") or a delivery note,
+   *   an invoice  → a delivery note.
+   * The new document is a draft dated today with the same customer, lines and
+   * terms; `sourceDocumentId` links it back.
+   */
+  async convert(id: string, companyId: string, to: string) {
+    const src = await this.prisma.invoice.findFirst({ where: { id, companyId }, include: { items: true } });
+    if (!src) throw new NotFoundException('Dokument nicht gefunden');
+    const allowed: Record<string, string[]> = { QU: ['INV', 'DN'], INV: ['DN'] };
+    if (!(allowed[src.type] ?? []).includes(to)) {
+      throw new BadRequestException(
+        `Aus einem Dokument der Art „${DOCUMENT_NAMES[src.type] ?? src.type}“ lässt sich kein Dokument der Art „${DOCUMENT_NAMES[to] ?? to}“ machen. ` +
+        'Möglich: Angebot → Rechnung, Angebot → Lieferschein, Rechnung → Lieferschein.',
+      );
+    }
+    if (['cancelled', 'declined'].includes(src.status)) {
+      throw new BadRequestException('Das Dokument ist storniert oder abgelehnt — daraus wird kein weiteres erstellt.');
+    }
+    if (src.type === 'INV' && src.status === 'draft') {
+      throw new BadRequestException('Die Rechnung ist noch ein Entwurf. Stellen Sie sie zuerst aus, dann den Lieferschein.');
+    }
+    const num = (v: unknown) => (v === null || v === undefined ? undefined : Number(v));
+    const created = await this.create(companyId, {
+      type: to,
+      customerId: src.customerId,
+      issueDate: businessTodayIso(),
+      currency: src.currency,
+      language: src.language ?? undefined,
+      notes: src.notes ?? undefined,
+      templateType: src.templateType ?? undefined,
+      ...(to === 'INV'
+        ? {
+            discountPercent: num(src.discountPercent),
+            discountAmount: num(src.discountAmount),
+            skontoPercent: num(src.skontoPercent),
+            skontoDays: num(src.skontoDays),
+            reverseCharge: src.reverseCharge,
+            euTransaction: src.euTransaction,
+          }
+        : {}),
+      items: [...src.items]
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+        .map((i) => ({
+          description: i.description,
+          quantity: Number(i.quantity),
+          unit: i.unit ?? undefined,
+          unitPrice: Number(i.unitPrice),
+          vatRate: Number(i.vatRate),
+          productId: i.productId ?? undefined,
+          productNumber: i.productNumber ?? undefined,
+        })),
+    } as any);
+    await this.prisma.invoice.update({ where: { id: (created as { id: string }).id }, data: { sourceDocumentId: src.id } });
+    // an invoice made from an offered quote: the customer has accepted it
+    if (src.type === 'QU' && to === 'INV' && src.status === 'offered') {
+      await this.prisma.invoice.update({ where: { id: src.id }, data: { status: 'accepted' } });
+    }
+    return this.findOne((created as { id: string }).id, companyId);
+  }
+
   private async updateStatusLocked(id: string, companyId: string, status: string) {
     // Tier 378: companyId was accepted and ignored — tenant B's
     // PUT /invoices/<A's id>/status changed A's invoice, and the audit row
     // landed under B's company (measured).
     const before = await this.prisma.invoice.findFirst({ where: { id, companyId } });
     if (!before) throw new NotFoundException('Rechnung nicht gefunden');
+
+    // Tier 610: a quote and a delivery note have a short life of their own —
+    // and none of what follows here (period lock, mandatory details of § 14,
+    // advances, credit notes, stock, payment webhooks).
+    if (isNonFiscal(before.type)) return this.updateNonFiscalStatus(before, companyId, status);
+    if (NON_FISCAL_STATUSES.includes(status)) {
+      throw new BadRequestException(`Den Status „${status}“ gibt es nur bei einem Angebot oder Lieferschein.`);
+    }
 
     // Tier 461: a cancelled document leaves every return (UStVA, EÜR, DATEV —
     // with its payments). An invoice that was paid, or that a credit note
@@ -1721,6 +1822,9 @@ export class InvoiceService {
     // measured: an unpaid 1 190 € Proforma credited in full gave the UStVA
     // -1 000 / -190. An unpaid Proforma is cancelled; a paid one is settled
     // by its final invoice (Tier 472), which a credit note can then correct.
+    if (isNonFiscal(original.type)) { // Tier 610
+      throw new BadRequestException(`Zu einem Dokument der Art „${DOCUMENT_NAMES[original.type]}“ gibt es keine Gutschrift.`);
+    }
     if (original.type === 'PI') {
       throw new BadRequestException(
         'Zu einer Proforma-Rechnung gibt es keine Gutschrift. Ohne Zahlung stornieren Sie sie; ' +

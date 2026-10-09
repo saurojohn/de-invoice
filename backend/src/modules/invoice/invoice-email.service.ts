@@ -48,6 +48,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
 import { InvoiceService } from './invoice.service';
+import { isNonFiscal } from './document-scope';
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
 import {
   generateInvoicePDF,
@@ -124,11 +125,13 @@ export class InvoiceEmailService {
     // advance settlement, the invoice.sent webhook) — this used to write
     // 'sent' onto it directly, after the e-mail had gone out.
     if (invoice.status === 'cancelled') {
-      throw new BadRequestException('Eine stornierte Rechnung wird nicht versendet.');
+      throw new BadRequestException(isNonFiscal(invoice.type) ? 'Ein storniertes Dokument wird nicht versendet.' : 'Eine stornierte Rechnung wird nicht versendet.');
     }
     const recipientCheck = ((options.overrideTo || (invoice.customer?.contact as any)?.email || '') as string).trim();
     if (invoice.status === 'draft' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientCheck)) {
-      await this.invoiceService.updateStatus(invoiceId, companyId, 'sent');
+      // Tier 610: a quote goes out as "offered", a delivery note as "delivered"
+      const issued = invoice.type === 'QU' ? 'offered' : invoice.type === 'DN' ? 'delivered' : 'sent';
+      await this.invoiceService.updateStatus(invoiceId, companyId, issued);
       invoice = await this.invoiceService.findOne(invoiceId, companyId);
     }
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
@@ -199,7 +202,7 @@ export class InvoiceEmailService {
       dueDate: fmtDate(invoice.dueDate ? new Date(invoice.dueDate) : null, lang),
       companyName: company?.name || '',
       salutation,
-    });
+    }, invoice.type);
 
     const subject = (options.overrideSubject || tpl.subject).slice(0, 250).trim();
     const text = (options.overrideBody || tpl.text).slice(0, 4000).trim();

@@ -157,7 +157,7 @@ export class CustomerService {
       // group + max it.
       const grouped = await this.prisma.invoice.groupBy({
         by: ['customerId'],
-        where: { companyId, customerId: { in: customerIds } },
+        where: { companyId, customerId: { in: customerIds }, type: { notIn: ['QU', 'DN'] } }, // Tier 610: invoices, not quotes
         _count: { _all: true },
         _max: { issueDate: true },
       })

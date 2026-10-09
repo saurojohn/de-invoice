@@ -26,7 +26,7 @@ type Db = any
 const round4 = (n: number) => Math.round(n * 10000) / 10000
 
 /** Types whose lines are goods leaving the warehouse. */
-const moves = (type: string) => type !== 'CN' && type !== 'PI'
+const moves = (type: string) => type !== 'CN' && type !== 'PI' && type !== 'QU' && type !== 'DN' // Tier 610: nor a quote / delivery note
 
 export async function syncInvoiceStock(
   db: Db,

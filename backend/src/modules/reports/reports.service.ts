@@ -290,11 +290,17 @@ export class ReportsService {
   async getCustomerReport(params: CustomerReportParams): Promise<CustomerReportResult> {
     const { companyId, startDate, endDate } = params;
 
-    // Get all invoices in date range
+    // Tier 610: issued sales documents only, as in the sales report above.
+    // Every document of the customer was counted — a draft, a cancelled
+    // invoice and a Proforma as "pending" (measured with a quote: 3,57 Mio. €
+    // of open claims that nobody owed), and a paid invoice replaced the sum
+    // paid so far instead of adding to it.
     const invoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
         issueDate: { gte: startDate, lte: endDate },
+        status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES },
       },
       include: {
         customer: { select: { id: true, name: true } },
@@ -303,80 +309,64 @@ export class ReportsService {
       orderBy: { issueDate: 'desc' },
     });
 
-    // Group by customer
-    const customerMap = new Map<
-      string,
-      {
-        customerId: string;
-        customerName: string;
-        totalInvoices: number;
-        totalAmount: number;
-        paidAmount: number;
-        pendingAmount: number;
-        overdueAmount: number;
-        lastInvoiceDate: string | null;
-      }
-    >();
+    type Row = {
+      customerId: string;
+      customerName: string;
+      totalInvoices: number;
+      totalAmount: number;
+      paidAmount: number;
+      pendingAmount: number;
+      overdueAmount: number;
+      lastInvoiceDate: string | null;
+    };
+    const customerMap = new Map<string, Row>();
+    const zero = new Prisma.Decimal(0);
+    const sums = new Map<string, { total: Prisma.Decimal; paid: Prisma.Decimal; pending: Prisma.Decimal; overdue: Prisma.Decimal }>();
 
     for (const inv of invoices) {
-      const existing = customerMap.get(inv.customerId);
-      // Tier 245: Decimal累加 — paid amount summed as Decimal
-      // to preserve 4-decimal precision on payment amounts.
-      // totalAmount stays as a one-shot Number() cast (no累加
-      // in this loop, just the per-invoice total read).
-      const totalAmount = Number(inv.total);
-      const paidAmount = inv.payments.reduce(
-        (sum, p) => sum.plus(new Prisma.Decimal(p.amount ?? 0)),
-        new Prisma.Decimal(0),
-      ).toNumber();
-
-      if (existing) {
-        existing.totalInvoices += 1;
-        existing.totalAmount += totalAmount;
-        existing.paidAmount += paidAmount;
-
-        if (inv.status === 'paid') {
-          existing.paidAmount += totalAmount - existing.paidAmount;
-        } else if (inv.status === 'overdue') {
-          existing.overdueAmount += totalAmount - paidAmount;
-        } else {
-          existing.pendingAmount += totalAmount - paidAmount;
-        }
-      } else {
-        let pendingAmount = 0;
-        let overdueAmount = 0;
-
-        if (inv.status === 'paid') {
-          pendingAmount = 0;
-        } else if (inv.status === 'overdue') {
-          overdueAmount = totalAmount - paidAmount;
-        } else {
-          pendingAmount = totalAmount - paidAmount;
-        }
-
+      const total = new Prisma.Decimal(inv.total ?? 0);
+      const received = inv.payments.reduce((sum, p) => sum.plus(new Prisma.Decimal(p.amount ?? 0)), zero);
+      // what is still owed: nothing on a paid invoice, else the rest
+      const open = inv.status === 'paid' ? zero : total.minus(received);
+      if (!customerMap.has(inv.customerId)) {
         customerMap.set(inv.customerId, {
           customerId: inv.customerId,
           customerName: inv.customer.name,
-          totalInvoices: 1,
-          totalAmount,
-          paidAmount,
-          pendingAmount,
-          overdueAmount,
-          lastInvoiceDate: inv.issueDate.toISOString(),
+          totalInvoices: 0,
+          totalAmount: 0,
+          paidAmount: 0,
+          pendingAmount: 0,
+          overdueAmount: 0,
+          lastInvoiceDate: inv.issueDate.toISOString(), // newest first
         });
+        sums.set(inv.customerId, { total: zero, paid: zero, pending: zero, overdue: zero });
       }
+      customerMap.get(inv.customerId)!.totalInvoices += 1;
+      const sum = sums.get(inv.customerId)!;
+      sum.total = sum.total.plus(total);
+      sum.paid = sum.paid.plus(total.minus(open));
+      if (inv.status === 'overdue') sum.overdue = sum.overdue.plus(open);
+      else sum.pending = sum.pending.plus(open);
+    }
+    for (const [id, sum] of sums) {
+      const row = customerMap.get(id)!;
+      row.totalAmount = sum.total.toDecimalPlaces(2).toNumber();
+      row.paidAmount = sum.paid.toDecimalPlaces(2).toNumber();
+      row.pendingAmount = sum.pending.toDecimalPlaces(2).toNumber();
+      row.overdueAmount = sum.overdue.toDecimalPlaces(2).toNumber();
     }
 
     const customers = Array.from(customerMap.values()).sort(
       (a, b) => b.totalAmount - a.totalAmount,
     );
 
+    const cents = (n: number) => Math.round(n * 100) / 100;
     const summary = {
       totalCustomers: customers.length,
-      totalAmount: customers.reduce((sum, c) => sum + c.totalAmount, 0),
-      totalPaid: customers.reduce((sum, c) => sum + c.paidAmount, 0),
-      totalPending: customers.reduce((sum, c) => sum + c.pendingAmount, 0),
-      totalOverdue: customers.reduce((sum, c) => sum + c.overdueAmount, 0),
+      totalAmount: cents(customers.reduce((sum, c) => sum + c.totalAmount, 0)),
+      totalPaid: cents(customers.reduce((sum, c) => sum + c.paidAmount, 0)),
+      totalPending: cents(customers.reduce((sum, c) => sum + c.pendingAmount, 0)),
+      totalOverdue: cents(customers.reduce((sum, c) => sum + c.overdueAmount, 0)),
     };
 
     return { customers, summary };

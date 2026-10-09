@@ -15,7 +15,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
 import { computeInvoiceAmounts } from "@/lib/invoice-amounts"
 
-type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
+type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN'
 type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
 
 interface Customer {
@@ -176,6 +176,12 @@ function CreateInvoicePageInner() {
     loading: boolean
   } | null>(null)
   const [invoiceType, setInvoiceType] = useState<InvoiceType>('INV')
+  // Tier 610: "Neues Angebot" / "Neuer Lieferschein" open the form with the type set
+  useEffect(() => {
+    const preset = searchParams.get("type")
+    if (!editId && !cloneFromId && (preset === 'QU' || preset === 'DN')) setInvoiceType(preset)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false)
   const [invoiceSearch, setInvoiceSearch] = useState("")
   const [templateType, setTemplateType] = useState<InvoiceTemplateType>('standard')
@@ -913,6 +919,8 @@ function CreateInvoicePageInner() {
       CN: t("invoice.typeCreditNote"),
       PI: t("invoice.typeProforma"),
       RCV: t("invoice.typeReceipt"),
+      QU: t("docs.typeQuote"),
+      DN: t("docs.typeDeliveryNote"),
     }
     return labels[type]
   }
@@ -923,6 +931,8 @@ function CreateInvoicePageInner() {
       CN: "bg-orange-100 text-orange-700 dark:text-orange-300",
       PI: "bg-purple-100 text-purple-700 dark:text-purple-300",
       RCV: "bg-green-100 text-green-700 dark:text-green-300",
+      QU: "bg-teal-100 text-teal-700 dark:text-teal-300",
+      DN: "bg-amber-100 text-amber-700 dark:text-amber-300",
     }
     return colors[type]
   }
@@ -1145,6 +1155,9 @@ function CreateInvoicePageInner() {
       // so the user has the invoice in their history.
       if (isEdit && editId) {
         router.push(`/dashboard/invoices/${editId}`)
+      } else if ((invoiceType === 'QU' || invoiceType === 'DN') && createdId) {
+        // Tier 610: the next steps of a quote (offer, convert) are on its page
+        router.push(`/dashboard/invoices/${createdId}`)
       } else {
         router.push("/dashboard/invoices")
       }
@@ -1260,10 +1273,11 @@ function CreateInvoicePageInner() {
               <div>
                 <label className="block text-sm font-medium mb-1">{t("invoice.invoiceType")}</label>
                 <div className="flex flex-wrap gap-2">
-                  {(['INV', 'CN', 'PI', 'RCV'] as InvoiceType[]).map((type) => (
+                  {(['INV', 'CN', 'PI', 'RCV', 'QU', 'DN'] as InvoiceType[]).map((type) => (
                     <button
                       key={type}
                       type="button"
+                      data-testid={`invoice-type-${type}`}
                       onClick={() => {
                         // When switching between invoice types, clear
                         // type-specific state (reference invoice for CN,
@@ -1442,7 +1456,7 @@ function CreateInvoicePageInner() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">{t("invoice.paymentTerms")}</label>
+                  <label className="block text-sm font-medium mb-1">{invoiceType === 'QU' ? t("docs.validFor") : t("invoice.paymentTerms")}</label>
                   <select
                     className="w-full h-10 border rounded-md px-3"
                     value={form.paymentTerms}

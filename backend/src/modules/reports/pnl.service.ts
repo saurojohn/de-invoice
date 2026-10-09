@@ -268,6 +268,7 @@ export class PnlService {
         where: {
           companyId,
           issueDate: { gte: yearStart, lte: yearEnd },
+          type: { notIn: ['QU', 'DN'] }, // Tier 610
         },
       }),
       this.prisma.expense.count({

@@ -99,11 +99,75 @@ const TEMPLATES: Record<EmailLang, { subject: string; body: string }> = {
   },
 };
 
+// Tier 610: a quote asks for an order, not for money; a delivery note
+// asks for nothing.
+const DOCUMENT_TEMPLATES: Record<string, Record<EmailLang, { subject: string; body: string }>> = {
+  QU: {
+    de: {
+      subject: 'Angebot {invoiceNumber} von {companyName}',
+      body:
+        '{salutation} {customerName},\n\n' +
+        'anbei erhalten Sie unser Angebot {invoiceNumber} über {amount}.\n\n' +
+        'Das Angebot ist gültig bis zum {dueDate}.\n\n' +
+        'Sie finden es im Anhang als PDF. Wir freuen uns auf Ihren Auftrag.\n\n' +
+        'Mit freundlichen Grüßen\n{companyName}',
+    },
+    en: {
+      subject: 'Quote {invoiceNumber} from {companyName}',
+      body:
+        '{salutation} {customerName},\n\n' +
+        'Please find attached our quote {invoiceNumber} for {amount}.\n\n' +
+        'The quote is valid until {dueDate}.\n\n' +
+        'It is attached as a PDF. We look forward to your order.\n\n' +
+        'Kind regards,\n{companyName}',
+    },
+    zh: {
+      subject: '报价单 {invoiceNumber} 来自 {companyName}',
+      body:
+        '{salutation}{customerName}:\n\n' +
+        '随信附上我方报价单 {invoiceNumber},金额 {amount}。\n\n' +
+        '报价有效期至 {dueDate}。\n\n' +
+        '报价单以 PDF 格式附在邮件中,期待您的订单。\n\n' +
+        '此致\n敬礼\n\n' +
+        '{companyName}',
+    },
+  },
+  DN: {
+    de: {
+      subject: 'Lieferschein {invoiceNumber} von {companyName}',
+      body:
+        '{salutation} {customerName},\n\n' +
+        'anbei erhalten Sie den Lieferschein {invoiceNumber} zu Ihrer Lieferung.\n\n' +
+        'Sie finden ihn im Anhang als PDF.\n\n' +
+        'Mit freundlichen Grüßen\n{companyName}',
+    },
+    en: {
+      subject: 'Delivery note {invoiceNumber} from {companyName}',
+      body:
+        '{salutation} {customerName},\n\n' +
+        'Please find attached delivery note {invoiceNumber} for your delivery.\n\n' +
+        'It is attached as a PDF.\n\n' +
+        'Kind regards,\n{companyName}',
+    },
+    zh: {
+      subject: '送货单 {invoiceNumber} 来自 {companyName}',
+      body:
+        '{salutation}{customerName}:\n\n' +
+        '随信附上本次交货的送货单 {invoiceNumber}。\n\n' +
+        '送货单以 PDF 格式附在邮件中。\n\n' +
+        '此致\n敬礼\n\n' +
+        '{companyName}',
+    },
+  },
+};
+
 export function renderInvoiceEmail(
   lang: EmailLang,
   vars: InvoiceEmailVars,
+  documentType?: string,
 ): RenderedInvoiceEmail {
-  const tpl = TEMPLATES[lang] || TEMPLATES.de;
+  const table = (documentType && DOCUMENT_TEMPLATES[documentType]) || TEMPLATES;
+  const tpl = table[lang] || table.de;
   const safeVars = {
     ...vars,
     customerName: esc(vars.customerName || ''),

@@ -4070,5 +4070,33 @@
     "closedToast": "Bücher bis {date} abgeschlossen",
     "reopenedToast": "Abschluss aufgehoben",
     "failed": "Der Abschluss konnte nicht gespeichert werden"
+  },
+  "docs": {
+    "typeQuote": "Angebot",
+    "typeDeliveryNote": "Lieferschein",
+    "statusOffered": "Angeboten",
+    "statusAccepted": "Angenommen",
+    "statusDeclined": "Abgelehnt",
+    "statusDelivered": "Geliefert",
+    "convertToInvoice": "In Rechnung umwandeln",
+    "createDeliveryNote": "Lieferschein erstellen",
+    "confirmInvoice": "Aus diesem Angebot eine Rechnung (Entwurf, Datum heute) erstellen?",
+    "confirmDeliveryNote": "Einen Lieferschein (Entwurf, Datum heute) zu diesem Dokument erstellen?",
+    "createdFrom": "Erstellt aus",
+    "derived": "Daraus erstellt",
+    "validFor": "Gültig für",
+    "validUntil": "Gültig bis",
+    "newQuote": "Neues Angebot",
+    "newDeliveryNote": "Neuer Lieferschein",
+    "titleQuotes": "Angebote",
+    "titleDeliveryNotes": "Lieferscheine",
+    "noneQuotes": "Noch keine Angebote.",
+    "noneDeliveryNotes": "Noch keine Lieferscheine.",
+    "cardQuotesTitle": "Angebote",
+    "cardQuotesDesc": "Angebote schreiben und in Rechnungen umwandeln",
+    "cardDeliveryNotesTitle": "Lieferscheine",
+    "cardDeliveryNotesDesc": "Lieferscheine ohne Preise — aus Angebot oder Rechnung",
+    "notAnInvoice": "Kein Buchungsbeleg: ohne Zahlung, E-Rechnung und Mahnung, nicht in Umsatzsteuer, DATEV und Auswertungen.",
+    "convertFailed": "Umwandeln fehlgeschlagen"
   }
 }

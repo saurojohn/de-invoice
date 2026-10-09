@@ -32,7 +32,7 @@ import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AgingService } from './aging.service';
-import { ISSUED_STATUSES, SALES_TYPES, CLAIM_TYPES } from '../invoice/document-scope'
+import { ISSUED_STATUSES, SALES_TYPES, CLAIM_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
 
 @Auth()
 @Controller('reports')
@@ -244,7 +244,7 @@ export class DashboardController {
         // Last 5 invoices. Sorted by createdAt desc —
         // matches the activity feed ordering.
         this.prisma.invoice.findMany({
-          where: { companyId },
+          where: { companyId, type: { notIn: NON_FISCAL_TYPES } }, // Tier 610: invoices, not quotes
           orderBy: { createdAt: 'desc' },
           take: 5,
           include: {

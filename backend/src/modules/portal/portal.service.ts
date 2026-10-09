@@ -59,6 +59,10 @@ export class PortalService {
       throw new NotFoundException('Rechnung nicht gefunden')
     }
     // Tier 496: a draft is not an invoice yet, a cancelled one no longer.
+    // Tier 610: nothing is owed on a quote or a delivery note
+    if (invoice.type === 'QU' || invoice.type === 'DN') {
+      throw new BadRequestException('Zu einem Angebot oder Lieferschein gibt es keinen Zahlungslink — wandeln Sie es in eine Rechnung um.')
+    }
     if (invoice.status === 'draft' || invoice.status === 'cancelled') {
       throw new BadRequestException(
         invoice.status === 'draft'

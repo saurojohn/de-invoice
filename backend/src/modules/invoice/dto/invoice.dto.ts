@@ -271,7 +271,8 @@ export class UpdateInvoiceDto {
  * backend itself writes (draft on create, sent / paid / cancelled). `partial`,
  * `voided` and `open` appear in a few comparisons but nothing ever writes them.
  */
-export const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'cancelled'] as const;
+// Tier 610: 'offered' / 'accepted' / 'declined' belong to a quote, 'delivered' to a delivery note
+export const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'cancelled', 'offered', 'accepted', 'declined', 'delivered'] as const;
 
 export class UpdateInvoiceStatusDto {
   @IsIn(INVOICE_STATUSES, {

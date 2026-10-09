@@ -439,10 +439,18 @@ export async function generateInvoicePDF(
       switch ((invoice as any).type) {
         case "CN": return "GUTSCHRIFT"
         case "PI": return "PROFORMARECHNUNG"
+        case "QU": return "ANGEBOT" // Tier 610
+        case "DN": return "LIEFERSCHEIN"
         case "RCV": return "QUITTUNG"
         default: return "RECHNUNG"
       }
     })()
+    // Tier 610: a delivery note shows what was delivered, not what it costs;
+    // neither it nor a quote asks for payment.
+    const docType = String((invoice as any).type || "INV")
+    const hidePrices = docType === "DN"
+    const noPayment = docType === "QU" || docType === "DN"
+    const money = (n: number) => (hidePrices ? "" : formatCurrency(n))
     const titleOffsetY = 42  // 3 rows down
     const titleY = middleRowY + titleOffsetY
     doc.fontSize(20).font(fontFor('bold')).text(invoiceTitle, leftMargin, titleY, { width: rightBlockWidth, align: "right", lineBreak: false })
@@ -451,7 +459,7 @@ export async function generateInvoicePDF(
     const isDraft = (invoice as any).status === "draft"
     if (isDraft) {
       doc.fontSize(9).font(fontFor('bold')).fillColor("#b91c1c")
-        .text("ENTWURF – keine gültige Rechnung", leftMargin, titleY - 12, { width: rightBlockWidth, align: "right", lineBreak: false })
+        .text(docType === "QU" ? "ENTWURF – kein gültiges Angebot" : docType === "DN" ? "ENTWURF" : "ENTWURF – keine gültige Rechnung", leftMargin, titleY - 12, { width: rightBlockWidth, align: "right", lineBreak: false })
       doc.fillColor(textColor).fontSize(20).font(fontFor('bold'))
     }
     doc.fontSize(16).text(invoice.invoiceNumber, leftMargin, titleY + 24, { width: rightBlockWidth, align: "right", lineBreak: false })
@@ -502,12 +510,12 @@ export async function generateInvoicePDF(
     const periodEnd = (invoice as any).servicePeriodEnd
     const hasPeriod = !!(periodStart && periodEnd)
     const leistungsdatum = hasPeriod ? null : (invoice as any).deliveryDate
-      ?? (["PI", "CN"].includes((invoice as any).type) ? null : invoice.issueDate)
+      ?? (["PI", "CN", "QU"].includes((invoice as any).type) ? null : invoice.issueDate)
     if (hasPeriod) {
       doc.text("Leistungszeitraum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow += 2
     } else if (leistungsdatum) {
-      doc.text("Leistungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      doc.text(docType === "DN" ? "Lieferdatum:" : "Leistungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }
     if (company.vatId) {
@@ -593,7 +601,7 @@ export async function generateInvoicePDF(
           .text("Artikel Nr.", leftMargin + 5, y + 6, { width: compactColWidths.sku - 10, lineBreak: false })
           .text("Beschreibung", leftMargin + compactColWidths.sku, y + 6, { width: compactColWidths.desc - 10, lineBreak: false })
           .text("Menge", leftMargin + compactColWidths.sku + compactColWidths.desc, y + 6, { width: compactColWidths.qty, align: "center", lineBreak: false })
-          .text("Einzelpreis", leftMargin + compactColWidths.sku + compactColWidths.desc + compactColWidths.qty, y + 6, { width: compactColWidths.price, align: "center", lineBreak: false })
+          .text(hidePrices ? "" : "Einzelpreis", leftMargin + compactColWidths.sku + compactColWidths.desc + compactColWidths.qty, y + 6, { width: compactColWidths.price, align: "center", lineBreak: false })
         y += compactHeaderHeight
         doc.fillColor(textColor).font(fontFor('regular')).fontSize(9).lineWidth(0.3)
       }
@@ -622,7 +630,7 @@ export async function generateInvoicePDF(
         doc.font(fontFor('regular')).fontSize(9)
           .text(item.description, leftMargin + compactColWidths.sku, y + 5, { width: compactColWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, cQtyX, y + 5, { width: cQtyW, align: "center", lineBreak: false })
-        doc.text(formatCurrency(toFloat(item.unitPrice)), cPriceX, y + 5, { width: cPriceW, align: "center", lineBreak: false })
+        doc.text(money(toFloat(item.unitPrice)), cPriceX, y + 5, { width: cPriceW, align: "center", lineBreak: false })
         y += rowHeight
       })
     } else {
@@ -647,9 +655,9 @@ export async function generateInvoicePDF(
           .text("Artikel Nr.", leftMargin + 5, y + 8, { width: colWidths.sku - 10, lineBreak: false })
           .text("Beschreibung", leftMargin + colWidths.sku, y + 8, { width: colWidths.desc - 10, lineBreak: false })
           .text("Menge", leftMargin + colWidths.sku + colWidths.desc, y + 8, { width: colWidths.qty, align: "center", lineBreak: false })
-          .text("Einzelpreis", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty, y + 8, { width: colWidths.price, align: "center", lineBreak: false })
-          .text("MwSt", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price, y + 8, { width: colWidths.vat, align: "center", lineBreak: false })
-        doc.text("Gesamt", sNetX, y + 8, { width: sNetW, align: "right", lineBreak: false })
+          .text(hidePrices ? "" : "Einzelpreis", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty, y + 8, { width: colWidths.price, align: "center", lineBreak: false })
+          .text(hidePrices ? "" : "MwSt", leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price, y + 8, { width: colWidths.vat, align: "center", lineBreak: false })
+        doc.text(hidePrices ? "" : "Gesamt", sNetX, y + 8, { width: sNetW, align: "right", lineBreak: false })
         y += headerHeight
         doc.font(fontFor('regular')).fontSize(10).lineWidth(0.3)
       }
@@ -686,10 +694,10 @@ export async function generateInvoicePDF(
         doc.font(fontFor('regular')).fontSize(10)
           .text(item.description, leftMargin + colWidths.sku, y + 7, { width: colWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, sQtyX, y + 7, { width: sQtyW, align: "center", lineBreak: false })
-        doc.text(formatCurrency(toFloat(item.unitPrice)), sPriceX, y + 7, { width: sPriceW, align: "center", lineBreak: false })
-        doc.text(formatVatRate(toFloat(item.vatRate)), sVatX, y + 7, { width: sVatW, align: "center", lineBreak: false })
+        doc.text(money(toFloat(item.unitPrice)), sPriceX, y + 7, { width: sPriceW, align: "center", lineBreak: false })
+        doc.text(hidePrices ? "" : formatVatRate(toFloat(item.vatRate)), sVatX, y + 7, { width: sVatW, align: "center", lineBreak: false })
         // Per-line total right edge = rightMargin, so it aligns vertically with totals below
-        doc.text(formatCurrency(toFloat(item.netAmount)), sNetX, y + 7, { width: sNetW, align: "right", lineBreak: false })
+        doc.text(money(toFloat(item.netAmount)), sNetX, y + 7, { width: sNetW, align: "right", lineBreak: false })
         y += rowHeight
       })
     }
@@ -769,14 +777,14 @@ export async function generateInvoicePDF(
     const totalsAmountX = rightMargin - 100  // right-aligned width = 100, ends at rightMargin
     const totalsAmountWidth = 100
     // Tier 7.5: total divider in primaryColor
-    doc.strokeColor(primaryColor)
+    if (!hidePrices) doc.strokeColor(primaryColor)
       .moveTo(totalsAmountX, totalsLineY).lineTo(rightMargin, totalsLineY).lineWidth(0.8).stroke()
 
     const totalsFontSize = isCompact ? 10 : 11
     const totalsLineHeight = totalsLineHeightPre
 
     doc.fillColor(textColor).font(fontFor('regular')).fontSize(totalsFontSize).lineWidth(0.3)
-    rows.forEach((row, i) => {
+    if (!hidePrices) rows.forEach((row, i) => {
       const rowY = totalsY + 5 + i * totalsLineHeight
       doc.text(row.label, totalsLabelX, rowY, { lineBreak: false })
       doc.text(formatCurrency(row.amount), totalsAmountX, rowY, { width: totalsAmountWidth, align: "right", lineBreak: false })
@@ -788,12 +796,12 @@ export async function generateInvoicePDF(
     const gesamtBoxX = totalsLabelX - 5
     const gesamtBoxWidth = rightMargin - gesamtBoxX
     doc.lineWidth(1.0)
-    doc.rect(gesamtBoxX, gesamtY, gesamtBoxWidth, gesamtHeight).stroke()
+    if (!hidePrices) doc.rect(gesamtBoxX, gesamtY, gesamtBoxWidth, gesamtHeight).stroke()
     doc.fillColor(textColor).font(fontFor('bold')).fontSize(totalsFontSize + 2)
-    doc.text("Gesamtbetrag:", gesamtBoxX + 5, gesamtY + 6, { lineBreak: false })
-    doc.text(formatCurrency(toFloat(invoice.total)), totalsAmountX, gesamtY + 6, { width: totalsAmountWidth, align: "right", lineBreak: false })
+    if (!hidePrices) doc.text("Gesamtbetrag:", gesamtBoxX + 5, gesamtY + 6, { lineBreak: false })
+    if (!hidePrices) doc.text(formatCurrency(toFloat(invoice.total)), totalsAmountX, gesamtY + 6, { width: totalsAmountWidth, align: "right", lineBreak: false })
 
-    let blockEndY = gesamtY + gesamtHeight
+    let blockEndY = hidePrices ? y : gesamtY + gesamtHeight
     if (advance) {
       doc.font(fontFor('regular')).fontSize(totalsFontSize - 1).lineWidth(0.3)
       advanceRows.forEach((row, i) => {
@@ -883,7 +891,12 @@ export async function generateInvoicePDF(
       doc.font(fontFor('regular')).fontSize(9).fillColor(textColor)
         .text(renderConfig.footerText, leftMargin, footerY - 56, { lineBreak: false })
     }
-    if (renderConfig?.paymentTermsText) {
+    if (docType === "QU" && (invoice as any).dueDate) {
+      // Tier 610: a quote says how long it holds
+      doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
+        .text(`Dieses Angebot ist gültig bis ${formatDate((invoice as any).dueDate)}.`, leftMargin, footerY - 42, { lineBreak: false })
+    }
+    if (renderConfig?.paymentTermsText && !noPayment) {
       doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
         .text(renderConfig.paymentTermsText, leftMargin, footerY - 42, { lineBreak: false })
     }
@@ -902,7 +915,7 @@ export async function generateInvoicePDF(
     // match the rest of the PDF.
     const skontoPercent = (invoice as any).skontoPercent
     const skontoDays = (invoice as any).skontoDays
-    if (skontoPercent != null && skontoDays != null) {
+    if (skontoPercent != null && skontoDays != null && !noPayment) {
       const issue = new Date((invoice as any).issueDate)
       const withDue = new Date(issue)
       withDue.setDate(withDue.getDate() + Number(skontoDays))
@@ -1032,7 +1045,7 @@ export async function generateInvoicePDF(
     // doesn't get a scannable code. No error
     // shown so older invoices / IBAN-less companies
     // still print cleanly.
-    if (qrBuffer) {
+    if (qrBuffer && !noPayment) {
       const qrSize = 56
       const qrX = 240
       const qrY = footerY

@@ -918,6 +918,10 @@ model Invoice {
   creditNotes               Invoice[]                  @relation("InvoiceReferences")
   // Tier 472: the final invoice (Schlussrechnung) settles the advance paid on
   // this Proforma (§ 14 Abs. 5 UStG). Set on the final invoice.
+  // Tier 610: the document this one was made from — the quote behind an
+  // invoice, the invoice or quote behind a delivery note. A plain id (the
+  // source may be deleted while a draft; the link then simply ends).
+  sourceDocumentId          String?
   advanceInvoiceId          String?
   advanceInvoice            Invoice?                   @relation("AdvanceSettlement", fields: [advanceInvoiceId], references: [id])
   finalInvoices             Invoice[]                  @relation("AdvanceSettlement")
@@ -958,6 +962,7 @@ model Invoice {
   @@index([companyId, customerId])
   @@index([companyId, status])
   @@index([advanceInvoiceId])
+  @@index([sourceDocumentId])
   @@index([companyId, type])
   @@index([dueDate])
 }

@@ -10,7 +10,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 
-type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV'
+type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN'
 
 interface Invoice {
   id: string
@@ -30,6 +30,23 @@ function InvoicesPageInner() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<string>('')
+  // Tier 610: /dashboard/invoices?type=QU opens the quotes, ?type=DN the delivery notes
+  useEffect(() => {
+    const ty = searchParams.get("type") || ""
+    if (['INV', 'CN', 'PI', 'RCV', 'QU', 'DN'].includes(ty)) setTypeFilter(ty)
+  }, [searchParams])
+  const statusChoices: string[] =
+    typeFilter === 'QU' ? ["draft", "offered", "accepted", "declined", "cancelled"]
+    : typeFilter === 'DN' ? ["draft", "delivered", "cancelled"]
+    : ["draft", "sent", "paid", "overdue", "cancelled"]
+  const pickType = (ty: string) => {
+    setTypeFilter(ty)
+    setStatusFilters([]) // a quote has other statuses than an invoice
+    setPage(1)
+    const url = new URL(window.location.href)
+    if (ty) url.searchParams.set("type", ty); else url.searchParams.delete("type")
+    window.history.replaceState(null, "", url.toString())
+  }
   // Tier 239: status is now a multi-select array. The
   // backend (Tier 237) supports ?status=overdue,sent via
   // Prisma `in:`. Empty array = no status filter.
@@ -55,7 +72,7 @@ function InvoicesPageInner() {
     const parsed = raw
       .split(",")
       .map((s) => s.trim())
-      .filter((s) => ["draft", "sent", "paid", "overdue", "cancelled"].includes(s))
+      .filter((s) => ["draft", "sent", "paid", "overdue", "cancelled", "offered", "accepted", "declined", "delivered"].includes(s))
     // Only setState if the parsed list differs from the
     // current one (avoids unnecessary re-renders and
     // breaks the loop where the same URL keeps being
@@ -281,6 +298,10 @@ function InvoicesPageInner() {
       paid: t("invoice.paid"),
       overdue: t("invoice.overdue"),
       cancelled: t("invoice.cancelled"),
+      offered: t("docs.statusOffered"),
+      accepted: t("docs.statusAccepted"),
+      declined: t("docs.statusDeclined"),
+      delivered: t("docs.statusDelivered"),
     }
     return labels[status] || status
   }
@@ -297,6 +318,10 @@ function InvoicesPageInner() {
     paid: 0,
     overdue: 0,
     cancelled: 0,
+    offered: 0,
+    accepted: 0,
+    declined: 0,
+    delivered: 0,
   }
   for (const inv of invoices) {
     if (inv.status in statusCounts) statusCounts[inv.status]++
@@ -320,6 +345,10 @@ function InvoicesPageInner() {
       paid: "bg-green-100 text-green-700 dark:text-green-300",
       overdue: "bg-red-100 text-red-700 dark:text-red-300",
       cancelled: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+      offered: "bg-blue-100 text-blue-700 dark:text-blue-300",
+      accepted: "bg-green-100 text-green-700 dark:text-green-300",
+      declined: "bg-red-100 text-red-700 dark:text-red-300",
+      delivered: "bg-green-100 text-green-700 dark:text-green-300",
     }
     return colors[status] || colors.draft
   }
@@ -330,6 +359,8 @@ function InvoicesPageInner() {
       CN: t("invoice.typeCreditNote"),
       PI: t("invoice.typeProforma"),
       RCV: t("invoice.typeReceipt"),
+      QU: t("docs.typeQuote"),
+      DN: t("docs.typeDeliveryNote"),
     }
     return labels[type] || type
   }
@@ -340,6 +371,8 @@ function InvoicesPageInner() {
       CN: "bg-orange-100 text-orange-700 dark:text-orange-300",
       PI: "bg-purple-100 text-purple-700 dark:text-purple-300",
       RCV: "bg-green-100 text-green-700 dark:text-green-300",
+      QU: "bg-teal-100 text-teal-700 dark:text-teal-300",
+      DN: "bg-amber-100 text-amber-700 dark:text-amber-300",
     }
     return colors[type] || colors.INV
   }
@@ -785,11 +818,19 @@ function InvoicesPageInner() {
             h1 + buttons stack on small screens; the
             header doesn't overflow the viewport. */}
         <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{t("invoice.title")}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400" data-testid="invoices-title">
+            {typeFilter === 'QU' ? t("docs.titleQuotes") : typeFilter === 'DN' ? t("docs.titleDeliveryNotes") : t("invoice.title")}
+          </h1>
           <div className="flex flex-wrap gap-2 items-center">
             <LanguageSwitcher />
             <Button variant="outline" size="sm" onClick={() => router.push("/dashboard")}>{t("common.back")}</Button>
-            <Button size="sm" onClick={() => router.push("/dashboard/invoices/create")}>{t("common2.newInvoice")}</Button>
+            <Button
+              size="sm"
+              data-testid="invoices-new-button"
+              onClick={() => router.push(typeFilter === 'QU' || typeFilter === 'DN' ? `/dashboard/invoices/create?type=${typeFilter}` : "/dashboard/invoices/create")}
+            >
+              {typeFilter === 'QU' ? t("docs.newQuote") : typeFilter === 'DN' ? t("docs.newDeliveryNote") : t("common2.newInvoice")}
+            </Button>
           </div>
         </div>
       </header>
@@ -866,16 +907,18 @@ function InvoicesPageInner() {
           <Button
             size="sm"
             variant={typeFilter === '' ? 'default' : 'outline'}
-            onClick={() => setTypeFilter('')}
+            onClick={() => pickType('')}
+            data-testid="type-chip-all"
           >
             {t("common2.all")}
           </Button>
-          {(['INV', 'CN', 'PI', 'RCV'] as InvoiceType[]).map((type) => (
+          {(['INV', 'CN', 'PI', 'RCV', 'QU', 'DN'] as InvoiceType[]).map((type) => (
             <Button
               key={type}
               size="sm"
               variant={typeFilter === type ? 'default' : 'outline'}
-              onClick={() => setTypeFilter(type)}
+              onClick={() => pickType(type)}
+              data-testid={`type-chip-${type}`}
             >
               <span className={`px-1.5 py-0.5 rounded text-xs mr-1 ${getTypeColor(type)}`}>
                 {type}
@@ -915,22 +958,30 @@ function InvoicesPageInner() {
             <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">
               {t("common2.status") || "Status"}:
             </span>
-            {(["draft", "sent", "paid", "overdue", "cancelled"] as const).map((s) => {
+            {statusChoices.map((s) => {
               const active = statusFilters.includes(s)
-              const baseColor = {
+              const baseColor = ({
                 draft: "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300",
                 sent: "border-blue-300 text-blue-700",
                 paid: "border-emerald-300 text-emerald-700",
                 overdue: "border-red-300 text-red-700",
                 cancelled: "border-gray-300 text-gray-500",
-              }[s]
-              const activeColor = {
+                offered: "border-blue-300 text-blue-700",
+                accepted: "border-emerald-300 text-emerald-700",
+                declined: "border-red-300 text-red-700",
+                delivered: "border-emerald-300 text-emerald-700",
+              } as Record<string, string>)[s]
+              const activeColor = ({
                 draft: "bg-gray-700 text-white border-gray-700",
                 sent: "bg-blue-600 text-white border-blue-600",
                 paid: "bg-emerald-600 text-white border-emerald-600",
                 overdue: "bg-red-600 text-white border-red-600",
                 cancelled: "bg-gray-500 text-white border-gray-500",
-              }[s]
+                offered: "bg-blue-600 text-white border-blue-600",
+                accepted: "bg-emerald-600 text-white border-emerald-600",
+                declined: "bg-red-600 text-white border-red-600",
+                delivered: "bg-emerald-600 text-white border-emerald-600",
+              } as Record<string, string>)[s]
               return (
                 <button
                   key={s}
@@ -1057,7 +1108,7 @@ function InvoicesPageInner() {
 
         {hasActiveFilter && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {t("common2.showingXofY") || "Zeige"} {dateFiltered.length} / {invoices.length}
+            <span data-testid="invoices-showing">{t("common2.showingXofY", { shown: dateFiltered.length, total: invoices.length })}</span>
           </p>
         )}
 
@@ -1086,9 +1137,11 @@ function InvoicesPageInner() {
         ) : invoices.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">{t("invoice.noInvoices")}</p>
-              <Button onClick={() => router.push("/dashboard/invoices/create")}>
-                {t("invoice.createFirst")}
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                {typeFilter === 'QU' ? t("docs.noneQuotes") : typeFilter === 'DN' ? t("docs.noneDeliveryNotes") : t("invoice.noInvoices")}
+              </p>
+              <Button onClick={() => router.push(typeFilter === 'QU' || typeFilter === 'DN' ? `/dashboard/invoices/create?type=${typeFilter}` : "/dashboard/invoices/create")}>
+                {typeFilter === 'QU' ? t("docs.newQuote") : typeFilter === 'DN' ? t("docs.newDeliveryNote") : t("invoice.createFirst")}
               </Button>
             </CardContent>
           </Card>

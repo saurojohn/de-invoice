@@ -1036,6 +1036,23 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardInvoiceDesc")}</p>
             </CardContent>
           </Card>
+          {/* Tier 610: quotes and delivery notes */}
+          <Card data-testid="card-quotes" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoices?type=QU")}>
+            <CardHeader>
+              <CardTitle>{t("docs.cardQuotesTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("docs.cardQuotesDesc")}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="card-delivery-notes" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoices?type=DN")}>
+            <CardHeader>
+              <CardTitle>{t("docs.cardDeliveryNotesTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("docs.cardDeliveryNotesDesc")}</p>
+            </CardContent>
+          </Card>
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/customers")}>
             <CardHeader>
               <CardTitle>{t("dashboard.cardCustomerTitle")}</CardTitle>

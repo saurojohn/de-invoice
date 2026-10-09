@@ -31,6 +31,7 @@ import { generateZUGFeRD } from '../../invoices/zugferd.service';
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
 import { CreateInvoiceDto, UpdateInvoiceDto, UpdateInvoiceStatusDto, CreateFinalInvoiceDto } from './dto/invoice.dto';
+import { DOCUMENT_NAMES, isNonFiscal } from './document-scope';
 import { Auth, Require } from '../../auth/roles.decorator';
 // Tier 129: renderInvoiceEmail + EmailLang moved to
 // InvoiceEmailService. The controller still has the
@@ -330,7 +331,7 @@ export class InvoiceController {
           }
           let buffer: Buffer
           let ext: string
-          if (format === 'zugferd') {
+          if (format === 'zugferd' && !isNonFiscal(invoice.type)) { // Tier 610: a quote / delivery note is a plain PDF
             buffer = await generateZUGFeRD(invoice, companyCtx as any)
             ext = 'pdf'
           } else {
@@ -616,6 +617,9 @@ export class InvoiceController {
       if (!company) {
         return res.status(404).json({ message: 'Unternehmen nicht gefunden' })
       }
+      if (isNonFiscal(invoice.type)) { // Tier 610
+        return res.status(400).json({ message: 'Zu einem Angebot oder Lieferschein gibt es keinen GiroCode.' })
+      }
       // Reuse the same GiroCode payload builder the
       // PDF embeds — single source of truth. Falls
       // through to 404 when the company has no IBAN
@@ -723,10 +727,11 @@ export class InvoiceController {
       if (formatParam === 'xrechnung' || formatParam === 'xml') {
         return this.streamXRechnung(id, companyId, res)
       }
-      const format: 'zugferd' | 'pdf' =
-        formatParam === 'pdf' || formatParam === 'visual' ? 'pdf' : 'zugferd'
-
       const invoice = await this.invoiceService.findOne(id, companyId);
+      // Tier 610: a quote / a delivery note is no e-invoice — always the plain PDF
+      const format: 'zugferd' | 'pdf' =
+        formatParam === 'pdf' || formatParam === 'visual' || isNonFiscal(invoice.type) ? 'pdf' : 'zugferd'
+
       const company = await this.prisma.company.findUnique({ where: { id: companyId } });
 
       // Pass the FULL company object to generateInvoicePDF. The
@@ -918,6 +923,10 @@ export class InvoiceController {
   ) {
     try {
       const invoice = await this.invoiceService.findOne(id, companyId)
+      if (isNonFiscal(invoice.type)) { // Tier 610
+        res.status(400).json({ statusCode: 400, message: `Ein Dokument der Art „${DOCUMENT_NAMES[invoice.type]}“ ist keine Rechnung — eine E-Rechnung (XRechnung) gibt es dazu nicht.` })
+        return
+      }
       const company = await this.prisma.company.findUnique({ where: { id: companyId } })
       if (!company) {
         res.status(404).json({ error: 'Company not found' })
@@ -956,6 +965,9 @@ export class InvoiceController {
   async downloadXRechnung(@Param('id') id: string, @Query('companyId') companyId: string, @Res() res: Response) {
     try {
       const invoice = await this.invoiceService.findOne(id, companyId);
+      if (isNonFiscal(invoice.type)) { // Tier 610
+        throw new BadRequestException(`Ein Dokument der Art „${DOCUMENT_NAMES[invoice.type]}“ ist keine Rechnung — eine E-Rechnung (XRechnung) gibt es dazu nicht.`)
+      }
       const company = await this.prisma.company.findUnique({ where: { id: companyId } });
 
       if (!company) {
@@ -1002,6 +1014,9 @@ export class InvoiceController {
     @Query('engine') engineRaw?: string,
   ) {
     const invoice = await this.invoiceService.findOne(id, companyId)
+    if (isNonFiscal(invoice.type)) { // Tier 610
+      throw new BadRequestException(`Ein Dokument der Art „${DOCUMENT_NAMES[invoice.type]}“ ist keine Rechnung — eine E-Rechnung gibt es dazu nicht.`)
+    }
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
     if (!company) {
       throw new BadRequestException('Company not found')
@@ -1056,6 +1071,10 @@ export class InvoiceController {
   async downloadZUGFeRD(@Param('id') id: string, @Query('companyId') companyId: string, @Res() res: Response) {
     try {
       const invoice = await this.invoiceService.findOne(id, companyId);
+      if (isNonFiscal(invoice.type)) { // Tier 610
+        res.status(400).json({ statusCode: 400, message: `Ein Dokument der Art „${DOCUMENT_NAMES[invoice.type]}“ ist keine Rechnung — eine E-Rechnung (ZUGFeRD) gibt es dazu nicht.` });
+        return;
+      }
       const company = await this.prisma.company.findUnique({ where: { id: companyId } });
 
       if (!company) {
@@ -1639,6 +1658,23 @@ export class InvoiceController {
       throw new BadRequestException('companyId ist erforderlich')
     }
     return this.invoiceService.createFinalInvoice(id, companyId, body ?? {})
+  }
+
+  /**
+   * Tier 610: make the next document from this one — a quote becomes an
+   * invoice or a delivery note, an invoice a delivery note. Body: { to }.
+   */
+  @Post(':id/convert')
+  @Require('invoice.write')
+  async convert(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+    @Body() body: { to?: unknown },
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const to = typeof body?.to === 'string' ? body.to : ''
+    if (!to) throw new BadRequestException('to ist erforderlich (INV oder DN).')
+    return this.invoiceService.convert(id, companyId, to)
   }
 
   @Post(':id/credit-note')

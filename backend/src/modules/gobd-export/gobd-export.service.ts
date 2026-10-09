@@ -230,6 +230,7 @@ export class GobdExportService {
       where: {
         companyId: opts.companyId,
         issueDate: { gte: yearStart, lt: yearEnd },
+        type: { notIn: ['QU', 'DN'] }, // Tier 610: quotes and delivery notes are no invoices
       },
       orderBy: { issueDate: 'asc' },
     })

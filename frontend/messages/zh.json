@@ -4070,5 +4070,33 @@
     "closedToast": "账簿已结账至 {date}",
     "reopenedToast": "结账已解除",
     "failed": "结账未能保存"
+  },
+  "docs": {
+    "typeQuote": "报价单",
+    "typeDeliveryNote": "送货单",
+    "statusOffered": "已报价",
+    "statusAccepted": "已接受",
+    "statusDeclined": "已拒绝",
+    "statusDelivered": "已交付",
+    "convertToInvoice": "转为发票",
+    "createDeliveryNote": "生成送货单",
+    "confirmInvoice": "根据此报价单生成发票（草稿，日期为今天）？",
+    "confirmDeliveryNote": "为此单据生成送货单（草稿，日期为今天）？",
+    "createdFrom": "来源单据",
+    "derived": "由此生成",
+    "validFor": "有效期",
+    "validUntil": "有效期至",
+    "newQuote": "新建报价单",
+    "newDeliveryNote": "新建送货单",
+    "titleQuotes": "报价单",
+    "titleDeliveryNotes": "送货单",
+    "noneQuotes": "还没有报价单。",
+    "noneDeliveryNotes": "还没有送货单。",
+    "cardQuotesTitle": "报价单",
+    "cardQuotesDesc": "编写报价单并转为发票",
+    "cardDeliveryNotesTitle": "送货单",
+    "cardDeliveryNotesDesc": "不含价格的送货单——由报价单或发票生成",
+    "notAnInvoice": "不是记账凭证：没有付款、电子发票和催款，不计入增值税、DATEV 和报表。",
+    "convertFailed": "转换失败"
   }
 }

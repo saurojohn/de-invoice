@@ -4070,5 +4070,33 @@
     "closedToast": "Books closed up to {date}",
     "reopenedToast": "Closing lifted",
     "failed": "The closing could not be saved"
+  },
+  "docs": {
+    "typeQuote": "Quote",
+    "typeDeliveryNote": "Delivery note",
+    "statusOffered": "Offered",
+    "statusAccepted": "Accepted",
+    "statusDeclined": "Declined",
+    "statusDelivered": "Delivered",
+    "convertToInvoice": "Convert to invoice",
+    "createDeliveryNote": "Create delivery note",
+    "confirmInvoice": "Create an invoice (draft, dated today) from this quote?",
+    "confirmDeliveryNote": "Create a delivery note (draft, dated today) for this document?",
+    "createdFrom": "Created from",
+    "derived": "Created from this",
+    "validFor": "Valid for",
+    "validUntil": "Valid until",
+    "newQuote": "New quote",
+    "newDeliveryNote": "New delivery note",
+    "titleQuotes": "Quotes",
+    "titleDeliveryNotes": "Delivery notes",
+    "noneQuotes": "No quotes yet.",
+    "noneDeliveryNotes": "No delivery notes yet.",
+    "cardQuotesTitle": "Quotes",
+    "cardQuotesDesc": "Write quotes and turn them into invoices",
+    "cardDeliveryNotesTitle": "Delivery notes",
+    "cardDeliveryNotesDesc": "Delivery notes without prices — from a quote or an invoice",
+    "notAnInvoice": "Not an accounting document: no payment, e-invoice or reminder; not part of VAT, DATEV or reports.",
+    "convertFailed": "Conversion failed"
   }
 }

@@ -5,7 +5,7 @@ import { InvoiceService } from './invoice.service';
 import { assertManualPaymentMethod } from './payment-methods';
 import { Injectable, NotFoundException, BadRequestException , ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { CLAIM_TYPES } from './document-scope';
+import { CLAIM_TYPES, DOCUMENT_NAMES, isNonFiscal } from './document-scope';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, settlingInvoice } from './advance';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WebhookService } from '../webhook/webhook.service';
@@ -161,6 +161,12 @@ export class PaymentService {
     // turned "paid" (the Storno undone, back in the UStVA), a draft went
     // straight to "paid" without ever being issued. Every way a payment is
     // booked comes through here.
+    // Tier 610: a quote and a delivery note are no claim
+    if (isNonFiscal(invoice.type)) {
+      throw new BadRequestException(
+        `Auf ein Dokument der Art „${DOCUMENT_NAMES[invoice.type]}“ wird keine Zahlung gebucht — wandeln Sie es in eine Rechnung um.`,
+      );
+    }
     if (invoice.status === 'draft') {
       throw new BadRequestException(
         'Die Rechnung ist noch ein Entwurf. Stellen Sie sie zuerst aus (Status „gesendet“), dann kann die Zahlung gebucht werden.',
