@@ -317,6 +317,24 @@ export class BankImportService {
     return { ok: true };
   }
 
+  /**
+   * What of a bank entry its confirmed matches have taken, in the entry's
+   * currency (a foreign-currency invoice's part back at that invoice's rate,
+   * Tier 529).
+   */
+  private async usedOfEntry(companyId: string, bankTransactionId: string, currency: string | null, exceptId?: string): Promise<number> {
+    const others = await this.prisma.bankReconciliation.findMany({
+      where: { companyId, bankTransactionId, status: 'confirmed', ...(exceptId ? { id: { not: exceptId } } : {}) },
+      select: { appliedAmount: true, invoice: { select: { currency: true, exchangeRate: true } } },
+    });
+    const entryCurrency = String(currency || 'EUR').toUpperCase();
+    return others.reduce((sum, o) => {
+      const cur = String(o.invoice.currency || 'EUR').toUpperCase();
+      const rate = Number(o.invoice.exchangeRate) > 0 ? Number(o.invoice.exchangeRate) : 1;
+      return sum + (cur !== entryCurrency && entryCurrency === 'EUR' ? Number(o.appliedAmount) / rate : Number(o.appliedAmount));
+    }, 0);
+  }
+
   /** For a given transaction, find candidate invoices
    *  ranked by match score (0-100). Returns the top 5. */
   async getCandidates(companyId: string, bankTransactionId: string) {
@@ -325,14 +343,19 @@ export class BankImportService {
     });
     if (!txn) throw new BadRequestException('Transaktion nicht gefunden');
 
-    const amount = Number(txn.amount);
+    // Tier 639: what is left of the entry — after one invoice of a transfer
+    // for two is confirmed, the other is looked for with the rest.
+    const full = Number(txn.amount);
+    const amount = full > 0
+      ? Math.round((full - await this.usedOfEntry(companyId, txn.id, txn.currency)) * 100) / 100
+      : full;
     const valueDate = txn.valueDate;
 
     // Debit (money leaving the account) cannot match
     // a customer invoice (which is money owed to us).
     // The caller should use bookExpense() instead.
-    if (amount < 0) {
-      return { transaction: txn, candidates: [] };
+    if (amount <= 0) { // …or nothing of the entry is left
+      return { transaction: txn, candidates: [], collective: [] };
     }
 
     // Open invoices: status = 'sent' (draft is too early,
@@ -344,6 +367,7 @@ export class BankImportService {
       },
       include: {
         customer: { select: { name: true, customerNumber: true } },
+        payments: { select: { amount: true } },
       },
       orderBy: { issueDate: 'desc' },
       // Tier 297: bumped 200 → 2000. The previous cap
@@ -362,6 +386,10 @@ export class BankImportService {
       customerName: string
       customerNumber: string | null
       total: number
+      /** Tier 639: the total less what was paid — what the amount is compared with */
+      openAmount: number
+      /** …and what of the transaction would go to this invoice */
+      appliedAmount: number
       dueDate: string | null
       confidence: number
       matchReason: string
@@ -369,14 +397,64 @@ export class BankImportService {
 
     const purposeText = (txn.purpose || '') + ' ' + (txn.counterpartyName || '');
 
-    for (const inv of openInvoices) {
-      const total = Number(inv.total);
-      const amtDelta = Math.abs(total - amount);
-      const amtScore = amtDelta < 0.01 ? 60
+    // Tier 639: the amount was compared with the invoice's total, and an
+    // invoice whose amount differed was no candidate — whatever the purpose
+    // said. Reconciled by hand on a statement of eight lines: "INV-…-02
+    // Teilzahlung" (300 of 595), "RE INV-…-03" (250 for 238), "INV-…-04
+    // abzgl. 2% Skonto" and a transfer for two invoices named in its purpose
+    // got no suggestion or — the last one — the suggestion of a third invoice
+    // that happened to have that total; and an invoice of 595 € with 300 €
+    // paid was still proposed for a transfer of 595 €.
+    //   - the amount is compared with what is open;
+    //   - an invoice named in the purpose is a candidate at any amount (a
+    //     part payment, a payment less Skonto, more than is open);
+    //   - several invoices named, their open amounts together the transfer:
+    //     each of them, with its own amount;
+    //   - an invoice the purpose does not name loses 30 points when the
+    //     purpose names another one.
+    const rows = openInvoices
+      .map((inv) => {
+        const total = Number(inv.total);
+        const open = Math.round((total - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)) * 100) / 100;
+        const named = new RegExp(inv.invoiceNumber.replace(/[-/]/g, '[-/]') + '(?![0-9])', 'i').test(purposeText);
+        return { inv, total, open, named };
+      })
+      .filter((r) => r.open > 0);
+    const namedRows = rows.filter((r) => r.named);
+    const collective = namedRows.length > 1
+      && Math.abs(namedRows.reduce((sum, r) => sum + r.open, 0) - amount) < 0.01;
+
+    for (const { inv, total, open, named } of rows) {
+      const amtDelta = Math.abs(open - amount);
+      let amtScore = amtDelta < 0.01 ? 60
         : amtDelta < 0.05 ? 35
         : amtDelta < 1.0 ? 15
         : 0;
-      if (amtScore === 0) continue; // amount too far off
+      let amtReason = `amount ${amtScore}`;
+      if (amtScore === 0) {
+        // The amount is not what is open. Skonto: nothing paid yet, and the
+        // amount is the total less the invoice's Skonto — inside its window
+        // the confirmation settles the invoice (Tier 52), after it the rest
+        // stays open, and the suggestion says which it is.
+        const pct = inv.skontoPercent != null ? Number(inv.skontoPercent) : 0;
+        const lessSkonto = pct > 0 && open === total ? Math.round(total * (100 - pct)) / 100 : null;
+        if (lessSkonto !== null && Math.abs(lessSkonto - amount) < 0.01) {
+          const expiry = new Date(inv.issueDate);
+          expiry.setDate(expiry.getDate() + (inv.skontoDays ?? 0));
+          expiry.setHours(23, 59, 59, 999);
+          const inTime = valueDate <= expiry;
+          amtScore = inTime ? 55 : 45;
+          amtReason = `amount less ${pct} % Skonto${inTime ? '' : ' (after its date)'}`;
+        } else if (collective && named) {
+          amtScore = 60;
+          amtReason = `one of ${namedRows.length} invoices named, together the amount`;
+        } else if (named) {
+          amtScore = amount < open ? 25 : 15;
+          amtReason = amount < open ? 'part payment' : 'more than is open';
+        } else {
+          continue; // amount too far off, and the purpose does not name it
+        }
+      }
 
       // Date match: due date within ±7 days of value date
       let dateScore = 0;
@@ -390,14 +468,14 @@ export class BankImportService {
         else if (daysDiff <= 14) { dateScore = 10; dateReason = '±14d'; }
       }
 
-      // Purpose match: invoice number regex
+      // Purpose match: the invoice's number
       let purposeScore = 0;
       let purposeReason = '';
-      const invNumRe = new RegExp(inv.invoiceNumber.replace(/[-/]/g, '[-/]'), 'i');
-      if (invNumRe.test(purposeText)) {
+      if (named) {
         purposeScore = 25;
         purposeReason = `invoice# ${inv.invoiceNumber} in purpose`;
       }
+      const elsewhere = !named && namedRows.length > 0 ? 30 : 0;
 
       // Counterparty name in purpose/counterparty field
       let nameScore = 0;
@@ -409,13 +487,14 @@ export class BankImportService {
         }
       }
 
-      const confidence = Math.min(100, amtScore + dateScore + purposeScore + nameScore);
+      const confidence = Math.max(0, Math.min(100, amtScore + dateScore + purposeScore + nameScore - elsewhere));
       if (confidence < 30) continue; // not worth showing
 
-      const reasonParts: string[] = [`amount ${amtScore}`];
+      const reasonParts: string[] = [amtReason];
       if (dateReason) reasonParts.push(`date ${dateReason}`);
       if (purposeReason) reasonParts.push(purposeReason);
       if (nameScore > 0) reasonParts.push('name match');
+      if (elsewhere) reasonParts.push(`purpose names ${namedRows.map((r) => r.inv.invoiceNumber).join(', ')}`);
 
       candidates.push({
         invoiceId: inv.id,
@@ -423,6 +502,8 @@ export class BankImportService {
         customerName: inv.customer?.name || '—',
         customerNumber: inv.customer?.customerNumber || null,
         total,
+        openAmount: open,
+        appliedAmount: Math.min(amount, open),
         dueDate: inv.dueDate ? inv.dueDate.toISOString().slice(0, 10) : null,
         confidence,
         matchReason: reasonParts.join(' + '),
@@ -431,7 +512,12 @@ export class BankImportService {
 
     // Sort by confidence desc, then by invoice number
     candidates.sort((a, b) => b.confidence - a.confidence || a.invoiceNumber.localeCompare(b.invoiceNumber));
-    return { transaction: txn, candidates: candidates.slice(0, 5) };
+    return {
+      transaction: txn,
+      candidates: candidates.slice(0, 5),
+      /** the invoices of a transfer for several, when the purpose names them and they add up */
+      collective: collective ? candidates.filter((c) => namedRows.some((r) => r.inv.id === c.invoiceId)) : [],
+    };
   }
 
   /** Run candidate matching for every transaction in a
@@ -485,32 +571,35 @@ export class BankImportService {
         // invoices — getCandidates returns []).
         if (Number(txn.amount) < 0) continue;
 
-        const { candidates } = await this.getCandidates(companyId, txn.id);
+        const { candidates, collective } = await this.getCandidates(companyId, txn.id);
         if (candidates.length === 0) continue;
-        const top = candidates[0];
+        // Tier 639: a transfer for several invoices gets a suggestion for each.
+        const picked = collective.length > 1 ? collective : [candidates[0]];
 
-        // Write the suggestion
-        const created = await this.prisma.bankReconciliation.create({
-          data: {
-            companyId,
-            bankTransactionId: txn.id,
-            invoiceId: top.invoiceId,
-            appliedAmount: top.total.toFixed(4),
-            status: 'suggested',
-            confidence: top.confidence,
-            matchReason: top.matchReason,
-          },
-        });
-        suggested++;
+        for (const top of picked) {
+          // Write the suggestion
+          const created = await this.prisma.bankReconciliation.create({
+            data: {
+              companyId,
+              bankTransactionId: txn.id,
+              invoiceId: top.invoiceId,
+              appliedAmount: top.appliedAmount.toFixed(4),
+              status: 'suggested',
+              confidence: top.confidence,
+              matchReason: top.matchReason,
+            },
+          });
+          suggested++;
 
-        // Auto-confirm when the threshold is set and
-        // the top candidate clears it. confirmMatch
-        // does the full Payment + Voucher + invoice
-        // status flip, so the e2e is identical to a
-        // manual confirm — just no user click.
-        if (threshold > 0 && top.confidence >= threshold) {
-          await this.confirmMatch(companyId, created.id, opts.userId);
-          autoConfirmed++;
+          // Auto-confirm when the threshold is set and
+          // the top candidate clears it. confirmMatch
+          // does the full Payment + Voucher + invoice
+          // status flip, so the e2e is identical to a
+          // manual confirm — just no user click.
+          if (threshold > 0 && top.confidence >= threshold) {
+            await this.confirmMatch(companyId, created.id, opts.userId);
+            autoConfirmed++;
+          }
         }
       } catch (e: any) {
         errors++;
@@ -608,16 +697,7 @@ export class BankImportService {
     // this entry count against it (a foreign-currency invoice's part back in
     // the entry's currency, at that invoice's rate).
     const fullAmount = Number(recon.bankTransaction.amount);
-    const others = await this.prisma.bankReconciliation.findMany({
-      where: { companyId, bankTransactionId: recon.bankTransactionId, status: 'confirmed', id: { not: recon.id } },
-      select: { appliedAmount: true, invoice: { select: { currency: true, exchangeRate: true } } },
-    });
-    const entryCurrency = String(recon.bankTransaction.currency || 'EUR').toUpperCase();
-    const used = others.reduce((sum, o) => {
-      const cur = String(o.invoice.currency || 'EUR').toUpperCase();
-      const rate = Number(o.invoice.exchangeRate) > 0 ? Number(o.invoice.exchangeRate) : 1;
-      return sum + (cur !== entryCurrency && entryCurrency === 'EUR' ? Number(o.appliedAmount) / rate : Number(o.appliedAmount));
-    }, 0);
+    const used = await this.usedOfEntry(companyId, recon.bankTransactionId, recon.bankTransaction.currency, recon.id);
     const txnAmount = Math.round((fullAmount - used) * 100) / 100;
     if (fullAmount > 0 && txnAmount <= 0) {
       throw new BadRequestException(
@@ -626,7 +706,13 @@ export class BankImportService {
       );
     }
     const invTotal = Number(recon.invoice.total);
-    let applied = Math.min(txnAmount, invTotal);
+    // Tier 639: the lesser of what is left of the entry and what is open on
+    // the invoice — as the comment above always said. It was the invoice's
+    // total: an entry of 595 € matched to an invoice of 595 € with 300 €
+    // already paid booked 595 € on it, while the same entry on an unpaid
+    // invoice of 238 € booked 238 € and left the rest on the entry.
+    const openNow = Math.round((invTotal - recon.invoice.payments.reduce((sum, p) => sum + Number(p.amount), 0)) * 100) / 100;
+    let applied = Math.min(txnAmount, openNow);
     let eurReceived: number | undefined;
     // Tier 505: a payment's amount is in the invoice's currency (DATEV and
     // the EÜR convert it at the invoice's rate). A EUR credit on a USD

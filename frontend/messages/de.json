@@ -208,6 +208,7 @@
     "recoveryCodePlaceholder": "Wiederherstellungscode"
   },
   "bankImport": {
+    "openAmount": "offen",
     "skippedDuplicates": "{n} bereits importierte Umsätze übersprungen",
     "title": "Bankimport",
     "subtitle": "Kontoauszug (MT940 / CAMT.053) hochladen — automatische Zuordnung zu offenen Rechnungen",

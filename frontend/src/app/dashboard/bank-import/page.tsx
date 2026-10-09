@@ -51,6 +51,8 @@ interface Candidate {
   customerName: string
   customerNumber: string | null
   total: number
+  // Tier 639: the total less what was paid — what the entry is compared with
+  openAmount?: number
   dueDate: string | null
   confidence: number
   matchReason: string
@@ -976,7 +978,12 @@ export default function BankImportPage() {
                             )}
                           </div>
                           <div className="flex justify-between text-xs mt-1">
-                            <span className="text-gray-500 dark:text-gray-400">{t("bankImport.tableAmount")}: € {fmtMoney(c.total)}</span>
+                            <span className="text-gray-500 dark:text-gray-400" data-testid="candidate-amount">
+                              {t("bankImport.tableAmount")}: € {fmtMoney(c.total)}
+                              {c.openAmount !== undefined && Math.abs(c.openAmount - c.total) >= 0.005 && (
+                                <> · {t("bankImport.openAmount")}: € {fmtMoney(c.openAmount)}</>
+                              )}
+                            </span>
                             {c.dueDate && (
                               <span className="text-gray-500 dark:text-gray-400">
                                 {t("bankImport.tableDate")}: {fmtDate(c.dueDate, dl)}

@@ -2651,6 +2651,33 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 639 — the bank statement is matched against what is open, and by the number the customer wrote
+
+§9 item 24, „what the three checks did not cover“: the bank import. A statement written by hand — seven open invoices of two customers, eight lines (CAMT.053) — imported, suggestions generated, compared with what a bookkeeper would do:
+
+| line | by hand | the app before |
+|---|---|---|
+| „Rechnung INV-…-01“, 1 190 € | invoice 1 | invoice 1 (95) ✓ |
+| „INV-…-02 Teilzahlung“, 300 of 595 € | invoice 2, a part payment | nothing — not even a candidate to pick |
+| „RE INV-…-03“, 250 for 238 € | invoice 3, 12 € over | nothing |
+| „INV-…-04 abzgl. 2% Skonto“, 349,86 of 357 € | invoice 4, with its Skonto | nothing |
+| „INV-…-05 und INV-…-06“, 595 = 119 + 476 € | both | **invoice 2** (70) — not named, its total happened to be 595 € |
+| 297,50 €, no number, the other customer | invoice 7 | invoice 7 (70) ✓ |
+| a refund, a debit | none | none ✓ |
+
+`getCandidates` compared the amount with the invoice's **total** and dropped every invoice whose total differed by more than 1 €, whatever the purpose said. So with 300 € paid on invoice 2 it stayed the candidate for the next 595 €, and its remaining 295 €, when they arrived with the number on them, found nothing. Now:
+
+- the amount is compared with what is **open** (total less payments), and with what is left of the bank entry when part of it is matched already;
+- an invoice **named in the purpose** is a candidate at any amount — „part payment“ (25 points for the amount), „more than is open“ (15), „amount less 2 % Skonto“ (55 inside the Skonto window, 45 after it; this one also without the number);
+- **several invoices named** whose open amounts add up to the transfer: each is a candidate with its own amount, and `suggest` writes a suggestion for each (95);
+- an invoice the purpose does **not** name loses 30 points when the purpose names another open invoice, and says so („purpose names INV-…“);
+- candidates carry `openAmount` and `appliedAmount`; a suggestion's `appliedAmount` is what would be booked (it was the invoice's total). The page shows „offen: …“ next to the amount when they differ.
+- On confirmation the amount booked is the lesser of what is left of the entry and what is **open** on the invoice — as the method's comment always said; it was the invoice's total, so 595 € matched by hand to an invoice with 295 € open booked 595 € on it. The rest stays on the bank entry, as it already did for an unpaid invoice.
+
+The posting itself was right wherever a match existed (Tiers 52, 422, 529): payment, voucher, the Skonto credit note split over the rates. Not changed: an amount beyond what is open stays on the bank entry and is not turned into a customer credit; the FinTS matcher (`fints.service.ts`, spec 32) is a second, separate one; the reason texts are English fragments shown as they are.
+
+Spec `377-tier639-bankabgleich-offener-betrag.sh` (21 assertions, 15 fail on the code before): the table above as suggestions with confidence and amount; all confirmed — statuses, payment sums, the 12 € left on the entry, the Skonto credit note; a partly paid invoice (no candidate for its total, its rest found, a manual match takes what is open); the unnamed invoice 30 points lower. The 30 specs that touch the bank import pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 638 — a reminder asks for what is open; Ist-Versteuerung and dunning reconciled by hand
 
 §9 item 24, „what the three checks did not cover“: Ist-Versteuerung and dunning. Both were set up in a fresh company and computed by hand first.
@@ -8868,7 +8895,7 @@ frontend's build arg, and the frontend image refuses to build without it.
     - **Unfinished and saying so** (unchanged): FinTS TAN and transfers, ELSTER transmission, E-Bilanz positions, cloud storage, the tax annexes' placeholders; no e-mail verification, account deletion or data-subject export; e-invoices by upload only, no automatic EN 16931 check on import; CSV import and the OCR proposal know one VAT rate; no Verfahrensdokumentation.
     - **Technical, found and not done:** the backend container runs as root, the compose file sets no `read_only` / `cap_drop` / `no-new-privileges` (item 23); (`MailConfig.smtpPassword` is sealed since Tier 630;) `release.yml` never run; (the implicit conversion of numbers: Tier 633; the flags in untyped bodies: Tier 632;) (the Leitweg-ID's check digits: Tier 634;) (the five models without an index led by `companyId`: Tier 635;) 227 `findMany` without `take`, no load test; two unit-test files, about 800 `any` in the backend.
     - **Interface, found and not done:** the accounting page — developer paths in its explanations, the private annexes offered to a GmbH, about 730 German words in the other languages; `/dashboard/v2`, the activity page's action names and parts of the import page untranslated; (the fields have labels since Tier 637 — 143 measured, 10 left with a placeholder only;) (the dashboard's cards and the invoice form's search fields work by keyboard since Tier 636;) on a phone, tables scroll sideways inside their box and `/dashboard/accounting` is 12 px too wide at 350 px.
-    - **What the three checks did not cover:** the reconciliation — a real exchange rate, the balance sheet, OSS, the bank import (Ist-Versteuerung and dunning: reconciled in Tier 638; a Kleinunternehmer: checked with the new document types); the page walk — clicking through tasks, other browsers, a real device, a screen reader; the cross-company test — 26 of 74 GET routes with a path parameter had no live target (roles inside one company: done in Tier 629; one customer against another in the portal: Tier 631; the operator's routes: Tier 632).
+    - **What the three checks did not cover:** the reconciliation — a real exchange rate, the balance sheet, OSS (the bank import: Tier 639; Ist-Versteuerung and dunning: reconciled in Tier 638; a Kleinunternehmer: checked with the new document types); the page walk — clicking through tasks, other browsers, a real device, a screen reader; the cross-company test — 26 of 74 GET routes with a path parameter had no live target (roles inside one company: done in Tier 629; one customer against another in the portal: Tier 631; the operator's routes: Tier 632).
 
 ## 10. Critical patterns / lessons (must read)
 
