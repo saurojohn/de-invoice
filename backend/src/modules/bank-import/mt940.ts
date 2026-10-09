@@ -56,14 +56,15 @@ function splitBlocks(text: string): string[] {
  *  leading D/R/C is the debit/credit mark (D = debit,
  *  R = credit, RC = reversal of credit). For balance
  *  fields, D means negative and C means positive. */
-function parseBalance(raw: string): { sign: 1 | -1; amount: number; currency: string } | null {
+function parseBalance(raw: string): { sign: 1 | -1; amount: number; currency: string; date?: Date } | null {
   const m = raw.match(/^([DRC])(\d{6})?([A-Z]{3})([0-9.,]+)$/)
   if (!m) return null
-  const [, mark, , currency, amountRaw] = m
+  const [, mark, day, currency, amountRaw] = m
   const sign: 1 | -1 = mark === 'C' ? 1 : -1
   const amount = Number(amountRaw.replace(/\./g, '').replace(',', '.'))
   if (!Number.isFinite(amount)) return null
-  return { sign, amount, currency }
+  // Tier 642: the day the balance is of — the statement's period
+  return { sign, amount, currency, date: (day && parseSwiftDate(day)) || undefined }
 }
 
 /** Parse a SWIFT date YYMMDD into a Date. Year cutoff
@@ -256,6 +257,8 @@ export function parseMt940(text: string): ParsedStatement[] {
     let bankName: string | undefined
     let openingBalance: number | undefined
     let closingBalance: number | undefined
+    let periodFrom: Date | undefined
+    let periodTo: Date | undefined
     let currency = 'EUR'
     const transactions: ParsedTransaction[] = []
 
@@ -308,6 +311,7 @@ export function parseMt940(text: string): ParsedStatement[] {
       if (b) {
         openingBalance = b.sign * b.amount
         currency = b.currency
+        periodFrom = b.date
       }
     }
 
@@ -325,6 +329,7 @@ export function parseMt940(text: string): ParsedStatement[] {
       if (b) {
         closingBalance = b.sign * b.amount
         if (!currency) currency = b.currency
+        periodTo = b.date
       }
     }
 
@@ -357,6 +362,8 @@ export function parseMt940(text: string): ParsedStatement[] {
       format: 'mt940',
       accountIban,
       bankName,
+      periodFrom,
+      periodTo,
       openingBalance,
       closingBalance,
       currency,

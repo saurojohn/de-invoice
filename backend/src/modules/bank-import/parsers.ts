@@ -40,3 +40,38 @@ export interface ParsedTransaction {
   purpose?: string
   endToEndId?: string
 }
+
+/**
+ * Tier 642 — one statement per account.
+ *
+ * A bank's file has a block per booking day (MT940: one `:20:` each; CAMT:
+ * one `<Stmt>` each), and the import took the first block and dropped the
+ * rest without a word — of a month's download, the first day. The blocks of
+ * one account are one statement: the first opening balance, the last closing
+ * balance, every transaction, the period from the first day to the last.
+ */
+export function mergeByAccount(parsed: ParsedStatement[]): ParsedStatement[] {
+  const byAccount = new Map<string, ParsedStatement[]>()
+  for (const s of parsed) {
+    const key = (s.accountIban || '').replace(/\s/g, '').toUpperCase()
+    byAccount.set(key, [...(byAccount.get(key) ?? []), s])
+  }
+  const time = (d?: Date) => (d ? new Date(d).getTime() : undefined)
+  const firstDay = (s: ParsedStatement) =>
+    time(s.periodFrom) ?? time(s.periodTo) ?? Math.min(...s.transactions.map((t) => new Date(t.valueDate).getTime()), Number.MAX_SAFE_INTEGER)
+  return [...byAccount.values()].map((list) => {
+    if (list.length === 1) return list[0]
+    // in the order of the days they cover; blocks of the same day stay as they came
+    const ordered = list.map((s, i) => ({ s, i })).sort((a, b) => firstDay(a.s) - firstDay(b.s) || a.i - b.i).map((x) => x.s)
+    const days = ordered.flatMap((s) => [time(s.periodFrom), time(s.periodTo)]).filter((t): t is number => t !== undefined)
+    return {
+      ...ordered[0],
+      bankName: ordered.find((s) => s.bankName)?.bankName,
+      periodFrom: days.length ? new Date(Math.min(...days)) : undefined,
+      periodTo: days.length ? new Date(Math.max(...days)) : undefined,
+      openingBalance: ordered.find((s) => s.openingBalance !== undefined)?.openingBalance,
+      closingBalance: [...ordered].reverse().find((s) => s.closingBalance !== undefined)?.closingBalance,
+      transactions: ordered.flatMap((s) => s.transactions),
+    }
+  })
+}

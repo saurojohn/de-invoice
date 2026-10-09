@@ -27,6 +27,7 @@ import { PaymentService } from '../invoice/payment.service';
 import { VoucherService } from '../accounting/voucher.service';
 import { resolveDatevAccounts } from '../reports/datev.service';
 import type { ParsedStatement } from './parsers';
+import { mergeByAccount } from './parsers';
 
 /** Tier 577: one of the expenses a single bank debit pays (bookExpense / invoiceParts). */
 type InvoicePart = {
@@ -71,12 +72,12 @@ export class BankImportService {
     if (!parsed.length) {
       throw new BadRequestException('Keine Kontoauszüge in der Datei erkannt');
     }
-    // For this round we only support single-statement
-    // files. Multi-account MT940 (one :20: per account)
-    // gets the first statement; the user can re-upload
-    // the rest separately. The parser does the right
-    // thing internally — this is just a UX choice.
-    const stmt = parsed[0];
+    // Tier 642: the blocks of one account are one statement (parsers.ts). This
+    // took `parsed[0]` — the first booking day of a month's file — and said
+    // "the user can re-upload the rest separately", which a second upload of
+    // the same file cannot do. A file with several accounts is refused and
+    // says so, instead of importing one of them.
+    const stmt = this.oneAccount(parsed);
 
     // Tier 488: a transaction imported before (the same file again, or an
     // overlapping statement — daily vs. monthly) is not imported twice.
@@ -183,6 +184,18 @@ export class BankImportService {
    * returned so the UI can show "... and 62 more" if
    * the file has more.
    */
+  /** The file's statement: its blocks merged — of one account only. */
+  private oneAccount(parsed: ParsedStatement[]): ParsedStatement {
+    const accounts = mergeByAccount(parsed);
+    if (accounts.length > 1) {
+      throw new BadRequestException(
+        `Die Datei enthält Kontoauszüge von ${accounts.length} Konten (${accounts.map((a) => a.accountIban || 'ohne IBAN').join(', ')}). ` +
+        'Bitte je Konto eine Datei importieren.',
+      );
+    }
+    return accounts[0];
+  }
+
   async previewStatement(content: string, take = 25) {
     if (!content || content.trim().length === 0) {
       throw new BadRequestException('Datei ist leer');
@@ -201,7 +214,7 @@ export class BankImportService {
     if (!parsed.length) {
       throw new BadRequestException('Keine Kontoauszüge in der Datei erkannt');
     }
-    const stmt = parsed[0];
+    const stmt = this.oneAccount(parsed);
     // Sum debits and credits across all transactions
     // (not just the preview slice) so the user sees
     // the total inflow/outflow. A mismatched "open
