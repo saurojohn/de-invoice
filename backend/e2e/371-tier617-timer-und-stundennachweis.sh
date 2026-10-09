@@ -53,12 +53,17 @@ assert_eq "a timer is started for the customer" "$STATUS $(field "d['running']['
 start '{}'
 assert_eq "a second start: 400 — one clock, not two" "$STATUS/$(echo "$BODY" | grep -c 'läuft bereits ein Timer')/$(timers)" "400/1/1"
 ago '95 minutes'
+# The entry is dated the day the timer was started. That is today — except
+# in the 95 minutes after midnight (Berlin), when this spec's timer was
+# "started" yesterday: the CI run of 10.10.2026, 00:15, failed on a literal
+# "today" here.
+BEGUN=$(q "select (\"startedAt\" at time zone 'UTC' at time zone 'Europe/Berlin')::date from \"RunningTimer\" where \"companyId\"='$C'")
 AS GET "/api/v1/time-entries/timer?companyId=$C"
 assert_eq "95 minutes later it shows 95 minutes" "$(field "d['running']['elapsedSeconds'] // 60")" "95"
 stop
-assert_eq "stopping writes the entry: 95 minutes today, the timer's customer and note, the customer's rate" \
+assert_eq "stopping writes the entry: 95 minutes on the day it was started, the timer's customer and note, the customer's rate" \
   "$STATUS $(field "d['entry']['minutes'], d['entry']['date'][:10], d['entry']['description'], d['entry']['customerId']=='$K', float(d['entry']['hourlyRate']), d['capped']")" \
-  "201 (95, '$TODAY', 'Analyse', True, 80.0, False)"
+  "201 (95, '$BEGUN', 'Analyse', True, 80.0, False)"
 stop
 assert_eq "…and the timer is gone: a second stop is 400" "$STATUS $(timers) $(entries)" "400 0 1"
 

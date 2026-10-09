@@ -2651,6 +2651,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 636b — spec 371 failed in the 95 minutes after midnight
+
+CI run 37996473979 (Tier 636, a frontend change) was red in the backend job: 373 passed, 1 failed — `371-tier617-timer-und-stundennachweis.sh`, „stopping writes the entry: 95 minutes today“, expected 2026-10-10, got 2026-10-09. The spec moves the timer's start 95 minutes back; at 00:15 Berlin that is yesterday, and the entry is dated the day the timer started (as section 3 of the same spec says for the forgotten timer). The code is right, the expectation was a literal „today“. It reads the start's date from the table now. Reproduced at 00:20 local time (366, 370, 372, 373 pass in the same window), passes after the change. Lesson in §10.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 637 — a field has a name
 
 §9 item 24: „72 form fields without a label“. The 72 were the fields with no label, placeholder or title; the count behind it is larger. Measured on the 45 dashboard pages as they load: **143 visible fields had no label** a program can find, 54 of them nothing at all. The source has 423 `<label>` elements and 24 `htmlFor`: the app writes `<label>Firmenname</label><Input />` — the word stands in front of the field and is not its label. A screen reader announces „edit text“; a click on the word does not reach the field.
@@ -8896,6 +8900,8 @@ finding critical/high issues. Future agents must respect them:
 - **"Looked at on desktop and phone" skips the width where grids have the most columns per pixel (Tier 620).** A three-column grid at 768 px has narrower columns than the one-column layout at 390 px; a long German compound in a card title overflowed only there. Measure new UI at 375 / 640 / 768 / 1024 / 1280, in all three languages — it is one script and a minute.
 
 - **In a spec, `X=$(helper …)` runs the helper in a subshell (Tier 628).** Whatever it sets besides its output — `$STATUS`, `$BODY` — is gone; an assertion on `$STATUS` right after it tests an earlier call and passes for the wrong reason. Assert on a call made in the shell itself.
+
+- **A spec that moves a clock back must not then say "today" (Tier 636b).** Spec 371 sets a timer's start 95 minutes into the past and expected the entry on today's date; the entry is dated the day the timer started. Right for 22 hours and 25 minutes of the day — the CI run that began at 23:57 Berlin reached the spec at 00:15 and failed. Take the expected date from the same source as the code does (the start), and when a run fails only at night, try it at night: it reproduced locally at 00:20.
 
 ## 11. What to do when you start
 
