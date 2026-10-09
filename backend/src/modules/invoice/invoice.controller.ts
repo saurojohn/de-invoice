@@ -618,7 +618,7 @@ export class InvoiceController {
         return res.status(404).json({ message: 'Unternehmen nicht gefunden' })
       }
       if (isNonFiscal(invoice.type)) { // Tier 610
-        return res.status(400).json({ message: 'Zu einem Angebot oder Lieferschein gibt es keinen GiroCode.' })
+        return res.status(400).json({ message: 'Zu einem Angebot, einer Auftragsbestätigung oder einem Lieferschein gibt es keinen GiroCode.' })
       }
       // Reuse the same GiroCode payload builder the
       // PDF embeds — single source of truth. Falls
@@ -1669,12 +1669,12 @@ export class InvoiceController {
   async convert(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
-    @Body() body: { to?: unknown },
+    @Body() body: { to?: unknown; items?: unknown },
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const to = typeof body?.to === 'string' ? body.to : ''
-    if (!to) throw new BadRequestException('to ist erforderlich (INV oder DN).')
-    return this.invoiceService.convert(id, companyId, to)
+    if (!to) throw new BadRequestException('to ist erforderlich (OC, INV oder DN).')
+    return this.invoiceService.convert(id, companyId, to, body?.items)
   }
 
   @Post(':id/credit-note')

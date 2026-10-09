@@ -10,7 +10,9 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 
-type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN'
+type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC'
+// Tier 610 / 614: the types that are no invoices, each with its own list
+const NON_FISCAL = ['QU', 'OC', 'DN']
 
 interface Invoice {
   id: string
@@ -33,11 +35,12 @@ function InvoicesPageInner() {
   // Tier 610: /dashboard/invoices?type=QU opens the quotes, ?type=DN the delivery notes
   useEffect(() => {
     const ty = searchParams.get("type") || ""
-    if (['INV', 'CN', 'PI', 'RCV', 'QU', 'DN'].includes(ty)) setTypeFilter(ty)
+    if (['INV', 'CN', 'PI', 'RCV', 'QU', 'OC', 'DN'].includes(ty)) setTypeFilter(ty)
   }, [searchParams])
   const statusChoices: string[] =
     typeFilter === 'QU' ? ["draft", "offered", "accepted", "declined", "cancelled"]
     : typeFilter === 'DN' ? ["draft", "delivered", "cancelled"]
+    : typeFilter === 'OC' ? ["draft", "confirmed", "cancelled"]
     : ["draft", "sent", "paid", "overdue", "cancelled"]
   const pickType = (ty: string) => {
     setTypeFilter(ty)
@@ -72,7 +75,7 @@ function InvoicesPageInner() {
     const parsed = raw
       .split(",")
       .map((s) => s.trim())
-      .filter((s) => ["draft", "sent", "paid", "overdue", "cancelled", "offered", "accepted", "declined", "delivered"].includes(s))
+      .filter((s) => ["draft", "sent", "paid", "overdue", "cancelled", "offered", "accepted", "declined", "delivered", "confirmed"].includes(s))
     // Only setState if the parsed list differs from the
     // current one (avoids unnecessary re-renders and
     // breaks the loop where the same URL keeps being
@@ -188,13 +191,20 @@ function InvoicesPageInner() {
     if (dateTo) params.append('dateTo', dateTo)
     setLoading(true)
     setListError(null)
+    // Tier 614: only the answer to the latest question counts. A filter read
+    // from the URL (?type=, ?status=) arrives in an effect, after a first
+    // request without it — when that first answer came late it replaced the
+    // filtered list (seen: the list of order confirmations showing invoices).
+    let stale = false
     apiGet<any>(`/api/v1/invoices?${params}`)
       .then((data) => {
+        if (stale) return
         setInvoices(Array.isArray(data) ? data : (data.data || []))
         setTotal(data.total || 0)
         setTotalPages(data.totalPages || 1)
       })
       .catch((err: any) => {
+        if (stale) return
         console.error('Invoices list fetch failed:', err)
         setInvoices([])
         setTotal(0)
@@ -214,7 +224,12 @@ function InvoicesPageInner() {
           setListError(`Fehler beim Laden: ${raw || 'Unbekannter Fehler'}`)
         }
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!stale) setLoading(false)
+      })
+    return () => {
+      stale = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, typeFilter, statusFilters, page, search, dateFrom, dateTo])
 
@@ -302,6 +317,7 @@ function InvoicesPageInner() {
       accepted: t("docs.statusAccepted"),
       declined: t("docs.statusDeclined"),
       delivered: t("docs.statusDelivered"),
+      confirmed: t("docs.statusConfirmed"),
     }
     return labels[status] || status
   }
@@ -322,6 +338,7 @@ function InvoicesPageInner() {
     accepted: 0,
     declined: 0,
     delivered: 0,
+    confirmed: 0,
   }
   for (const inv of invoices) {
     if (inv.status in statusCounts) statusCounts[inv.status]++
@@ -349,6 +366,7 @@ function InvoicesPageInner() {
       accepted: "bg-green-100 text-green-700 dark:text-green-300",
       declined: "bg-red-100 text-red-700 dark:text-red-300",
       delivered: "bg-green-100 text-green-700 dark:text-green-300",
+      confirmed: "bg-green-100 text-green-700 dark:text-green-300",
     }
     return colors[status] || colors.draft
   }
@@ -361,6 +379,7 @@ function InvoicesPageInner() {
       RCV: t("invoice.typeReceipt"),
       QU: t("docs.typeQuote"),
       DN: t("docs.typeDeliveryNote"),
+      OC: t("docs.typeOrderConfirmation"),
     }
     return labels[type] || type
   }
@@ -373,6 +392,7 @@ function InvoicesPageInner() {
       RCV: "bg-green-100 text-green-700 dark:text-green-300",
       QU: "bg-teal-100 text-teal-700 dark:text-teal-300",
       DN: "bg-amber-100 text-amber-700 dark:text-amber-300",
+      OC: "bg-cyan-100 text-cyan-700 dark:text-cyan-300",
     }
     return colors[type] || colors.INV
   }
@@ -819,7 +839,7 @@ function InvoicesPageInner() {
             header doesn't overflow the viewport. */}
         <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400" data-testid="invoices-title">
-            {typeFilter === 'QU' ? t("docs.titleQuotes") : typeFilter === 'DN' ? t("docs.titleDeliveryNotes") : t("invoice.title")}
+            {NON_FISCAL.includes(typeFilter) ? t(`docs.title_${typeFilter}`) : t("invoice.title")}
           </h1>
           <div className="flex flex-wrap gap-2 items-center">
             <LanguageSwitcher />
@@ -827,9 +847,9 @@ function InvoicesPageInner() {
             <Button
               size="sm"
               data-testid="invoices-new-button"
-              onClick={() => router.push(typeFilter === 'QU' || typeFilter === 'DN' ? `/dashboard/invoices/create?type=${typeFilter}` : "/dashboard/invoices/create")}
+              onClick={() => router.push(NON_FISCAL.includes(typeFilter) ? `/dashboard/invoices/create?type=${typeFilter}` : "/dashboard/invoices/create")}
             >
-              {typeFilter === 'QU' ? t("docs.newQuote") : typeFilter === 'DN' ? t("docs.newDeliveryNote") : t("common2.newInvoice")}
+              {NON_FISCAL.includes(typeFilter) ? t(`docs.new_${typeFilter}`) : t("common2.newInvoice")}
             </Button>
           </div>
         </div>
@@ -912,7 +932,7 @@ function InvoicesPageInner() {
           >
             {t("common2.all")}
           </Button>
-          {(['INV', 'CN', 'PI', 'RCV', 'QU', 'DN'] as InvoiceType[]).map((type) => (
+          {(['INV', 'CN', 'PI', 'RCV', 'QU', 'OC', 'DN'] as InvoiceType[]).map((type) => (
             <Button
               key={type}
               size="sm"
@@ -970,6 +990,7 @@ function InvoicesPageInner() {
                 accepted: "border-emerald-300 text-emerald-700",
                 declined: "border-red-300 text-red-700",
                 delivered: "border-emerald-300 text-emerald-700",
+                confirmed: "border-emerald-300 text-emerald-700",
               } as Record<string, string>)[s]
               const activeColor = ({
                 draft: "bg-gray-700 text-white border-gray-700",
@@ -981,6 +1002,7 @@ function InvoicesPageInner() {
                 accepted: "bg-emerald-600 text-white border-emerald-600",
                 declined: "bg-red-600 text-white border-red-600",
                 delivered: "bg-emerald-600 text-white border-emerald-600",
+                confirmed: "bg-emerald-600 text-white border-emerald-600",
               } as Record<string, string>)[s]
               return (
                 <button
@@ -1138,10 +1160,10 @@ function InvoicesPageInner() {
           <Card>
             <CardContent className="text-center py-12">
               <p className="text-gray-500 dark:text-gray-400 mb-4">
-                {typeFilter === 'QU' ? t("docs.noneQuotes") : typeFilter === 'DN' ? t("docs.noneDeliveryNotes") : t("invoice.noInvoices")}
+                {NON_FISCAL.includes(typeFilter) ? t(`docs.none_${typeFilter}`) : t("invoice.noInvoices")}
               </p>
-              <Button onClick={() => router.push(typeFilter === 'QU' || typeFilter === 'DN' ? `/dashboard/invoices/create?type=${typeFilter}` : "/dashboard/invoices/create")}>
-                {typeFilter === 'QU' ? t("docs.newQuote") : typeFilter === 'DN' ? t("docs.newDeliveryNote") : t("invoice.createFirst")}
+              <Button onClick={() => router.push(NON_FISCAL.includes(typeFilter) ? `/dashboard/invoices/create?type=${typeFilter}` : "/dashboard/invoices/create")}>
+                {NON_FISCAL.includes(typeFilter) ? t(`docs.new_${typeFilter}`) : t("invoice.createFirst")}
               </Button>
             </CardContent>
           </Card>

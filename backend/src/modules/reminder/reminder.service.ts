@@ -663,7 +663,7 @@ Mit freundlichen Grüßen,
       throw new BadRequestException('level muss first, second oder final sein');
     }
     if (isNonFiscal(invoice.type)) {
-      throw new BadRequestException('Zu einem Angebot oder Lieferschein gibt es keine Mahnung.');
+      throw new BadRequestException('Zu einem Angebot, einer Auftragsbestätigung oder einem Lieferschein gibt es keine Mahnung.');
     }
 
     const company = await this.prisma.company.findUnique({

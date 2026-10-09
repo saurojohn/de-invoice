@@ -199,6 +199,7 @@ const AUDITED_MODELS = new Set<string>([
   'Mahnung',
   'Mahnungspause',
   'TimeEntry', // Tier 611: hours with a rate are money to be invoiced
+  'TimeProject', // Tier 616: a project's rate prices its hours
   'InstallmentPlan',
   'Installment',
   // Tier 430: a payment the customer reported, and who booked or dismissed it.

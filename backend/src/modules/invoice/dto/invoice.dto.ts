@@ -50,6 +50,13 @@ export class InvoiceItemDto {
   @IsString()
   @IsOptional()
   productNumber?: string;
+
+  // Tier 615: the source document's line this one was taken from. Kept when
+  // a converted draft is edited (the form sends it back); ignored unless it
+  // is a line of this document's own source.
+  @IsString()
+  @IsOptional()
+  sourceItemId?: string;
 }
 
 export class CreateInvoiceDto {
@@ -272,7 +279,7 @@ export class UpdateInvoiceDto {
  * `voided` and `open` appear in a few comparisons but nothing ever writes them.
  */
 // Tier 610: 'offered' / 'accepted' / 'declined' belong to a quote, 'delivered' to a delivery note
-export const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'cancelled', 'offered', 'accepted', 'declined', 'delivered'] as const;
+export const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'cancelled', 'offered', 'accepted', 'declined', 'delivered', 'confirmed'] as const;
 
 export class UpdateInvoiceStatusDto {
   @IsIn(INVOICE_STATUSES, {

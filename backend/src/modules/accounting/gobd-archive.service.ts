@@ -9,7 +9,7 @@ import { generateDatevBuchungsstapel, buildBuchungenFromDb, encodeDatevCsv } fro
 import * as archiver from 'archiver'
 import * as fs from 'fs'
 import * as path from 'path'
-import { SALES_TYPES } from '../invoice/document-scope'
+import { SALES_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
 
 /**
  * Tier 77: GoBD-compliant Document Archive (§ 147 AO).
@@ -254,7 +254,7 @@ export class GobdArchiveService {
             companyId,
             issueDate: { gte: yearStart, lte: yearEnd },
             status: { not: 'draft' },
-            type: { notIn: ['QU', 'DN'] }, // Tier 610: quotes and delivery notes are no invoices
+            type: { notIn: NON_FISCAL_TYPES }, // Tier 610: quotes and delivery notes are no invoices
           },
           select: { subtotal: true, totalVat: true },
         }),
@@ -381,7 +381,7 @@ export class GobdArchiveService {
         companyId,
         issueDate: { gte: yearStart, lte: yearEnd },
         status: { not: 'draft' },
-        type: { notIn: ['QU', 'DN'] }, // Tier 610
+        type: { notIn: NON_FISCAL_TYPES }, // Tier 610
       },
       // Tier 473: payments for a final invoice's prepaid amount (BT-113)
       include: { items: true, customer: true, referenceInvoice: true, payments: true },

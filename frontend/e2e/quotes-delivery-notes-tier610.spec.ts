@@ -89,6 +89,7 @@ test("a quote is written, offered and becomes an invoice and a delivery note", a
   await status.selectOption("offered")
   await expect(status).toHaveValue("offered")
   await page.getByTestId("convert-to-invoice").click()
+  await page.getByTestId("convert-submit").click() // Tier 615: the dialog offers all that is open
   await expect(title).toHaveText(/^INV-\d{4}-\d{6}$/, { timeout: 60_000 })
   await expect(page.getByTestId("source-document-link")).toContainText(quoteNumber)
   await expect(page.getByTestId("document-type-badge")).toHaveCount(0)
@@ -103,6 +104,7 @@ test("a quote is written, offered and becomes an invoice and a delivery note", a
 
   // …and the delivery note
   await page.getByTestId("convert-to-delivery-note").click()
+  await page.getByTestId("convert-submit").click() // Tier 615: the dialog offers all that is open
   await expect(title).toHaveText(/^LS-\d{4}-\d{6}$/, { timeout: 60_000 })
   await expect(page.getByTestId("document-type-badge")).toHaveText("Lieferschein")
   await expect(page.getByTestId("invoice-status-select").locator("option")).toHaveText(["Entwurf", "Geliefert", "Storniert"])

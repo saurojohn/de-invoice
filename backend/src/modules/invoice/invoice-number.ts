@@ -36,7 +36,7 @@ import { BadRequestException } from '@nestjs/common'
 import { createHash } from 'crypto'
 import { Prisma } from '@prisma/client'
 
-export type InvoiceNumberType = 'INV' | 'PI' | 'CN' | 'RCV' | 'QU' | 'DN'
+export type InvoiceNumberType = 'INV' | 'PI' | 'CN' | 'RCV' | 'QU' | 'DN' | 'OC'
 
 export interface InvoiceNumber {
   invoiceNumber: string
@@ -49,6 +49,7 @@ export function invoiceNumberPrefix(type: string): string {
   // Tier 610: a quote is numbered AN-… (Angebot), a delivery note LS-… (Lieferschein)
   if (type === 'QU') return 'AN-'
   if (type === 'DN') return 'LS-'
+  if (type === 'OC') return 'AB-' // Tier 614: Auftragsbestätigung
   return type === 'CN' ? 'CN-' : type === 'PI' ? 'PI-' : type === 'RCV' ? 'RCV-' : 'INV-'
 }
 
@@ -196,7 +197,7 @@ export async function releaseInvoiceNumber(
   const m = /^([A-Z]+)-(\d{4})-(\d+)$/.exec(invoiceNumber || '')
   if (!m) return
   const prefix = `${m[1]}-`
-  const type = m[1] === 'AN' ? 'QU' : m[1] === 'LS' ? 'DN' : m[1]
+  const type = m[1] === 'AN' ? 'QU' : m[1] === 'LS' ? 'DN' : m[1] === 'AB' ? 'OC' : m[1]
   const year = Number(m[2])
   const seq = Number(m[3])
   if (invoiceNumberPrefix(type) !== prefix || !Number.isInteger(year) || year < 1000 || year > 9999) {

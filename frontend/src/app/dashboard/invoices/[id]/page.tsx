@@ -14,6 +14,7 @@ import { substitute } from "@/lib/substitute"
 import PdfSignaturePanel from "@/components/PdfSignaturePanel"
 
 interface InvoiceItem {
+  id: string
   description: string
   quantity: string
   unit: string
@@ -62,6 +63,10 @@ interface Invoice {
   // Tier 610: the quote behind an invoice, and what was made from a document
   sourceDocument?: { id: string; invoiceNumber: string; type: string; status: string } | null
   derivedDocuments?: { id: string; invoiceNumber: string; type: string; status: string }[]
+  // Tier 615: per target type, what is still open of each line (item id → quantity)
+  conversion?: Record<string, Record<string, number>>
+  // Tier 618: how many time entries were billed with this invoice
+  timeEntryCount?: number
 }
 
 interface Payment {
@@ -595,6 +600,7 @@ export default function InvoiceDetailPage() {
       accepted: t("docs.statusAccepted"),
       declined: t("docs.statusDeclined"),
       delivered: t("docs.statusDelivered"),
+      confirmed: t("docs.statusConfirmed"),
     }
     return labels[status] || status
   }
@@ -610,6 +616,7 @@ export default function InvoiceDetailPage() {
       accepted: "bg-green-100 text-green-700 dark:text-green-300",
       declined: "bg-red-100 text-red-700 dark:text-red-300",
       delivered: "bg-green-100 text-green-700 dark:text-green-300",
+      confirmed: "bg-green-100 text-green-700 dark:text-green-300",
     }
     return colors[status] || colors.draft
   }
@@ -680,6 +687,33 @@ export default function InvoiceDetailPage() {
           "随信附上我方报价单 {invoiceNumber},金额 {amount}。\n\n" +
           "报价有效期至 {dueDate}。\n\n" +
           "报价单以 PDF 格式附在邮件中,期待您的订单。\n\n" +
+          "此致\n敬礼\n\n" +
+          "{companyName}",
+      },
+    },
+    OC: {
+      de: {
+        subject: "Auftragsbestätigung {invoiceNumber} von {companyName}",
+        body:
+          "{salutation} {customerName},\n\n" +
+          "vielen Dank für Ihren Auftrag. Anbei erhalten Sie unsere Auftragsbestätigung {invoiceNumber} über {amount}.\n\n" +
+          "Sie finden sie im Anhang als PDF. Bitte prüfen Sie die Angaben und melden Sie sich, falls etwas nicht stimmt.\n\n" +
+          "Mit freundlichen Grüßen\n{companyName}",
+      },
+      en: {
+        subject: "Order confirmation {invoiceNumber} from {companyName}",
+        body:
+          "{salutation} {customerName},\n\n" +
+          "Thank you for your order. Please find attached our order confirmation {invoiceNumber} for {amount}.\n\n" +
+          "It is attached as a PDF. Please check the details and let us know if anything is not right.\n\n" +
+          "Kind regards,\n{companyName}",
+      },
+      zh: {
+        subject: "订单确认 {invoiceNumber} 来自 {companyName}",
+        body:
+          "{salutation}{customerName}:\n\n" +
+          "感谢您的订单。随信附上我方订单确认 {invoiceNumber},金额 {amount}。\n\n" +
+          "订单确认以 PDF 格式附在邮件中,请核对内容,如有不符请与我们联系。\n\n" +
           "此致\n敬礼\n\n" +
           "{companyName}",
       },
@@ -1501,18 +1535,66 @@ export default function InvoiceDetailPage() {
 
   // Tier 610: quote → invoice / delivery note, invoice → delivery note
   const [convertingTo, setConvertingTo] = useState<string | null>(null)
-  const convertTo = async (to: "INV" | "DN") => {
+  // Tier 615: an invoice or a delivery note takes all that is open of the
+  // source's lines, or a part — the dialog asks how much of each
+  type ConvertLine = { itemId: string; description: string; unit: string; ordered: number; open: number; now: string }
+  const [convertDialog, setConvertDialog] = useState<{ to: "INV" | "DN"; lines: ConvertLine[] } | null>(null)
+  const openConvertDialog = (to: "INV" | "DN") => {
     if (!invoice) return
-    if (!confirm(to === "INV" ? t("docs.confirmInvoice") : t("docs.confirmDeliveryNote"))) return
+    const open = invoice.conversion?.[to]
+    setConvertDialog({
+      to,
+      lines: (invoice.items || []).map((it) => {
+        const ordered = Number(it.quantity)
+        const rest = open && it.id in open ? open[it.id] : ordered
+        return { itemId: it.id, description: it.description, unit: it.unit || "", ordered, open: rest, now: rest !== 0 ? String(rest) : "0" }
+      }),
+    })
+  }
+  const lineQuantity = (l: ConvertLine): number | null => {
+    const n = Number(l.now.replace(",", "."))
+    if (l.now.trim() === "" || !Number.isFinite(n)) return null
+    // same sign as the line, not more than what is open
+    if (n === 0) return 0
+    if (Math.sign(n) !== Math.sign(l.open) || Math.abs(n) > Math.abs(l.open) + 1e-9) return null
+    return n
+  }
+  const convertTo = async (to: "INV" | "DN" | "OC", lines?: { itemId: string; quantity: number }[]) => {
+    if (!invoice) return
+    if (!lines && !confirm(to === "INV" ? t("docs.confirmInvoice") : to === "OC" ? t("docs.confirmOrderConfirmation") : t("docs.confirmDeliveryNote"))) return
     setConvertingTo(to)
     try {
       const companyId = localStorage.getItem("companyId")
-      const created = await apiPost<{ id: string }>(`/api/v1/invoices/${invoice.id}/convert?companyId=${companyId}`, { to })
+      const created = await apiPost<{ id: string }>(`/api/v1/invoices/${invoice.id}/convert?companyId=${companyId}`, lines ? { to, items: lines } : { to })
+      setConvertDialog(null)
       router.push(`/dashboard/invoices/${created.id}`)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : t("docs.convertFailed"))
     } finally {
       setConvertingTo(null)
+    }
+  }
+
+  // Tier 618: the time sheet of the hours billed with this invoice
+  const downloadTimesheet = async () => {
+    if (!invoice) return
+    const companyId = localStorage.getItem("companyId")
+    try {
+      const res = await apiFetch(`/api/v1/time-entries/timesheet.pdf?companyId=${companyId}&invoiceId=${invoice.id}`, { throwOnError: false })
+      if (!res.ok) {
+        toast.error(t("time.timesheetFailed"))
+        return
+      }
+      const url = window.URL.createObjectURL(await res.blob())
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Stundennachweis_${invoice.invoiceNumber}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch {
+      toast.error(t("time.timesheetFailed"))
     }
   }
 
@@ -1561,13 +1643,21 @@ export default function InvoiceDetailPage() {
   if (loading) return <div className="p-8 text-center">{t("invoicePage.loading1")}</div>
   if (!invoice) return <div className="p-8 text-center">{t("invoicePage.notFound")}</div>
   // Tier 610: a quote / a delivery note — no payment, e-invoice or reminder
-  const nonFiscal = invoice.type === "QU" || invoice.type === "DN"
+  const nonFiscal = invoice.type === "QU" || invoice.type === "DN" || invoice.type === "OC"
   const statusOptions =
     invoice.type === "QU" ? ["draft", "offered", "accepted", "declined", "cancelled"]
     : invoice.type === "DN" ? ["draft", "delivered", "cancelled"]
+    : invoice.type === "OC" ? ["draft", "confirmed", "cancelled"]
     : ["draft", "sent", "paid", "overdue", "cancelled"]
   const docTypeLabel = (ty: string) =>
-    ty === "QU" ? t("docs.typeQuote") : ty === "DN" ? t("docs.typeDeliveryNote") : ty === "INV" ? t("invoice.typeInvoice") : ty
+    ty === "QU" ? t("docs.typeQuote") : ty === "DN" ? t("docs.typeDeliveryNote") : ty === "OC" ? t("docs.typeOrderConfirmation") : ty === "INV" ? t("invoice.typeInvoice") : ty
+  // Tier 614: what can be made from this document
+  const live = !["cancelled", "declined"].includes(invoice.status)
+  const canMake = {
+    OC: invoice.type === "QU" && live,
+    INV: (invoice.type === "QU" || invoice.type === "OC") && live,
+    DN: ((invoice.type === "QU" || invoice.type === "OC") && live) || (invoice.type === "INV" && !["draft", "cancelled"].includes(invoice.status)),
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -1704,10 +1794,20 @@ export default function InvoiceDetailPage() {
             </Button>
             </>)}
             {/* Tier 610: the next document */}
-            {invoice.type === "QU" && !["cancelled", "declined"].includes(invoice.status) && (
+            {canMake.OC && (
               <Button
                 variant="outline"
-                onClick={() => convertTo("INV")}
+                onClick={() => convertTo("OC")}
+                disabled={convertingTo !== null}
+                data-testid="convert-to-order-confirmation"
+              >
+                {convertingTo === "OC" ? "…" : t("docs.createOrderConfirmation")}
+              </Button>
+            )}
+            {canMake.INV && (
+              <Button
+                variant="outline"
+                onClick={() => openConvertDialog("INV")}
                 disabled={convertingTo !== null}
                 data-testid="convert-to-invoice"
                 className="border-teal-300 text-teal-700 dark:text-teal-300"
@@ -1715,15 +1815,19 @@ export default function InvoiceDetailPage() {
                 {convertingTo === "INV" ? "…" : t("docs.convertToInvoice")}
               </Button>
             )}
-            {((invoice.type === "QU" && !["cancelled", "declined"].includes(invoice.status)) ||
-              (invoice.type === "INV" && !["draft", "cancelled"].includes(invoice.status))) && (
+            {canMake.DN && (
               <Button
                 variant="outline"
-                onClick={() => convertTo("DN")}
+                onClick={() => openConvertDialog("DN")}
                 disabled={convertingTo !== null}
                 data-testid="convert-to-delivery-note"
               >
                 {convertingTo === "DN" ? "…" : t("docs.createDeliveryNote")}
+              </Button>
+            )}
+            {(invoice.timeEntryCount ?? 0) > 0 && (
+              <Button variant="outline" onClick={downloadTimesheet} data-testid="invoice-download-timesheet">
+                {t("time.timesheetOfInvoice")}
               </Button>
             )}
             <Button
@@ -1978,7 +2082,7 @@ export default function InvoiceDetailPage() {
                 {/* Tier 492: the Leistungsdatum (§ 14 UStG) — the issue date when none is recorded, as on the PDF */}
                 {invoice.servicePeriodStart && invoice.servicePeriodEnd ? (
                   <div data-testid="leistungszeitraum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.servicePeriod")}</div><div>{formatDate(invoice.servicePeriodStart)} – {formatDate(invoice.servicePeriodEnd)}</div></div>
-                ) : (invoice.deliveryDate || !["PI", "CN", "QU"].includes(invoice.type)) && (
+                ) : (invoice.deliveryDate || !["PI", "CN", "QU", "OC"].includes(invoice.type)) && (
                   <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.deliveryDate")}</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div>{nonFiscal ? docTypeLabel(invoice.type) : invoice.type}</div></div>
@@ -3272,6 +3376,105 @@ export default function InvoiceDetailPage() {
           creates the CN and navigates the user to
           the CN's detail page so they can see the
           result + send it. */}
+      {/* Tier 615: how much of each line the new document takes */}
+      {convertDialog && invoice && (() => {
+        const quantities = convertDialog.lines.map(lineQuantity)
+        const anyOpen = convertDialog.lines.some((l) => l.open !== 0)
+        const valid = quantities.every((q) => q !== null) && quantities.some((q) => q !== null && q !== 0)
+        const setNow = (i: number, now: string) =>
+          setConvertDialog({ ...convertDialog, lines: convertDialog.lines.map((l, j) => (j === i ? { ...l, now } : l)) })
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="convert-dialog">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                {t(`docs.convertTitle_${convertDialog.to}`, { number: invoice.invoiceNumber })}
+              </h2>
+              {!anyOpen ? (
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4" data-testid="convert-none-left">
+                  {t(`docs.convertNoneLeft_${convertDialog.to}`)}
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t("docs.convertHint")}</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left border-b">
+                          <th className="py-2 pr-3">{t("docs.colPosition")}</th>
+                          <th className="py-2 pr-3 text-right">{t("docs.colOrdered")}</th>
+                          <th className="py-2 pr-3 text-right">{t("docs.colOpen")}</th>
+                          <th className="py-2 text-right">{t("docs.colNow")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {convertDialog.lines.map((l, i) => (
+                          <tr key={l.itemId} className="border-b last:border-0" data-testid="convert-line">
+                            <td className="py-2 pr-3">{l.description}</td>
+                            <td className="py-2 pr-3 text-right whitespace-nowrap">{l.ordered} {l.unit}</td>
+                            <td className="py-2 pr-3 text-right whitespace-nowrap" data-testid="convert-line-open">{l.open} {l.unit}</td>
+                            <td className="py-2 text-right">
+                              <input
+                                className={`w-24 h-9 border rounded-md px-2 text-right bg-white dark:bg-gray-900 ${quantities[i] === null ? "border-red-500" : ""}`}
+                                inputMode="decimal"
+                                value={l.now}
+                                disabled={l.open === 0}
+                                onChange={(e) => setNow(i, e.target.value)}
+                                aria-label={`${t("docs.colNow")}: ${l.description}`}
+                                aria-invalid={quantities[i] === null}
+                                title={quantities[i] === null ? t("docs.convertInvalid") : undefined}
+                                data-testid="convert-line-now"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConvertDialog({ ...convertDialog, lines: convertDialog.lines.map((l) => ({ ...l, now: String(l.open) })) })}
+                      data-testid="convert-all"
+                    >
+                      {t("docs.convertAll")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConvertDialog({ ...convertDialog, lines: convertDialog.lines.map((l) => ({ ...l, now: "0" })) })}
+                    >
+                      {t("docs.convertNothing")}
+                    </Button>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-end gap-2 mt-6">
+                <Button variant="outline" onClick={() => setConvertDialog(null)} disabled={convertingTo !== null} data-testid="convert-cancel">
+                  {t("invoicePage.cancel")}
+                </Button>
+                {anyOpen && (
+                  <Button
+                    disabled={!valid || convertingTo !== null}
+                    data-testid="convert-submit"
+                    onClick={() =>
+                      convertTo(
+                        convertDialog.to,
+                        convertDialog.lines
+                          .map((l, i) => ({ itemId: l.itemId, quantity: quantities[i] as number }))
+                          .filter((l) => l.quantity !== 0),
+                      )
+                    }
+                  >
+                    {convertingTo ? "…" : t(`docs.convertSubmit_${convertDialog.to}`)}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {showCnModal && invoice && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"

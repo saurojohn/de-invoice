@@ -132,6 +132,33 @@ const DOCUMENT_TEMPLATES: Record<string, Record<EmailLang, { subject: string; bo
         '{companyName}',
     },
   },
+  OC: {
+    de: {
+      subject: 'Auftragsbestätigung {invoiceNumber} von {companyName}',
+      body:
+        '{salutation} {customerName},\n\n' +
+        'vielen Dank für Ihren Auftrag. Anbei erhalten Sie unsere Auftragsbestätigung {invoiceNumber} über {amount}.\n\n' +
+        'Sie finden sie im Anhang als PDF. Bitte prüfen Sie die Angaben und melden Sie sich, falls etwas nicht stimmt.\n\n' +
+        'Mit freundlichen Grüßen\n{companyName}',
+    },
+    en: {
+      subject: 'Order confirmation {invoiceNumber} from {companyName}',
+      body:
+        '{salutation} {customerName},\n\n' +
+        'Thank you for your order. Please find attached our order confirmation {invoiceNumber} for {amount}.\n\n' +
+        'It is attached as a PDF. Please check the details and let us know if anything is not right.\n\n' +
+        'Kind regards,\n{companyName}',
+    },
+    zh: {
+      subject: '订单确认 {invoiceNumber} 来自 {companyName}',
+      body:
+        '{salutation}{customerName}:\n\n' +
+        '感谢您的订单。随信附上我方订单确认 {invoiceNumber},金额 {amount}。\n\n' +
+        '订单确认以 PDF 格式附在邮件中,请核对内容,如有不符请与我们联系。\n\n' +
+        '此致\n敬礼\n\n' +
+        '{companyName}',
+    },
+  },
   DN: {
     de: {
       subject: 'Lieferschein {invoiceNumber} von {companyName}',

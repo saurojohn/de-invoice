@@ -441,6 +441,7 @@ export async function generateInvoicePDF(
         case "PI": return "PROFORMARECHNUNG"
         case "QU": return "ANGEBOT" // Tier 610
         case "DN": return "LIEFERSCHEIN"
+        case "OC": return "AUFTRAGSBESTÄTIGUNG" // Tier 614
         case "RCV": return "QUITTUNG"
         default: return "RECHNUNG"
       }
@@ -450,6 +451,9 @@ export async function generateInvoicePDF(
     const docType = String((invoice as any).type || "INV")
     const hidePrices = docType === "DN"
     const noPayment = docType === "QU" || docType === "DN"
+    // Tier 614: an order confirmation states the agreed terms (payment terms,
+    // Skonto) but asks for no money yet — no GiroCode
+    const noGiroCode = noPayment || docType === "OC"
     const money = (n: number) => (hidePrices ? "" : formatCurrency(n))
     const titleOffsetY = 42  // 3 rows down
     const titleY = middleRowY + titleOffsetY
@@ -459,7 +463,7 @@ export async function generateInvoicePDF(
     const isDraft = (invoice as any).status === "draft"
     if (isDraft) {
       doc.fontSize(9).font(fontFor('bold')).fillColor("#b91c1c")
-        .text(docType === "QU" ? "ENTWURF – kein gültiges Angebot" : docType === "DN" ? "ENTWURF" : "ENTWURF – keine gültige Rechnung", leftMargin, titleY - 12, { width: rightBlockWidth, align: "right", lineBreak: false })
+        .text(docType === "QU" ? "ENTWURF – kein gültiges Angebot" : docType === "DN" || docType === "OC" ? "ENTWURF" : "ENTWURF – keine gültige Rechnung", leftMargin, titleY - 12, { width: rightBlockWidth, align: "right", lineBreak: false })
       doc.fillColor(textColor).fontSize(20).font(fontFor('bold'))
     }
     doc.fontSize(16).text(invoice.invoiceNumber, leftMargin, titleY + 24, { width: rightBlockWidth, align: "right", lineBreak: false })
@@ -510,12 +514,12 @@ export async function generateInvoicePDF(
     const periodEnd = (invoice as any).servicePeriodEnd
     const hasPeriod = !!(periodStart && periodEnd)
     const leistungsdatum = hasPeriod ? null : (invoice as any).deliveryDate
-      ?? (["PI", "CN", "QU"].includes((invoice as any).type) ? null : invoice.issueDate)
+      ?? (["PI", "CN", "QU", "OC"].includes((invoice as any).type) ? null : invoice.issueDate)
     if (hasPeriod) {
       doc.text("Leistungszeitraum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow += 2
     } else if (leistungsdatum) {
-      doc.text(docType === "DN" ? "Lieferdatum:" : "Leistungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      doc.text(docType === "DN" ? "Lieferdatum:" : docType === "OC" ? "Liefertermin:" : "Leistungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }
     if (company.vatId) {
@@ -925,7 +929,12 @@ export async function generateInvoicePDF(
           month: '2-digit',
           year: 'numeric',
         })
-      const skontoText = `Zahlbar bis ${fmt(withDue)} mit ${Number(skontoPercent).toFixed(skontoPercent % 1 === 0 ? 0 : 2)}% Skonto, bis ${fmt((invoice as any).dueDate)} ohne Abzug.`
+      const pct = Number(skontoPercent).toFixed(skontoPercent % 1 === 0 ? 0 : 2)
+      // Tier 614: an order confirmation states the term, not dates — the
+      // period starts with the invoice
+      const skontoText = docType === "OC"
+        ? `${pct}% Skonto bei Zahlung binnen ${Number(skontoDays)} Tagen nach Rechnungsdatum.`
+        : `Zahlbar bis ${fmt(withDue)} mit ${pct}% Skonto, bis ${fmt((invoice as any).dueDate)} ohne Abzug.`
       doc
         .font(fontFor('bold'))
         .fontSize(8)
@@ -1045,7 +1054,7 @@ export async function generateInvoicePDF(
     // doesn't get a scannable code. No error
     // shown so older invoices / IBAN-less companies
     // still print cleanly.
-    if (qrBuffer && !noPayment) {
+    if (qrBuffer && !noGiroCode) {
       const qrSize = 56
       const qrX = 240
       const qrY = footerY

@@ -131,6 +131,12 @@ export class CreateCustomerDto {
   // ever have one.
   @IsNumber() @Min(0) @IsOptional()
   creditLimit?: number
+
+  // Tier 616: the hourly rate (net) a new time entry for this customer
+  // starts with; null takes it away again
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
+  defaultHourlyRate?: number | null
 }
 
 /**
@@ -183,4 +189,10 @@ export class UpdateCustomerDto {
   // ever have one.
   @IsNumber() @Min(0) @IsOptional()
   creditLimit?: number
+
+  // Tier 616: the hourly rate (net) a new time entry for this customer
+  // starts with; null takes it away again
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
+  defaultHourlyRate?: number | null
 }

@@ -1045,6 +1045,14 @@ export default function DashboardPage() {
               <p className="text-gray-600 dark:text-gray-300">{t("docs.cardQuotesDesc")}</p>
             </CardContent>
           </Card>
+          <Card data-testid="card-order-confirmations" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoices?type=OC")}>
+            <CardHeader>
+              <CardTitle>{t("docs.cardOrderConfirmationsTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 dark:text-gray-300">{t("docs.cardOrderConfirmationsDesc")}</p>
+            </CardContent>
+          </Card>
           <Card data-testid="card-delivery-notes" className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/invoices?type=DN")}>
             <CardHeader>
               <CardTitle>{t("docs.cardDeliveryNotesTitle")}</CardTitle>

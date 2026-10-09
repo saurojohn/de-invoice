@@ -20,6 +20,7 @@ interface Customer {
   vatId?: string | null
   taxExempt?: boolean
   creditLimit?: number | null
+  defaultHourlyRate?: number | string | null // Tier 616
   type: string
   address: { street?: string; city?: string; postalCode?: string; country?: string; leitwegId?: string }
   contact?: { email?: string; phone?: string }
@@ -227,6 +228,7 @@ export default function CustomersPage() {
     // Tier 426: the Kreditlimit the credit-utilisation report reads. It had
     // no field and no endpoint accepted it, so it was always NULL.
     creditLimit: "",
+    defaultHourlyRate: "",
   })
 
   // Import state
@@ -271,6 +273,7 @@ export default function CustomersPage() {
         paymentTerms: customer.paymentTerms ?? defaultPaymentTerms,
         taxExempt: !!customer.taxExempt,
         creditLimit: customer.creditLimit != null ? String(customer.creditLimit) : "",
+        defaultHourlyRate: customer.defaultHourlyRate != null ? String(Number(customer.defaultHourlyRate)) : "",
       })
     } else {
       setEditingCustomer(null)
@@ -289,6 +292,7 @@ export default function CustomersPage() {
         paymentTerms: defaultPaymentTerms,
         taxExempt: false,
         creditLimit: "",
+        defaultHourlyRate: "",
       })
       // Fetch the next K-NNNNN from the server so the user can
       // see what the auto-generated number will be. Best-effort:
@@ -354,6 +358,8 @@ export default function CustomersPage() {
       },
       paymentTerms: form.paymentTerms,
       ...(form.creditLimit.trim() !== "" ? { creditLimit: Number(form.creditLimit) } : {}),
+      // Tier 616: empty takes the rate away again
+      defaultHourlyRate: form.defaultHourlyRate.trim() !== "" ? Number(form.defaultHourlyRate.replace(",", ".")) : null,
     }
 
     try {
@@ -1334,6 +1340,21 @@ export default function CustomersPage() {
                       value={form.creditLimit}
                       onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
                       placeholder={t("customer.creditLimitPlaceholder")}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" htmlFor="customer-default-hourly-rate">
+                      {t("customer.defaultHourlyRate")}
+                    </label>
+                    <Input
+                      id="customer-default-hourly-rate"
+                      data-testid="customer-default-hourly-rate"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.defaultHourlyRate}
+                      onChange={(e) => setForm({ ...form, defaultHourlyRate: e.target.value })}
+                      title={t("customer.defaultHourlyRateHint")}
                     />
                   </div>
                 </div>

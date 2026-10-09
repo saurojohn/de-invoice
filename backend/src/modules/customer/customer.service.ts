@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
 import { WebhookService } from '../webhook/webhook.service';
-import { CLAIM_TYPES } from '../invoice/document-scope'
+import { CLAIM_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { ModuleRef } from '@nestjs/core'
 import { PaymentService } from '../invoice/payment.service'
 
@@ -157,7 +157,7 @@ export class CustomerService {
       // group + max it.
       const grouped = await this.prisma.invoice.groupBy({
         by: ['customerId'],
-        where: { companyId, customerId: { in: customerIds }, type: { notIn: ['QU', 'DN'] } }, // Tier 610: invoices, not quotes
+        where: { companyId, customerId: { in: customerIds }, type: { notIn: NON_FISCAL_TYPES } }, // Tier 610: invoices, not quotes
         _count: { _all: true },
         _max: { issueDate: true },
       })
@@ -272,7 +272,7 @@ export class CustomerService {
       }),
       // Most recent invoice (any status) for "last activity"
       this.prisma.invoice.findFirst({
-        where: { companyId, customerId: id, type: { notIn: ['QU', 'DN'] } }, // Tier 612: the last invoice, not the last quote
+        where: { companyId, customerId: id, type: { notIn: NON_FISCAL_TYPES } }, // Tier 612: the last invoice, not the last quote
         orderBy: { issueDate: 'desc' },
         select: { id: true, invoiceNumber: true, issueDate: true, total: true, status: true, type: true },
       }),
@@ -1396,6 +1396,11 @@ export class CustomerService {
         where: { companyId, customerId: sourceId },
         data: { customerId: targetId },
       })
+      // Tier 616: and the projects those hours are logged on
+      await tx.timeProject.updateMany({
+        where: { companyId, customerId: sourceId },
+        data: { customerId: targetId },
+      })
       const sepaUpdate = await tx.sepaDirectDebitMandate.updateMany({
         where: { companyId, customerId: sourceId },
         data: { customerId: targetId },
@@ -1495,6 +1500,13 @@ export class CustomerService {
     if (timeEntryCount > 0) {
       throw new BadRequestException(
         `Kunde hat ${timeEntryCount} Zeiteinträge und kann nicht gelöscht werden. Archivieren Sie den Kunden stattdessen.`
+      )
+    }
+    // Tier 616: a project of the customer (even without hours yet)
+    const projectCount = await this.prisma.timeProject.count({ where: { companyId, customerId: customer.id } })
+    if (projectCount > 0) {
+      throw new BadRequestException(
+        `Kunde hat ${projectCount} Projekt(e) in der Zeiterfassung und kann nicht gelöscht werden. Löschen Sie zuerst die Projekte — oder archivieren Sie den Kunden.`
       )
     }
     await this.prisma.customer.delete({ where: { id: customer.id } })

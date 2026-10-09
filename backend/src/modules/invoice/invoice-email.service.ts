@@ -48,7 +48,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
 import { InvoiceService } from './invoice.service';
-import { isNonFiscal } from './document-scope';
+import { ISSUED_AS, isNonFiscal } from './document-scope';
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
 import {
   generateInvoicePDF,
@@ -130,7 +130,7 @@ export class InvoiceEmailService {
     const recipientCheck = ((options.overrideTo || (invoice.customer?.contact as any)?.email || '') as string).trim();
     if (invoice.status === 'draft' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientCheck)) {
       // Tier 610: a quote goes out as "offered", a delivery note as "delivered"
-      const issued = invoice.type === 'QU' ? 'offered' : invoice.type === 'DN' ? 'delivered' : 'sent';
+      const issued = ISSUED_AS[invoice.type] ?? 'sent';
       await this.invoiceService.updateStatus(invoiceId, companyId, issued);
       invoice = await this.invoiceService.findOne(invoiceId, companyId);
     }

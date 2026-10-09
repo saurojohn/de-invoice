@@ -2646,6 +2646,49 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tiers 616–618 — time tracking: default rates and projects, the timer, the time sheet
+
+The other four of the owner's „都做“ of 09.10.2026 (see Tiers 614–615). One migration, `20261009000005_time_projects_and_timer` (additive).
+
+**Tier 616 — rates and projects.**
+- **`Customer.defaultHourlyRate`** (net, two decimals; `null` takes it away) — in the customer DTOs and the customer form („Standard-Stundensatz“).
+- **`TimeProject`** (`/time-projects`, module `time-tracking`): a name (once per customer, case-insensitive), a customer or none (internal), a rate of its own, a budget in hours, `active`. The list returns `effectiveRate` (its own, else the customer's), `minutes` and `openMinutes` — the budget is read against them (the page turns the figure red beyond it). A project with hours is **archived**, not deleted, and its customer cannot be changed. In the audit extension (it carries a rate).
+- **`TimeEntry.projectId`**: the project must be the company's and — if it has a customer — the entry's customer; an entry without a customer takes the project's. **An entry written without `hourlyRate` takes the project's rate, else the customer's default; an explicit `null` stays "not priced"; a given rate stays.** Moving an entry to another customer drops a project that belongs to the first.
+- `GET /time-entries?projectId=`, `POST /time-entries/bill { customerId, projectId? }` — and the invoice line reads „TT.MM.JJJJ Projekt: Tätigkeit“.
+- Customer merge takes the projects along; a customer with a project is not deleted.
+
+**Tier 617 — the timer.** `RunningTimer`, one per user and company (`@@unique`), on the server — it survives a closed page and another device. `GET /time-entries/timer`, `POST …/timer/start { customerId?, projectId?, description? }` (a second start: 400), `POST …/timer/stop { description?, customerId?, projectId?, hourlyRate?, billable? }` → writes the entry through the same `create` as a typed one (so the same checks and the same default rate): dated the German day the timer was **started**, the elapsed time in whole minutes, **at least one, at most 24 hours** (`capped: true` when it was cut — the page says so). Without an activity at start or stop the stop is refused and the timer keeps running. `DELETE …/timer` discards it.
+
+**Tier 618 — the Stundennachweis.** `GET /time-entries/timesheet.pdf?customerId&projectId&from&to&state` or `?invoiceId=` → a PDF (`timesheet-pdf.ts`, pdfkit, the invoice PDF's rules): company, customer, project, period; date · project (or customer) · activity · duration h:mm · hours with two decimals; sums per project and in total (the hours as the invoice lines add up); pages numbered. No prices — they are on the invoice. `GET /invoices/:id` returns `timeEntryCount`, and the invoice page shows „Stundennachweis“ when it is above zero. Response headers `X-Timesheet-Entries` / `X-Timesheet-Minutes` say what is on the sheet.
+
+**The page `/dashboard/time`** has the timer on top of the form (start, the running clock, „Stoppen und erfassen“, „Verwerfen“; a running timer brings its customer, project and note into the form after a reload), a project select in the form and in the filter, the rate prefilled from project / customer until one is typed, a card „Projekte“ (add, archive, delete without hours, logged against budget), and „Stundennachweis (PDF)“ for what is listed.
+
+**Specs** `370-tier616-projekte-und-stundensaetze.sh` and `371-tier617-timer-und-stundennachweis.sh`; Playwright `time-projects-timer-tier616.spec.ts` (customer form → prefilled rate → project → own rate kept → over budget → timer through a reload → both time sheets as downloads).
+
+**Not built:** the time sheet is not attached to the invoice e-mail automatically (download it and attach it); no rounding rule (quarter hours); no report of hours per employee; a timer has no pause — stop it and start another.
+
+### Read-only mode refuses every write; a re-verification is one company's (Tiers 614–615 — the order confirmation; a quote invoiced and delivered in parts
+
+On 09.10.2026 the owner answered the list of what Tiers 610–611 had deliberately not built with „都做“: order confirmation, partial invoicing of a quote, a timer, projects, per-customer default rates, a time sheet PDF. These are the first two; the time-tracking four follow.
+
+**Tier 614 — `OC`, the Auftragsbestätigung (`AB-YYYY-NNNNNN`).** A third non-fiscal type, in `NON_FISCAL_TYPES` — so everything Tiers 610 and 612 did for a quote holds for it without a further line (the literal `['QU', 'DN']` lists in eight files became that constant). Its life: draft → `confirmed` → cancelled. It is written directly or made from a quote (the offered quote becomes `accepted`, as when it is invoiced), and becomes an invoice and a delivery note: `CONVERTIBLE = { QU: [OC, INV, DN], OC: [INV, DN], INV: [DN] }`. The PDF is the invoice layout titled „AUFTRAGSBESTÄTIGUNG“, with prices and the agreed terms — the Skonto as a term („2% Skonto bei Zahlung binnen 10 Tagen nach Rechnungsdatum“), not as dates, and without a GiroCode. E-mail text of its own (de / en / zh); sending a draft confirms it. Frontend: type chip, list `?type=OC` with its statuses, dashboard card, „Auftragsbestätigung erstellen“ on the quote. **Checked by calling** (the lesson of Tier 612): 1 194 GET requests and the 18 by-id write routes with a confirmed order — it appears in the audit log and the search, nowhere else, and nothing was written.
+
+**Tier 615 — in parts.** Tier 610 converted "each time in full": a second click made a second invoice over everything. Now:
+- **`InvoiceItem.sourceItemId`** (migration `20261009000004_invoice_item_source`, additive): each line of a converted document names the line it was taken from. What is **still open** of a line, for a target type, is its quantity minus what the lines pointing at it in documents of that type have taken — cancelled documents aside (`openQuantities`). Invoiced and delivered are counted separately.
+- **`POST /invoices/:id/convert { to, items?: [{ itemId, quantity }] }`**: without `items` all that is open (so the second conversion takes the rest, and a third answers 400 „bereits alles abgerechnet“); with `items` a part — not more than is open, the line's sign, at most four decimals, no line twice, only this document's lines. One conversion at a time per source (`withKeyLock`): two clicks make one invoice.
+- **`GET /invoices/:id` → `conversion: { INV: { <itemId>: open }, DN: {…}, OC: {…} }`** for a document that can be converted.
+- **What comes back:** cancelling (or deleting) the invoice opens its lines again. Editing the draft changes what it has taken — the form sends each line's `sourceItemId` back, and the backend keeps it only for a line of the document's own source (a plain `POST /invoices` cannot claim a quote's line at all).
+- **A discount:** a percentage applies to every part; an absolute discount is divided by the share of the net value taken (100 € off 1 000 €: 40 € off the invoice over 4 of 10, 60 € off the rest — together the quote's sum to the cent, asserted).
+- **Frontend:** „In Rechnung umwandeln“ and „Lieferschein erstellen“ open a dialog with every line — on the document, still open, now — prefilled with all that is open; „Alles Offene“ / „Nichts“; nothing open → it says so and offers no button.
+
+**Found alongside — a late answer replaced the filtered list.** The invoice list reads `?type=` and `?status=` from the URL in an effect, so the page asks twice when it opens with a filter: first without it, then with it. Nothing told the two answers apart — when the first came later, **the list of order confirmations showed the invoices** (and, since Tier 239, the dashboard's „Überfällig“ link could show every invoice under a checked „Überfällig“ chip). Seen as one flaky run of the new browser spec; made deterministic there by delaying the unfiltered request (it then failed every time), fixed by ignoring an answer once a newer question is out. The time page's list got the same guard.
+
+**Found alongside — the edit form dropped every line's product.** `prefillFromInvoice` on the invoice form copied description, number, quantity, unit, price and VAT of each line but not `productId`: **saving a draft unchanged cut every line loose from its product**, and with it from the stock it takes when the invoice is issued (Tier 520) and from the product's usage history. Measured in the browser: `product:false` after an edit; with the fix `product:true`. Cloning keeps the product too (it did not).
+
+**Specs** `368-tier614-auftragsbestaetigung.sh` (18 assertions; 14 fail on the code before) and `369-tier615-angebot-in-teilen.sh` (20; 19 fail): what is open; a part; eleven parts that are none; the rest; a third invoice refused; cancelling and editing; a plain invoice claiming a line; both discounts; delivery in parts from a quote and from an invoice; one confirmation; two clicks at once. Playwright `order-confirmation-tier614` and `partial-conversion-tier615` (the dialog, the edited draft's links, the rest, nothing left); `quotes-delivery-notes-tier610` goes through the dialog now.
+
+**Not built:** no "partially invoiced" status on the quote (the dialog and `conversion` say what is open); a document converted before this tier has no line links, so its quantities are not counted; an order confirmation is not tracked against the invoice made directly from its quote (QU → OC → INV and QU → INV are two paths — use one).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 613 — a draft quote of another day; the type of a saved document
 
 Two things from reading Tier 610 again:
@@ -2685,7 +2728,7 @@ The last of the four things the owner asked for on 09.10.2026 (§9 item 24). Hou
 
 **Spec** `366-tier611-zeiterfassung.sh` (27 assertions; all but the fixture fail on the old code — there was no route): fourteen entries that are none; list and sums; change, delete; another company sees, changes, deletes and bills nothing; the three refused billings; the draft's lines to the cent; billed entries locked; two billings at once; reopening by deleting the draft, by cancelling an issued invoice and by cancelling a draft that is no longer the last; the customer that cannot be deleted; the audit rows. Playwright `time-tracking-tier611.spec.ts`: card → page → two entries → edit → sums → bill → the draft → billed list → English.
 
-**Not built (deliberately small):** no timer / stopwatch, no projects or tasks below the customer, no per-customer default rate (the form remembers the last one), no report of hours per employee (`userId` is stored), no rounding rule (e.g. to quarter hours), no time-sheet PDF to attach to the invoice. Lines removed from the draft by hand leave their entries marked as billed with that invoice.
+**Not built in this tier** — timer, projects, default rates and the time sheet followed in Tiers 616–618; still not built: a report of hours per employee (`userId` is stored), a rounding rule (e.g. to quarter hours). Lines removed from the draft by hand leave their entries marked as billed with that invoice.
 
 **For the owner's dev database:** now three additive migrations of 09.10.2026 wait for the next `start.sh` (`…000001_books_closed_until`, `…000002_invoice_source_document`, `…000003_time_entries`).
 
@@ -2713,7 +2756,7 @@ The second and third of the four things the owner asked for on 09.10.2026 (§9 i
 **Decisions taken (the owner may reverse them):**
 - A delivery note moves **no stock** — the invoice does (Tier 520), and both moving it would count a delivery twice. A company that delivers before it invoices sees the stock fall only with the invoice.
 - A quote's validity is its `dueDate`; there is no automatic "expired" status.
-- No order confirmation (Auftragsbestätigung) and no partial delivery / partial invoicing of a quote: a quote can be converted more than once, each time in full.
+- ~~No order confirmation and no partial invoicing~~ — built in Tiers 614–615.
 - The footer text of the PDF template („Vielen Dank für Ihren Auftrag.“) is the company's and prints on a quote as well.
 
 **For the owner's dev database:** the two additive migrations of 09.10.2026 (`20261009000001_books_closed_until`, `20261009000002_invoice_source_document`) are applied by the next `start.sh` (`prisma migrate deploy`) — not by this session.

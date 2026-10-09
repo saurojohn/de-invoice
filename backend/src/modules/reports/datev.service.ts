@@ -48,7 +48,7 @@ import { expenseTaxLines } from '../expense/tax-lines';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { ensurePersonenkonten, DIVERSE_KREDITOREN } from './datev-personenkonten';
-import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
+import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS, NON_FISCAL_TYPES } from '../invoice/document-scope';
 import { advanceSettlements } from '../accounting/euer-zufluss';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { SALES_TYPES } from '../invoice/document-scope'
@@ -1194,7 +1194,7 @@ export async function collectBelegbilder(
       // of when it was paid.
       issueDate: { gte: startDate, lte: endDate },
       pdfPath: { not: null },
-      type: { notIn: ['QU', 'DN'] }, // Tier 610: quotes and delivery notes are no Belege
+      type: { notIn: NON_FISCAL_TYPES }, // Tier 610: quotes and delivery notes are no Belege
     },
     select: {
       invoiceNumber: true,

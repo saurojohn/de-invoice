@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { isNonFiscal } from '../invoice/document-scope'
 
 /**
  * Tier 64: Mahnungspause (reminder pause) service.
@@ -189,7 +190,7 @@ export class MahnungspauseService {
       })
       if (!i) throw new BadRequestException('Rechnung nicht gefunden')
       // Tier 612: nothing is dunned on a quote or a delivery note — nothing to pause
-      if (['QU', 'DN'].includes(i.type)) throw new BadRequestException('Ein Angebot oder Lieferschein wird nicht gemahnt — eine Mahnpause gibt es dazu nicht.')
+      if (isNonFiscal(i.type)) throw new BadRequestException('Ein Angebot, eine Auftragsbestätigung oder ein Lieferschein wird nicht gemahnt — eine Mahnpause gibt es dazu nicht.')
     }
 
     return this.prisma.mahnungspause.create({

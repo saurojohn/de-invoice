@@ -53,8 +53,8 @@ function vatRateOf(item: { vatRate?: number | null }): number {
   return item.vatRate ?? 0.19
 }
 
-export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN';
-const INVOICE_TYPES: readonly string[] = ['INV', 'CN', 'PI', 'RCV', 'QU', 'DN'];
+export type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC';
+const INVOICE_TYPES: readonly string[] = ['INV', 'CN', 'PI', 'RCV', 'QU', 'DN', 'OC'];
 
 export interface StockWarning {
   productId: string;
@@ -355,7 +355,16 @@ export class InvoiceService {
     // Tier 473: what a final invoice deducts, for every PDF / ZUGFeRD path
     // that loads the invoice here (the bulk export and GET …/zugferd did not
     // attach it).
-    return { ...invoice, sourceDocument, derivedDocuments, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
+    // Tier 615: what each kind of follow-up document can still take of each line
+    const conversion: Record<string, Record<string, number>> = {};
+    if (!['cancelled', 'declined'].includes(invoice.status)) {
+      for (const to of InvoiceService.CONVERTIBLE[invoice.type] ?? []) {
+        conversion[to] = Object.fromEntries(await this.openQuantities(companyId, invoice.id, invoice.items, to));
+      }
+    }
+    // Tier 618: an invoice over logged hours has a time sheet
+    const timeEntryCount = await this.prisma.timeEntry.count({ where: { companyId, invoiceId: id } });
+    return { ...invoice, sourceDocument, derivedDocuments, conversion, timeEntryCount, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
   }
 
   /**
@@ -408,7 +417,7 @@ export class InvoiceService {
     }
   }
 
-  async create(companyId: string, dto: CreateInvoiceDto) {
+  async create(companyId: string, dto: CreateInvoiceDto, source?: { documentId: string }) {
     try {
     const type = (dto.type as InvoiceType) || 'INV';
     // Tier 511: only a known document type. "FOO" was stored as it came —
@@ -765,8 +774,12 @@ export class InvoiceService {
         // sees the name that was on the invoice,
         // not the current name).
         customerName: customer?.name ?? '',
+        // Tier 615: only convert() names a source — a sourceItemId in a plain
+        // POST /invoices is dropped
+        sourceDocumentId: source?.documentId ?? null,
         items: {
           create: dto.items?.map((item, index) => ({
+            sourceItemId: source ? item.sourceItemId ?? null : null,
             description: item.description,
             // productId is optional on the DTO (manual line items may
             // not have a product reference) but when the frontend
@@ -1085,9 +1098,15 @@ export class InvoiceService {
       const { subtotal, discountAmount, totalVat, total } = amounts;
       assertPositiveTotal(total);
 
+      // Tier 615: the lines are replaced — a line taken from the source
+      // document keeps pointing at it (only at a line of that document)
+      const sourceLines = existing.sourceDocumentId && dto.items!.some((i) => i.sourceItemId)
+        ? new Set((await this.prisma.invoiceItem.findMany({ where: { invoiceId: existing.sourceDocumentId }, select: { id: true } })).map((i) => i.id))
+        : new Set<string>();
       itemsData = {
         deleteMany: {},
         create: dto.items!.map((item, index) => ({
+          sourceItemId: item.sourceItemId && sourceLines.has(item.sourceItemId) ? item.sourceItemId : null,
           description: item.description,
           productId: item.productId || null,
           productNumber: item.productNumber?.trim() || null,
@@ -1379,7 +1398,7 @@ export class InvoiceService {
     return withKeyLock(`invoice:${id}`, () => this.updateStatusLocked(id, companyId, status));
   }
 
-  /** Tier 610: quote: draft → offered → accepted | declined; delivery note: draft → delivered; both → cancelled. */
+  /** Tier 610 / 614: quote: draft → offered → accepted | declined; delivery note: draft → delivered; order confirmation: draft → confirmed; all → cancelled. */
   private async updateNonFiscalStatus(before: { id: string; type: string; status: string; issueDate: Date; total: unknown }, companyId: string, status: string) {
     if (status === before.status) return this.prisma.invoice.findFirst({ where: { id: before.id, companyId } });
     const next = NON_FISCAL_TRANSITIONS[before.type]?.[before.status] ?? [];
@@ -1393,25 +1412,71 @@ export class InvoiceService {
     if (issuing && businessDayIso(new Date(before.issueDate)) > businessTodayIso()) {
       throw new BadRequestException('Das Datum liegt in der Zukunft. Geben Sie das Dokument an diesem Tag heraus — oder legen Sie es mit dem heutigen Datum neu an.');
     }
-    if (issuing && before.type === 'QU') assertPositiveTotal(Number(before.total));
+    if (issuing && before.type !== 'DN') assertPositiveTotal(Number(before.total));
     return this.prisma.invoice.update({ where: { id: before.id }, data: { status, ...(issuing ? { pdfPath: null } : {}) } });
   }
 
+  /** Tier 615: what can be made from which document */
+  private static readonly CONVERTIBLE: Record<string, string[]> = { QU: ['OC', 'INV', 'DN'], OC: ['INV', 'DN'], INV: ['DN'] };
+
   /**
-   * Tier 610: make the next document from this one —
-   *   a quote     → an invoice (the quote becomes "accepted") or a delivery note,
-   *   an invoice  → a delivery note.
-   * The new document is a draft dated today with the same customer, lines and
-   * terms; `sourceDocumentId` links it back.
+   * Tier 615: per line of a source document, what a document of type `to`
+   * can still take: the line's quantity minus what the lines made from it
+   * (in documents of that type that are not cancelled) have taken. Never
+   * past zero, and with the line's sign (a negative line stays negative).
    */
-  async convert(id: string, companyId: string, to: string) {
+  private async openQuantities(
+    companyId: string,
+    sourceId: string,
+    items: { id: string; quantity: unknown }[],
+    to: string,
+  ): Promise<Map<string, number>> {
+    const taken = items.length
+      ? await this.prisma.invoiceItem.groupBy({
+          by: ['sourceItemId'],
+          where: {
+            sourceItemId: { in: items.map((i) => i.id) },
+            invoice: { companyId, sourceDocumentId: sourceId, type: to, status: { not: 'cancelled' } },
+          },
+          _sum: { quantity: true },
+        })
+      : [];
+    const takenOf = new Map(taken.map((t) => [t.sourceItemId as string, Number(t._sum.quantity ?? 0)]));
+    const round4 = (n: number) => Math.round(n * 10000) / 10000;
+    return new Map(
+      items.map((i) => {
+        const quantity = Number(i.quantity);
+        const rest = Math.max(0, round4(Math.abs(quantity) - Math.abs(takenOf.get(i.id) ?? 0)));
+        return [i.id, quantity < 0 ? -rest : rest] as [string, number];
+      }),
+    );
+  }
+
+  /**
+   * Tier 610 / 614 / 615: make the next document from this one —
+   *   a quote               → an order confirmation, an invoice or a delivery note
+   *                           (an offered quote becomes "accepted"),
+   *   an order confirmation → an invoice or a delivery note,
+   *   an issued invoice     → a delivery note.
+   * The new document is a draft dated today with the same customer and
+   * terms; `sourceDocumentId` links it back and each line names the line it
+   * was taken from. Without `picked` it takes all that is still open of
+   * every line; with `picked` ([{ itemId, quantity }]) a part — so a quote is
+   * invoiced, or delivered, in several steps. An absolute discount is
+   * divided by the share of the lines taken.
+   */
+  async convert(id: string, companyId: string, to: string, picked?: unknown) {
+    // one at a time per source: two clicks must not take the same rest twice
+    return withKeyLock(`convert:${id}`, () => this.convertLocked(id, companyId, to, picked));
+  }
+
+  private async convertLocked(id: string, companyId: string, to: string, picked?: unknown) {
     const src = await this.prisma.invoice.findFirst({ where: { id, companyId }, include: { items: true } });
     if (!src) throw new NotFoundException('Dokument nicht gefunden');
-    const allowed: Record<string, string[]> = { QU: ['INV', 'DN'], INV: ['DN'] };
-    if (!(allowed[src.type] ?? []).includes(to)) {
+    if (!(InvoiceService.CONVERTIBLE[src.type] ?? []).includes(to)) {
       throw new BadRequestException(
         `Aus einem Dokument der Art „${DOCUMENT_NAMES[src.type] ?? src.type}“ lässt sich kein Dokument der Art „${DOCUMENT_NAMES[to] ?? to}“ machen. ` +
-        'Möglich: Angebot → Rechnung, Angebot → Lieferschein, Rechnung → Lieferschein.',
+        'Möglich: Angebot → Auftragsbestätigung, Rechnung oder Lieferschein; Auftragsbestätigung → Rechnung oder Lieferschein; Rechnung → Lieferschein.',
       );
     }
     if (['cancelled', 'declined'].includes(src.status)) {
@@ -1420,7 +1485,52 @@ export class InvoiceService {
     if (src.type === 'INV' && src.status === 'draft') {
       throw new BadRequestException('Die Rechnung ist noch ein Entwurf. Stellen Sie sie zuerst aus, dann den Lieferschein.');
     }
+    const sorted = [...src.items].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    const open = await this.openQuantities(companyId, src.id, sorted, to);
+    const done = to === 'INV' ? 'abgerechnet' : to === 'DN' ? 'geliefert' : 'bestätigt';
+    let lines: { item: (typeof sorted)[number]; quantity: number }[];
+    if (picked === undefined || picked === null) {
+      lines = sorted.map((item) => ({ item, quantity: open.get(item.id) ?? 0 })).filter((l) => l.quantity !== 0);
+      if (lines.length === 0) {
+        throw new BadRequestException(`Aus diesem Dokument ist bereits alles ${done} — es ist nichts mehr offen.`);
+      }
+    } else {
+      if (!Array.isArray(picked) || picked.length === 0 || picked.length > 500) {
+        throw new BadRequestException('items muss eine Liste von 1 bis 500 Positionen { itemId, quantity } sein.');
+      }
+      const byId = new Map(sorted.map((i) => [i.id, i]));
+      const seen = new Set<string>();
+      lines = (picked as { itemId?: unknown; quantity?: unknown }[]).map((p) => {
+        const item = typeof p?.itemId === 'string' ? byId.get(p.itemId) : undefined;
+        if (!item) throw new BadRequestException('Eine der gewählten Positionen gehört nicht zu diesem Dokument.');
+        if (seen.has(item.id)) throw new BadRequestException(`Die Position „${item.description}“ ist doppelt gewählt.`);
+        seen.add(item.id);
+        const quantity = p.quantity;
+        const rest = open.get(item.id) ?? 0;
+        const fourDecimals = typeof quantity === 'number' && Math.abs(Math.round(quantity * 10000) - quantity * 10000) < 1e-6;
+        if (typeof quantity !== 'number' || !Number.isFinite(quantity) || quantity === 0 || !fourDecimals) {
+          throw new BadRequestException(`Die Menge der Position „${item.description}“ muss eine Zahl ungleich 0 mit höchstens vier Nachkommastellen sein.`);
+        }
+        if (Math.sign(quantity) !== Math.sign(rest) || Math.abs(quantity) > Math.abs(rest) + 1e-9) {
+          throw new BadRequestException(
+            rest === 0
+              ? `Die Position „${item.description}“ ist bereits vollständig ${done}.`
+              : `Von der Position „${item.description}“ sind noch ${rest} offen — ${quantity} ist zu viel.`,
+          );
+        }
+        return { item, quantity };
+      });
+      // in the order of the source document
+      lines.sort((a, b) => (a.item.sortOrder ?? 0) - (b.item.sortOrder ?? 0));
+    }
     const num = (v: unknown) => (v === null || v === undefined ? undefined : Number(v));
+    // the share of the source's lines this document takes (by net value) —
+    // for an absolute discount
+    const net = (l: { quantity: number; unitPrice: unknown }[]) => l.reduce((s, x) => s + x.quantity * Number(x.unitPrice), 0);
+    const sourceNet = net(sorted.map((i) => ({ quantity: Number(i.quantity), unitPrice: i.unitPrice })));
+    const share = sourceNet !== 0 ? net(lines.map((l) => ({ quantity: l.quantity, unitPrice: l.item.unitPrice }))) / sourceNet : 1;
+    const percent = num(src.discountPercent) ?? 0;
+    const absolute = num(src.discountAmount) ?? 0;
     const created = await this.create(companyId, {
       type: to,
       customerId: src.customerId,
@@ -1429,31 +1539,29 @@ export class InvoiceService {
       language: src.language ?? undefined,
       notes: src.notes ?? undefined,
       templateType: src.templateType ?? undefined,
-      ...(to === 'INV'
+      ...(to === 'INV' || to === 'OC'
         ? {
-            discountPercent: num(src.discountPercent),
-            discountAmount: num(src.discountAmount),
+            discountPercent: percent > 0 ? percent : undefined,
+            discountAmount: percent > 0 || absolute === 0 ? undefined : Math.round(absolute * share * 100) / 100,
             skontoPercent: num(src.skontoPercent),
             skontoDays: num(src.skontoDays),
             reverseCharge: src.reverseCharge,
             euTransaction: src.euTransaction,
           }
         : {}),
-      items: [...src.items]
-        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-        .map((i) => ({
-          description: i.description,
-          quantity: Number(i.quantity),
-          unit: i.unit ?? undefined,
-          unitPrice: Number(i.unitPrice),
-          vatRate: Number(i.vatRate),
-          productId: i.productId ?? undefined,
-          productNumber: i.productNumber ?? undefined,
-        })),
-    } as any);
-    await this.prisma.invoice.update({ where: { id: (created as { id: string }).id }, data: { sourceDocumentId: src.id } });
-    // an invoice made from an offered quote: the customer has accepted it
-    if (src.type === 'QU' && to === 'INV' && src.status === 'offered') {
+      items: lines.map(({ item, quantity }) => ({
+        description: item.description,
+        quantity,
+        unit: item.unit ?? undefined,
+        unitPrice: Number(item.unitPrice),
+        vatRate: Number(item.vatRate),
+        productId: item.productId ?? undefined,
+        productNumber: item.productNumber ?? undefined,
+        sourceItemId: item.id,
+      })),
+    } as any, { documentId: src.id });
+    // an invoice or an order confirmation made from an offered quote: the customer has accepted it
+    if (src.type === 'QU' && (to === 'INV' || to === 'OC') && src.status === 'offered') {
       await this.prisma.invoice.update({ where: { id: src.id }, data: { status: 'accepted' } });
     }
     return this.findOne((created as { id: string }).id, companyId);
@@ -1471,7 +1579,7 @@ export class InvoiceService {
     // advances, credit notes, stock, payment webhooks).
     if (isNonFiscal(before.type)) return this.updateNonFiscalStatus(before, companyId, status);
     if (NON_FISCAL_STATUSES.includes(status)) {
-      throw new BadRequestException(`Den Status „${status}“ gibt es nur bei einem Angebot oder Lieferschein.`);
+      throw new BadRequestException(`Den Status „${status}“ gibt es nur bei einem Angebot, einer Auftragsbestätigung oder einem Lieferschein.`);
     }
 
     // Tier 461: a cancelled document leaves every return (UStVA, EÜR, DATEV —

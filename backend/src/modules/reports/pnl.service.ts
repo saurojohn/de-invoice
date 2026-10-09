@@ -2,7 +2,7 @@ import { assetDisposals } from '../assets/disposals'
 import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ISSUED_STATUSES, SALES_TYPES } from '../invoice/document-scope'
+import { ISSUED_STATUSES, SALES_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { invoiceNetRevenue } from '../invoice/tax-breakdown'
 
@@ -268,7 +268,7 @@ export class PnlService {
         where: {
           companyId,
           issueDate: { gte: yearStart, lte: yearEnd },
-          type: { notIn: ['QU', 'DN'] }, // Tier 610
+          type: { notIn: NON_FISCAL_TYPES }, // Tier 610
         },
       }),
       this.prisma.expense.count({

@@ -27,6 +27,7 @@
 //   - The invoice header + totals + line items
 
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
+import { isNonFiscal } from '../invoice/document-scope'
 import { randomBytes } from 'crypto'
 import { PrismaService } from '../../prisma/prisma.service'
 import { recordPaymentNotice } from '../invoice/payment-notice'
@@ -60,8 +61,8 @@ export class PortalService {
     }
     // Tier 496: a draft is not an invoice yet, a cancelled one no longer.
     // Tier 610: nothing is owed on a quote or a delivery note
-    if (invoice.type === 'QU' || invoice.type === 'DN') {
-      throw new BadRequestException('Zu einem Angebot oder Lieferschein gibt es keinen Zahlungslink — wandeln Sie es in eine Rechnung um.')
+    if (isNonFiscal(invoice.type)) {
+      throw new BadRequestException('Zu einem Angebot, einer Auftragsbestätigung oder einem Lieferschein gibt es keinen Zahlungslink — wandeln Sie es in eine Rechnung um.')
     }
     if (invoice.status === 'draft' || invoice.status === 'cancelled') {
       throw new BadRequestException(

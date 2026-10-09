@@ -21,12 +21,13 @@
  * A credit note does not move stock — it may correct a price; goods that came
  * back are entered as a return on the inventory page.
  */
+import { isNonFiscal } from './document-scope'
 type Db = any
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000
 
 /** Types whose lines are goods leaving the warehouse. */
-const moves = (type: string) => type !== 'CN' && type !== 'PI' && type !== 'QU' && type !== 'DN' // Tier 610: nor a quote / delivery note
+const moves = (type: string) => type !== 'CN' && type !== 'PI' && !isNonFiscal(type) // Tier 610: nor a quote / delivery note / order confirmation
 
 export async function syncInvoiceStock(
   db: Db,

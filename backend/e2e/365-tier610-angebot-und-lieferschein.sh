@@ -68,7 +68,7 @@ status "$DN1" sent;      B=$STATUS
 status "$DN1" delivered
 assert_eq "a delivery note is not offered or sent — it is delivered" "$A $B $STATUS $(of "$DN1" status)" "400 400 200 delivered"
 status "$INV1" offered
-assert_eq "an invoice is not offered" "$STATUS/$(echo "$BODY" | grep -c 'nur bei einem Angebot oder Lieferschein')/$(of "$INV1" status)" "400/1/draft"
+assert_eq "an invoice is not offered" "$STATUS/$(echo "$BODY" | grep -c 'gibt es nur bei einem Angebot')/$(of "$INV1" status)" "400/1/draft"
 
 note "=== 3. not an invoice ==="
 doc QU; QU3=$I; status "$QU3" offered

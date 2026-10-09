@@ -47,13 +47,18 @@ export const NON_CASH_PAYMENT_METHODS = ['Gutschrift', 'Guthaben', 'Anzahlung']
  *   quote          draft → offered → accepted | declined;   → cancelled
  *   delivery note  draft → delivered;                        → cancelled
  */
-export const NON_FISCAL_TYPES = ['QU', 'DN']
+// Tier 614: and the order confirmation (OC → AB-…) between the quote and the invoice:
+//   order confirmation  draft → confirmed;               → cancelled
+export const NON_FISCAL_TYPES = ['QU', 'DN', 'OC']
 export const isNonFiscal = (type: string | null | undefined): boolean => NON_FISCAL_TYPES.includes(String(type))
-export const NON_FISCAL_STATUSES = ['offered', 'accepted', 'declined', 'delivered']
+export const NON_FISCAL_STATUSES = ['offered', 'accepted', 'declined', 'delivered', 'confirmed']
 export const NON_FISCAL_TRANSITIONS: Record<string, Record<string, string[]>> = {
   QU: { draft: ['offered', 'cancelled'], offered: ['accepted', 'declined', 'cancelled'], accepted: ['cancelled'], declined: [], cancelled: [] },
   DN: { draft: ['delivered', 'cancelled'], delivered: ['cancelled'], cancelled: [] },
+  OC: { draft: ['confirmed', 'cancelled'], confirmed: ['cancelled'], cancelled: [] },
 }
 export const DOCUMENT_NAMES: Record<string, string> = {
-  INV: 'Rechnung', CN: 'Gutschrift', PI: 'Proforma-Rechnung', RCV: 'Quittung', QU: 'Angebot', DN: 'Lieferschein',
+  INV: 'Rechnung', CN: 'Gutschrift', PI: 'Proforma-Rechnung', RCV: 'Quittung', QU: 'Angebot', DN: 'Lieferschein', OC: 'Auftragsbestätigung',
 }
+/** the status a non-fiscal document has once it has gone out */
+export const ISSUED_AS: Record<string, string> = { QU: 'offered', DN: 'delivered', OC: 'confirmed' }

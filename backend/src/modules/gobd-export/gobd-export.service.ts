@@ -1,4 +1,5 @@
 import { businessTodayIso } from '../../common/business-date'
+import { NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
@@ -230,7 +231,7 @@ export class GobdExportService {
       where: {
         companyId: opts.companyId,
         issueDate: { gte: yearStart, lt: yearEnd },
-        type: { notIn: ['QU', 'DN'] }, // Tier 610: quotes and delivery notes are no invoices
+        type: { notIn: NON_FISCAL_TYPES }, // Tier 610: quotes and delivery notes are no invoices
       },
       orderBy: { issueDate: 'asc' },
     })

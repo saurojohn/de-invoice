@@ -8,8 +8,13 @@
  * invoice draft with one click; from then on an entry is "billed" and cannot
  * be changed — until the draft is deleted or the invoice cancelled, which
  * opens it again.
+ *
+ * Tier 616: projects below the customer, and the rate a new entry starts
+ * with (the project's, else the customer's default). Tier 617: a timer that
+ * keeps running on the server — stopping it writes the entry. Tier 618: the
+ * time sheet of what is listed, as a PDF.
  */
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,7 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { ApiError, apiDelete, apiGet, apiPost, apiPut } from "@/lib/api"
+import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut } from "@/lib/api"
 import { todayIso } from "@/lib/today"
 
 interface TimeEntry {
@@ -27,6 +32,8 @@ interface TimeEntry {
   description: string
   customerId: string | null
   customer: { id: string; name: string } | null
+  projectId: string | null
+  project: { id: string; name: string } | null
   hourlyRate: string | number | null
   billable: boolean
   invoiceId: string | null
@@ -40,6 +47,26 @@ interface Summary {
 interface CustomerOption {
   id: string
   name: string
+  defaultHourlyRate: string | number | null
+}
+interface Project {
+  id: string
+  name: string
+  customerId: string | null
+  customer: { id: string; name: string } | null
+  hourlyRate: string | number | null
+  effectiveRate: string | number | null
+  budgetHours: string | number | null
+  active: boolean
+  minutes: number
+  openMinutes: number
+}
+interface RunningTimer {
+  startedAt: string
+  elapsedSeconds: number
+  customerId: string | null
+  projectId: string | null
+  description: string
 }
 
 /** "1:30", "1,5", "1.5" or "90m" → minutes; null when it is none of these */
@@ -57,9 +84,17 @@ function parseDuration(raw: string): number | null {
 // as on the invoice line: hours with two decimals (50 min → 0,83 Std) times the rate
 const lineAmount = (minutes: number, rate: number) => Math.round((Math.round((minutes / 60) * 100) / 100) * rate * 100) / 100
 const hhmm = (minutes: number) => `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`
+const hhmmss = (seconds: number) =>
+  `${Math.floor(seconds / 3600)}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
 const day = (iso: string) => String(iso).slice(0, 10).split("-").reverse().join(".")
+const decimal = (raw: string): number | null => {
+  if (raw.trim() === "") return null
+  const n = Number(raw.replace(",", "."))
+  return Number.isFinite(n) ? n : NaN
+}
 
-const BLANK = { date: "", customerId: "", duration: "", description: "", hourlyRate: "", billable: true }
+const BLANK = { date: "", customerId: "", projectId: "", duration: "", description: "", hourlyRate: "", billable: true }
+const BLANK_PROJECT = { name: "", customerId: "", hourlyRate: "", budgetHours: "" }
 
 export default function TimeTrackingPage() {
   const router = useRouter()
@@ -68,37 +103,70 @@ export default function TimeTrackingPage() {
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [summary, setSummary] = useState<Summary>({ minutes: 0, openBillableMinutes: 0, openAmount: 0 })
   const [customers, setCustomers] = useState<CustomerOption[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ ...BLANK })
+  // the rate in the form is the default of the chosen customer / project until the user types one
+  const [rateIsDefault, setRateIsDefault] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [filterCustomer, setFilterCustomer] = useState("")
+  const [filterProject, setFilterProject] = useState("")
   const [filterState, setFilterState] = useState<"open" | "billed" | "all">("open")
+  const [timer, setTimer] = useState<RunningTimer | null>(null)
+  const [timerLoadedAt, setTimerLoadedAt] = useState(0)
+  const [now, setNow] = useState(0)
+  const [showProjects, setShowProjects] = useState(false)
+  const [projectForm, setProjectForm] = useState({ ...BLANK_PROJECT })
 
   const money = useMemo(
     () => new Intl.NumberFormat(locale === "en" ? "en-GB" : locale === "zh" ? "zh-CN" : "de-DE", { style: "currency", currency: "EUR" }),
     [locale],
   )
+  const fail = (err: unknown, fallback: string) => toast.error(err instanceof ApiError ? err.message : fallback)
 
+  // only the answer to the latest question counts (a slow answer to an
+  // earlier filter must not replace the list of the current one)
+  const loadSeq = useRef(0)
   const load = useCallback(async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) {
       router.push("/login")
       return
     }
+    const seq = ++loadSeq.current
     try {
       const qs = new URLSearchParams({ companyId, state: filterState })
       if (filterCustomer) qs.set("customerId", filterCustomer)
+      if (filterProject) qs.set("projectId", filterProject)
       const r = await apiGet<{ data: TimeEntry[]; summary: Summary }>(`/api/v1/time-entries?${qs.toString()}`)
+      if (seq !== loadSeq.current) return
       setEntries(r.data)
       setSummary(r.summary)
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("time.loadFailed"))
+      fail(err, t("time.loadFailed"))
     } finally {
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterCustomer, filterState])
+  }, [filterCustomer, filterProject, filterState])
+
+  const loadProjects = useCallback(async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const r = await apiGet<{ data: Project[] }>(`/api/v1/time-projects?companyId=${companyId}&includeInactive=true`)
+      setProjects(r.data)
+    } catch {
+      setProjects([])
+    }
+  }, [])
+
+  const applyTimer = (running: RunningTimer | null) => {
+    setTimer(running)
+    setTimerLoadedAt(Date.now())
+    setNow(Date.now())
+  }
 
   useEffect(() => {
     load()
@@ -109,14 +177,61 @@ export default function TimeTrackingPage() {
     if (!companyId) return
     setForm((f) => ({ ...f, date: f.date || todayIso() }))
     apiGet<{ data: CustomerOption[] }>(`/api/v1/customers?companyId=${companyId}&pageSize=500`)
-      .then((r) => setCustomers((r.data || []).map((c) => ({ id: c.id, name: c.name }))))
+      .then((r) => setCustomers((r.data || []).map((c) => ({ id: c.id, name: c.name, defaultHourlyRate: c.defaultHourlyRate ?? null }))))
       .catch(() => setCustomers([]))
-  }, [])
+    loadProjects()
+    apiGet<{ running: RunningTimer | null }>(`/api/v1/time-entries/timer?companyId=${companyId}`)
+      .then((r) => {
+        applyTimer(r.running)
+        // a running timer brings its customer, project and note into the form
+        if (r.running) {
+          setForm((f) => ({
+            ...f,
+            customerId: r.running?.customerId || f.customerId,
+            projectId: r.running?.projectId || f.projectId,
+            description: f.description || r.running?.description || "",
+          }))
+        }
+      })
+      .catch(() => applyTimer(null))
+  }, [loadProjects])
+
+  // the clock of a running timer
+  useEffect(() => {
+    if (!timer) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [timer])
+  const elapsed = timer ? timer.elapsedSeconds + Math.max(0, Math.floor((now - timerLoadedAt) / 1000)) : 0
+
+  /** the rate a new entry for this customer / project starts with */
+  const defaultRateFor = (customerId: string, projectId: string): string => {
+    const project = projects.find((p) => p.id === projectId)
+    const r = project?.effectiveRate ?? customers.find((c) => c.id === customerId)?.defaultHourlyRate ?? null
+    return r === null || r === undefined ? "" : String(Number(r))
+  }
+  const pick = (customerId: string, projectId: string) => {
+    // a project of a customer brings that customer along
+    const project = projects.find((p) => p.id === projectId)
+    if (project?.customerId) customerId = project.customerId
+    const takeDefault = rateIsDefault || form.hourlyRate.trim() === ""
+    setForm((f) => ({ ...f, customerId, projectId, ...(takeDefault ? { hourlyRate: defaultRateFor(customerId, projectId) } : {}) }))
+    if (takeDefault) setRateIsDefault(true)
+  }
+  // as long as no rate was typed, the form shows the default of what is chosen —
+  // also once the lists have arrived (a running timer brings its project before they do)
+  useEffect(() => {
+    if (!rateIsDefault || editingId) return
+    const next = defaultRateFor(form.customerId, form.projectId)
+    setForm((f) => (f.hourlyRate === next ? f : { ...f, hourlyRate: next }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, customers, form.customerId, form.projectId, rateIsDefault, editingId])
+  const projectsFor = (customerId: string) => projects.filter((p) => p.active && (!p.customerId || !customerId || p.customerId === customerId))
 
   const minutes = parseDuration(form.duration)
-  const rate = form.hourlyRate.trim() === "" ? null : Number(form.hourlyRate.replace(",", "."))
-  const formValid =
-    !!form.date && minutes !== null && minutes > 0 && minutes <= 24 * 60 && form.description.trim().length > 0 && (rate === null || (Number.isFinite(rate) && rate >= 0))
+  const rate = decimal(form.hourlyRate)
+  const rateValid = rate === null || (!Number.isNaN(rate) && rate >= 0)
+  const formValid = !!form.date && minutes !== null && minutes > 0 && minutes <= 24 * 60 && form.description.trim().length > 0 && rateValid
 
   const save = async () => {
     const companyId = localStorage.getItem("companyId")
@@ -128,17 +243,18 @@ export default function TimeTrackingPage() {
         minutes,
         description: form.description.trim(),
         customerId: form.customerId || null,
+        projectId: form.projectId || null,
         hourlyRate: rate,
         billable: form.billable,
       }
       if (editingId) await apiPut(`/api/v1/time-entries/${editingId}?companyId=${companyId}`, body)
       else await apiPost(`/api/v1/time-entries?companyId=${companyId}`, body)
-      // the next entry is usually the same day, customer and rate
-      setForm({ ...BLANK, date: form.date, customerId: form.customerId, hourlyRate: form.hourlyRate, billable: form.billable })
+      // the next entry is usually the same day, customer, project and rate
+      setForm({ ...BLANK, date: form.date, customerId: form.customerId, projectId: form.projectId, hourlyRate: form.hourlyRate, billable: form.billable })
       setEditingId(null)
-      await load()
+      await Promise.all([load(), loadProjects()])
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("time.saveFailed"))
+      fail(err, t("time.saveFailed"))
     } finally {
       setBusy(false)
     }
@@ -146,9 +262,11 @@ export default function TimeTrackingPage() {
 
   const edit = (e: TimeEntry) => {
     setEditingId(e.id)
+    setRateIsDefault(false)
     setForm({
       date: String(e.date).slice(0, 10),
       customerId: e.customerId || "",
+      projectId: e.projectId || "",
       duration: hhmm(e.minutes),
       description: e.description,
       hourlyRate: e.hourlyRate === null ? "" : String(Number(e.hourlyRate)),
@@ -166,13 +284,64 @@ export default function TimeTrackingPage() {
         setEditingId(null)
         setForm({ ...BLANK, date: todayIso() })
       }
-      await load()
+      await Promise.all([load(), loadProjects()])
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("time.saveFailed"))
+      fail(err, t("time.saveFailed"))
     }
   }
 
-  // what "bill" would take: the open, billable, priced entries of the chosen customer
+  // ── the timer ──
+  const startTimer = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    setBusy(true)
+    try {
+      const r = await apiPost<{ running: RunningTimer }>(`/api/v1/time-entries/timer/start?companyId=${companyId}`, {
+        customerId: form.customerId || null,
+        projectId: form.projectId || null,
+        description: form.description.trim(),
+      })
+      applyTimer(r.running)
+    } catch (err) {
+      fail(err, t("time.timerFailed"))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const stopTimer = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    setBusy(true)
+    try {
+      const r = await apiPost<{ capped: boolean }>(`/api/v1/time-entries/timer/stop?companyId=${companyId}`, {
+        description: form.description.trim(),
+        customerId: form.customerId || null,
+        projectId: form.projectId || null,
+        ...(rate !== null && !Number.isNaN(rate) ? { hourlyRate: rate } : {}),
+        billable: form.billable,
+      })
+      applyTimer(null)
+      if (r.capped) toast.error(t("time.timerCapped"))
+      setForm({ ...BLANK, date: todayIso(), customerId: form.customerId, projectId: form.projectId, hourlyRate: form.hourlyRate, billable: form.billable })
+      await Promise.all([load(), loadProjects()])
+    } catch (err) {
+      fail(err, t("time.timerFailed"))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const discardTimer = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !confirm(t("time.timerConfirmDiscard"))) return
+    try {
+      await apiDelete(`/api/v1/time-entries/timer?companyId=${companyId}`)
+      applyTimer(null)
+    } catch (err) {
+      fail(err, t("time.timerFailed"))
+    }
+  }
+
+  // what "bill" would take: the open, billable, priced entries of the chosen customer (and project)
   const billable = entries.filter((e) => !e.invoiceId && e.billable && e.customerId && e.customerId === filterCustomer && e.hourlyRate !== null)
   const billableAmount = billable.reduce((s, e) => s + lineAmount(e.minutes, Number(e.hourlyRate)), 0)
 
@@ -188,13 +357,88 @@ export default function TimeTrackingPage() {
       })
       router.push(`/dashboard/invoices/${r.invoiceId}`)
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("time.billFailed"))
+      fail(err, t("time.billFailed"))
       setBusy(false)
+    }
+  }
+
+  // Tier 618: the time sheet of what the filter lists
+  const downloadTimesheet = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const qs = new URLSearchParams({ companyId, state: filterState })
+      if (filterCustomer) qs.set("customerId", filterCustomer)
+      if (filterProject) qs.set("projectId", filterProject)
+      const res = await apiFetch(`/api/v1/time-entries/timesheet.pdf?${qs.toString()}`, { throwOnError: false })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.message || t("time.timesheetFailed"))
+        return
+      }
+      const url = window.URL.createObjectURL(await res.blob())
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "Stundennachweis.pdf"
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch {
+      toast.error(t("time.timesheetFailed"))
+    }
+  }
+
+  // ── projects ──
+  const projectRate = decimal(projectForm.hourlyRate)
+  const projectBudget = decimal(projectForm.budgetHours)
+  const projectValid =
+    projectForm.name.trim().length > 0 &&
+    (projectRate === null || (!Number.isNaN(projectRate) && projectRate >= 0)) &&
+    (projectBudget === null || (!Number.isNaN(projectBudget) && projectBudget > 0))
+  const addProject = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !projectValid) return
+    setBusy(true)
+    try {
+      await apiPost(`/api/v1/time-projects?companyId=${companyId}`, {
+        name: projectForm.name.trim(),
+        customerId: projectForm.customerId || null,
+        hourlyRate: projectRate,
+        budgetHours: projectBudget,
+      })
+      setProjectForm({ ...BLANK_PROJECT, customerId: projectForm.customerId })
+      await loadProjects()
+    } catch (err) {
+      fail(err, t("time.saveFailed"))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const setProjectActive = async (p: Project, active: boolean) => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      await apiPut(`/api/v1/time-projects/${p.id}?companyId=${companyId}`, { active })
+      await loadProjects()
+    } catch (err) {
+      fail(err, t("time.saveFailed"))
+    }
+  }
+  const removeProject = async (p: Project) => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !confirm(t("time.projectConfirmDelete", { name: p.name }))) return
+    try {
+      await apiDelete(`/api/v1/time-projects/${p.id}?companyId=${companyId}`)
+      await loadProjects()
+    } catch (err) {
+      fail(err, t("time.saveFailed"))
     }
   }
 
   const stateOf = (e: TimeEntry) => (e.invoiceId ? "billed" : e.billable ? "open" : "notBillable")
   const amountOf = (e: TimeEntry) => (e.hourlyRate === null ? null : lineAmount(e.minutes, Number(e.hourlyRate)))
+  const selectClass = "h-10 border rounded-md px-3 bg-white dark:bg-gray-800 max-w-full"
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -216,23 +460,63 @@ export default function TimeTrackingPage() {
             <CardTitle>{editingId ? t("time.editEntry") : t("time.newEntry")}</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Tier 617: the timer */}
+            <div className="flex flex-wrap items-center gap-3 mb-4 pb-4 border-b" data-testid="time-timer" data-running={timer ? "true" : "false"}>
+              {timer ? (
+                <>
+                  <span className="font-mono text-lg tabular-nums" data-testid="time-timer-clock">
+                    {hhmmss(elapsed)}
+                  </span>
+                  <Button onClick={stopTimer} disabled={busy} data-testid="time-timer-stop">
+                    {t("time.timerStop")}
+                  </Button>
+                  <Button variant="outline" onClick={discardTimer} disabled={busy} data-testid="time-timer-discard">
+                    {t("time.timerDiscard")}
+                  </Button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{t("time.timerRunningHint")}</span>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={startTimer} disabled={busy || !!editingId} data-testid="time-timer-start">
+                    {t("time.timerStart")}
+                  </Button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{t("time.timerHint")}</span>
+                </>
+              )}
+            </div>
             <div className="grid gap-3 md:grid-cols-4">
               <label className="block text-sm">
                 <span className="block font-medium mb-1">{t("time.date")}</span>
                 <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} data-testid="time-date" />
               </label>
-              <label className="block text-sm md:col-span-2">
+              <label className="block text-sm">
                 <span className="block font-medium mb-1">{t("time.customer")}</span>
                 <select
-                  className="w-full h-10 border rounded-md px-3 bg-white dark:bg-gray-800"
+                  className={`w-full ${selectClass}`}
                   value={form.customerId}
-                  onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+                  onChange={(e) => {
+                    const customerId = e.target.value
+                    const project = projects.find((p) => p.id === form.projectId)
+                    pick(customerId, project?.customerId && project.customerId !== customerId ? "" : form.projectId)
+                  }}
                   data-testid="time-customer"
                 >
                   <option value="">{t("time.noCustomer")}</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="block font-medium mb-1">{t("time.project")}</span>
+                <select className={`w-full ${selectClass}`} value={form.projectId} onChange={(e) => pick(form.customerId, e.target.value)} data-testid="time-project">
+                  <option value="">{t("time.noProject")}</option>
+                  {projectsFor(form.customerId).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.customer && !form.customerId ? ` (${p.customer.name})` : ""}
                     </option>
                   ))}
                 </select>
@@ -264,9 +548,13 @@ export default function TimeTrackingPage() {
                 <Input
                   inputMode="decimal"
                   value={form.hourlyRate}
-                  onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })}
+                  onChange={(e) => {
+                    setRateIsDefault(false)
+                    setForm({ ...form, hourlyRate: e.target.value })
+                  }}
                   placeholder="90"
                   data-testid="time-rate"
+                  aria-invalid={!rateValid}
                 />
               </label>
               <label className="flex items-center gap-2 text-sm md:mt-7">
@@ -288,6 +576,7 @@ export default function TimeTrackingPage() {
                   variant="outline"
                   onClick={() => {
                     setEditingId(null)
+                    setRateIsDefault(true)
                     setForm({ ...BLANK, date: todayIso() })
                   }}
                 >
@@ -298,15 +587,126 @@ export default function TimeTrackingPage() {
           </CardContent>
         </Card>
 
+        {/* Tier 616: projects */}
+        <Card data-testid="time-projects">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>
+              {t("time.projects")} ({projects.filter((p) => p.active).length})
+            </CardTitle>
+            <Button size="sm" variant="outline" onClick={() => setShowProjects(!showProjects)} data-testid="time-projects-toggle" aria-expanded={showProjects}>
+              {showProjects ? t("time.projectsHide") : t("time.projectsShow")}
+            </Button>
+          </CardHeader>
+          {showProjects && (
+            <CardContent>
+              <div className="grid gap-3 md:grid-cols-5 items-end">
+                <label className="block text-sm md:col-span-2">
+                  <span className="block font-medium mb-1">{t("time.projectName")}</span>
+                  <Input value={projectForm.name} maxLength={120} onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })} data-testid="time-project-name" />
+                </label>
+                <label className="block text-sm">
+                  <span className="block font-medium mb-1">{t("time.customer")}</span>
+                  <select
+                    className={`w-full ${selectClass}`}
+                    value={projectForm.customerId}
+                    onChange={(e) => setProjectForm({ ...projectForm, customerId: e.target.value })}
+                    data-testid="time-project-customer"
+                  >
+                    <option value="">{t("time.projectInternal")}</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="block font-medium mb-1">{t("time.hourlyRate")}</span>
+                  <Input
+                    inputMode="decimal"
+                    value={projectForm.hourlyRate}
+                    onChange={(e) => setProjectForm({ ...projectForm, hourlyRate: e.target.value })}
+                    placeholder={t("time.projectRatePlaceholder")}
+                    data-testid="time-project-rate"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="block font-medium mb-1">{t("time.projectBudget")}</span>
+                  <Input
+                    inputMode="decimal"
+                    value={projectForm.budgetHours}
+                    onChange={(e) => setProjectForm({ ...projectForm, budgetHours: e.target.value })}
+                    data-testid="time-project-budget"
+                  />
+                </label>
+              </div>
+              <Button className="mt-3" onClick={addProject} disabled={!projectValid || busy} data-testid="time-project-add">
+                {t("time.projectAdd")}
+              </Button>
+              {projects.length > 0 && (
+                <table className="w-full text-sm mt-4" data-testid="time-project-table">
+                  <thead>
+                    <tr className="text-left border-b">
+                      <th className="py-2 pr-3">{t("time.projectName")}</th>
+                      <th className="py-2 pr-3">{t("time.customer")}</th>
+                      <th className="py-2 pr-3 text-right">{t("time.hourlyRate")}</th>
+                      <th className="py-2 pr-3 text-right">{t("time.projectLogged")}</th>
+                      <th className="py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projects.map((p) => {
+                      const budget = p.budgetHours === null ? null : Number(p.budgetHours)
+                      const over = budget !== null && p.minutes / 60 > budget
+                      return (
+                        <tr key={p.id} className={`border-b last:border-0 ${p.active ? "" : "text-gray-400"}`} data-testid="time-project-row">
+                          <td className="py-2 pr-3">
+                            {p.name}
+                            {!p.active && <span className="ml-2 text-xs">({t("time.projectArchived")})</span>}
+                          </td>
+                          <td className="py-2 pr-3">{p.customer?.name || t("time.projectInternal")}</td>
+                          <td className="py-2 pr-3 text-right whitespace-nowrap">
+                            {p.effectiveRate === null ? "—" : money.format(Number(p.effectiveRate))}
+                            {p.hourlyRate === null && p.effectiveRate !== null && (
+                              <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({t("time.projectRateOfCustomer")})</span>
+                            )}
+                          </td>
+                          <td className={`py-2 pr-3 text-right whitespace-nowrap ${over ? "text-red-600 dark:text-red-400 font-medium" : ""}`} data-testid="time-project-logged">
+                            {hhmm(p.minutes)}
+                            {budget !== null && ` / ${hhmm(Math.round(budget * 60))}`}
+                          </td>
+                          <td className="py-2 text-right whitespace-nowrap">
+                            <Button size="sm" variant="ghost" onClick={() => setProjectActive(p, !p.active)} data-testid="time-project-archive">
+                              {p.active ? t("time.projectArchive") : t("time.projectRestore")}
+                            </Button>
+                            {p.minutes === 0 && (
+                              <Button size="sm" variant="ghost" className="text-red-600 dark:text-red-400" onClick={() => removeProject(p)} data-testid="time-project-delete">
+                                {t("common.delete")}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </CardContent>
+          )}
+        </Card>
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-wrap gap-3 items-end">
               <label className="block text-sm">
                 <span className="block font-medium mb-1">{t("time.customer")}</span>
                 <select
-                  className="h-10 border rounded-md px-3 bg-white dark:bg-gray-800 max-w-full"
+                  className={selectClass}
                   value={filterCustomer}
-                  onChange={(e) => setFilterCustomer(e.target.value)}
+                  onChange={(e) => {
+                    setFilterCustomer(e.target.value)
+                    setFilterProject("")
+                  }}
                   data-testid="time-filter-customer"
                 >
                   <option value="">{t("time.allCustomers")}</option>
@@ -315,6 +715,19 @@ export default function TimeTrackingPage() {
                       {c.name}
                     </option>
                   ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="block font-medium mb-1">{t("time.project")}</span>
+                <select className={selectClass} value={filterProject} onChange={(e) => setFilterProject(e.target.value)} data-testid="time-filter-project">
+                  <option value="">{t("time.allProjects")}</option>
+                  {projects
+                    .filter((p) => !filterCustomer || p.customerId === filterCustomer)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
                 </select>
               </label>
               <div className="flex gap-2" role="group" aria-label={t("time.state")}>
@@ -334,14 +747,17 @@ export default function TimeTrackingPage() {
                 </div>
               </div>
             </div>
-            {filterCustomer && filterState !== "billed" && (
-              <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {filterCustomer && filterState !== "billed" && (
                 <Button onClick={bill} disabled={busy || billable.length === 0} data-testid="time-bill">
                   {t("time.bill", { count: billable.length, amount: money.format(billableAmount) })}
                 </Button>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{t("time.billHint")}</span>
-              </div>
-            )}
+              )}
+              <Button variant="outline" onClick={downloadTimesheet} disabled={entries.length === 0} data-testid="time-timesheet">
+                {t("time.timesheet")}
+              </Button>
+              {filterCustomer && filterState !== "billed" && <span className="text-xs text-gray-500 dark:text-gray-400">{t("time.billHint")}</span>}
+            </div>
           </CardContent>
         </Card>
 
@@ -373,10 +789,19 @@ export default function TimeTrackingPage() {
                     return (
                       <tr key={e.id} className="border-b last:border-0" data-testid="time-row">
                         <td className="py-2 pr-3 whitespace-nowrap">{day(e.date)}</td>
-                        <td className="py-2 pr-3">{e.customer?.name || "—"}</td>
+                        <td className="py-2 pr-3">
+                          {e.customer?.name || "—"}
+                          {e.project && (
+                            <span className="block text-xs text-gray-500 dark:text-gray-400" data-testid="time-row-project">
+                              {e.project.name}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 pr-3">{e.description}</td>
                         <td className="py-2 pr-3 text-right whitespace-nowrap">{hhmm(e.minutes)}</td>
-                        <td className="py-2 pr-3 text-right whitespace-nowrap">{amount === null ? "—" : money.format(amount)}</td>
+                        <td className="py-2 pr-3 text-right whitespace-nowrap" data-testid="time-row-amount">
+                          {amount === null ? "—" : money.format(amount)}
+                        </td>
                         <td className="py-2 pr-3 whitespace-nowrap" data-testid="time-row-state">
                           {state === "billed" && e.invoice ? (
                             <a href={`/dashboard/invoices/${e.invoice.id}`} className="underline text-green-700 dark:text-green-300">

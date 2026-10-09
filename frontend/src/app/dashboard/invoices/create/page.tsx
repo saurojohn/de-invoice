@@ -15,7 +15,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
 import { computeInvoiceAmounts } from "@/lib/invoice-amounts"
 
-type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN'
+type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC'
 type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
 
 interface Customer {
@@ -71,6 +71,9 @@ interface Invoice {
 }
 
 interface InvoiceItem {
+  // Tier 615: the source document's line this one was taken from (quote →
+  // invoice); sent back on save so the quote knows what is still open
+  sourceItemId?: string
   productId?: string
   // Produktnummer / SKU. Auto-filled when a product is picked
   // from the dropdown, but user-editable so manual line items
@@ -179,7 +182,7 @@ function CreateInvoicePageInner() {
   // Tier 610: "Neues Angebot" / "Neuer Lieferschein" open the form with the type set
   useEffect(() => {
     const preset = searchParams.get("type")
-    if (!editId && !cloneFromId && (preset === 'QU' || preset === 'DN')) setInvoiceType(preset)
+    if (!editId && !cloneFromId && (preset === 'QU' || preset === 'DN' || preset === 'OC')) setInvoiceType(preset)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const [showInvoiceDropdown, setShowInvoiceDropdown] = useState(false)
@@ -340,6 +343,11 @@ function CreateInvoicePageInner() {
         // Items: prefill either way. The user can
         // edit the qty / price before saving.
         items: (inv.items || []).map((it: any) => ({
+          // Tier 615: the product behind the line was dropped here — saving a
+          // draft unchanged cut every line loose from its product (and with
+          // it from the stock it takes when the invoice is issued)
+          ...(it.productId ? { productId: it.productId } : {}),
+          ...(!opts.isClone && it.sourceItemId ? { sourceItemId: it.sourceItemId } : {}),
           description: it.description || '',
           productNumber: it.productNumber || '',
           quantity: Number(it.quantity || 1),
@@ -921,6 +929,7 @@ function CreateInvoicePageInner() {
       RCV: t("invoice.typeReceipt"),
       QU: t("docs.typeQuote"),
       DN: t("docs.typeDeliveryNote"),
+      OC: t("docs.typeOrderConfirmation"),
     }
     return labels[type]
   }
@@ -933,6 +942,7 @@ function CreateInvoicePageInner() {
       RCV: "bg-green-100 text-green-700 dark:text-green-300",
       QU: "bg-teal-100 text-teal-700 dark:text-teal-300",
       DN: "bg-amber-100 text-amber-700 dark:text-amber-300",
+      OC: "bg-cyan-100 text-cyan-700 dark:text-cyan-300",
     }
     return colors[type]
   }
@@ -1155,7 +1165,7 @@ function CreateInvoicePageInner() {
       // so the user has the invoice in their history.
       if (isEdit && editId) {
         router.push(`/dashboard/invoices/${editId}`)
-      } else if ((invoiceType === 'QU' || invoiceType === 'DN') && createdId) {
+      } else if ((invoiceType === 'QU' || invoiceType === 'DN' || invoiceType === 'OC') && createdId) {
         // Tier 610: the next steps of a quote (offer, convert) are on its page
         router.push(`/dashboard/invoices/${createdId}`)
       } else {
@@ -1273,7 +1283,7 @@ function CreateInvoicePageInner() {
               <div>
                 <label className="block text-sm font-medium mb-1">{t("invoice.invoiceType")}</label>
                 <div className="flex flex-wrap gap-2">
-                  {(['INV', 'CN', 'PI', 'RCV', 'QU', 'DN'] as InvoiceType[]).map((type) => (
+                  {(['INV', 'CN', 'PI', 'RCV', 'QU', 'OC', 'DN'] as InvoiceType[]).map((type) => (
                     <button
                       key={type}
                       type="button"
