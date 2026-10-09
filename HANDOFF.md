@@ -9,18 +9,20 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–613 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–620 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 613.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 620.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 37911651587 / commit `794e361`, Tier 613):**
-  - Backend e2e: **366 passed / 0 failed / 1 skipped** of 367 specs — 100
-    two-digit + 267 three-digit (Tiers 609–613 added 364 closing the books, 365 quotes and
+- **Test counts (last green CI, run 37938122129 / commit `12fb8bf`, Tier 620):**
+  - Backend e2e: **370 passed / 0 failed / 1 skipped** of 371 specs — 100
+    two-digit + 271 three-digit (Tiers 614–618 added 368 the order confirmation, 369 a quote
+    in parts, 370 projects and hourly rates, 371 the timer and the time sheet;
+    Tiers 609–613 added 364 closing the books, 365 quotes and
     delivery notes, 366 time tracking, 367 a quote is not booked;
     Tiers 589–608 added 353 the activity log's company filter,
     354 the dashboard's net profit, 355 foreign ids in a request body, 356 a not-found is no
@@ -202,7 +204,7 @@ exact commands + docs you need to be productive.
     and survives concurrent writes (Tier 367); spec 171 (new in Tier 368) asserts
     the auth audit rows exist at all and are signed — nothing had ever asserted
     on them, which is how a failed login for an unknown e-mail went unaudited.
-  - Playwright: **1026 passed / 0 failed / 0 skipped / 0 flaky** (Tier 583
+  - Playwright: **1032 passed / 0 failed / 0 skipped / 0 flaky** (Tier 583
     added `pdf-signature-verify-tier583.spec.ts`; Tier 582
     added `ustva-expense-rates-tier582.spec.ts`; Tier 581
     added `expense-tax-lines-tier581.spec.ts`; Tier 577
@@ -353,7 +355,7 @@ Operational scripts:
   three-digit; `dryrun-tier247-validate.sh` is manual). Seed driver
   `backend/e2e/ci-seed.sh` = 640 lines. `run-all.sh` has a per-spec
   `SPEC_TIMEOUT` watchdog and a `QUARANTINE` list (empty) — see §8, Tier 361.
-- **Playwright:** 215 spec files in `frontend/e2e/`;
+- **Playwright:** 218 spec files in `frontend/e2e/`;
   config `frontend/playwright.config.ts` = 129 lines.
   **No root-level `playwright.config.ts`** — only the frontend copy.
 - All bash scripts use `set -uo pipefail`. 46 historical scripts
@@ -8713,7 +8715,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 24. **Status 09.10.2026 — what is still open after Tier 608.** Since the review of 08.10. (item 23) three checks were done — a month reconciled by hand (the figures agree), every page walked in a browser, the cross-company test redone — and 24 tiers of fixes (585–608) came out of them, two of them leaks between companies (the activity log, Tier 589; the bulk download's manifest, Tier 592). What is left, by who has to move:
     - **The owner / operator, before anyone else uses it:** a server, domain, SMTP, `FINTS_PIN_ENC_KEY`, an off-site copy of backups and storage (item 22); the operator company's details, which are the Impressum now (Tier 604); a privacy policy and a processing agreement of its own — `/datenschutz` is a generic text; the cookie banner, which asks for consent to analytics and marketing that do not exist (Tiers 589–590); a licence for the code, if anyone else is to get it; the tax and legal decisions of items 5, 9, 12, 13, 15, 17–21, plus one more for the Steuerberater: Skonto is booked against 8400, not 8736 (Tiers 585–587).
-    - **Product scope — decided on 09.10.2026 („都做“) and built:** the closing of the books (Tier 609), quotes and delivery notes (Tier 610), time tracking (Tier 611). **Still to decide:** a per-invoice buyer reference (an authority's order number) next to the customer's Leitweg-ID (Tier 599); and what each of the three tiers lists as deliberately not built (order confirmation and partial invoicing of a quote; stock moved by a delivery note; timer, projects, default rates and a time sheet).
+    - **Product scope — decided on 09.10.2026 („都做“, twice) and built:** the closing of the books (Tier 609), quotes and delivery notes (Tier 610), time tracking (Tier 611); then what those tiers had left out — the order confirmation (614), a quote invoiced and delivered in parts (615), projects and default hourly rates (616), the timer (617), the time sheet PDF (618). **Still to decide:** a per-invoice buyer reference (an authority's order number) next to the customer's Leitweg-ID (Tier 599); stock moved by a delivery note instead of the invoice; and the small things each tier lists under „Not built“ (a "partially invoiced" status, the time sheet attached to the invoice e-mail, a rounding rule for hours, hours per employee, a pause for the timer).
     - **Unfinished and saying so** (unchanged): FinTS TAN and transfers, ELSTER transmission, E-Bilanz positions, cloud storage, the tax annexes' placeholders; no e-mail verification, account deletion or data-subject export; e-invoices by upload only, no automatic EN 16931 check on import; CSV import and the OCR proposal know one VAT rate; no Verfahrensdokumentation.
     - **Technical, found and not done:** the backend container runs as root, the compose file sets no `read_only` / `cap_drop` / `no-new-privileges` (item 23); `MailConfig.smtpPassword` in plain text; `release.yml` never run; flags read from an untyped body (`mockMode`, `dryRun` …) and the implicit conversion of numbers (`""` → 0) are not covered by Tier 606; the Leitweg-ID's check digits are not verified; five models without an index led by `companyId`, 227 `findMany` without `take`, no load test; two unit-test files, about 800 `any` in the backend.
     - **Interface, found and not done:** the accounting page — developer paths in its explanations, the private annexes offered to a GmbH, about 730 German words in the other languages; `/dashboard/v2`, the activity page's action names and parts of the import page untranslated; 72 form fields without a label; the dashboard's cards are not reachable by keyboard; on a phone, tables scroll sideways inside their box and `/dashboard/accounting` is 12 px too wide at 350 px.
