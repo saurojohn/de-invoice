@@ -2126,6 +2126,7 @@
     "youAreAdmin": "Sie sind der einzige Administrator"
   },
   "ustva": {
+    "ossNote": "Nicht in dieser Voranmeldung: Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz — netto {net}, Steuer {vat}. Diese Steuer wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG), siehe Berichte → OSS.",
     "title": "UStVA — Umsatzsteuervoranmeldung",
     "subtitle": "Finanzamt-Anmeldung (UStVA 2026) — Voranmeldungszeitraum wählen",
     "period": "Voranmeldungszeitraum",
@@ -2723,6 +2724,9 @@
     "disclaimer": "Das Archiv enthält Rechnungs-PDFs, Ausgaben-Metadaten + Belege, den DATEV-Buchungsstapel und das Audit-Log. Der MANIFEST-Eintrag enthält SHA-256-Hashes für die Integritätsprüfung."
   },
   "oss": {
+    "correctionsTitle": "Berichtigungen früherer Quartale",
+    "correctedPeriod": "Berichtigter Zeitraum",
+    "vatDue": "Zu zahlen (Quartal und Berichtigungen)",
     "title": "EU OSS (One-Stop-Shop)",
     "subtitle": "Quartalsweise OSS-Retourmeldung für grenzüberschreitende EU-B2C-Verkäufe. Wird über das BZSt-OSS-Portal eingereicht.",
     "year": "Jahr",

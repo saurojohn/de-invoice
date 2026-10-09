@@ -2126,6 +2126,7 @@
     "youAreAdmin": "You are the only administrator"
   },
   "ustva": {
+    "ossNote": "Not in this return: sales to consumers in other EU states at the rate of those states — net {net}, tax {vat}. That tax is declared through the OSS scheme at the BZSt (§ 18j UStG), see Reports → OSS.",
     "title": "UStVA — VAT Advance Return",
     "subtitle": "Tax office filing (UStVA 2026) — select period",
     "period": "Filing period",
@@ -2723,6 +2724,9 @@
     "disclaimer": "The archive contains invoice PDFs, expense metadata + receipts, the DATEV ledger, and the audit log. The MANIFEST entry contains SHA-256 hashes for integrity verification."
   },
   "oss": {
+    "correctionsTitle": "Corrections of earlier quarters",
+    "correctedPeriod": "Period corrected",
+    "vatDue": "To pay (quarter and corrections)",
     "title": "EU OSS (One-Stop-Shop)",
     "subtitle": "Quarterly OSS-Retourmeldung for cross-border EU B2C sales. Filed via the BZSt-OSS portal.",
     "year": "Year",

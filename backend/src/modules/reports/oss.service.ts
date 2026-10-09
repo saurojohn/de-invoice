@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { normaliseCountry } from '../invoice/ust-behandlung-detector'
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown'
+import { consumerAbroad } from './oss-scope'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -132,7 +133,24 @@ export interface OssResult {
     vatAmount: number
     grossAmount: number
     invoiceCount: number
+    /** Tier 641: the tax of the corrections of earlier quarters (negative for credit notes) */
+    correctionsVat: number
+    /** …and what the return comes to: this quarter's tax and the corrections */
+    vatDue: number
   }
+  /**
+   * Tier 641: credit notes of this quarter for sales of an earlier one. The
+   * OSS return states them apart, per member state and period corrected; a
+   * credit note for a sale of the same quarter is in that sale's line.
+   */
+  corrections: Array<{
+    country: string
+    countryName: string
+    year: number
+    quarter: number
+    netAmount: number
+    vatAmount: number
+  }>
   /** Counts filtered for visibility (so the user
    *  can see "X EU B2C, Y excluded because B2B,
    *  Z excluded because non-EU") */
@@ -292,6 +310,51 @@ export class OssService {
       }
     }
 
+    // Tier 641: credit notes. They were left out — a sale credited in full
+    // stayed in the return with its tax. A credit note of this quarter for a
+    // sale of this quarter lowers that sale's line; for a sale of an earlier
+    // quarter it is a correction of that quarter, stated apart.
+    const creditNotes = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        issueDate: { gte: start, lte: end },
+        status: { in: ['paid', 'sent', 'overdue'] },
+        type: 'CN',
+        referenceInvoiceId: { not: null },
+      },
+      include: {
+        customer: { select: { id: true, vatId: true, address: true } },
+        referenceInvoice: { select: { id: true, issueDate: true } },
+        items: { select: { vatRate: true, netAmount: true, vatAmount: true, grossAmount: true, quantity: true, unitPrice: true } },
+      },
+    })
+    const corrections = new Map<string, { country: string; year: number; quarter: number; net: number; vat: number }>()
+    for (const cn of creditNotes) {
+      const country = consumerAbroad(cn.customer, homeCountry)
+      const ref = cn.referenceInvoice
+      if (!country || !ref) continue
+      const sameQuarter = ref.issueDate >= start && ref.issueDate <= end
+      for (const bucket of invoiceTaxBreakdown(cn).byRate) {
+        if (sameQuarter) {
+          let items = countryItems.get(country)
+          if (!items) {
+            items = []
+            countryItems.set(country, items)
+          }
+          // under the sale's id: the line's count stays the number of sales
+          items.push({ invoiceId: ref.id, vatRate: bucket.rate, net: bucket.net, vat: bucket.vat, gross: bucket.net + bucket.vat })
+        } else {
+          const y = ref.issueDate.getUTCFullYear()
+          const qu = Math.floor(ref.issueDate.getUTCMonth() / 3) + 1
+          const key = `${country}|${y}|${qu}`
+          const c = corrections.get(key) ?? { country, year: y, quarter: qu, net: 0, vat: 0 }
+          c.net += bucket.net
+          c.vat += bucket.vat
+          corrections.set(key, c)
+        }
+      }
+    }
+
     // Build the (country, vatRate) lines. We merge
     // across all items of an invoice in the same
     // country so the same rate is summed.
@@ -380,6 +443,19 @@ export class OssService {
     // as every other report in de-invoice.
     countries.sort((a, b) => b.grossAmount - a.grossAmount)
 
+    const correctionList = [...corrections.values()]
+      .map((c) => ({
+        country: c.country,
+        countryName: COUNTRY_NAMES_DE[c.country] || c.country,
+        year: c.year,
+        quarter: c.quarter,
+        netAmount: round2(c.net),
+        vatAmount: round2(c.vat),
+      }))
+      .filter((c) => c.netAmount !== 0 || c.vatAmount !== 0)
+      .sort((a, b) => a.year - b.year || a.quarter - b.quarter || a.country.localeCompare(b.country))
+    const correctionsVat = round2(correctionList.reduce((sum, c) => sum + c.vatAmount, 0))
+
     return {
       year,
       quarter,
@@ -391,7 +467,10 @@ export class OssService {
         vatAmount: round2(totalVat),
         grossAmount: round2(totalGross),
         invoiceCount: totalInvoices,
+        correctionsVat,
+        vatDue: round2(round2(totalVat) + correctionsVat),
       },
+      corrections: correctionList,
       counts: {
         eligible: totalInvoices,
         excludedB2B,
@@ -453,6 +532,15 @@ export class OssService {
         String(data.totals.invoiceCount),
       ].join(';'),
     )
+    // Tier 641: the corrections of earlier quarters, when there are any
+    if (data.corrections.length > 0) {
+      lines.push('')
+      lines.push('Berichtigungen früherer Zeiträume;Zeitraum;Netto (EUR);USt (EUR)')
+      for (const c of data.corrections) {
+        lines.push([c.countryName, `Q${c.quarter}/${c.year}`, fmtDe(c.netAmount), fmtDe(c.vatAmount)].join(';'))
+      }
+      lines.push(['Zu zahlen (Quartal und Berichtigungen)', '', '', fmtDe(data.totals.vatDue)].join(';'))
+    }
     return lines.join('\n') + '\n'
   }
 }

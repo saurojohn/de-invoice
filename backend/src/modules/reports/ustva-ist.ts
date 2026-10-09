@@ -30,7 +30,7 @@ export async function istPaidDocuments(prisma: PrismaService, companyId: string,
   if (inflows.length === 0) return []
   const docs = await prisma.invoice.findMany({
     where: { companyId, id: { in: inflows.map((f) => f.invoice.id) } },
-    include: { items: true },
+    include: { items: true, customer: true },
   })
   const byId = new Map(docs.map((d) => [d.id, d]))
   return inflows

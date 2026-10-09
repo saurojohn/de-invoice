@@ -123,6 +123,7 @@ export function sumUstva(months: UstvaData[], base: Pick<UstvaData, 'companyId' 
     besteuerungsart: months[0]?.besteuerungsart ?? 'soll',
     salesByRate: [],
     igL: 0, export: 0, otherExempt: 0,
+    ossSales: { ...z },
     reverseChargeSales: 0, euServicesSales: 0, nonTaxableOther: 0,
     reverseCharge: 0,
     intraEuAcquisitions: { ...z }, intraEuAcquisitionsByRate: [],
@@ -145,7 +146,7 @@ export function sumUstva(months: UstvaData[], base: Pick<UstvaData, 'companyId' 
     for (const k of ['igL', 'export', 'otherExempt', 'reverseChargeSales', 'euServicesSales', 'nonTaxableOther', 'reverseCharge', 'umsatzsteuer', 'vorsteuerSum', 'differenzbetrag'] as const) {
       acc[k] += m[k]
     }
-    for (const k of ['intraEuAcquisitions', 'reverseChargeEuServices', 'reverseChargeOther'] as const) {
+    for (const k of ['intraEuAcquisitions', 'reverseChargeEuServices', 'reverseChargeOther', 'ossSales'] as const) {
       acc[k].net += m[k].net; acc[k].vat += m[k].vat
     }
     for (const k of ['from19', 'from7', 'fromIgE', 'fromReverseCharge', 'fromOther', 'total'] as const) {

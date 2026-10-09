@@ -24,6 +24,8 @@ interface UstvaData {
   igL: number
   export: number
   otherExempt: number
+  // Tier 641: sales taxed in another member state (OSS) — in no Kennzahl
+  ossSales?: { net: number; vat: number }
   reverseCharge: number
   // Tier 417
   reverseChargeSales?: number
@@ -743,6 +745,11 @@ function UstvaPageInner() {
                       </tr>
                     </tfoot>
                   </table>
+                )}
+                {data.ossSales && (data.ossSales.net !== 0 || data.ossSales.vat !== 0) && (
+                  <p className="mt-4 rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-3 py-2 text-sm text-blue-900 dark:text-blue-200" data-testid="ustva-oss-note">
+                    {t("ustva.ossNote", { net: formatCurrency(data.ossSales.net), vat: formatCurrency(data.ossSales.vat) })}
+                  </p>
                 )}
               </CardContent>
             </Card>

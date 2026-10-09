@@ -38,7 +38,11 @@ interface OssResult {
     vatAmount: number
     grossAmount: number
     invoiceCount: number
+    // Tier 641
+    correctionsVat?: number
+    vatDue?: number
   }
+  corrections?: Array<{ country: string; countryName: string; year: number; quarter: number; netAmount: number; vatAmount: number }>
   counts: {
     eligible: number
     excludedB2B: number
@@ -315,6 +319,45 @@ export function OssTab() {
                         <td className="py-2 text-right font-mono">{data.totals.invoiceCount}</td>
                       </tr>
                     </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tier 641: credit notes of this quarter for sales of an earlier one */}
+          {data.corrections && data.corrections.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">{tRef.current("oss.correctionsTitle")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" data-testid="oss-corrections">
+                    <thead>
+                      <tr className="border-b text-left text-gray-500 dark:text-gray-400">
+                        <th className="py-2">{tRef.current("oss.country")}</th>
+                        <th className="py-2">{tRef.current("oss.correctedPeriod")}</th>
+                        <th className="py-2 text-right">{tRef.current("oss.net")}</th>
+                        <th className="py-2 text-right">{tRef.current("oss.vat")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.corrections.map((c) => (
+                        <tr key={`${c.country}-${c.year}-${c.quarter}`} className="border-b" data-testid="oss-correction-row">
+                          <td className="py-2">{c.countryName}</td>
+                          <td className="py-2">Q{c.quarter}/{c.year}</td>
+                          <td className="py-2 text-right font-mono">{fmt(c.netAmount)}</td>
+                          <td className="py-2 text-right font-mono">{fmt(c.vatAmount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="font-semibold">
+                        <td className="py-2" colSpan={3}>{tRef.current("oss.vatDue")}</td>
+                        <td className="py-2 text-right font-mono" data-testid="oss-vat-due">{fmt(data.totals.vatDue ?? data.totals.vatAmount)}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </CardContent>

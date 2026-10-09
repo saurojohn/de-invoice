@@ -2126,6 +2126,7 @@
     "youAreAdmin": "您是唯一的管理员"
   },
   "ustva": {
+    "ossNote": "不在本期申报内：按目的国税率开给其他欧盟国家消费者的销售额——净额 {net}，税额 {vat}。该税款通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",
     "title": "UStVA — 增值税预申报",
     "subtitle": "税务局申报 (UStVA 2026) — 选择申报期",
     "period": "申报期",
@@ -2723,6 +2724,9 @@
     "disclaimer": "档案包含发票 PDF、支出元数据 + 凭证、DATEV 总账和审计日志。MANIFEST 条目包含 SHA-256 哈希用于完整性验证。"
   },
   "oss": {
+    "correctionsTitle": "以前季度的更正",
+    "correctedPeriod": "被更正的期间",
+    "vatDue": "应缴（本季度及更正）",
     "title": "欧盟 OSS（One-Stop-Shop）",
     "subtitle": "跨境欧盟 B2C 销售的季度 OSS 申报。通过 BZSt-OSS 门户提交。",
     "year": "年份",

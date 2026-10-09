@@ -9,6 +9,7 @@ import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { besteuerungsart, istPaidDocuments } from './ustva-ist';
+import { taxedAbroad } from './oss-scope';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { normalizeVatId } from '../../common/vat-id';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
@@ -50,6 +51,12 @@ export interface UstvaData {
   igL: number;          // Zeile 41: innergemeinschaftliche Lieferungen
   export: number;       // Zeile 43: Ausfuhren (Drittland)
   otherExempt: number;  // Zeile 44: sonstige steuerfreie Umsätze
+  /**
+   * Tier 641: sales to consumers in other member states at those states'
+   * rates — their tax is owed there, through the OSS return (§ 18j UStG),
+   * and is in no Kennzahl of this return. For the reader, not for ELSTER.
+   */
+  ossSales: { net: number; vat: number };
 
   // Tier 417: zero-rated sales where the customer owes the tax. Both used to
   // fall into `otherExempt` or, for an EU customer with a VAT id, into `igL`.
@@ -242,6 +249,17 @@ export class UstvaService {
       salesByRateMap.set(rate, existing);
     };
 
+    // Tier 641: another member state's tax is not in this return (oss-scope.ts).
+    const oss = { net: 0, vat: 0 };
+    const addTaxed = (doc: any, rate: number, net: number, vat: number) => {
+      if (taxedAbroad(doc, rate)) {
+        oss.net += net;
+        oss.vat += vat;
+      } else {
+        addToRate(rate, net, vat);
+      }
+    };
+
     // Tier 118.5: per-invoice EUR conversion factor.
     // The factor is 1.0 for EUR invoices, otherwise
     // `eurSubtotal / subtotal`. The factor is the same
@@ -276,7 +294,7 @@ export class UstvaService {
 
         if (rate > 0) {
           // Tier 457: an Ist-Versteuerer owes it when paid (below).
-          if (art === 'soll') addToRate(rate, net, vat);
+          if (art === 'soll') addTaxed(inv, rate, net, vat);
         } else {
           // Zero-rated — the invoice's own igL / § 13b flags are the user's
           // explicit statement and win over any inference.
@@ -294,7 +312,7 @@ export class UstvaService {
         const net = bucket.net * f;
         const vat = bucket.vat * f;
         if (rate > 0) {
-          if (art === 'soll') addToRate(rate, net, vat); // CN is already negative
+          if (art === 'soll') addTaxed(cn, rate, net, vat); // CN is already negative
         } else {
           addZeroRated(
             (cn as any).referenceInvoice ?? {},
@@ -314,7 +332,7 @@ export class UstvaService {
       for (const { doc, fraction } of await advancePayments(this.prisma, companyId, start, end)) {
         const f = eurFactor(doc)
         for (const bucket of invoiceTaxBreakdown(doc).byRate) {
-          if (bucket.rate > 0) addToRate(bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
+          if (bucket.rate > 0) addTaxed(doc, bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
         }
       }
       // Tier 472: the final invoice above declares the whole delivery; the
@@ -323,7 +341,7 @@ export class UstvaService {
       for (const { proforma, fraction } of await advanceSettlements(this.prisma, companyId, start, end)) {
         const f = eurFactor(proforma)
         for (const bucket of invoiceTaxBreakdown(proforma).byRate) {
-          if (bucket.rate > 0) addToRate(bucket.rate, -bucket.net * f * fraction, -bucket.vat * f * fraction)
+          if (bucket.rate > 0) addTaxed(proforma, bucket.rate, -bucket.net * f * fraction, -bucket.vat * f * fraction)
         }
       }
     }
@@ -335,7 +353,7 @@ export class UstvaService {
       for (const { doc, fraction } of await istPaidDocuments(this.prisma, companyId, start, end)) {
         const f = eurFactor(doc)
         for (const bucket of invoiceTaxBreakdown(doc).byRate) {
-          if (bucket.rate > 0) addToRate(bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
+          if (bucket.rate > 0) addTaxed(doc, bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
         }
       }
     }
@@ -491,6 +509,7 @@ export class UstvaService {
       igL: Math.round(igL * 100) / 100,
       export: Math.round(exportThirdCountry * 100) / 100,
       otherExempt: Math.round(otherExempt * 100) / 100,
+      ossSales: { net: Math.round(oss.net * 100) / 100, vat: Math.round(oss.vat * 100) / 100 },
       reverseChargeSales: Math.round(reverseChargeSales * 100) / 100,
       euServicesSales: Math.round(euServicesSales * 100) / 100,
       zm: [...zm.values()].map((e) => ({ ...e, amount: Math.round(e.amount * 100) / 100 })),

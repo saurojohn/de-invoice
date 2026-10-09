@@ -200,7 +200,7 @@ export async function advancePayments(prisma: PrismaService, companyId: string, 
   if (pis.length === 0) return []
   const docs = await prisma.invoice.findMany({
     where: { companyId, id: { in: pis.map((f) => f.invoice.id) } },
-    include: { items: true },
+    include: { items: true, customer: true },
   })
   const byId = new Map(docs.map((d) => [d.id, d]))
   return pis.map((f) => ({ doc: byId.get(f.invoice.id)!, fraction: f.fraction })).filter((x) => !!x.doc)
@@ -222,7 +222,7 @@ export async function advanceSettlements(prisma: PrismaService, companyId: strin
     },
     include: {
       invoice: {
-        select: { id: true, invoiceNumber: true, customerId: true, advanceInvoice: { include: { items: true } } },
+        select: { id: true, invoiceNumber: true, customerId: true, advanceInvoice: { include: { items: true, customer: true } } },
       },
     },
     orderBy: [{ paymentDate: 'asc' }, { createdAt: 'asc' }],

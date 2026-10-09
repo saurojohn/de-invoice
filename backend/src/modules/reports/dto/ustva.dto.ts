@@ -147,6 +147,11 @@ export class UstvaDataDto {
   @StrictNumber() @IsNumber()
   otherExempt!: number
 
+  // Tier 641: echoed back from compute like the fields below; the page sends
+  // what it was given, and an unknown property is refused.
+  @IsOptional() @ValidateNested() @Type(() => UstvaNetVatDto)
+  ossSales?: UstvaNetVatDto
+
   @StrictNumber() @IsNumber() @Min(0)
   reverseCharge!: number
 
