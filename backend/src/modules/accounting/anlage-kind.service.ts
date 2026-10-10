@@ -112,13 +112,13 @@ const AUSGABEN_LINES: Array<{
     kz: '6630',
     label: 'Schulbescheinigung für volljährige Kinder in Berufsausbildung (§ 32 Abs. 4 EStG)',
     perChild: 0,
-    note: 'v1: keine automatische Erkennung. Berater ergänzt aus der Schulbescheinigung der Familienkasse.',
+    note: 'Keine automatische Erkennung. Der Berater ergänzt aus der Schulbescheinigung der Familienkasse.',
   },
   {
     kz: '6640',
     label: 'Behinderung-Pauschbetrag für behinderte Kinder (§ 33b EStG)',
     perChild: 0,
-    note: 'v1: keine automatische Erkennung. Berater ergänzt aus dem Behindertenausweis (GdB ≥ 50).',
+    note: 'Keine automatische Erkennung. Der Berater ergänzt aus dem Behindertenausweis (GdB ≥ 50).',
   },
 ]
 
@@ -228,15 +228,15 @@ export class AnlageKindService {
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihrer Kinder-Liste ' +
-        '(Company.settings.kinder[year]) + den Standard-Kindergeld- und ' +
+        '(erfasst unter Buchhaltung, Anlage Kind) + den Standard-Kindergeld- und ' +
         'Kinderfreibetrag-Sätzen 2024 generiert. Kindergeld: 250 EUR pro ' +
         'Kind (1-3), max 1.000 EUR für 4+ Kinder. Kinderfreibetrag: ' +
         '7.932 EUR pro Kind (6.612 EUR sächliches Existenzminimum + 1.320 ' +
         'EUR BEAfA). Im Einkommensteuer-Bescheid wird das MEISTGÜNSTIGE ' +
         'aus (Kindergeld) vs (Kinderfreibetrag × Steuersatz) angewendet — ' +
         'der Steuerberater prüft das. Die BMF-Sätze ändern sich jährlich ' +
-        '(i.d.R. alle 2 Jahre); v1 verwendet 2024-Sätze als Default. ' +
-        'v2: BMF-Tabelle pro Jahr. Für Kinder über 18 in ' +
+        '(i.d.R. alle 2 Jahre); hier sind die Sätze von 2024 hinterlegt. ' +
+        'Für Kinder über 18 in ' +
         'Berufsausbildung: Schulbescheinigung manuell eintragen ' +
         '(Kz 6630). Für behinderte Kinder: Pauschbetrag manuell ' +
         'eintragen (Kz 6640, je nach GdB).',

@@ -81,6 +81,9 @@ export function GewstSection() {
     q3: "",
     q4: "",
   })
+  // Tier 651: the Hebesatz of the municipality. It could not be entered
+  // anywhere, so every trade tax was computed at 400 %.
+  const [hebesatzInput, setHebesatzInput] = useState("")
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async (y: number) => {
@@ -102,6 +105,7 @@ export function GewstSection() {
         q3: String(result.vorauszahlungen.q3 || ""),
         q4: String(result.vorauszahlungen.q4 || ""),
       })
+      setHebesatzInput(String(result.hebesatz || ""))
     } catch (e: any) {
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
       toastRef.current.error(msg)
@@ -121,6 +125,11 @@ export function GewstSection() {
         typeof window !== "undefined" ? localStorage.getItem("companyId") : null
       if (!companyId) return
       const toNum = (s: string) => (s === "" ? 0 : Number(s))
+      const hebesatz = hebesatzInput.trim() === "" ? undefined : Number(hebesatzInput)
+      if (hebesatz !== undefined && (!Number.isInteger(hebesatz) || hebesatz < 200 || hebesatz > 1000)) {
+        toastRef.current.error(tRef.current("gewst.hebesatzInvalid"))
+        return
+      }
       await apiPut(
         `/api/v1/accounting/gewst/settings?companyId=${companyId}`,
         {
@@ -129,6 +138,7 @@ export function GewstSection() {
           q2: toNum(vorauszahlungenInput.q2),
           q3: toNum(vorauszahlungenInput.q3),
           q4: toNum(vorauszahlungenInput.q4),
+          ...(hebesatz !== undefined ? { hebesatz } : {}),
         },
       )
       toastRef.current.success(tRef.current("gewst.savedOk"))
@@ -255,6 +265,33 @@ export function GewstSection() {
 
           {data && (
             <>
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-xs">
+                <label
+                  htmlFor="gewst-hebesatz"
+                  className="font-semibold text-blue-800 dark:text-blue-200"
+                >
+                  {tRef.current("gewst.hebesatzLabel")}
+                </label>
+                <div className="flex items-center gap-2 mt-1 mb-2">
+                  <input
+                    id="gewst-hebesatz"
+                    type="number"
+                    step="1"
+                    min={200}
+                    max={1000}
+                    value={hebesatzInput}
+                    onChange={(e) => setHebesatzInput(e.target.value)}
+                    className="w-28 border rounded px-3 py-2 text-sm font-mono text-right"
+                    placeholder="400"
+                    data-testid="gewst-hebesatz"
+                  />
+                  <span className="text-sm">%</span>
+                </div>
+                <p className="text-[10px] text-gray-500">
+                  {tRef.current("gewst.hebesatzHint")}
+                </p>
+              </div>
+
               {/* Vorauszahlungen editor — 4 Q inputs */}
               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-xs">
                 <div className="font-semibold mb-2 text-blue-800 dark:text-blue-200">

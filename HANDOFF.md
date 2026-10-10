@@ -2653,6 +2653,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 651 — the notes of the tax previews are written for their reader; the Hebesatz can be entered
+
+§9 item 24 („developer wording in the previews“), done („都做“, 10.10.2026). The previews close with notes for the owner and the adviser. They were written while the forms were built and said so — 79 string literals in 20 services, the same texts on the screen, in the PDFs and in the `MANIFEST.md` of the adviser's package: „Tier 506: Steuerrückstellungen …“, „v1: Berater trägt die Vorauszahlungen via PUT /gewst/settings ein“, „v2: Korrekturen werden aus Company.settings.kst1Korrekturen[year] gelesen“, „Rechnungen (status=paid/sent/overdue)“, „PRIMARY tax form“, „Nur enthalten, wenn … ODER `settings.anlageKAP === true`“. Rewritten for the reader: tier numbers and versions of the program gone, a field name replaced by where the figure is entered („erfasst unter Buchhaltung, Anlage N“), a route by the place in the interface, a status code by the word, and the sentences about „v2“ — a promise nobody decided to keep — removed. The same sweep over the message files (14 texts in each of de/en/zh).
+
+Reading them for what they say, not only how, found four that were wrong:
+
+- **The Hebesatz could not be entered.** The notes said it was „konfigurierbar über Company.settings.hebesatz“; no page and no route wrote that field. Every trade tax — GewSt 1A, Anlage G, KSt 1 — was computed at 400 %, whatever the municipality levies. `PUT /accounting/gewst/settings` takes `hebesatz` now (a whole number, 200 as § 16 Abs. 4 GewStG has it to 1000; a body without it leaves it), and the Gewerbesteuer section has the field, saved with the advance payments.
+- **City Hebesätze quoted from memory** („Köln 470, München 490, Münster 400, Stuttgart 420“) in the GewSt notes — figures a council changes and nobody here maintains. Replaced by where the figure stands: in the Gewerbesteuerbescheid.
+- **The GewSt note told a GmbH to check „die KSt-Anrechnung auf die GewSt (3.8 × Steuermessbetrag, § 35 EStG / § 26 KStG)“.** § 35 EStG is for natural persons; KSt 1 has said so since Tier 439. The note says it now.
+- **Anlage N cited § 3 EStG** (the list of tax-free income) for income from employment — § 19 EStG — in the form's heading, its disclaimer, the manifest and the page.
+- The UStJA page said „v1: kein nativer ELSTER-XML-Export“ next to the button that downloads the ELSTER XML (Tier 107). It says what is true: the file can be downloaded, the app transmits nothing.
+- The Anhang said cash and bank were „in v1 zusammengefasst“; since Tier 426 the bank balance comes from the last imported statement. Said so.
+
+Spec `385-tier651-vorschau-ohne-entwicklerwoerter.sh` (62 assertions, 40 fail on the code before): every string literal of the 52 services scanned, every text the 17 previews answer with (561), the manifest, the three message files, and the Hebesatz — 3 500 € Messbetrag × 470 % = 16 450 € in GewSt 1A and KSt 1, kept when only advance payments are saved, 150 / 1200 / 470.5 / "abc" / true refused. Playwright `gewst-hebesatz-tier651.spec.ts`. Spec 127 asserted „§ 3 EStG“ and asserts § 19 now; spec 86 compared `935.2 - 150` unrounded with the API's 785.2 (failed on a reused database only) and rounds to the cent.
+
+Not done: the KSt corrections (vGA, donations, loss carry-forward, § 8b) are still placeholders that cannot be entered — the page says so instead of promising „v2“.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 650 — the FinTS matcher: what is open, receipts that belong together, the best invoice
 
 §9 item 24 („found and not done“), now done („都做“, 10.10.2026). `POST /fints/auto-match` runs a second matcher over the same `BankTransaction` rows the statement import fills. Tried on nine receipts and six open invoices:
@@ -2664,7 +2681,7 @@ after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 
 Still two matchers with two sets of rules (this one knows the customer's IBAN and a misspelt name, the statement import's knows Skonto and part payments); FinTS itself is unfinished (no TAN), so this one runs in mock mode and from a statement's rows only.
 
-Spec `384-tier650-fints-abgleich-offener-betrag.sh` (12 assertions, 4 fail on the code before): the nine receipts above, and a second run that adds nothing. Specs 31 and 32 pass unchanged.
+Spec `384-tier650-fints-abgleich-offener-betrag.sh` (12 assertions, 7 fail on the code before): the nine receipts above, and a second run that adds nothing. Specs 31 and 32 pass unchanged.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 649 — the company says whether it is in the OSS scheme
 
@@ -2728,7 +2745,7 @@ With the worst gone, the PDFs were opened once more and measured for a second th
 
 One of these repairs broke something on the way and was caught by the count of text lines, not by a spec: measuring a `continued` cell with `heightOfString` took its text out of the line, and the EÜR came out with amounts and no labels (32 lines instead of 138) until the measurement skipped such cells. Spec 381 now also asserts that no line is off the page (16 PDFs) and that the EÜR's numbers and labels stand in their columns (22 assertions).
 
-Still as they were: the developer wording of the notes; the E-Bilanz PDF's 19 pages; a table's header row can stand alone at the foot of a page.
+Still as they were: (the developer wording of the notes: Tier 651;) the E-Bilanz PDF's 19 pages; a table's header row can stand alone at the foot of a page.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 644 — the tax previews as PDFs: from the left margin, in characters the font has
 
@@ -9029,7 +9046,7 @@ frontend's build arg, and the frontend image refuses to build without it.
     - **Product scope — decided on 09.10.2026 („都做“, twice) and built:** the closing of the books (Tier 609), quotes and delivery notes (Tier 610), time tracking (Tier 611); then what those tiers had left out — the order confirmation (614), a quote invoiced and delivered in parts (615), projects and default hourly rates (616), the timer (617), the time sheet PDF (618). **Still to decide:** a per-invoice buyer reference (an authority's order number) next to the customer's Leitweg-ID (Tier 599); stock moved by a delivery note instead of the invoice; (the small things Tiers 610–625 had listed as not built were all built by Tier 628).
     - **Unfinished and saying so** (unchanged): FinTS TAN and transfers, ELSTER transmission, E-Bilanz positions, cloud storage, the tax annexes' placeholders; no e-mail verification, account deletion or data-subject export; e-invoices by upload only, no automatic EN 16931 check on import; CSV import and the OCR proposal know one VAT rate; no Verfahrensdokumentation.
     - **Technical, found and not done:** the backend container runs as root, the compose file sets no `read_only` / `cap_drop` / `no-new-privileges` (item 23); (`MailConfig.smtpPassword` is sealed since Tier 630;) `release.yml` never run; (the implicit conversion of numbers: Tier 633; the flags in untyped bodies: Tier 632;) (the Leitweg-ID's check digits: Tier 634;) (the five models without an index led by `companyId`: Tier 635;) 227 `findMany` without `take`, no load test; (the FinTS matcher's sum rule: Tier 650;) two unit-test files, about 800 `any` in the backend.
-    - **Interface, found and not done:** the accounting page — developer paths in its explanations, about 730 German words in the other languages (the forms are ordered by legal form since Tier 643); `/dashboard/v2`, the activity page's action names and parts of the import page untranslated; (the fields have labels since Tier 637 — 143 measured, 10 left with a placeholder only;) (the dashboard's cards and the invoice form's search fields work by keyboard since Tier 636;) on a phone, tables scroll sideways inside their box and `/dashboard/accounting` is 12 px too wide at 350 px.
+    - **Interface, found and not done:** the accounting page — (the developer wording of its explanations and of the previews' notes: Tier 651;) about 730 German words in the other languages (the forms are ordered by legal form since Tier 643); `/dashboard/v2`, the activity page's action names and parts of the import page untranslated; (the fields have labels since Tier 637 — 143 measured, 10 left with a placeholder only;) (the dashboard's cards and the invoice form's search fields work by keyboard since Tier 636;) on a phone, tables scroll sideways inside their box and `/dashboard/accounting` is 12 px too wide at 350 px.
     - **What the three checks did not cover:** the reconciliation — a real exchange rate (the balance sheet, and through it the bank file formats: Tier 642; OSS: Tier 641; the bank import: Tier 639; Ist-Versteuerung and dunning: reconciled in Tier 638; a Kleinunternehmer: checked with the new document types); the page walk — clicking through tasks, other browsers, a real device, a screen reader; the cross-company test — 26 of 74 GET routes with a path parameter had no live target (roles inside one company: done in Tier 629; one customer against another in the portal: Tier 631; the operator's routes: Tier 632).
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**

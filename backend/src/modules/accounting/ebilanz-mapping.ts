@@ -257,7 +257,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     source: "bilanz.aktiva.currass.sonstige",
     section: "bilanzAktivaUmlauf",
     computed: true,
-    note: "Tier 508: Steuererstattungsansprüche (Bilanz 1800, Tier 506); weitere sonstige VG (z.B. Kautionen) ergänzt der Berater.",
+    note: "Steuererstattungsansprüche (Bilanz 1800); weitere sonstige VG (z.B. Kautionen) ergänzt der Berater.",
   },
   {
     elementId: "de-gcd:bs.ass.currAssets.cashAndCashEquivalents",
@@ -300,7 +300,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     source: "bilanz.passiva.equity.subscribed",
     section: "bilanzPassivaEigenkapital",
     computed: false,
-    note: "Stammkapital aus Company-Setup, in v2 nicht ausgewiesen. Berater füllt manuell.",
+    note: "Stammkapital — nicht erfasst. Der Berater trägt es ein.",
   },
   {
     elementId: "de-gcd:bs.equity.capitalReserve",
@@ -349,7 +349,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     source: "bilanz.passiva.rueckstellungen.steuern",
     section: "bilanzPassivaRueckstellungen",
     computed: true,
-    note: "Tier 508: KSt + Soli + GewSt abzüglich der erfassten Vorauszahlungen (Bilanz 3100, Tier 506 / 507).",
+    note: "KSt + Soli + GewSt abzüglich der erfassten Vorauszahlungen (Bilanz 3100).",
   },
   {
     elementId: "de-gcd:bs.liab.accr.othProvisions",
@@ -397,7 +397,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     source: "bilanz.passiva.cred.kundenguthaben",
     section: "bilanzPassivaVerbindlichkeiten",
     computed: true,
-    note: "Sonstige Verbindlichkeiten — beinhaltet positive Kundenguthaben aus Überzahlungen (tier 58).",
+    note: "Sonstige Verbindlichkeiten — beinhaltet positive Kundenguthaben aus Überzahlungen.",
   },
   {
     elementId: "de-gcd:bs.liab.cred.othLiabRemaining",
@@ -405,7 +405,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     source: "bilanz.passiva.cred.sonstige",
     section: "bilanzPassivaVerbindlichkeiten",
     computed: true,
-    note: "Tier 508: noch nicht gezahlte Umsatzsteuer (Bilanz 4600, Tier 506); Sozialversicherung u.a. ergänzt der Berater.",
+    note: "noch nicht gezahlte Umsatzsteuer (Bilanz 4600); Sozialversicherung u.a. ergänzt der Berater.",
   },
   // ===== Bilanz Passiva — Passive RAP =====
   {
@@ -486,7 +486,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     source: "guv.afa",
     section: "guvAufwendungen",
     computed: true,
-    note: "Gebucht aus Anlagenverzeichnis (tier 87) wenn vorhanden, sonst berechnet.",
+    note: "Gebucht aus Anlagenverzeichnis wenn vorhanden, sonst berechnet.",
   },
   {
     elementId: "de-gcd:is.exp.othOperExp",
@@ -545,7 +545,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     source: "guv.ertraegeErtragsteuern",
     section: "guvSteuern",
     computed: true,
-    note: "Tier 508: KSt + Soli + GewSt des Jahres (GuV Pos. 14, Tier 506; nur Kapitalgesellschaft).",
+    note: "KSt + Soli + GewSt des Jahres (GuV Pos. 14; nur Kapitalgesellschaft).",
   },
   {
     elementId: "de-gcd:is.tax.othTax",
@@ -578,7 +578,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
     source: "gen.berichtsstandard",
     section: "sonstige",
     computed: false,
-    note: "Berichtsstandard — HGB vorausgesetzt, in v2 nicht als XBRL-Fact kodiert. Berater bestätigt.",
+    note: "Berichtsstandard — HGB vorausgesetzt, nicht als XBRL-Fact kodiert. Der Berater bestätigt.",
   },
   {
     elementId: "de-gcd:genInfo.reportingPeriod",

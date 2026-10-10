@@ -845,7 +845,7 @@ export class BwaService {
       afaSource: useBookedAfA ? 'booked' : 'computed',
       generatedAt: new Date().toISOString(),
       disclaimer:
-        'Diese BWA ist eine VORSCHAU basierend auf den in de-invoice v1 verfügbaren ' +
+        'Diese BWA ist eine VORSCHAU basierend auf den in de-invoice verfügbaren ' +
         'Daten. Die 4100 Zinserträge sind im Berichtszeitraum 0 (kein eigenes ' +
         'Zinsertrag-Modell — der Berater ergänzt diese aus dem SKR03-Konto 4100). ' +
         'Beteiligungserträge (4400) und Beteiligungs-Abschreibungen (4500) sind ' +

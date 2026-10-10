@@ -430,7 +430,7 @@ export class BilanzService {
           position: '0500',
           label: 'Geleistete Anzahlungen und Anlagen im Bau',
           amount: null,
-          note: 'Anlagen im Bau werden in de-invoice v1 nicht separat erfasst.',
+          note: 'Anlagen im Bau werden in de-invoice nicht separat erfasst.',
         },
       ],
       subtotal: hasAssets
@@ -458,7 +458,7 @@ export class BilanzService {
           position: '1100',
           label: 'Roh-, Hilfs- und Betriebsstoffe',
           amount: null,
-          note: 'Vorratsbestand wird in de-invoice v1 nicht erfasst.',
+          note: 'Vorratsbestand wird in de-invoice nicht erfasst.',
         },
         {
           position: '1500',
@@ -483,7 +483,7 @@ export class BilanzService {
           position: '1800',
           label: 'Sonstige Forderungen und Vermögensgegenstände',
           amount: steuerForderung,
-          note: 'Tier 506: Steuererstattungsansprüche (USt-Überschuss / zu viel vorausgezahlte Ertragsteuern) zum Stichtag; weitere sonstige Forderungen ergänzt der Berater.',
+          note: 'Steuererstattungsansprüche (USt-Überschuss / zu viel vorausgezahlte Ertragsteuern) zum Stichtag; weitere sonstige Forderungen ergänzt der Berater.',
         },
       ],
       subtotal: round2(forderungenLUL + kassenbestand + (bankGuthaben ?? 0) + steuerForderung),
@@ -544,7 +544,7 @@ export class BilanzService {
           position: '2400',
           label: 'Jahresüberschuss / Jahresfehlbetrag',
           amount: jahresueberschuss,
-          note: 'Tier 509: aus der G+V (nach Ertragsteuern bei einer Kapitalgesellschaft).',
+          note: 'aus der G+V (nach Ertragsteuern bei einer Kapitalgesellschaft).',
         },
         {
           position: 'EKV',
@@ -569,7 +569,7 @@ export class BilanzService {
           amount: steuerRueckstellung === null ? null : steuerRueckstellungPassiva,
           note: steuerRueckstellung === null
             ? 'Ertragsteuern nur bei einer Kapitalgesellschaft (KSt 1).'
-            : 'Tier 506 / 507: KSt + Soli + GewSt des Jahres (KSt 1) abzüglich der erfassten KSt- und GewSt-Vorauszahlungen.',
+            : 'KSt + Soli + GewSt des Jahres (KSt 1) abzüglich der erfassten KSt- und GewSt-Vorauszahlungen.',
         },
         { position: '3200', label: 'Sonstige Rückstellungen', amount: null },
       ],
@@ -607,7 +607,7 @@ export class BilanzService {
           position: '4600',
           label: 'Sonstige Verbindlichkeiten',
           amount: ustVerbindlichkeit,
-          note: 'Tier 506: Umsatzsteuer des Jahres (UStVA, Kz 83) abzüglich der bis zum Stichtag erfassten Zahlungen an das Finanzamt (UStVA-Historie); weitere sonstige Verbindlichkeiten ergänzt der Berater.',
+          note: 'Umsatzsteuer des Jahres (UStVA, Kz 83) abzüglich der bis zum Stichtag erfassten Zahlungen an das Finanzamt (UStVA-Historie); weitere sonstige Verbindlichkeiten ergänzt der Berater.',
         },
       ],
       subtotal: round2(verbLUL + kundenguthaben + erhalteneAnzahlungen + ustVerbindlichkeit),
@@ -642,7 +642,7 @@ export class BilanzService {
       },
       generatedAt: new Date().toISOString(),
       disclaimer:
-        'Diese Bilanz ist eine VORSCHAU. de-invoice v1 erfasst nicht alle ' +
+        'Diese Bilanz ist eine VORSCHAU. de-invoice erfasst nicht alle ' +
         'Bilanzpositionen (AfA, Eigenkapital-Bewegungen, Rückstellungen, ' +
         'RAP) — diese Positionen sind als "nicht ausgewiesen" markiert. ' +
         'Der Berater ergänzt die fehlenden Positionen aus dem SKR03 bzw. ' +

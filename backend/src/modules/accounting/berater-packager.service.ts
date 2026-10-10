@@ -17,7 +17,7 @@ import { AnlageKAPService } from './anlage-kap.service'
 // reports.
 import { AnlageGService } from './anlage-g.service'
 // Tier 101: Anlage N (Arbeitnehmereinkünfte,
-// § 3 EStG) — 5th Anlage form. For
+// § 19 EStG) — 5th Anlage form. For
 // Arbeitnehmer + Beamte + Teilzeit-Beschäftigte.
 // Filing order: EÜR → S → V → KAP → G → N →
 // BWA. Anlage N comes AFTER G because it covers
@@ -797,7 +797,7 @@ export class BeraterPackagerService {
     snapshot: Date,
   ): string {
     const lines: string[] = []
-    lines.push('Anlagenverzeichnis (de-invoice v1)')
+    lines.push('Anlagenverzeichnis (de-invoice)')
     lines.push(
       [
         'Position',
@@ -876,7 +876,7 @@ export class BeraterPackagerService {
     const lines: string[] = []
     lines.push(`# Berater-Paket ${year} — ${company.legalName || company.name}`)
     lines.push('')
-    lines.push('Dieses Paket enthält automatisch generierte VORSCHAU-Reports aus de-invoice v1.')
+    lines.push('Dieses Paket enthält automatisch generierte VORSCHAU-Reports aus de-invoice.')
     lines.push('Es ist als Grundlage für die Prüfung durch den Steuerberater gedacht — nicht')
     lines.push('für die direkte Einreichung beim Finanzamt. Die Reports sind ehrliche Vorschauen:')
     lines.push('Positionen, die das System nicht berechnen kann, sind als "nicht ausgewiesen"')
@@ -893,26 +893,26 @@ export class BeraterPackagerService {
       lines.push(`| \`${files.anlageV}\` | Anlage V (Einkünfte aus Vermietung und Verpachtung) gem. § 21 EStG — Vorschau. Für Vermieter. Nur enthalten, wenn die Gesellschaft Mietobjekte (Grundstücke / Gebäude) im Anlagenverzeichnis führt. |`)
     }
     if (files.anlageKAP) {
-      lines.push(`| \`${files.anlageKAP}\` | Anlage KAP (Einkünfte aus Kapitalvermögen) gem. § 20 EStG — Vorschau. Für Privatinvestoren mit Zinserträgen / Dividenden. Nur enthalten, wenn Banktransaktionen als Zins-/Dividendeneingang klassifiziert wurden ODER \`settings.anlageKAP === true\`. Sparer-Pauschbetrag 1.000 EUR (2.000 EUR Zusammenveranlagung) berücksichtigt. 25% Abgeltungssteuer + 5.5% Soli werden erwartet (üblicherweise bereits von der Bank einbehalten). |`)
+      lines.push(`| \`${files.anlageKAP}\` | Anlage KAP (Einkünfte aus Kapitalvermögen) gem. § 20 EStG — Vorschau. Für Privatinvestoren mit Zinserträgen / Dividenden. Nur enthalten, wenn Banktransaktionen als Zins-/Dividendeneingang klassifiziert wurden ODER die Anlage ausdrücklich angefordert wurde. Sparer-Pauschbetrag 1.000 EUR (2.000 EUR Zusammenveranlagung) berücksichtigt. 25% Abgeltungssteuer + 5.5% Soli werden erwartet (üblicherweise bereits von der Bank einbehalten). |`)
     }
     if (files.anlageG) {
-      lines.push(`| \`${files.anlageG}\` | Anlage G (Einkünfte aus Gewerbebetrieb) gem. § 15 EStG — Vorschau. Für gewerbliche Einzelunternehmen und Personengesellschaften. Pairs with EÜR: § 8/9 GewStG Hinzurechnungen (Kz 4100 — 25% Miete/Pacht) + Kürzungen (Kz 5100 — 50% Kfz-Nutzungsanteil) werden automatisch aus den Buchungen abgeleitet. Die restlichen Hinzu-/Kürzungen sind Platzhalter. Gewerbesteuer-Schätzung (3.5% Steuermesszahl × Hebesatz) ist SEHR grob. Nur enthalten, wenn Rechnungen im Jahr vorhanden ODER \`settings.anlageG === true\`. Für Kapitalgesellschaften (GmbH/AG) ist stattdessen die KSt 1 abzugeben. |`)
+      lines.push(`| \`${files.anlageG}\` | Anlage G (Einkünfte aus Gewerbebetrieb) gem. § 15 EStG — Vorschau. Für gewerbliche Einzelunternehmen und Personengesellschaften. Pairs with EÜR: § 8/9 GewStG Hinzurechnungen (Kz 4100 — 25% Miete/Pacht) + Kürzungen (Kz 5100 — 50% Kfz-Nutzungsanteil) werden automatisch aus den Buchungen abgeleitet. Die restlichen Hinzu-/Kürzungen sind Platzhalter. Gewerbesteuer-Schätzung (3.5% Steuermesszahl × Hebesatz) ist SEHR grob. Nur enthalten, wenn Rechnungen im Jahr vorhanden ODER die Anlage ausdrücklich angefordert wurde. Für Kapitalgesellschaften (GmbH/AG) ist stattdessen die KSt 1 abzugeben. |`)
     }
     if (files.anlageN) {
-      lines.push(`| \`${files.anlageN}\` | Anlage N (Einkünfte aus nichtselbständiger Arbeit) gem. § 3 EStG — Vorschau. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Daten aus Company.settings.lohnsteuerbescheinigungen (per-year Map der BMF Kz 3-10). Werbungskosten mit Arbeitnehmer-Pauschbetrag 1.230 EUR + manuell eingetragene Werte (Entfernungspauschale, Fortbildung, etc.). Sonderausgaben + Außergewöhnliche Belastungen als Platzhalter. Nur enthalten, wenn Lohnsteuerbescheinigung für das Jahr erfasst ODER \`settings.anlageN === true\`. |`)
+      lines.push(`| \`${files.anlageN}\` | Anlage N (Einkünfte aus nichtselbständiger Arbeit) gem. § 19 EStG — Vorschau. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Daten aus den erfassten Lohnsteuerbescheinigungen (BMF Kz 3-10). Werbungskosten mit Arbeitnehmer-Pauschbetrag 1.230 EUR + manuell eingetragene Werte (Entfernungspauschale, Fortbildung, etc.). Sonderausgaben + Außergewöhnliche Belastungen als Platzhalter. Nur enthalten, wenn Lohnsteuerbescheinigung für das Jahr erfasst ODER die Anlage ausdrücklich angefordert wurde. |`)
     }
     if (files.kst1) {
-      lines.push(`| \`${files.kst1}\` | KSt 1 (Körperschaftsteuererklärung) gem. § 1 Abs. 1 KStG — Vorschau. PRIMARY tax form für Kapitalgesellschaften (GmbH, AG, KGaA, UG). Anlage G ist NICHT zutreffend — KSt 1 ersetzt es. KSt 15% + Soli 5.5% + GewSt (default Hebesatz 400 %, kein Freibetrag für GmbH), ohne Anrechnung der GewSt auf die KSt (§ 35 EStG gilt nur für natürliche Personen). Liest G+V Jahresüberschuss aus GuVService. KSt-Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) als Platzhalter. Nur enthalten, wenn Company.rechtsform in [GmbH, AG, KGaA, UG] ODER \`settings.kst1 === true\`. |`)
+      lines.push(`| \`${files.kst1}\` | KSt 1 (Körperschaftsteuererklärung) gem. § 1 Abs. 1 KStG — Vorschau. Die maßgebliche Erklärung für Kapitalgesellschaften (GmbH, AG, KGaA, UG). Anlage G ist NICHT zutreffend — KSt 1 ersetzt es. KSt 15% + Soli 5.5% + GewSt (Hebesatz 400 %, sofern kein anderer hinterlegt ist; kein Freibetrag für GmbH), ohne Anrechnung der GewSt auf die KSt (§ 35 EStG gilt nur für natürliche Personen). Der Jahresüberschuss stammt aus der GuV. KSt-Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) als Platzhalter. Nur enthalten, wenn die Rechtsform GmbH, AG, KGaA oder UG ist ODER die Anlage ausdrücklich angefordert wurde. |`)
     }
     if (files.anlageR) {
-      lines.push(`| \`${files.anlageR}\` | Anlage R (Einkünfte aus Renten und Bezügen) gem. § 22 EStG — Vorschau. Für Rentner / Pensionäre (DRV, BAV, Riester, Rürup, private Leibrenten). Besteuerungsanteil aus BMF-Tabelle (2026: 81 %), Ertragsanteil 50 % (v1) für private Leibrenten. Werbungskosten-Pauschbetrag 102 EUR (Kz 210) auto. Daten aus Company.settings.renten[year]. Nur enthalten, wenn Rentenbezüge für das Jahr erfasst ODER \`settings.anlageR === true\`. |`)
+      lines.push(`| \`${files.anlageR}\` | Anlage R (Einkünfte aus Renten und Bezügen) gem. § 22 EStG — Vorschau. Für Rentner / Pensionäre (DRV, BAV, Riester, Rürup, private Leibrenten). Besteuerungsanteil aus BMF-Tabelle (2026: 81 %), Ertragsanteil 50 % (vereinfacht) für private Leibrenten. Werbungskosten-Pauschbetrag 102 EUR (Kz 210) auto. Daten aus den erfassten Rentenbezügen. Nur enthalten, wenn Rentenbezüge für das Jahr erfasst ODER die Anlage ausdrücklich angefordert wurde. |`)
     }
     if (files.anlageKind) {
-      lines.push(`| \`${files.anlageKind}\` | Anlage Kind (Kinderfreibetrag + Kindergeld) gem. § 32 / § 33 / § 33a EStG — Vorschau. Für Familien mit Kindern. Kindergeld 250 EUR/Kind (1-3), max 1.000 EUR für 4+ Kinder (Stand 2024). Kinderfreibetrag 7.932 EUR/Kind (6.612 EUR sächliches Existenzminimum + 1.320 EUR BEAfA). Im Festsetzungs-Bescheid wird das MEISTGÜNSTIGE aus (Kindergeld) vs (Kinderfreibetrag × Steuersatz) angewendet. Daten aus Company.settings.kinder[year] (Array von { name, birthDate, kindergeldEligible }). Nur enthalten, wenn Kinder für das Jahr erfasst ODER \`settings.anlageKind === true\`. |`)
+      lines.push(`| \`${files.anlageKind}\` | Anlage Kind (Kinderfreibetrag + Kindergeld) gem. § 32 / § 33 / § 33a EStG — Vorschau. Für Familien mit Kindern. Kindergeld 250 EUR/Kind (1-3), max 1.000 EUR für 4+ Kinder (Stand 2024). Kinderfreibetrag 7.932 EUR/Kind (6.612 EUR sächliches Existenzminimum + 1.320 EUR BEAfA). Im Festsetzungs-Bescheid wird das MEISTGÜNSTIGE aus (Kindergeld) vs (Kinderfreibetrag × Steuersatz) angewendet. Daten aus den erfassten Kindern (Name, Geburtsdatum, Kindergeldanspruch). Nur enthalten, wenn Kinder für das Jahr erfasst ODER die Anlage ausdrücklich angefordert wurde. |`)
     }
-    lines.push(`| \`${files.ustja}\` | UStJA (Umsatzsteuerjahreserklärung) gem. § 18 Abs. 3 UStG (BMF Vordruck 2024) — Vorschau. Aggregiert die 12 monatlichen UStVAs (Jan–Dez) zu einer Jahres-USt. Kz 66 (Summe USt) = Σ Monate; Kz 67 (Summe Vorsteuer) = Σ Monate; Kz 68 (Verbleibender Betrag/Zahllast) = Kz 66 - Kz 67; Kz 39 (Sondervorauszahlung) = 1/11 der Jan-UStVA; Kz 69 (Restzahlung) = Kz 68 - Kz 39. BMF-Sätze 19%/7% per Stand 2024. Berater prüft § 1a/§ 13b UStG-Korrekturen, igL-Bestätigungen und EU-OSS-Sachverhalte. v1: vereinfachtes Modell ohne native ELSTER-XML-Übermittlung — Berater überträgt die Zahlen manuell in ELSTER oder seine StB-Software. IMMER enthalten. |`)
-    lines.push(`| \`${files.gewst}\` | GewSt-Erklärung (Gewerbesteuererklärung) gem. BMF Vordruck GewSt 1A 2024 — Vorschau. Kz 5 (Steuermessbetrag) = Gewerbeertrag nach Freibetrag × 0.035; Kz 7 (Hebesatz) = Gemeinde-Hebesatz (default 400, konfigurierbar); Kz 10 (festzusetzende GewSt) = Kz 5 × Kz 7 / 100; Kz 11 (Summe Vorauszahlungen) = Q1 + Q2 + Q3 + Q4 aus den 4 Quartalsbescheiden (manuell vom Berater); Kz 12 (Differenz) = Kz 10 - Kz 11. Reused aus Anlage G (tier 100) für Gewerbeertrag + Freibetrag + Hebesatz — single source of truth. Für Einzelunternehmen + PersG mit 24.500 EUR Freibetrag (§ 11 Abs. 1 GewStG); für KapG ohne Freibetrag (und ohne Anrechnung auf die KSt). IMMER enthalten. |`)
-    lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (0 in v1) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
+    lines.push(`| \`${files.ustja}\` | UStJA (Umsatzsteuerjahreserklärung) gem. § 18 Abs. 3 UStG (BMF Vordruck 2024) — Vorschau. Aggregiert die 12 monatlichen UStVAs (Jan–Dez) zu einer Jahres-USt. Kz 66 (Summe USt) = Σ Monate; Kz 67 (Summe Vorsteuer) = Σ Monate; Kz 68 (Verbleibender Betrag/Zahllast) = Kz 66 - Kz 67; Kz 39 (Sondervorauszahlung) = 1/11 der Jan-UStVA; Kz 69 (Restzahlung) = Kz 68 - Kz 39. BMF-Sätze 19%/7% per Stand 2024. Berater prüft § 1a/§ 13b UStG-Korrekturen, igL-Bestätigungen und EU-OSS-Sachverhalte. Vereinfachtes Modell ohne native ELSTER-XML-Übermittlung — der Berater überträgt die Zahlen manuell in ELSTER oder seine StB-Software. IMMER enthalten. |`)
+    lines.push(`| \`${files.gewst}\` | GewSt-Erklärung (Gewerbesteuererklärung) gem. BMF Vordruck GewSt 1A 2024 — Vorschau. Kz 5 (Steuermessbetrag) = Gewerbeertrag nach Freibetrag × 0.035; Kz 7 (Hebesatz) = Gemeinde-Hebesatz (400, sofern kein anderer hinterlegt ist, konfigurierbar); Kz 10 (festzusetzende GewSt) = Kz 5 × Kz 7 / 100; Kz 11 (Summe Vorauszahlungen) = Q1 + Q2 + Q3 + Q4 aus den 4 Quartalsbescheiden (manuell vom Berater); Kz 12 (Differenz) = Kz 10 - Kz 11. Reused aus Anlage G für Gewerbeertrag + Freibetrag + Hebesatz — single source of truth. Für Einzelunternehmen + PersG mit 24.500 EUR Freibetrag (§ 11 Abs. 1 GewStG); für KapG ohne Freibetrag (und ohne Anrechnung auf die KSt). IMMER enthalten. |`)
+    lines.push(`| \`${files.bwa}\` | BWA (Betriebswirtschaftliche Auswertung) gem. DATEV-Standard — Vorschau für Dezember ${year} (Jahressumme). 14 DATEV-Bucket-Codes: Umsatzerlöse / 4 Betriebliche Aufwands-Unterkategorien / Sonstige / Zinserträge (nicht erfasst) / Zinsaufwendungen / 2 Steuer-Buckets. Jahresergebnis = Betriebsergebnis + Finanzergebnis - Steuern. |`)
     lines.push(`| \`${files.bilanz}\` | Bilanz gem. § 266 HGB (Aktiva / Passiva) — Vorschau. Stichtag 31.12.${year}. |`)
     lines.push(`| \`${files.guv}\` | Gewinn- und Verlustrechnung gem. § 275 Abs. 2 HGB (Gesamtkostenverfahren) — Vorschau. |`)
     lines.push(`| \`${files.anhang}\` | Anhang zum Jahresabschluss gem. § 284 / § 285 HGB — Vorschau. Bilanzierungs- und Bewertungsmethoden + Pflichtangaben. |`)
@@ -950,7 +950,7 @@ export class BeraterPackagerService {
     lines.push('')
     lines.push('---')
     lines.push('')
-    lines.push('Generiert von **de-invoice** (Tier 85: Anlage Steuererklärung packager).')
+    lines.push('Generiert von **de-invoice**.')
     lines.push('Bei Fragen: de-invoice Berater-Dokumentation.')
     return lines.join('\n')
   }

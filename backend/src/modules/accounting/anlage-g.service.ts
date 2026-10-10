@@ -129,7 +129,7 @@ export interface AnlageGResult {
     hinzurechnungenTotal: number
     kurzungenTotal: number
     gewerbeertrag: number // gewinnVorKorrektur + hinzu - kurzungen
-    freibetrag: number // § 11 Abs. 1 Nr. 1 GewStG: 24 500 EUR (Tier 438)
+    freibetrag: number // § 11 Abs. 1 Nr. 1 GewStG: 24 500 EUR
     gewerbeertragNachFreibetrag: number
     gewerbesteuerMesszahl: number // 0.035 (3.5%)
     hebesatz: number // default 400 (Münster, etc.)
@@ -673,7 +673,8 @@ export class AnlageGService {
         'Die restlichen Hinzurechnungen (Schuldzinsen, Mitunternehmer-Verlustanteile, ' +
         'stille Einlagen) und Kürzungen (Grundstückserträge, Mitunternehmer-Gewinnanteile) ' +
         'muss der Steuerberater aus dem Gewerbesteuergesetz und den Verträgen ergänzen. ' +
-        'Die Gewerbesteuer-Schätzung ist SEHR grob (default Hebesatz 400 %) — bitte ' +
+        'Die Gewerbesteuer-Schätzung ist SEHR grob (Hebesatz 400 %, solange unter ' +
+        'Gewerbesteuer kein anderer eingetragen ist) — bitte ' +
         'vor der Einreichung vom Steuerberater prüfen lassen.',
     }
   }

@@ -201,8 +201,8 @@ export class UstjaService {
         'Diese Vorschau wurde automatisch aus den 12 monatlichen UStVA-Daten ' +
         `(${year}) aggregiert (§ 18 Abs. 3 UStG). Kennzahlen nach dem Vordruckmuster ` +
         'USt 2 A 2026 (BMF-Schreiben vom 29.12.2025). Grundlage: alle finalisierten ' +
-        'Rechnungen (status=paid/sent/overdue) und Eingangsrechnungen ' +
-        '(status=booked/deductible) im Zeitraum. Das Vorauszahlungssoll ist hier die ' +
+        'Rechnungen (versendet, überfällig oder bezahlt) und Eingangsrechnungen ' +
+        '(gebucht) im Zeitraum. Das Vorauszahlungssoll ist hier die ' +
         'Summe der berechneten Monatswerte; maßgeblich ist das vom Finanzamt ' +
         'festgesetzte Soll einschließlich einer Sondervorauszahlung. Sonstige ' +
         'steuerfreie Umsätze sind nach ihrer Befreiungsvorschrift einer Kennzahl ' +

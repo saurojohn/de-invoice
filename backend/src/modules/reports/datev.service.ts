@@ -112,20 +112,20 @@ export interface DatevAccountMap {
  *  these accounts itself; here they only label the Buchungsliste. */
 export const SKR03_DEFAULTS: DatevAccountMap = {
   bank: '1200',                 // Bank
-  cash: '1000',                 // Kasse (Tier 425)
-  transit: '1360',              // Geldtransit (Tier 434)
+  cash: '1000',                 // Kasse
+  transit: '1360',              // Geldtransit
   // Tier 470: erhaltene, versteuerte Anzahlungen (Automatikkonten: DATEV
   // splits the output tax off the gross amount) / ohne USt
   advanceReceived19: '1718',
   advanceReceived7: '1711',
   advanceReceived0: '1710',
-  privateWithdrawal: '1800',    // Privatentnahmen allgemein (Tier 458)
-  privateDeposit: '1890',       // Privateinlagen (Tier 458)
-  privateUseVat19: '8921',      // Verwendung von Gegenständen, 19 % USt (Tier 502)
-  privateUseNoVat: '8924',      // Verwendung von Gegenständen, ohne USt (Tier 502)
-  homeOffice: '4288',           // Aufwendungen für ein häusliches Arbeitszimmer (Tier 504)
-  kursgewinn: '2660',           // Erträge aus der Währungsumrechnung (Tier 540)
-  kursverlust: '2150',          // Aufwendungen aus der Währungsumrechnung (Tier 540)
+  privateWithdrawal: '1800',    // Privatentnahmen allgemein
+  privateDeposit: '1890',       // Privateinlagen
+  privateUseVat19: '8921',      // Verwendung von Gegenständen, 19 % USt
+  privateUseNoVat: '8924',      // Verwendung von Gegenständen, ohne USt
+  homeOffice: '4288',           // Aufwendungen für ein häusliches Arbeitszimmer
+  kursgewinn: '2660',           // Erträge aus der Währungsumrechnung
+  kursverlust: '2150',          // Aufwendungen aus der Währungsumrechnung
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)

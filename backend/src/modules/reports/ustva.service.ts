@@ -1024,7 +1024,7 @@ export class UstvaService {
     const summeS = Math.round(sum('S') * 100) / 100;
     const hinweise: string[] = [];
     if (rows.some((r) => !r.ustIdNr)) {
-      hinweise.push('Umsätze ohne USt-IdNr. des Kunden — in der ZM nicht meldefähig; die Rechnungen prüfen (Tier 486).');
+      hinweise.push('Umsätze ohne USt-IdNr. des Kunden — in der ZM nicht meldefähig; die Rechnungen prüfen.');
     }
     return {
       year,

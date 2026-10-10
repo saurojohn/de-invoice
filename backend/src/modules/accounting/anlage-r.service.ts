@@ -352,15 +352,14 @@ export class AnlageRService {
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren Rentenbezügen-Daten ' +
-        '(Company.settings.renten[year]) + dem BMF-Besteuerungsanteil-Tabelle ' +
+        '(erfasst unter Buchhaltung, Anlage R) + der BMF-Tabelle der Besteuerungsanteile ' +
         'für das Geschäftsjahr generiert. Besteuerungsanteil: 50% (bis 2040) bis ' +
         '83% (2024) — fällt jährlich um 1 Prozentpunkt bis 50% in 2057. ' +
         'Werbungskosten-Pauschbetrag 102 EUR (Kz 210) ist auto-berechnet. ' +
         'Anlage R ist für Einkünfte aus Renten und Bezügen (§ 22 EStG) — ' +
         'gesetzliche Rente (DRV), Betriebsrente (BAV), Riester, Rürup, ' +
         'private Leibrenten. Vor der Einreichung durch den Steuerberater prüfen ' +
-        'lassen. v2: full BMF Ertragsanteil-Tabelle by age + multi-rente ' +
-        'Ehepartner support.',
+        'lassen.',
     }
   }
 
@@ -422,7 +421,7 @@ export class AnlageRService {
           `Besteuerungsanteil ${data.totals.besteuerungsanteil.toFixed(0).replace('.', ',')} % (§ 22 Nr. 1 S. 3 lit. a EStG, BMF-Tabelle)`,
         )
         .text(
-          `Ertragsanteil private Leibrenten ${data.totals.ertragsanteil.toFixed(0).replace('.', ',')} % (v1: vereinfacht — v2: BMF-Tabelle nach Alter bei Rentenbeginn)`,
+          `Ertragsanteil private Leibrenten ${data.totals.ertragsanteil.toFixed(0).replace('.', ',')} % (vereinfacht; maßgeblich ist die BMF-Tabelle nach dem Alter bei Rentenbeginn)`,
         )
         .fillColor('#000')
       doc.moveDown(1)
@@ -432,9 +431,9 @@ export class AnlageRService {
         .font('Helvetica-Oblique')
         .fillColor('#b45309')
         .text(
-          '⚠ Keine Rentenbezüge für dieses Jahr in Company.settings erfasst. ' +
-            'Die Anlage R ist ohne Rentenbezüge leer — bitte unter ' +
-            '/dashboard/accounting nachpflegen.',
+          '⚠ Keine Rentenbezüge für dieses Jahr erfasst. ' +
+            'Die Anlage R ist ohne Rentenbezüge leer — bitte auf der ' +
+            'Seite Buchhaltung nachpflegen.',
         )
         .fillColor('#000')
       doc.moveDown(1)

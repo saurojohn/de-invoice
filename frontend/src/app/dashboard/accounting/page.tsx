@@ -23,7 +23,7 @@ import { AnlageKAPSection } from "./AnlageKAPSection"
 // with the EÜR.
 import { AnlageGSection } from "./AnlageGSection"
 // Tier 101: Anlage N (Arbeitnehmereinkünfte,
-// § 3 EStG) — 5th Anlage form. Reads
+// § 19 EStG) — 5th Anlage form. Reads
 // Lohnsteuerbescheinigung from
 // Company.settings.
 import { AnlageNSection } from "./AnlageNSection"
@@ -193,7 +193,7 @@ export default function AccountingPage() {
     anlageKAP: <AnlageKAPSection />,
     // Tier 100: Anlage G (§ 15 EStG trade / commercial)
     anlageG: <AnlageGSection />,
-    // Tier 101: Anlage N (§ 3 EStG employment income)
+    // Tier 101: Anlage N (§ 19 EStG employment income)
     anlageN: <AnlageNSection />,
     // Tier 102: KSt 1 (§ 1 KStG corporate tax — primary for GmbH)
     kst1: <KSt1Section />,

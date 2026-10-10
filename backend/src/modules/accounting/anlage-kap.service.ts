@@ -400,7 +400,7 @@ export class AnlageKAPService {
       },
       generatedAt: new Date().toISOString(),
       disclaimer:
-        'Diese Anlage KAP ist eine VORSCHAU basierend auf den in de-invoice v1 verfügbaren Daten. ' +
+        'Diese Anlage KAP ist eine VORSCHAU basierend auf den in de-invoice verfügbaren Daten. ' +
         'Die Klassifizierung der Kapitalerträge erfolgt anhand einer Heuristik auf den Verwendungszweck-Feldern ' +
         'importierter Banktransaktionen. Anlage KAP-spezifische Themen (Investmentfonds-Thesaurierung, ' +
         'Veräußerungsgewinne, Termingeschäfte, ausländische Quellensteuer, Kirchensteuer auf ' +

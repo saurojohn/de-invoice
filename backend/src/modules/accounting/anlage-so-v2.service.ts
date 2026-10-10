@@ -503,7 +503,7 @@ export class AnlageSOV2Service {
         amount: 0, // populated by the loss-verrechnung block below
         source: 'computed',
         note:
-          'Betrag = max(0, inFristLoss + priorYearLoss − inFristGain). Wird als "carryforward" in Company.settings.anlageSOLossCarryforward[year] gespeichert und im Folgejahr automatisch verrechnet (§ 23 Abs. 3 Satz 4 EStG).',
+          'Betrag = max(0, inFristLoss + priorYearLoss − inFristGain). Wird als Verlustvortrag gespeichert und im Folgejahr automatisch verrechnet (§ 23 Abs. 3 Satz 4 EStG).',
       },
       {
         kennziffer: '11',
@@ -573,21 +573,18 @@ export class AnlageSOV2Service {
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren privaten ' +
         'Veräußerungsgeschäften und wiederkehrenden Bezügen ' +
-        '(Company.settings.anlageSO[year]) generiert. v2: ' +
+        '(erfasst unter Buchhaltung, Anlage SO) generiert. ' +
         'Vollständige Verlustverrechnung nach § 23 Abs. 3 ' +
         'Satz 3-5 EStG — in-Frist-Verluste werden mit in-Frist-' +
         'Gewinnen verrechnet; der nicht verrechnigte Anteil wird ' +
-        'als Verlustvortrag (Company.settings.anlageSOLossCarryforward) ' +
+        'als Verlustvortrag ' +
         'in das Folgejahr übernommen. Freigrenze 600 EUR (§ 23 ' +
         'Abs. 3 Satz 5 EStG) wird NACH Verlustverrechnung ' +
         'angewendet (≤ 600 EUR → komplett steuerfrei). ' +
         'Spekulationsfrist: 1 Jahr für Wertpapiere (§ 23 Abs. 1 ' +
         'Nr. 2 EStG, inkl. Kryptowährungen), 10 Jahre für ' +
         'sonstige Wirtschaftsgüter (§ 23 Abs. 1 Nr. 1 EStG). ' +
-        'v2: Broker-CSV-Import (Spalten: type,description,' +
-        'acquisitionDate,acquisitionCost,saleDate,salePrice) ' +
-        'sowie Auto-Import aus Ausgaben (Expense.category = ' +
-        "'crypto' | 'brokerage').",
+        'Die Geschäfte lassen sich als CSV-Datei einlesen (Buchhaltung, Anlage SO).',
     }
   }
 
@@ -998,7 +995,7 @@ export class AnlageSOV2Service {
     doc
       .fontSize(18)
       .font('Helvetica-Bold')
-      .text(`Anlage SO ${year} — VORSCHAU (v2)`, { align: 'left' })
+      .text(`Anlage SO ${year} — VORSCHAU`, { align: 'left' })
       .moveDown(0.2)
     doc
       .fontSize(10)
@@ -1100,7 +1097,7 @@ export class AnlageSOV2Service {
       .fillColor('#999')
       .text(
         `Erstellt: ${new Date(data.generatedAt).toLocaleString('de-DE')}  |  ` +
-          `de-invoice · Anlage SO v2 Vorschau`,
+          `de-invoice · Anlage SO Vorschau`,
         { align: 'center' },
       )
       .fillColor('#000')

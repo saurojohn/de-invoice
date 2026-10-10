@@ -147,7 +147,7 @@ export class GewstService {
       },
       {
         kennziffer: '7',
-        label: 'Hebesatz der Gemeinde (default 400 — Köln 470, München 490, Münster 400)',
+        label: 'Hebesatz der Gemeinde (400 %, solange kein anderer eingetragen ist)',
         percent: hebesatz,
         source: 'computed',
       },
@@ -164,7 +164,7 @@ export class GewstService {
         source: hasVorauszahlungen ? 'manual' : 'placeholder',
         note: hasVorauszahlungen
           ? undefined
-          : 'v1: Berater trägt die tatsächlichen Vorauszahlungen aus den 4 Quartalsbescheiden via PUT /gewst/settings ein.',
+          : 'Der Berater trägt die tatsächlichen Vorauszahlungen aus den 4 Quartalsbescheiden auf der Seite Buchhaltung unter Gewerbesteuer ein.',
       },
       {
         kennziffer: '12',
@@ -208,22 +208,23 @@ export class GewstService {
         'den vom Berater eingetragenen Vorauszahlungen (Q1-Q4) generiert. ' +
         'BMF Vordruck GewSt 1A 2024: Kz 5 (Steuermessbetrag) = Gewerbeertrag ' +
         'nach Freibetrag × 0.035; Kz 7 (Hebesatz) = Gemeinde-Hebesatz ' +
-        '(default 400, konfigurierbar über Company.settings.hebesatz); Kz 10 ' +
+        '(400, solange kein anderer eingetragen ist — änderbar auf der Seite ' +
+        'Buchhaltung unter Gewerbesteuer); Kz 10 ' +
         '(festzusetzende Gewerbesteuer) = Kz 5 × Kz 7 / 100; Kz 11 (Summe ' +
         'Vorauszahlungen) = Q1 + Q2 + Q3 + Q4 aus den 4 Quartalsbescheiden; ' +
         'Kz 12 (Differenz) = Kz 10 - Kz 11 — positiv = Restzahlung, negativ = ' +
-        'Erstattung. v1: vereinfachtes Modell ohne Zerlegung nach § 8/9 ' +
+        'Erstattung. Vereinfachtes Modell ohne Zerlegung nach § 8/9 ' +
         'GewStG Hinzurechnungen/Kürzungen in der Vordruck-Struktur — die ' +
         '§ 8/9-Korrekturen sind bereits in Anlage G angewendet, das Ergebnis ' +
         'fließt hier 1:1 in den Steuermessbetrag ein. Berater verifiziert: ' +
-        '(a) den korrekten Hebesatz der Gemeinde (Köln 470 %, München 490 %, ' +
-        'Münster 400 %, Stuttgart 420 %, etc.); (b) die tatsächlichen ' +
+        '(a) den Hebesatz der Gemeinde (er steht im Gewerbesteuerbescheid); ' +
+        '(b) die tatsächlichen ' +
         'Vorauszahlungen aus den 4 Quartalsbescheiden — diese werden NICHT ' +
         'vom System geschätzt; (c) die § 11 Abs. 1 GewStG Freibetrag-Logik ' +
-        '(24.500 EUR für Einzelunternehmen + PersG; 0 für KapG); (d) bei KapG: ' +
-        'die KSt-Anrechnung auf die GewSt im Rahmen von KSt 1 (3.8 × ' +
-        'Steuermessbetrag, § 35 EStG / § 26 KStG). v2: native ELSTER-XML-' +
-        'Übermittlung ähnlich dem UStJA-Pfad (tier 105).',
+        '(24.500 EUR für Einzelunternehmen + PersG; 0 für KapG); (d) die ' +
+        'Anrechnung der Gewerbesteuer auf die Einkommensteuer (§ 35 EStG) — ' +
+        'sie steht nur Einzelunternehmern und den Gesellschaftern einer ' +
+        'Personengesellschaft zu, eine Kapitalgesellschaft rechnet nichts an.',
     }
   }
 

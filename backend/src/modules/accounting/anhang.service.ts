@@ -162,7 +162,7 @@ export class AnhangService {
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Dieser Anhang ist ein vom System automatisch generierter Entwurf. ' +
-        'de-invoice v1 erfasst nicht alle Positionen des § 284 HGB — ' +
+        'de-invoice erfasst nicht alle Positionen des § 284 HGB — ' +
         'die als "nicht ausgewiesen" markierten Positionen sind vom ' +
         'Berater aus dem SKR03, dem Anlagenverzeichnis und den ' +
         'Steuerbescheiden zu ergänzen. Pflichtangaben nach § 285 HGB ' +
@@ -245,7 +245,7 @@ export class AnhangService {
             'Sachanlagen (Anlagevermögen): Die Bilanz erfasst Sachanlagen aus dem ' +
             'Anlagenverzeichnis. Die Abschreibung erfolgt linear nach § 7 Abs. 1 EStG / ' +
             '§ 253 Abs. 1 HGB über die betriebsgewöhnliche Nutzungsdauer. Geleistete ' +
-            'Anzahlungen und Anlagen im Bau werden in de-invoice v1 nicht separat ' +
+            'Anzahlungen und Anlagen im Bau werden in de-invoice nicht separat ' +
             'erfasst (Position 0500 — nicht ausgewiesen).',
         },
         {
@@ -253,15 +253,14 @@ export class AnhangService {
           text:
             'Forderungen und sonstige Vermögensgegenstände: Ansatz zum Nennwert ' +
             'abzüglich erforderlicher Wertberichtigungen (§ 253 Abs. 4 HGB). ' +
-            'Einzelwertberichtigungen werden in de-invoice v1 nicht automatisch ' +
+            'Einzelwertberichtigungen werden in de-invoice nicht automatisch ' +
             'ermittelt (vom Berater zu prüfen).',
         },
         {
           auto: true,
           text:
-            'Liquide Mittel: Kassenbestand und Bankguthaben werden aus dem Kassenbuch ' +
-            'abgeleitet. In v1 werden Kasse und Bank zusammengefasst — eine Aufteilung ' +
-            'ist in v2 vorgesehen.',
+            'Liquide Mittel: Der Kassenbestand wird aus dem Kassenbuch abgeleitet, ' +
+            'das Bankguthaben aus dem zuletzt importierten Kontoauszug.',
         },
         {
           auto: true,
@@ -269,7 +268,7 @@ export class AnhangService {
             'Verbindlichkeiten: Ansatz zum Erfüllungsbetrag (§ 253 Abs. 1 HGB). ' +
             'Verb. aus L+L (Position 4000) werden aus den offenen Eingangsrechnungen ' +
             'abgeleitet. Eine Aufteilung nach Restlaufzeit (Verbindlichkeiten-Spiegel) ' +
-            'ist in v2 vorgesehen.',
+            'nimmt de-invoice nicht vor.',
         },
         {
           auto: true,
@@ -292,7 +291,7 @@ export class AnhangService {
           auto: true,
           text:
             'Rechnungsabgrenzungsposten: Aktive und passive RAP werden in de-invoice ' +
-            'v1 nicht erfasst (Positionen 1900 Aktiva / 4900 Passiva — nicht ' +
+            'nicht erfasst (Positionen 1900 Aktiva / 4900 Passiva — nicht ' +
             'ausgewiesen). Der Berater ergänzt diese aus dem Hauptbuch.',
         },
         {

@@ -382,7 +382,7 @@ export class GuVService {
           position: '2',
           label: 'Bestandsveränderungen',
           amount: null,
-          note: 'Vorratsbestand wird in de-invoice v1 nicht erfasst.',
+          note: 'Vorratsbestand wird in de-invoice nicht erfasst.',
         },
         {
           position: '3',
@@ -474,7 +474,7 @@ export class GuVService {
           position: '11',
           label: 'Sonstige Zinsen und ähnliche Erträge',
           amount: null,
-          note: 'Habenzinsen werden in de-invoice v1 nicht erfasst.',
+          note: 'Habenzinsen werden in de-invoice nicht erfasst.',
         },
         {
           position: '12',
@@ -579,7 +579,7 @@ export class GuVService {
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese G+V ist eine VORSCHAU nach § 275 Abs. 2 HGB Gesamtkostenverfahren. ' +
-        'de-invoice v1 erfasst nicht alle Positionen (AfA, Bestandsveränderungen, ' +
+        'de-invoice erfasst nicht alle Positionen (AfA, Bestandsveränderungen, ' +
         'Beteiligungserträge, Zinserträge, Steuern vom Einkommen und Ertrag) — ' +
         'diese Positionen sind als "nicht ausgewiesen" markiert. Der Berater ' +
         'ergänzt die fehlenden Positionen aus dem Anlagenverzeichnis, den ' +

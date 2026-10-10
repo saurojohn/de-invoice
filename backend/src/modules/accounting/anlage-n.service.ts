@@ -6,7 +6,7 @@ import PDFDocument from 'pdfkit'
 
 /**
  * Tier 101: Anlage N — Einkünfte aus
- * nichtselbständiger Arbeit (§ 3 EStG).
+ * nichtselbständiger Arbeit (§ 19 EStG).
  *
  * The German tax filing for employees
  * (Arbeitnehmer) — the year-end attachment to
@@ -433,9 +433,9 @@ export class AnlageNService {
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren Lohnsteuerbescheinigungs-Daten ' +
-        '(Company.settings) + den manuell eingetragenen Werbungskosten / Sonderausgaben / ' +
+        '(erfasst unter Buchhaltung, Anlage N) + den manuell eingetragenen Werbungskosten / Sonderausgaben / ' +
         'Außergewöhnlichen Belastungen generiert. Anlage N ist für Einkünfte aus ' +
-        'nichtselbständiger Arbeit (§ 3 EStG) — Arbeitnehmer, Beamte, Gesellschafter-' +
+        'nichtselbständiger Arbeit (§ 19 EStG) — Arbeitnehmer, Beamte, Gesellschafter-' +
         'Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Der Berater ergänzt ' +
         'die fehlenden Werte aus der Lohnsteuerbescheinigung des Arbeitgebers und ' +
         'prüft die Werbungskosten-Höchstbeträge. Bei mehreren Arbeitgebern: Lohnsteuer' +
@@ -473,7 +473,7 @@ export class AnlageNService {
       .fontSize(10)
       .font('Helvetica')
       .text(
-        `Einkünfte aus nichtselbständiger Arbeit (§ 3 EStG) — ${company?.name || companyId}`,
+        `Einkünfte aus nichtselbständiger Arbeit (§ 19 EStG) — ${company?.name || companyId}`,
       )
       .moveDown(1)
 
@@ -498,9 +498,9 @@ export class AnlageNService {
         .font('Helvetica-Oblique')
         .fillColor('#b45309')
         .text(
-          '⚠ Keine Lohnsteuerbescheinigung für dieses Jahr in Company.settings erfasst. ' +
-            'Die Anlage N ist ohne Lohnsteuerbescheinigung leer — bitte unter ' +
-            '/dashboard/accounting nachpflegen.',
+          '⚠ Keine Lohnsteuerbescheinigung für dieses Jahr erfasst. ' +
+            'Die Anlage N ist ohne Lohnsteuerbescheinigung leer — bitte auf der ' +
+            'Seite Buchhaltung nachpflegen.',
         )
         .fillColor('#000')
       doc.moveDown(1)

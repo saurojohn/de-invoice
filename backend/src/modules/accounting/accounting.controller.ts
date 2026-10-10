@@ -27,7 +27,7 @@ import { AnlageKAPService } from './anlage-kap.service'
 // Personengesellschaften. Pairs with EÜR.
 import { AnlageGService } from './anlage-g.service'
 // Tier 101: Anlage N (Arbeitnehmereinkünfte,
-// § 3 EStG). The 5th Anlage form — for
+// § 19 EStG). The 5th Anlage form — for
 // Arbeitnehmer + Beamte + Teilzeit-Beschäftigte.
 import { AnlageNService } from './anlage-n.service'
 // Tier 102: KSt 1 (Körperschaftsteuererklärung,
@@ -90,7 +90,7 @@ export class AccountingController {
     // § 15 EStG) — 4th Anlage form.
     private anlageG: AnlageGService,
     // Tier 101: Anlage N (Arbeitnehmereinkünfte,
-    // § 3 EStG) — 5th Anlage form.
+    // § 19 EStG) — 5th Anlage form.
     private anlageN: AnlageNService,
     // Tier 102: KSt 1 (Körperschaftsteuererklärung,
     // § 1 Abs. 1 KStG) — primary for GmbH/AG.
@@ -777,7 +777,7 @@ export class AccountingController {
   }
 
   // =============================================================
-  // Tier 101 — Anlage N (Arbeitnehmereinkünfte, § 3 EStG)
+  // Tier 101 — Anlage N (Arbeitnehmereinkünfte, § 19 EStG)
   // =============================================================
   //
   // The German tax filing for Arbeitnehmer
@@ -1545,10 +1545,13 @@ export class AccountingController {
       q3: toNum(body.q3),
       q4: toNum(body.q4),
     }
-    const next = {
+    const next: Record<string, any> = {
       ...settings,
       gewstVorauszahlungen: vorauszahlungenAll,
     }
+    // Tier 651: the Hebesatz is the municipality's and holds for every year
+    // until it is changed; a body without it leaves it as it is.
+    if (body.hebesatz !== undefined) next.hebesatz = body.hebesatz
     await this.prisma.company.update({
       where: { id: companyId },
       data: { settings: next } as any,
@@ -1557,6 +1560,7 @@ export class AccountingController {
       ok: true,
       year: body.year,
       vorauszahlungen: vorauszahlungenAll[body.year],
+      hebesatz: typeof next.hebesatz === 'number' ? next.hebesatz : 400,
     }
   }
 

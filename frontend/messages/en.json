@@ -114,7 +114,7 @@
     "colInvoices": "Inv.",
     "colTotalOpen": "Open total",
     "colCredit": "Credit",
-    "colCreditHint": "Customer credit balance (running total, Tier 58)",
+    "colCreditHint": "Customer credit balance (running total)",
     "colNetOpen": "Net open",
     "colNetHint": "Open total minus credit — the collectable amount",
     "openCreditPage": "Open credit ledger",
@@ -862,7 +862,7 @@
     "cardSecurityDesc": "Set up two-factor authentication and manage recovery codes",
     "cardBankingTitle": "Online Banking (FinTS)",
     "cardBankingDesc": "Connect your bank directly — auto-fetch transactions and match them",
-    "dashboardV2Title": "Dashboard v2",
+    "dashboardV2Title": "Dashboard",
     "dashboardV2Aging": "A/R aging",
     "dashboardV2TopCustomers": "Top 5 customers YTD",
     "dashboardV2Recent": "Recent activity",
@@ -2863,8 +2863,8 @@
     "gewerbeertrag": "Trade income + Trade tax estimate",
     "gewStSchätzung": "Trade tax estimate (very rough — verify municipal Hebesatz!)",
     "freibetrag": "Allowance § 11 Abs. 1 GewStG (sole proprietor / partnership)",
-    "hebesatz": "Hebesatz (default 400 %)",
-    "hebesatzHint": "Adjust to your municipality — e.g. 470 % in Köln, 490 % in München. Company.settings.hebesatz",
+    "hebesatz": "Hebesatz",
+    "hebesatzHint": "The Hebesatz of the municipality is stated in the trade tax assessment and is entered below, in the Gewerbesteuer section. While nothing is entered there, 400 % is used.",
     "hinzuHint": "Only Kz 4100 is derived from the bookings: a quarter of the financing shares (interest 100 %, rent/lease of property 50 %, leasing 20 %) above 200,000 € (§ 8 Nr. 1 GewStG). The tax advisor checks rent = immovable / leasing = movable and adds the other add-backs from the contracts.",
     "kurzungHint": "No deduction is derived automatically. The § 9 GewStG deductions (real estate 1.2 % of the unit value, profit shares from participations, foreign permanent establishments) are added by the tax advisor.",
     "nachZahlung": "Counted by payment date (cash basis, § 11 EStG) — profit determination in the settings.",
@@ -2874,7 +2874,7 @@
   },
   "anlageN": {
     "title": "Anlage N (preview)",
-    "subtitle": "Income from employment (§ 3 EStG) — from your Lohnsteuerbescheinigung + manually-entered Werbungskosten / Sonderausgaben / Außergewöhnliche Belastungen. For employees, civil servants, managing directors with employment contracts, part-time workers. The Lohnsteuerbescheinigung is issued by your employer (one A4 page per year) — please enter the values below. Have your tax advisor review before filing.",
+    "subtitle": "Income from employment (§ 19 EStG) — from your Lohnsteuerbescheinigung + manually-entered Werbungskosten / Sonderausgaben / Außergewöhnliche Belastungen. For employees, civil servants, managing directors with employment contracts, part-time workers. The Lohnsteuerbescheinigung is issued by your employer (one A4 page per year) — please enter the values below. Have your tax advisor review before filing.",
     "year": "Fiscal year",
     "recompute": "Compute",
     "downloadPdf": "Download PDF",
@@ -2907,7 +2907,7 @@
   },
   "kst1": {
     "title": "KSt 1 (preview)",
-    "subtitle": "Corporate tax return (§ 1 Abs. 1 KStG) — the PRIMARY tax form for capital companies (GmbH, AG, KGaA). Anlage G is NOT applicable — KSt 1 replaces it. Reads the G+V Jahresüberschuss + computes KSt 15% + Soli 5.5% + GewSt (no allowance for GmbH, default Hebesatz 400%) — without a trade-tax credit against the corporate tax (§ 35 EStG applies to natural persons only). KSt corrections (hidden profit distributions, donations, loss carryforward) are placeholder — the tax advisor adds them. Have your tax advisor review before filing.",
+    "subtitle": "Corporate tax return (§ 1 Abs. 1 KStG) — the main tax return of a corporation (GmbH, AG, KGaA). Anlage G does not apply — KSt 1 takes its place. Takes the annual result of the profit and loss account and computes KSt 15% + Soli 5.5% + GewSt (no allowance for a GmbH; Hebesatz 400% while none is entered under Gewerbesteuer) — without a trade-tax credit against the corporate tax (§ 35 EStG applies to natural persons only). KSt corrections (hidden profit distributions, donations, loss carryforward) are placeholders — the tax advisor adds them. Have your tax advisor review before filing.",
     "year": "Fiscal year",
     "recompute": "Compute",
     "downloadPdf": "Download PDF",
@@ -2922,7 +2922,7 @@
     "keineAnrechnung": "No credit of the trade tax against the corporate tax: the § 35 EStG relief applies to natural persons (sole traders, partners) only, not to a corporation.",
     "zuZahlen": "Payable (KSt + Soli + GewSt)",
     "kstHint": "KSt prepayments (Kz 60) are NOT subtracted here — the tax advisor offsets the prepayments in the assessment.",
-    "korrekturenHint": "These corrections (hidden profit distributions, donations, loss carryforward, § 8b KStG) are placeholder — the tax advisor adds them from contracts, donation receipts, and loss carryforward notices. v2: editable under Company.settings.kst1Korrekturen[year].",
+    "korrekturenHint": "These corrections (hidden profit distributions, donations, loss carryforward, § 8b KStG) are placeholders — the tax advisor adds them from contracts, donation receipts and loss carryforward notices. They cannot be entered in the app.",
     "rechtsform": "Legal form",
     "generatedAt": "Generated",
     "vorauszahlungenTitle": "Corporate tax prepayments (incl. Soli) per assessment",
@@ -3078,7 +3078,7 @@
     "typeSoftware": "Software",
     "typeSonstiges": "Other",
     "afaLinear": "linear",
-    "afaGeometric": "geometric (degressive) — v2",
+    "afaGeometric": "geometric (degressive)",
     "noAssets": "No assets yet — add fixed assets so the Bilanz + G+V can auto-fill the depreciation positions.",
     "disposeHint": "Enter sale date and price. The asset is removed from the balance sheet pool.",
     "disposeOk": "Asset disposed",
@@ -3167,7 +3167,7 @@
     "bucketSonstige": "Other operating expenses",
     "bucketZins": "Interest expenses",
     "generatedAt": "Generated",
-    "previewHint": "PREVIEW — based on the data in de-invoice v1. Positions the system does not track (inventory changes, capitalised own services, interest income, investment income, taxes) are not stated. Your tax advisor completes the missing positions from the SKR03 / BWA source data.",
+    "previewHint": "PREVIEW — based on the data recorded in de-invoice. Positions the system does not track (inventory changes, capitalised own services, interest income, investment income, taxes) are not stated. Your tax advisor completes the missing positions from the SKR03 / BWA source data.",
     "qtitle": "BWA quarterly comparison (Q vs prior-year Q)",
     "qsubtitle": "Berater default view: current quarter vs the same quarter last year. The YTD at quarter end (Mar/Jun/Sep/Dec) equals the Q total.",
     "quarter": "Quarter"
@@ -3218,28 +3218,28 @@
     },
     "anlageN": {
       "label": "Include Anlage N in Berater packager",
-      "description": "Force-include Anlage N (employment income, § 3 EStG) in the year-end Berater packager ZIP. By default, only included when a Lohnsteuerbescheinigung is recorded in Company.settings.lohnsteuerbescheinigungen for the year. For employees, civil servants, managing directors with employment contracts.",
+      "description": "Always includes Anlage N (employment income, § 19 EStG) in the package for the tax advisor. Otherwise it is included only when a Lohnsteuerbescheinigung was entered for the fiscal year (Accounting, Anlage N). For employees, civil servants, managing directors with employment contracts.",
       "effectLabel": "Affects: Anlage-N.pdf in Berater packager"
     },
     "anlageKind": {
       "label": "Include Anlage Kind in Berater packager",
-      "description": "Force-include Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) in the year-end Berater packager ZIP. By default, only included when children are recorded in Company.settings.kinder for the year. For families with children claiming Kindergeld or Kinderfreibetrag.",
+      "description": "Always includes Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) in the package for the tax advisor. Otherwise it is included only when children were entered for the fiscal year (Accounting, Anlage Kind). For families with children claiming Kindergeld or Kinderfreibetrag.",
       "effectLabel": "Affects: Anlage-Kind.pdf in Berater packager"
     },
     "anlageSo": {
       "label": "Include Anlage SO in Berater package",
-      "description": "Force-include the Anlage SO (Other income, § 22 EStG) in the year-end Berater package ZIP. By default only included if private Veräußerungsgeschäfte or wiederkehrende Bezüge were entered for the fiscal year in Company.settings.anlageSO. For private sales (crypto, gold, stocks) and recurring income (private pensions, maintenance).",
+      "description": "Always includes Anlage SO (other income, § 22 EStG) in the package for the tax advisor. Otherwise it is included only when private sales or recurring income were entered for the fiscal year (Accounting, Anlage SO). For private sales (crypto, gold, shares) and recurring income (private pensions, maintenance).",
       "effectLabel": "Affects: Anlage-SO.pdf in the Berater package"
     },
     "anlageAus": {
       "label": "Include Anlage AUS in Berater package",
-      "description": "Force-include the Anlage AUS (Foreign income, § 34d EStG) in the year-end Berater package ZIP. By default only included if foreign income entries were entered for the fiscal year in Company.settings.anlageAUS. For Mandanten with foreign business, foreign dividends/interest/rental, or DBA-exempt income.",
+      "description": "Always includes Anlage AUS (foreign income, § 34d EStG) in the package for the tax advisor. Otherwise it is included only when foreign income was entered for the fiscal year (Accounting, Anlage AUS). For clients with foreign business, foreign dividends / interest / rent, or income exempt under a tax treaty.",
       "effectLabel": "Affects: Anlage-AUS.pdf in the Berater package"
     }
   },
   "ustja": {
     "title": "Annual VAT Return (UStJA)",
-    "subtitle": "Aggregates the 12 monthly UStVAs (Jan–Dec) into an annual VAT return (§ 18 para. 3 UStG, BMF form 2024). The tax assessment sets the actual VAT liability; monthly UStVAs are prepayments. Tax advisor transfers the numbers manually to ELSTER or their StB software (v1: no native ELSTER XML export).",
+    "subtitle": "Adds up the 12 monthly UStVAs (Jan–Dec) to the VAT of the year (§ 18 para. 3 UStG, BMF form 2024). The assessment sets the actual liability; the monthly UStVAs are prepayments. The app sends nothing to ELSTER — the return can be downloaded as an ELSTER XML file, and the tax advisor takes it into ELSTER or their own software.",
     "year": "Fiscal year",
     "recompute": "Compute",
     "downloadPdf": "Download PDF",
@@ -3261,7 +3261,7 @@
   },
   "gewst": {
     "title": "Trade tax return (GewSt)",
-    "subtitle": "Standalone trade tax return per BMF form GewSt 1A 2024. Reads Gewerbeertrag + Hebesatz + Freibetrag from Anlage G (§ 15 EStG). Tax advisor enters the prepayments from the 4 quarterly assessments below. v1: no native ELSTER XML export — tax advisor transfers the numbers manually to ELSTER or their StB software.",
+    "subtitle": "Trade tax return on BMF form GewSt 1A 2024. Gewerbeertrag and Freibetrag come from Anlage G (§ 15 EStG); the Hebesatz and the prepayments from the 4 quarterly assessments are entered below. The app sends nothing to ELSTER — the tax advisor transfers the figures to ELSTER or their own software.",
     "year": "Fiscal year",
     "recompute": "Compute",
     "downloadPdf": "Download PDF",
@@ -3271,12 +3271,15 @@
     "q2": "Q2 (15.05.)",
     "q3": "Q3 (15.08.)",
     "q4": "Q4 (15.11.)",
-    "saveVorauszahlungen": "Save prepayments",
-    "savedOk": "Prepayments saved.",
+    "saveVorauszahlungen": "Save",
+    "savedOk": "Hebesatz and prepayments saved.",
     "vordruck": "BMF form GewSt 1A — fields (Kennziffern)",
-    "fieldsHint": "Kz 5 (Steuermessbetrag) = Gewerbeertrag after Freibetrag × 0.035. Kz 7 (Hebesatz) = municipal Hebesatz (default 400; Köln 470, München 490, Münster 400, Stuttgart 420). Kz 10 (assessed GewSt) = Kz 5 × Kz 7 / 100. Kz 11 (prepayments) = Q1-Q4 sum. Kz 12 (difference) = Kz 10 - Kz 11.",
+    "fieldsHint": "Kz 5 (Steuermessbetrag) = Gewerbeertrag after Freibetrag × 0.035. Kz 7 (Hebesatz) = Hebesatz of the municipality (400 while nothing is entered above). Kz 10 (assessed GewSt) = Kz 5 × Kz 7 / 100. Kz 11 (prepayments) = sum of Q1–Q4. Kz 12 (difference) = Kz 10 − Kz 11.",
     "totals": "Summary",
-    "generatedAt": "Generated"
+    "generatedAt": "Generated",
+    "hebesatzLabel": "Hebesatz of the municipality",
+    "hebesatzHint": "It is stated in the trade tax assessment. While nothing is entered, 400 % is used. The Hebesatz holds for every year and for Anlage G and KSt 1 as well.",
+    "hebesatzInvalid": "The Hebesatz is a whole number between 200 and 1000."
   },
   "payments": {
     "title": "SEPA batch payment (pain.001)",
@@ -3444,7 +3447,7 @@
     "loadError": "Failed to load Anlage SO data",
     "saveError": "Failed to save",
     "v2": {
-      "csvImportTitle": "Broker CSV import (v2)",
+      "csvImportTitle": "Read transactions from a broker CSV file",
       "csvImportHint": "CSV with columns: type (optional), description, acquisitionDate, acquisitionCost, saleDate, salePrice. Date format dd.mm.yyyy, decimal separator comma. Example: BTC,0.1 BTC,15.06.2024,5000,00,20.03.2025,8000,00",
       "csvImportPlaceholder": "type,description,acquisitionDate,acquisitionCost,saleDate,salePrice\nwertpapier,AAPL 100,15.03.2024,12000,00,20.06.2024,15500,00",
       "csvPreview": "Preview",
@@ -3455,7 +3458,7 @@
       "csvImported": "CSV imported — {imported} imported, {skipped} skipped.",
       "csvError": "CSV import failed",
       "csvInvalid": "CSV invalid",
-      "expenseImportTitle": "Import from expenses (v2)",
+      "expenseImportTitle": "Take over from expenses",
       "expenseImportHint": "Bank transactions with Expense.category = 'crypto' or 'brokerage' are automatically converted into private Veräußerungsgeschäfte. Already-imported expenses are skipped (idempotent).",
       "expenseImportButton": "Import from expenses",
       "expenseListTitle": "Importable expenses",

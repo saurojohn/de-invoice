@@ -352,12 +352,12 @@ export class KSt1Service {
       disclaimer:
         'Diese Vorschau wurde automatisch aus dem G+V Jahresüberschuss + den KSt-/GewSt-' +
         'Standardformeln generiert. KSt 1 ist für Körperschaften (GmbH, AG, KGaA, etc.) per ' +
-        '§ 1 Abs. 1 KStG. KSt 15% + Soli 5.5% (auf KSt) + GewSt (default Hebesatz 400 % — bitte ' +
-        'an die Gemeinde anpassen). Die Gewerbesteuer wird NICHT auf die KSt angerechnet (die ' +
+        '§ 1 Abs. 1 KStG. KSt 15% + Soli 5.5% (auf KSt) + GewSt (Hebesatz 400 %, solange unter ' +
+        'Gewerbesteuer kein anderer eingetragen ist). Die Gewerbesteuer wird NICHT auf die KSt angerechnet (die ' +
         'Steuerermäßigung des § 35 EStG gilt nur für natürliche Personen). Im Gegensatz zur Einkommensteuer KEIN Freibetrag für GmbH/AG. Die KSt-Korrekturen ' +
         '(vGAs, Spendenabzug, Verlustabzug, ausländische Steuern, § 8b KStG) sind als Platzhalter ' +
         'markiert — der Steuerberater ergänzt sie aus dem Anlagenverzeichnis, den Verträgen und ' +
-        'den Steuerbescheiden. v2: Korrekturen werden aus Company.settings.kst1Korrekturen[year] gelesen.',
+        'den Steuerbescheiden.',
     }
   }
 

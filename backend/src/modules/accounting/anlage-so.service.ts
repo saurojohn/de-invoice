@@ -151,7 +151,7 @@ const LINES: Array<{
       'Veräußerung von Grundstücken / Immobilien im Privatvermögen (§ 23 Abs. 1 Nr. 1 EStG)',
     source: 'placeholder',
     note:
-      'Bei Immobilien greift die 10-Jahres-Spekulationsfrist. v1: Berater ergänzt manuell. v2: Erfassung wie bei Wertpapieren.',
+      'Bei Immobilien greift die 10-Jahres-Spekulationsfrist. Der Berater ergänzt manuell.',
   },
   // Kz 20: Freigrenze
   {
@@ -363,20 +363,20 @@ export class AnlageSOService {
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren privaten ' +
         'Veräußerungsgeschäften und wiederkehrenden Bezügen ' +
-        '(Company.settings.anlageSO[year]) generiert. ' +
+        '(erfasst unter Buchhaltung, Anlage SO) generiert. ' +
         'Spekulationsfrist: 1 Jahr für Wertpapiere (§ 23 Abs. 1 ' +
         'Nr. 2 EStG), 10 Jahre für sonstige Wirtschaftsgüter ' +
         '(§ 23 Abs. 1 Nr. 1 EStG). Freigrenze: 600 EUR/Jahr ' +
         '(§ 23 Abs. 3 Satz 5 EStG). Veräußerungen außerhalb der ' +
         'Spekulationsfrist sind steuerfrei. Verluste aus ' +
-        'Veräußerungen innerhalb der Frist können v1 nicht ' +
-        'mit Gewinnen verrechnet werden (BMF: nur in ' +
-        'Sonderfällen). v2: vollständige Verlustverrechnung. ' +
+        'Veräußerungen innerhalb der Frist werden hier nicht ' +
+        'mit Gewinnen verrechnet (BMF: nur in ' +
+        'Sonderfällen). ' +
         'Werbungskosten-Pauschbetrag bei wiederkehrenden ' +
         'Bezügen: 102 EUR/Jahr (gesetzliche Renten) bzw. ' +
         'tatsächliche Werbungskosten. BMF-Sätze ändern sich ' +
-        'jährlich; v1 verwendet 2024-Sätze als Default. v2: ' +
-        'BMF-Tabelle pro Jahr. Für Grundstücksveräußerungen ' +
+        'jährlich; hier sind die Sätze von 2024 hinterlegt. ' +
+        'Für Grundstücksveräußerungen ' +
         '(Kz 43): Spezialfall, bitte direkt im Hauptvordruck ' +
         'Anlage V eintragen.',
     }

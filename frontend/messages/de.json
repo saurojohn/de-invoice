@@ -114,7 +114,7 @@
     "colInvoices": "Rng.",
     "colTotalOpen": "Summe offen",
     "colCredit": "Guthaben",
-    "colCreditHint": "Kundenguthaben (laufender Saldo, Tier 58)",
+    "colCreditHint": "Kundenguthaben (laufender Saldo)",
     "colNetOpen": "Netto offen",
     "colNetHint": "Summe offen minus Guthaben — der einziehbare Betrag",
     "openCreditPage": "Zum Guthaben-Verlauf",
@@ -862,7 +862,7 @@
     "cardBackupsDesc": "Datenbank- und Beleg-Backups anlegen, prüfen und wiederherstellen",
     "cardSecurityTitle": "Sicherheit & 2FA",
     "cardSecurityDesc": "Zwei-Faktor-Authentifizierung einrichten und Recovery-Codes verwalten",
-    "dashboardV2Title": "Dashboard v2",
+    "dashboardV2Title": "Dashboard",
     "dashboardV2Aging": "Forderungs-Alterung",
     "dashboardV2TopCustomers": "Top 5 Kunden YTD",
     "dashboardV2Recent": "Letzte Aktivität",
@@ -2863,8 +2863,8 @@
     "gewerbeertrag": "Gewerbeertrag + Gewerbesteuer-Schätzung",
     "gewStSchätzung": "Gewerbesteuer-Schätzung (sehr grob — Hebesatz prüfen!)",
     "freibetrag": "Freibetrag § 11 Abs. 1 GewStG (Einzelunternehmen / PersG)",
-    "hebesatz": "Hebesatz (default 400 %)",
-    "hebesatzHint": "Hebesatz der Gemeinde anpassen — z.B. 470 % in Köln, 490 % in München. Company.settings.hebesatz",
+    "hebesatz": "Hebesatz",
+    "hebesatzHint": "Der Hebesatz der Gemeinde steht im Gewerbesteuerbescheid und wird unten im Abschnitt Gewerbesteuer eingetragen. Solange dort nichts steht, wird mit 400 % gerechnet.",
     "hinzuHint": "Nur Kz 4100 wird automatisch aus den Buchungen abgeleitet: ¼ der Finanzierungsanteile (Schuldzinsen 100 %, Miete/Pacht 50 %, Leasing 20 %), soweit sie 200.000 € übersteigen (§ 8 Nr. 1 GewStG). Die Zuordnung Miete = unbeweglich / Leasing = beweglich prüft der Steuerberater; die übrigen Hinzurechnungen ergänzt er aus den Verträgen.",
     "kurzungHint": "Keine Kürzung wird automatisch abgeleitet. Die Kürzungen nach § 9 GewStG (Grundbesitz 1,2 % des Einheitswerts, Gewinnanteile aus Beteiligungen, ausländische Betriebsstätten) ergänzt der Steuerberater aus den Unterlagen.",
     "nachZahlung": "Gezählt nach Zahlungsdatum (Einnahmen-Überschuss-Rechnung, § 11 EStG) — Gewinnermittlung in den Einstellungen.",
@@ -2874,7 +2874,7 @@
   },
   "anlageN": {
     "title": "Anlage N (Vorschau)",
-    "subtitle": "Einkünfte aus nichtselbständiger Arbeit (§ 3 EStG) — aus Ihrer Lohnsteuerbescheinigung + manuell eingetragenen Werbungskosten / Sonderausgaben / Außergewöhnlichen Belastungen. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Die Lohnsteuerbescheinigung wird vom Arbeitgeber ausgestellt (eine A4-Seite pro Jahr) — bitte unten eintragen. Vor der Einreichung durch den Steuerberater prüfen lassen.",
+    "subtitle": "Einkünfte aus nichtselbständiger Arbeit (§ 19 EStG) — aus Ihrer Lohnsteuerbescheinigung + manuell eingetragenen Werbungskosten / Sonderausgaben / Außergewöhnlichen Belastungen. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Die Lohnsteuerbescheinigung wird vom Arbeitgeber ausgestellt (eine A4-Seite pro Jahr) — bitte unten eintragen. Vor der Einreichung durch den Steuerberater prüfen lassen.",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
@@ -2922,7 +2922,7 @@
     "keineAnrechnung": "Keine Anrechnung der Gewerbesteuer auf die Körperschaftsteuer: die Steuerermäßigung des § 35 EStG gilt nur für natürliche Personen (Einzelunternehmer, Mitunternehmer), nicht für eine Kapitalgesellschaft.",
     "zuZahlen": "Zu zahlen (KSt + Soli + GewSt)",
     "kstHint": "KSt-Vorauszahlungen (Kz 60) sind hier NICHT berücksichtigt — der Steuerberater subtrahiert die bereits gezahlten Vorauszahlungen in der Festsetzung.",
-    "korrekturenHint": "Diese Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) sind als Platzhalter markiert — der Steuerberater ergänzt sie aus den Verträgen, Spendenbescheinigungen und Verlustvortragsbescheiden. v2: editierbar unter Company.settings.kst1Korrekturen[year].",
+    "korrekturenHint": "Diese Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) sind als Platzhalter markiert — der Steuerberater ergänzt sie aus den Verträgen, Spendenbescheinigungen und Verlustvortragsbescheiden. In der App lassen sie sich nicht eintragen.",
     "rechtsform": "Rechtsform",
     "generatedAt": "Erstellt",
     "vorauszahlungenTitle": "KSt-Vorauszahlungen (inkl. Soli) laut Bescheid",
@@ -3078,7 +3078,7 @@
     "typeSoftware": "Software",
     "typeSonstiges": "Sonstiges",
     "afaLinear": "linear",
-    "afaGeometric": "geometrisch (degressiv) — v2",
+    "afaGeometric": "geometrisch (degressiv)",
     "noAssets": "Noch keine Anlagen erfasst — fügen Sie Sachanlagen hinzu, damit Bilanz + G+V die AfA-Positionen automatisch füllen.",
     "disposeHint": "Verkaufsdatum und -preis eingeben. Die Anlage wird aus dem Bilanz-Pool entfernt.",
     "disposeOk": "Anlage veräußert",
@@ -3167,7 +3167,7 @@
     "bucketSonstige": "Sonstige betriebliche Aufwendungen",
     "bucketZins": "Zinsaufwendungen",
     "generatedAt": "Erstellt",
-    "previewHint": "VORSCHAU — basiert auf den in de-invoice v1 verfügbaren Daten. Positionen, die das System nicht erfasst (Bestandsveränderungen, aktivierte Eigenleistungen, Zinserträge, Beteiligungserträge, Steuern), sind nicht ausgewiesen. Der Steuerberater ergänzt die fehlenden Positionen aus dem SKR03 / der BWA-Quelldaten.",
+    "previewHint": "VORSCHAU — basiert auf den in de-invoice erfassten Daten. Positionen, die das System nicht erfasst (Bestandsveränderungen, aktivierte Eigenleistungen, Zinserträge, Beteiligungserträge, Steuern), sind nicht ausgewiesen. Der Steuerberater ergänzt die fehlenden Positionen aus dem SKR03 / der BWA-Quelldaten.",
     "qtitle": "BWA Quartalsvergleich (Q vs. Vorjahres-Q)",
     "qsubtitle": "Berater-Standardvergleich: aktuelles Quartal vs. gleiches Quartal des Vorjahres. Die YTD-Spalte pro Quartalsende (Mär/Jun/Sep/Dez) entspricht der Q-Summe.",
     "quarter": "Quartal"
@@ -3218,28 +3218,28 @@
     },
     "anlageN": {
       "label": "Anlage N im Berater-Paket einschließen",
-      "description": "Erzwingt die Aufnahme der Anlage N (Arbeitnehmereinkünfte, § 3 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn eine Lohnsteuerbescheinigung für das Geschäftsjahr in Company.settings.lohnsteuerbescheinigungen erfasst wurde. Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung.",
+      "description": "Nimmt die Anlage N (Arbeitnehmereinkünfte, § 19 EStG) immer in das Paket für den Berater auf. Sonst ist sie nur enthalten, wenn für das Geschäftsjahr eine Lohnsteuerbescheinigung erfasst wurde (Buchhaltung, Anlage N). Für Arbeitnehmer, Beamte, Gesellschafter-Geschäftsführer mit Anstellung.",
       "effectLabel": "Wirkt auf: Anlage-N.pdf im Berater-Paket"
     },
     "anlageKind": {
       "label": "Anlage Kind im Berater-Paket einschließen",
-      "description": "Erzwingt die Aufnahme der Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn Kinder für das Geschäftsjahr in Company.settings.kinder erfasst wurden. Für Familien mit Kindern, für die Kindergeld bezogen oder Kinderfreibetrag geltend gemacht wird.",
+      "description": "Nimmt die Anlage Kind (Kinderfreibetrag + Kindergeld, § 32 / § 33 / § 33a EStG) immer in das Paket für den Berater auf. Sonst ist sie nur enthalten, wenn für das Geschäftsjahr Kinder erfasst wurden (Buchhaltung, Anlage Kind). Für Familien mit Kindern, für die Kindergeld bezogen oder Kinderfreibetrag geltend gemacht wird.",
       "effectLabel": "Wirkt auf: Anlage-Kind.pdf im Berater-Paket"
     },
     "anlageSo": {
       "label": "Anlage SO im Berater-Paket einschließen",
-      "description": "Erzwingt die Aufnahme der Anlage SO (Sonstige Einkünfte, § 22 EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn private Veräußerungsgeschäfte oder wiederkehrende Bezüge für das Geschäftsjahr in Company.settings.anlageSO erfasst wurden. Für private Veräußerungen (Krypto, Gold, Aktien) und wiederkehrende Bezüge (private Pensionen, Unterhalt).",
+      "description": "Nimmt die Anlage SO (Sonstige Einkünfte, § 22 EStG) immer in das Paket für den Berater auf. Sonst ist sie nur enthalten, wenn für das Geschäftsjahr private Veräußerungsgeschäfte oder wiederkehrende Bezüge erfasst wurden (Buchhaltung, Anlage SO). Für private Veräußerungen (Krypto, Gold, Aktien) und wiederkehrende Bezüge (private Pensionen, Unterhalt).",
       "effectLabel": "Wirkt auf: Anlage-SO.pdf im Berater-Paket"
     },
     "anlageAus": {
       "label": "Anlage AUS im Berater-Paket einschließen",
-      "description": "Erzwingt die Aufnahme der Anlage AUS (Ausländische Einkünfte, § 34d EStG) im year-end Berater-Paket ZIP. Standardmäßig nur enthalten, wenn ausländische Einkünfte für das Geschäftsjahr in Company.settings.anlageAUS erfasst wurden. Für Mandanten mit Auslandsgeschäften, ausländischen Dividenden / Zinsen / Mieteinnahmen, oder DBA-Freistellung.",
+      "description": "Nimmt die Anlage AUS (Ausländische Einkünfte, § 34d EStG) immer in das Paket für den Berater auf. Sonst ist sie nur enthalten, wenn für das Geschäftsjahr ausländische Einkünfte erfasst wurden (Buchhaltung, Anlage AUS). Für Mandanten mit Auslandsgeschäften, ausländischen Dividenden / Zinsen / Mieteinnahmen, oder DBA-Freistellung.",
       "effectLabel": "Wirkt auf: Anlage-AUS.pdf im Berater-Paket"
     }
   },
   "ustja": {
     "title": "Umsatzsteuerjahreserklärung (UStJA)",
-    "subtitle": "Aggregiert die 12 monatlichen UStVAs (Jan–Dez) zu einer Jahres-USt (§ 18 Abs. 3 UStG, BMF Vordruck 2024). Im Festsetzungs-Bescheid wird die tatsächliche USt-Schuld des Mandanten festgesetzt; die monatlichen UStVAs sind Vorauszahlungen. Berater überträgt die Zahlen manuell in ELSTER oder seine StB-Software (v1: kein nativer ELSTER-XML-Export).",
+    "subtitle": "Fasst die 12 monatlichen UStVAs (Jan–Dez) zur Umsatzsteuer des Jahres zusammen (§ 18 Abs. 3 UStG, BMF-Vordruck 2024). Der Bescheid setzt die tatsächliche Steuerschuld fest; die monatlichen UStVAs sind Vorauszahlungen. Die App übermittelt nichts an ELSTER — die Erklärung lässt sich als ELSTER-XML-Datei herunterladen, der Berater übernimmt sie in ELSTER oder seine Kanzleisoftware.",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
@@ -3261,7 +3261,7 @@
   },
   "gewst": {
     "title": "Gewerbesteuererklärung (GewSt)",
-    "subtitle": "Standalone-Trade-Tax-Return nach BMF Vordruck GewSt 1A 2024. Liest Gewerbeertrag + Hebesatz + Freibetrag aus Anlage G (§ 15 EStG). Berater trägt die Vorauszahlungen aus den 4 Quartalsbescheiden unten ein. v1: keine native ELSTER-XML-Übermittlung — Berater überträgt die Zahlen manuell in ELSTER oder seine StB-Software.",
+    "subtitle": "Gewerbesteuererklärung nach dem BMF-Vordruck GewSt 1A 2024. Gewerbeertrag und Freibetrag stammen aus der Anlage G (§ 15 EStG); Hebesatz und die Vorauszahlungen aus den 4 Quartalsbescheiden werden unten eingetragen. Die App übermittelt nichts an ELSTER — der Berater überträgt die Zahlen in ELSTER oder seine Kanzleisoftware.",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
@@ -3271,12 +3271,15 @@
     "q2": "Q2 (15.05.)",
     "q3": "Q3 (15.08.)",
     "q4": "Q4 (15.11.)",
-    "saveVorauszahlungen": "Vorauszahlungen speichern",
-    "savedOk": "Vorauszahlungen gespeichert.",
+    "saveVorauszahlungen": "Angaben speichern",
+    "savedOk": "Hebesatz und Vorauszahlungen gespeichert.",
     "vordruck": "BMF Vordruck GewSt 1A — Kennziffern",
-    "fieldsHint": "Kz 5 (Steuermessbetrag) = Gewerbeertrag nach Freibetrag × 0.035. Kz 7 (Hebesatz) = Gemeinde-Hebesatz (default 400; Köln 470, München 490, Münster 400, Stuttgart 420). Kz 10 (festzusetzende GewSt) = Kz 5 × Kz 7 / 100. Kz 11 (Vorauszahlungen) = Q1-Q4 Summe. Kz 12 (Differenz) = Kz 10 - Kz 11.",
+    "fieldsHint": "Kz 5 (Steuermessbetrag) = Gewerbeertrag nach Freibetrag × 0,035. Kz 7 (Hebesatz) = Hebesatz der Gemeinde (400, solange oben nichts eingetragen ist). Kz 10 (festzusetzende GewSt) = Kz 5 × Kz 7 / 100. Kz 11 (Vorauszahlungen) = Summe Q1–Q4. Kz 12 (Differenz) = Kz 10 − Kz 11.",
     "totals": "Zusammenfassung",
-    "generatedAt": "Erstellt"
+    "generatedAt": "Erstellt",
+    "hebesatzLabel": "Hebesatz der Gemeinde",
+    "hebesatzHint": "Er steht im Gewerbesteuerbescheid. Solange nichts eingetragen ist, wird mit 400 % gerechnet. Der Hebesatz gilt für alle Jahre und auch für Anlage G und KSt 1.",
+    "hebesatzInvalid": "Der Hebesatz ist eine ganze Zahl zwischen 200 und 1000."
   },
   "payments": {
     "title": "SEPA-Sammelüberweisung (pain.001)",
@@ -3444,7 +3447,7 @@
     "loadError": "Fehler beim Laden der Anlage SO Daten",
     "saveError": "Fehler beim Speichern",
     "v2": {
-      "csvImportTitle": "Broker-CSV-Import (v2)",
+      "csvImportTitle": "Geschäfte aus einer CSV-Datei des Brokers einlesen",
       "csvImportHint": "CSV mit Spalten: type (optional), description, acquisitionDate, acquisitionCost, saleDate, salePrice. Datumsformat dd.mm.yyyy, Dezimaltrennzeichen Komma. Beispiel: BTC,0.1 BTC,15.06.2024,5000,00,20.03.2025,8000,00",
       "csvImportPlaceholder": "type,description,acquisitionDate,acquisitionCost,saleDate,salePrice\nwertpapier,AAPL 100,15.03.2024,12000,00,20.06.2024,15500,00",
       "csvPreview": "Vorschau",
@@ -3455,7 +3458,7 @@
       "csvImported": "CSV importiert — {imported} importiert, {skipped} übersprungen.",
       "csvError": "Fehler beim CSV-Import",
       "csvInvalid": "CSV ungültig",
-      "expenseImportTitle": "Aus Ausgaben importieren (v2)",
+      "expenseImportTitle": "Aus Ausgaben übernehmen",
       "expenseImportHint": "Bank-Transaktionen mit Expense.category = 'crypto' oder 'brokerage' werden automatisch in private Veräußerungsgeschäfte umgewandelt. Bereits importierte Ausgaben werden übersprungen (idempotent).",
       "expenseImportButton": "Aus Ausgaben importieren",
       "expenseListTitle": "Importierbare Ausgaben",

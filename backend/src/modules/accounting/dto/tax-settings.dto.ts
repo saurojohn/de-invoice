@@ -210,4 +210,11 @@ export class GewstSettingsDto extends YearDto {
   @Amount() q2?: number
   @Amount() q3?: number
   @Amount() q4?: number
+  // Tier 651: the Hebesatz of the municipality, in percent. § 16 Abs. 4 GewStG
+  // sets 200 as the least a municipality may levy; none levies 1000.
+  @ValidateIf((_o, v) => v !== undefined)
+  @StrictNumber() @IsInt({ message: 'hebesatz muss eine ganze Zahl sein' })
+  @Min(200, { message: 'hebesatz muss mindestens 200 sein (§ 16 Abs. 4 GewStG)' })
+  @Max(1000, { message: 'hebesatz ist zu groß' })
+  hebesatz?: number
 }

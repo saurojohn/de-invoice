@@ -226,7 +226,7 @@ const LINES: Array<{
       'Einkünfte aus ausländischem Gewerbebetrieb (Nr. 2) — durch ausländische Betriebsstätte',
     source: 'placeholder',
     note:
-      'Bei ausländischer Betriebsstätte: BWA der Betriebsstätte beifügen, separate Gewinnermittlung nach ausländischem Recht. v1: Berater ergänzt manuell. v2: Import ausländischer Buchhaltung (DATEV-kompatibel).',
+      'Bei ausländischer Betriebsstätte: BWA der Betriebsstätte beifügen, separate Gewinnermittlung nach ausländischem Recht. Der Berater ergänzt manuell.',
   },
   {
     kz: '42',
@@ -234,7 +234,7 @@ const LINES: Array<{
       'Einkünfte aus nichtselbständiger Arbeit im Ausland (Nr. 4) — Lohnsteuerbescheinigung ausländischer Arbeitgeber',
     source: 'placeholder',
     note:
-      'Bei DBA-Freistellung Progressionsvorbehalt anwenden. v1: Berater ergänzt manuell aus der ausländischen Lohnsteuerbescheinigung.',
+      'Bei DBA-Freistellung Progressionsvorbehalt anwenden. Der Berater ergänzt manuell aus der ausländischen Lohnsteuerbescheinigung.',
   },
 ]
 
@@ -465,17 +465,17 @@ export class AnlageAUSService {
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren ausländischen ' +
-        'Einkünften (Company.settings.anlageAUS[year]) + dem ' +
+        'Einkünften (erfasst unter Buchhaltung, Anlage AUS) + dem ' +
         'DBA-Status pro Land generiert. § 34d EStG unterscheidet 7 ' +
         'Kategorien (Nr. 1-7) von Auslandseinkünften. Bei DBA-Freistellung ' +
         'greift der Progressionsvorbehalt nach § 32b EStG: die Einkünfte ' +
         'sind steuerfrei, erhöhen aber den Steuersatz für die übrigen ' +
         'Einkünfte. Bei Anrechnung (kein DBA oder DBA mit Anrechnungs- ' +
         'klausel) wird die ausländische Steuer auf die deutsche Einkommen- ' +
-        'steuer angerechnet (Anrechnungsbetrag = foreignTaxPaid). ' +
+        'steuer angerechnet (Anrechnungsbetrag = gezahlte ausländische Steuer). ' +
         '§ 8b KStG (nur für KapG): 95% der ausländischen Dividenden sind ' +
         'steuerfrei, 5% nicht abziehbare Betriebsausgaben (bei Beteiligung ' +
-        '≥ 1% an ausländischer Kapitalgesellschaft). v1: Der Anrechnungs- ' +
+        '≥ 1% an ausländischer Kapitalgesellschaft). Der Anrechnungs- ' +
         'betrag ist die tatsächlich gezahlte ausländische Steuer (nicht ' +
         'gedeckelt). Die tatsächliche deutsche Einkommensteuer auf den ' +
         'steuerpflichtigen Anteil (Kz 6) hängt vom Grenzsteuersatz ab — ' +
@@ -483,8 +483,7 @@ export class AnlageAUSService {
         'Steuer den deutschen Anteil übersteigt (ggf. keine Anrechnung, ' +
         'sondern nur Abzug als Betriebsausgabe nach § 34c Abs. 2 EStG). ' +
         'Beträge in EUR (Umrechnungskurs zum Zeitpunkt der Vereinnahmung, ' +
-        'siehe BMF-Schreiben). v2: automatischer Wechselkurs-Lookup + ' +
-        'DBA-Tabelle pro Land.',
+        'siehe BMF-Schreiben).',
     }
   }
 

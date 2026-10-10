@@ -25,7 +25,7 @@ import { AnlageKAPService } from './anlage-kap.service'
 // Kürzungen on top of the EÜR sum.
 import { AnlageGService } from './anlage-g.service'
 // Tier 101: Anlage N (Arbeitnehmereinkünfte,
-// § 3 EStG). The 5th Anlage form — for
+// § 19 EStG). The 5th Anlage form — for
 // Arbeitnehmer + Beamte + Teilzeit-Beschäftigte.
 // Data: Lohnsteuerbescheinigung + manual
 // Werbungskosten/Sonderausgaben/aB.

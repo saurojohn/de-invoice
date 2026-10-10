@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tier 101 — Anlage N (Arbeitnehmereinkünfte,
-# § 3 EStG).
+# § 19 EStG).
 #
 # Validates the new AnlageNService + the
 # /api/v1/accounting/anlage-n endpoint + the
@@ -248,9 +248,10 @@ assert_eq "hasLohnsteuerbescheinigung is bool" "$HAS_COUNTS" "True"
 DISCLAIMER_LEN=$(python3 -c "import json,sys; print(len(json.load(sys.stdin)['disclaimer']))" < "$TMP")
 test "$DISCLAIMER_LEN" -gt 200 && pass "disclaimer length=$DISCLAIMER_LEN" || fail "disclaimer too short ($DISCLAIMER_LEN)"
 
-# Disclaimer mentions § 3 EStG (Arbeitnehmereinkünfte)
-HAS_3=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('§ 3 EStG' in d['disclaimer'])" < "$TMP")
-assert_eq "disclaimer mentions § 3 EStG" "$HAS_3" "True"
+# Disclaimer names § 19 EStG — income from employment. (Tier 651: it named
+# § 3 EStG, the list of tax-free income.)
+HAS_3=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('§ 19 EStG' in d['disclaimer'])" < "$TMP")
+assert_eq "disclaimer mentions § 19 EStG" "$HAS_3" "True"
 rm -f "$TMP"
 
 summary

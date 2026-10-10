@@ -239,7 +239,9 @@ for r in d.get('rows', []):
 " <<< "$BODY")
   CB_DELTA=$(python3 -c "print(int($AFTER_CB) - int($BASE_CB_ROW))")
   pass "row.creditBalance delta: $BASE_CB_ROW + $CB_DELTA = $AFTER_CB (expected +150)"
-  EXPECTED_NOPEN=$(python3 -c "print(max(0, $AFTER_TOTAL - $AFTER_CB))")
+  # Rounded to the cent: 935.2 - 150 is 785.1999999999998 in binary floating
+  # point, and the API answers 785.2.
+  EXPECTED_NOPEN=$(python3 -c "print(max(0, round($AFTER_TOTAL - $AFTER_CB, 2)))")
   assert_eq "row.netOpen === max(0, totalOpen - creditBalance)" "$AFTER_NOPEN" "$EXPECTED_NOPEN"
 fi
 
@@ -271,7 +273,7 @@ if [[ "$HUGE_ROW" != "NOT_FOUND" ]]; then
   pass "row.creditBalance delta: $AFTER_CB + $HUGE_CB_DELTA = $HUGE_CB (expected +5000)"
   # netOpen = max(0, totalOpen - creditBalance). Use
   # HUGE_CB (current value) instead of fixed 5150.
-  EXPECTED_NOPEN=$(python3 -c "print(max(0, $HUGE_TOTAL - $HUGE_CB))")
+  EXPECTED_NOPEN=$(python3 -c "print(max(0, round($HUGE_TOTAL - $HUGE_CB, 2)))")
   assert_eq "row.netOpen = max(0, totalOpen - creditBalance)" "$HUGE_NOPEN" "$EXPECTED_NOPEN"
   pass "huge credit test: total=$HUGE_TOTAL credit=$HUGE_CB net=$HUGE_NOPEN"
 fi

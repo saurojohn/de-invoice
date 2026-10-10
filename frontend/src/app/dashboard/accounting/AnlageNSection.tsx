@@ -69,7 +69,7 @@ interface LohnsteuerbescheinigungInput {
  * Tier 101: Anlage N section.
  *
  * Einkünfte aus nichtselbständiger Arbeit
- * (§ 3 EStG) — for employees + civil servants
+ * (§ 19 EStG) — for employees + civil servants
  * + part-time workers + managing directors
  * with employment contracts. The 5th Anlage
  * form (after S / V / KAP / G).
