@@ -30,6 +30,9 @@ export interface MahnungPdfInput {
   invoiceDate: Date
   dueDate: Date
   totalAmount: number
+  /** Tier 653: the invoice's currency — every amount of the letter is in it
+   *  (the fee, set in euros, converted at the invoice's rate). */
+  currency?: string
   totalVat?: number
   customer: {
     name: string
@@ -125,6 +128,10 @@ const LEVEL_FRIST: Record<MahnungPdfInput["level"], string> = {
 }
 
 export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer> {
+  // Tier 653: the letter wrote "€" after every amount, whatever the invoice
+  // was in.
+  const currency = String(input.currency || "EUR").toUpperCase()
+  const formatEUR = (n: number): string => formatAmount(n, currency)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: "A4",
@@ -412,7 +419,8 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
       })
       if (feeM > 0) {
         feeLines.push({
-          label: `Mahngebühr (Stufe ${feeStageLabel(input.level)})`,
+          label: `Mahngebühr (Stufe ${feeStageLabel(input.level)})` +
+            (currency === "EUR" ? "" : `, in ${currency} zum Kurs der Rechnung`),
           value: feeM,
         })
       }
@@ -549,13 +557,13 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
   })
 }
 
-function formatEUR(n: number): string {
-  // German format: 1.234,56 €
+function formatAmount(n: number, currency: string): string {
+  // German format: 1.234,56 € — another currency by its code: 1.234,56 USD
   return (
     new Intl.NumberFormat("de-DE", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(n) + " €"
+    }).format(n) + (currency === "EUR" ? " €" : ` ${currency}`)
   )
 }
 

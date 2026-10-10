@@ -539,6 +539,7 @@ export class ReminderController {
       invoiceDate: new Date(inv.issueDate),
       dueDate,
       totalAmount: Number(inv.total),
+      currency: String((inv as any).currency || 'EUR'), // Tier 653
       customer: {
         name: customer.name,
         contact: customer.contact,

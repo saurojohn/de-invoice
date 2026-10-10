@@ -633,6 +633,13 @@ export default function InvoiceDetailPage() {
   // (used by the email template preview to keep server /
   // client formatting identical — we want the user to see
   // exactly what the recipient will see).
+  // Tier 653: an amount of this invoice in the invoice's own currency. The
+  // page wrote "€" before every amount — a USD invoice read "€11900.00".
+  const money = (n: number | string): string => {
+    const v = (Number(n) || 0).toFixed(2)
+    const code = (invoice?.currency || "EUR").toUpperCase()
+    return code === "EUR" ? `€${v}` : `${v} ${code}`
+  }
   const fmtAmountForEmail = (n: number, currency: string, lang: "de" | "en" | "zh"): string => {
     try {
       const locale = lang === "de" ? "de-DE" : lang === "en" ? "en-US" : "zh-CN"
@@ -2165,11 +2172,11 @@ export default function InvoiceDetailPage() {
                   <tr key={idx}>
                     <td className="px-4 py-3">{item.description}</td>
                     <td className="px-4 py-3 text-center">{item.quantity} {item.unit}</td>
-                    <td className="px-4 py-3 text-right">€{parseFloat(item.unitPrice).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right">{money(parseFloat(item.unitPrice))}</td>
                     <td className="px-4 py-3 text-right">{getVatLabel(item.vatRate)}</td>
-                    <td className="px-4 py-3 text-right">€{parseFloat(item.netAmount).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right">€{parseFloat(item.vatAmount).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right font-medium">€{parseFloat(item.grossAmount).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right">{money(parseFloat(item.netAmount))}</td>
+                    <td className="px-4 py-3 text-right">{money(parseFloat(item.vatAmount))}</td>
+                    <td className="px-4 py-3 text-right font-medium">{money(parseFloat(item.grossAmount))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2182,19 +2189,19 @@ export default function InvoiceDetailPage() {
         <div className="flex justify-end">
           <Card className="w-80">
             <CardContent className="space-y-3">
-              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.subtotalNet")}</span><span>€{parseFloat(invoice.subtotal).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.subtotalNet")}</span><span>{money(parseFloat(invoice.subtotal))}</span></div>
               {Math.abs(invoiceDiscount) > 0.005 && (
                 <>
-                  <div className="flex justify-between" data-testid="invoice-discount-row"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.discountLabel")}</span><span>−€{Math.abs(invoiceDiscount).toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.netLabel")}</span><span>€{netAfterDiscount.toFixed(2)}</span></div>
+                  <div className="flex justify-between" data-testid="invoice-discount-row"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.discountLabel")}</span><span>−{money(Math.abs(invoiceDiscount))}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.netLabel")}</span><span>{money(netAfterDiscount)}</span></div>
                 </>
               )}
-              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.vatLabel")}</span><span>€{parseFloat(invoice.totalVat).toFixed(2)}</span></div>
-              <div className="flex justify-between text-xl font-bold border-t pt-3"><span>{t("invoicePage.totalLabel")}</span><span className="text-blue-600 dark:text-blue-400">€{parseFloat(invoice.total).toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm pt-1"><span className="text-green-700 dark:text-green-300">{t("invoicePage.paidLabel")}</span><span className="text-green-700 dark:text-green-300">€{totalPaid.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">{t("invoicePage.vatLabel")}</span><span>{money(parseFloat(invoice.totalVat))}</span></div>
+              <div className="flex justify-between text-xl font-bold border-t pt-3"><span>{t("invoicePage.totalLabel")}</span><span className="text-blue-600 dark:text-blue-400">{money(parseFloat(invoice.total))}</span></div>
+              <div className="flex justify-between text-sm pt-1"><span className="text-green-700 dark:text-green-300">{t("invoicePage.paidLabel")}</span><span className="text-green-700 dark:text-green-300">{money(totalPaid)}</span></div>
               <div className={`flex justify-between text-sm font-semibold ${outstanding > 0.01 ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-300"}`}>
                 <span>{outstanding > 0.01 ? "Offen:" : "Vollständig bezahlt ✓"}</span>
-                <span>€{outstanding.toFixed(2)}</span>
+                <span>{money(outstanding)}</span>
               </div>
             </CardContent>
           </Card>
@@ -2216,7 +2223,7 @@ export default function InvoiceDetailPage() {
                 data-testid={`payment-notice-${n.id}`}
               >
                 <span className="text-amber-900 dark:text-amber-100">
-                  €{Number(n.amount).toFixed(2)} gemeldet am{" "}
+                  {money(Number(n.amount))} gemeldet am{" "}
                   {new Date(n.reportedAt).toLocaleDateString("de-DE")} (
                   {n.source === "payment-link" ? "Zahlungslink" : "Kundenportal"})
                 </span>
@@ -2507,7 +2514,7 @@ export default function InvoiceDetailPage() {
                       <td className="px-4 py-2">{formatDate(p.paymentDate)}</td>
                       <td className="px-4 py-2">{paymentMethodLabel(p.paymentMethod)}</td>
                       <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{p.reference || "—"}</td>
-                      <td className="px-4 py-2 text-right font-medium">€{Number(p.amount).toFixed(2)}</td>
+                      <td className="px-4 py-2 text-right font-medium">{money(Number(p.amount))}</td>
                       <td className="px-4 py-2 text-right">
                         <button
                           onClick={() => deletePayment(p.id)}

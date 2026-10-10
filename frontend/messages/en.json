@@ -1614,7 +1614,7 @@
     "startDateLabel": "Start date"
   },
   "reminder": {
-    "ofInvoiceTotal": "of {total} € invoiced",
+    "ofInvoiceTotal": "of {total} invoiced",
     "title": "Payment Reminders",
     "overdueInvoices": "Overdue Invoices",
     "overdueAmount": "Overdue Total Amount",
@@ -1834,7 +1834,9 @@
     "orderAscHint": "Oldest activity at the top (paper-ledger order)",
     "creditBalance": "Customer credit (running balance)",
     "creditBalancePositiveNote": "The customer currently has a credit. On request, we refund the amount (Auszahlung) or apply it to the next invoice.",
-    "creditBalanceNegativeNote": "Note: negative balance — manual adjustment by the tax advisor recommended."
+    "creditBalanceNegativeNote": "Note: negative balance — manual adjustment by the tax advisor recommended.",
+    "currency": "Currency",
+    "currencyHint": "A statement covers the items of one currency."
   },
   "storage": {
     "title": "Storage Settings",

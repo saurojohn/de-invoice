@@ -43,15 +43,16 @@ const PAGE_WIDTH = 595.28
 const PAGE_HEIGHT = 841.89
 const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN * 2
 
-// Standard German formatting: 1.234,56
-function fmtEur(n: number): string {
+// Standard German formatting: € 1.234,56 — another currency by its code,
+// after the amount: 1.234,56 USD (Tier 653)
+function fmtMoney(n: number, currency: string): string {
   const sign = n < 0 ? '-' : ''
   const abs = Math.abs(n)
   const fixed = abs.toFixed(2)
   const [intPart, fracPart] = fixed.split('.')
   // Insert thousands separator dots
   const intWithDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  return `${sign}€ ${intWithDots},${fracPart}`
+  return currency === 'EUR' ? `${sign}€ ${intWithDots},${fracPart}` : `${sign}${intWithDots},${fracPart} ${currency}`
 }
 
 function fmtDateDE(d: Date | string): string {
@@ -110,6 +111,9 @@ function renderAddress(
 export async function generateStatementPdf(
   data: CustomerStatement,
 ): Promise<Buffer> {
+  // Tier 653: the statement's own currency (it wrote "€" before every amount)
+  const currency = String(data.currency || 'EUR').toUpperCase()
+  const fmtEur = (n: number): string => fmtMoney(n, currency)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
@@ -199,6 +203,19 @@ export async function generateStatementPdf(
       data.customer.address,
       data.customer.name,
     )
+
+    // Tier 653: which currency this statement is in, when the customer has
+    // documents in more than one
+    if ((data.currencies || []).length > 1) {
+      doc.font('Helvetica').fontSize(8).fillColor('#444444')
+      doc.text(
+        `Dieser Kontoauszug umfasst die Posten in ${currency}. ` +
+          `Für ${data.currencies.filter((c) => c !== currency).join(', ')} gibt es je einen eigenen Kontoauszug.`,
+        PAGE_MARGIN, y, { width: CONTENT_WIDTH },
+      )
+      y = doc.y + 6
+      doc.fillColor('#000000')
+    }
 
     // ── Opening balance box ──────────────────────────
     doc.font('Helvetica').fontSize(10)

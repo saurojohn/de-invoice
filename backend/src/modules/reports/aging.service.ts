@@ -42,6 +42,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CLAIM_TYPES } from '../invoice/document-scope'
+import { invoiceEurFactor } from '../invoice/tax-breakdown'
 
 export type AgingBucket = 'current' | '1-30' | '31-60' | '61-90' | '90+';
 
@@ -121,7 +122,10 @@ export class AgingService {
         (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
         new Prisma.Decimal(0),
       ).toNumber()
-      const open = Math.max(0, Math.round((total - paid) * 100) / 100)
+      // Tier 653: in euros, at the rate the invoice was booked at — the
+      // report added what is open in USD, SEK and CHF to euros (50 376,66 "€"
+      // for six invoices in three currencies).
+      const open = Math.max(0, Math.round((total - paid) * invoiceEurFactor({ ...inv, totalVat: 0 }) * 100) / 100)
       if (open <= 0) continue
 
       const due = inv.dueDate ? new Date(inv.dueDate) : null

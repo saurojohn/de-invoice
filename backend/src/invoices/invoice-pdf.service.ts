@@ -35,6 +35,12 @@ interface Invoice {
   discountAmount?: any
   notes?: string | null
   currency: string
+  // Tier 653: what a foreign-currency invoice is in euros, and at which rate
+  // (1 EUR = exchangeRate of the currency; 'ecb:YYYY-MM-DD' or 'manual')
+  exchangeRate?: any
+  exchangeRateSource?: string | null
+  eurTotalVat?: any
+  eurTotal?: any
   templateType?: string
   // Tier 52/54: Skonto fields drive the "Zahlbar bis
   // X mit Y% Skonto, bis Z ohne Abzug" footer line.
@@ -146,6 +152,10 @@ export async function generateInvoicePDF(
   // block entirely. EC level M per EPC069-12 v2
   // recommendation. 360px width is 4x the 90pt
   // display size, plenty for a crisp 300dpi PDF.
+  // Tier 653: every amount in the invoice's own currency. The function was one
+  // for the whole file and wrote "€" — an invoice over 11 900 USD went out as
+  // "Gesamtbetrag: € 11.900,00" (it is 10 619,31 €).
+  const formatCurrency = (val: number) => formatMoney(val, invoice.currency)
   const qrPayload = buildEpcQrPayload(company, invoice)
   let qrBuffer: Buffer | null = null
   if (qrPayload) {
@@ -824,6 +834,16 @@ export async function generateInvoicePDF(
       blockEndY = zahlY + gesamtHeight
     }
 
+    // Tier 653: an invoice in a foreign currency states its VAT in euros
+    // (Art. 230 MwStSystRL) and the rate it was converted at.
+    const euroNote = hidePrices || noPayment || docType === "OC" ? null : euroNoteOf(invoice)
+    if (euroNote) {
+      const noteWidth = rightMargin - leftMargin
+      doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
+      doc.text(euroNote, leftMargin, blockEndY + 6, { width: noteWidth, align: "right" })
+      blockEndY += 6 + doc.heightOfString(euroNote, { width: noteWidth, align: "right" })
+    }
+
     // Notes
     if (invoice.notes) {
       const notesY = blockEndY + (isCompact ? 12 : 20)
@@ -1143,9 +1163,38 @@ function formatNumber(val: number): string {
   return val.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })
 }
 
-// German currency format: € 1.234,56 (with space after € sign)
-function formatCurrency(val: number): string {
-  return "€\u00A0" + val.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// German currency format: € 1.234,56 (with space after € sign); another
+// currency by its code, after the amount: 1.234,56 USD (Tier 653).
+export function formatMoney(val: number, currency?: string | null): string {
+  const amount = val.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const code = String(currency || "EUR").toUpperCase()
+  return code === "EUR" ? "€\u00A0" + amount : amount + "\u00A0" + code
+}
+
+// Tier 653: "Umsatzsteuer in Euro: € 1.695,52 · Gesamtbetrag in Euro:
+// € 10.619,31" and, on a second line, "Umrechnungskurs: 1 EUR = 1,1206 USD
+// (EZB-Referenzkurs vom 09.10.2026)" — null
+// for an EUR invoice and for one without a rate.
+export function euroNoteOf(invoice: {
+  currency?: string | null
+  exchangeRate?: any
+  exchangeRateSource?: string | null
+  eurTotalVat?: any
+  eurTotal?: any
+}): string | null {
+  const code = String(invoice.currency || "EUR").toUpperCase()
+  const rate = Number(invoice.exchangeRate)
+  if (code === "EUR" || !(rate > 0) || invoice.eurTotal == null) return null
+  const source = String(invoice.exchangeRateSource || "")
+  const origin = source.startsWith("ecb:")
+    ? ` (EZB-Referenzkurs vom ${formatDate(source.slice(4))})`
+    : ""
+  const rateText = rate.toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 6 })
+  return (
+    `Umsatzsteuer in Euro: ${formatMoney(toFloat(invoice.eurTotalVat ?? 0), "EUR")} · ` +
+    `Gesamtbetrag in Euro: ${formatMoney(toFloat(invoice.eurTotal), "EUR")}\n` +
+    `Umrechnungskurs: 1 EUR = ${rateText}\u00A0${code}${origin}`
+  )
 }
 
 function formatVatRate(rate: number): string {
@@ -1193,6 +1242,9 @@ export function buildEpcQrPayload(
 ): string | null {
   const bankInfo = company.bankInfo
   if (!bankInfo || typeof bankInfo !== 'object') return null
+  // Tier 653: a GiroCode is a SEPA credit transfer and knows euros only — an
+  // invoice over 11 900 USD carried a code that paid 11 900 EUR.
+  if (String(invoice.currency || 'EUR').toUpperCase() !== 'EUR') return null
   const iban = (bankInfo.iban || '').replace(/\s/g, '').toUpperCase()
   if (!iban || !/^[A-Z]{2}\d{2}[A-Z0-9]{12,30}$/.test(iban)) return null
 

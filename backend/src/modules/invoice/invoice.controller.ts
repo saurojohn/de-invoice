@@ -624,6 +624,13 @@ export class InvoiceController {
       // PDF embeds — single source of truth. Falls
       // through to 404 when the company has no IBAN
       // (no scannable code to give the customer).
+      // Tier 653: a GiroCode pays euros
+      const giroCurrency = String((invoice as any).currency || 'EUR').toUpperCase()
+      if (giroCurrency !== 'EUR') {
+        return res.status(404).json({
+          message: `Ein GiroCode ist eine SEPA-Überweisung in Euro — für eine Rechnung in ${giroCurrency} gibt es keinen.`,
+        })
+      }
       const qrPayload = buildEpcQrPayload(company as any, invoice as any)
       if (!qrPayload) {
         return res.status(404).json({

@@ -655,12 +655,14 @@ export class CustomerController {
     @Query('from') fromStr: string,
     @Query('to') toStr: string,
     @Query('order') order?: string,
+    @Query('currency') currency?: string,
   ) {
     this.assertCompanyId(companyId)
     const { from, to } = this.parseStatementRange(fromStr, toStr)
     return this.statementService.generate(
       companyId, id, from, to,
       this.parseOrder(order),
+      currency,
     )
   }
 
@@ -678,19 +680,21 @@ export class CustomerController {
     @Query('to') toStr: string,
     @Query('order') order: string,
     @Res() res: Response,
+    @Query('currency') currency?: string,
   ) {
     this.assertCompanyId(companyId)
     const { from, to } = this.parseStatementRange(fromStr, toStr)
     const data = await this.statementService.generate(
       companyId, id, from, to,
       this.parseOrder(order),
+      currency,
     )
     const { generateStatementPdf } = await import(
       './customer-statement-pdf.service'
     )
     const pdf = await generateStatementPdf(data)
     const customerNum = data.customer.customerNumber || data.customer.id.slice(0, 8)
-    const fname = `Kontoauszug_${customerNum}_${fromStr}_${toStr}.pdf`
+    const fname = `Kontoauszug_${customerNum}_${fromStr}_${toStr}${data.currency === 'EUR' ? '' : `_${data.currency}`}.pdf`
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${fname}"`,

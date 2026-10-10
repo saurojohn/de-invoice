@@ -24,7 +24,7 @@
  * row says "skipped: bereits heute gemahnt" so the
  * operator can see what happened.
  */
-import { isConsumer } from './reminder.service'
+import { isConsumer, fxOf } from './reminder.service'
 import { CLAIM_TYPES } from "../invoice/document-scope"
 import { Injectable, Logger } from "@nestjs/common"
 import { PrismaService } from "../../prisma/prisma.service"
@@ -342,6 +342,7 @@ export class BulkReminderService {
       dueDate,
       level,
       isConsumer((invoice.customer as any)?.type),
+      fxOf(invoice as any).rate, // Tier 653
     )
 
     // Render the email subject + body.
@@ -368,6 +369,7 @@ export class BulkReminderService {
       invoiceDate: new Date(invoice.issueDate),
       dueDate,
       totalAmount: Number(invoice.total),
+      currency: fxOf(invoice as any).currency, // Tier 653
       // Tier 421: the open balance, and how the interest was computed.
       openAmount: Math.round((fees.totalDue - fees.mahngebuehr - fees.verzugszins) * 100) / 100,
       verzugszinsPct: fees.verzugszinsPct,

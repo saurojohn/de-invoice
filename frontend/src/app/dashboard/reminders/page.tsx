@@ -21,6 +21,8 @@ interface OverdueInvoice {
     }
   }
   total: string
+  // Tier 653: the currency of the amounts (an invoice in USD stood here in "€")
+  currency?: string
   // Tier 638: the total less payments and credit notes
   openAmount?: string
   dueDate: string
@@ -107,6 +109,8 @@ export default function RemindersPage() {
   const getDaysOverdueLabel = (days: number) => `${days} ${t("reminder.days")}`
   const fmtMoney = (v: string | number) =>
     new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v) || 0)
+  // Tier 653: "€", or the code of another currency
+  const unitOf = (currency?: string) => (currency && currency.toUpperCase() !== "EUR" ? currency.toUpperCase() : "€")
 
   // Tier 390: this opened a mailto: link and then posted /reminders/send, the
   // email-data and the refresh all with a raw fetch without auth headers —
@@ -349,11 +353,11 @@ export default function RemindersPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                        <span data-testid="reminder-amount">{fmtMoney(invoice.openAmount ?? invoice.total)} €</span>
+                        <span data-testid="reminder-amount">{fmtMoney(invoice.openAmount ?? invoice.total)} {unitOf(invoice.currency)}</span>
                       </div>
                       {invoice.openAmount !== undefined && Number(invoice.openAmount) !== Number(invoice.total) && (
                         <div className="text-xs text-gray-500 dark:text-gray-400" data-testid="reminder-invoice-total">
-                          {t("reminder.ofInvoiceTotal", { total: fmtMoney(invoice.total) })}
+                          {t("reminder.ofInvoiceTotal", { total: `${fmtMoney(invoice.total)} ${unitOf(invoice.currency)}` })}
                         </div>
                       )}
                       <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">

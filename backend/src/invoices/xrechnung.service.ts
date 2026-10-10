@@ -118,6 +118,9 @@ export interface XRechnungData {
   servicePeriodStart?: string
   servicePeriodEnd?: string
   currency: string
+  /** Tier 653: BT-6 and BT-111 — the VAT accounting currency of an invoice
+   *  in a foreign currency, and the total VAT in it. */
+  taxCurrency?: { code: string; taxTotal: number }
   /** BR-1 v2: BuyerReference is now mandatory. */
   buyerReference: string
   supplier: XRechnungSupplier
@@ -236,10 +239,10 @@ export function generateXRechnung(data: XRechnungData): string {
   <cbc:Note>${escapeXml(data.notes)}</cbc:Note>` : ''}
 
   <!-- Währung / Currency (BR-05) -->
-  <cbc:DocumentCurrencyCode>${escapeXml(data.currency)}</cbc:DocumentCurrencyCode>
-  <!-- BR-53: TaxCurrencyCode absichtlich weggelassen (nur nötig wenn
-       != DocumentCurrencyCode). Wir setzen aktuell keine
-       abweichende VAT-Währung. -->
+  <cbc:DocumentCurrencyCode>${escapeXml(data.currency)}</cbc:DocumentCurrencyCode>${data.taxCurrency ? `
+  <!-- BT-6: the VAT accounting currency of an invoice in a foreign currency
+       (Art. 230 MwStSystRL); BT-111 follows the tax total (BR-53). -->
+  <cbc:TaxCurrencyCode>${escapeXml(data.taxCurrency.code)}</cbc:TaxCurrencyCode>` : ''}
 
   <!-- Tier 412: LineCountNumeric removed — not part of EN 16931 (UBL-CR-011). -->
 
@@ -285,7 +288,11 @@ ${data.precedingInvoice ? `
       <cbc:TaxAmount currencyID="${escapeXml(data.currency)}">${formatCents(v.tax)}</cbc:TaxAmount>
       ${taxCategoryXml(v.category, v.rate, true, data.kleinunternehmer)}
     </cac:TaxSubtotal>`).join('')}
-  </cac:TaxTotal>
+  </cac:TaxTotal>${data.taxCurrency ? `
+  <!-- BT-111: the invoice's total VAT in the accounting currency -->
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="${escapeXml(data.taxCurrency.code)}">${data.taxCurrency.taxTotal.toFixed(2)}</cbc:TaxAmount>
+  </cac:TaxTotal>` : ''}
 
   <!-- Gesamtbetrag / Legal Monetary Total (BR-CO-10, BR-CO-11, BR-CO-13, BR-CO-15, BR-CO-16) -->
   <cac:LegalMonetaryTotal>
@@ -1144,6 +1151,10 @@ export function transformToXRechnungData(
         }
       : {}),
     currency: invoice.currency,
+    // Tier 653: an invoice in a foreign currency states its VAT in euros too
+    ...(String(invoice.currency || 'EUR').toUpperCase() !== 'EUR' && (invoice as any).eurTotalVat != null && Number((invoice as any).exchangeRate) > 0
+      ? { taxCurrency: { code: 'EUR', taxTotal: Math.round(Math.abs(Number((invoice as any).eurTotalVat)) * 100) / 100 } }
+      : {}),
     buyerReference,
     supplier: {
       name: company.name,

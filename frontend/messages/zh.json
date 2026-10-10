@@ -1614,7 +1614,7 @@
     "startDateLabel": "开始日期"
   },
   "reminder": {
-    "ofInvoiceTotal": "发票金额 {total} €",
+    "ofInvoiceTotal": "发票金额 {total}",
     "title": "付款提醒",
     "overdueInvoices": "逾期发票",
     "overdueAmount": "逾期总额",
@@ -1834,7 +1834,9 @@
     "orderAscHint": "最早交易在上(纸质账本顺序)",
     "creditBalance": "客户余额(滚动)",
     "creditBalancePositiveNote": "客户当前有余额。可应客户要求退款(Auszahlung)或抵扣下一张发票。",
-    "creditBalanceNegativeNote": "注意:负余额 — 建议由税务顾问手动调整。"
+    "creditBalanceNegativeNote": "注意:负余额 — 建议由税务顾问手动调整。",
+    "currency": "货币",
+    "currencyHint": "一份对账单只包含一种货币的款项。"
   },
   "storage": {
     "title": "存储设置",

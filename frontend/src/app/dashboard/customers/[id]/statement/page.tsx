@@ -29,6 +29,9 @@ interface CustomerStatement {
     vatId: string | null
   }
   period: { from: string; to: string }
+  // Tier 653: the statement is in one currency; the others the customer has
+  currency?: string
+  currencies?: string[]
   openingBalance: number
   lines: StatementLine[]
   closingBalance: number
@@ -51,10 +54,11 @@ interface CustomerStatement {
 }
 
 // German / English / Chinese number formats
-function fmtEur(n: number, locale: string = "de-DE"): string {
+function fmtMoney(n: number, currency: string = "EUR", locale: string = "de-DE"): string {
   return new Intl.NumberFormat(locale, {
     style: "currency",
-    currency: "EUR",
+    currency,
+    currencyDisplay: currency === "EUR" ? "symbol" : "code",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n)
@@ -124,6 +128,8 @@ export default function CustomerStatementPage() {
   // natural reading order — see latest activity at the top).
   // ASC is the accountant's chronological paper-trail view.
   const [order, setOrder] = useState<"desc" | "asc">("desc")
+  // Tier 653: "" = the server's choice (EUR when the customer has EUR documents)
+  const [currency, setCurrency] = useState("")
 
   const [statement, setStatement] = useState<CustomerStatement | null>(null)
   const [loading, setLoading] = useState(false)
@@ -150,13 +156,16 @@ export default function CustomerStatementPage() {
       .catch(() => { /* non-fatal */ })
   }, [id, router])
 
-  const fetchStatement = async () => {
+  // Tier 653: every amount in the statement's own currency
+  const money = (n: number) => fmtMoney(n, statement?.currency || "EUR")
+
+  const fetchStatement = async (cur: string = currency) => {
     if (!companyId) return
     setLoading(true)
     setError(null)
     try {
       const data = await apiGet<CustomerStatement>(
-        `/api/v1/customers/${id}/statement?companyId=${companyId}&from=${from}&to=${to}&order=${order}`
+        `/api/v1/customers/${id}/statement?companyId=${companyId}&from=${from}&to=${to}&order=${order}${cur ? `&currency=${cur}` : ""}`
       )
       setStatement(data)
     } catch (e: any) {
@@ -175,7 +184,7 @@ export default function CustomerStatementPage() {
     setDownloading(true)
     try {
       const res = await apiFetch(
-        `/api/v1/customers/${id}/statement.pdf?companyId=${companyId}&from=${from}&to=${to}&order=${order}`,
+        `/api/v1/customers/${id}/statement.pdf?companyId=${companyId}&from=${from}&to=${to}&order=${order}${statement?.currency ? `&currency=${statement.currency}` : ""}`,
         { throwOnError: false }
       )
       if (!res.ok) {
@@ -188,7 +197,7 @@ export default function CustomerStatementPage() {
       const a = document.createElement("a")
       a.href = url
       const num = statement?.customer.customerNumber || id.slice(0, 8)
-      a.download = `Kontoauszug_${num}_${from}_${to}.pdf`
+      a.download = `Kontoauszug_${num}_${from}_${to}${statement?.currency && statement.currency !== "EUR" ? `_${statement.currency}` : ""}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -354,8 +363,20 @@ export default function CustomerStatementPage() {
                 ↑ {t("statement.orderOldestFirst")}
               </button>
             </div>
+            {statement && (statement.currencies?.length ?? 0) > 1 && (
+              <select
+                className="h-9 border rounded-md px-2 text-sm"
+                value={statement.currency}
+                onChange={(e) => { setCurrency(e.target.value); fetchStatement(e.target.value) }}
+                aria-label={t("statement.currency")}
+                title={t("statement.currencyHint")}
+                data-testid="statement-currency"
+              >
+                {statement.currencies!.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
             <Button
-              onClick={fetchStatement}
+              onClick={() => fetchStatement()}
               disabled={loading}
               data-testid="statement-generate-button"
             >
@@ -430,7 +451,7 @@ export default function CustomerStatementPage() {
                   {t("statement.openingBalance")}
                 </div>
                 <div className="text-xl font-mono" data-testid="statement-opening">
-                  {fmtEur(statement.openingBalance)}
+                  {money(statement.openingBalance)}
                 </div>
               </div>
               <div className="border rounded p-3">
@@ -438,13 +459,13 @@ export default function CustomerStatementPage() {
                   {t("statement.totals")}
                 </div>
                 <div className="text-sm font-mono mt-1">
-                  {t("statement.invoices")}: {fmtEur(statement.totals.invoicesAmount)}
+                  {t("statement.invoices")}: {money(statement.totals.invoicesAmount)}
                 </div>
                 <div className="text-sm font-mono">
-                  {t("statement.payments")}: {fmtEur(statement.totals.paymentsAmount)}
+                  {t("statement.payments")}: {money(statement.totals.paymentsAmount)}
                 </div>
                 <div className="text-sm font-mono">
-                  {t("statement.credits")}: {fmtEur(statement.totals.creditsAmount)}
+                  {t("statement.credits")}: {money(statement.totals.creditsAmount)}
                 </div>
               </div>
               <div
@@ -464,7 +485,7 @@ export default function CustomerStatementPage() {
                   className="text-xl font-mono font-bold"
                   data-testid="statement-closing"
                 >
-                  {fmtEur(statement.closingBalance)}
+                  {money(statement.closingBalance)}
                 </div>
                 {statement.closingBalance < 0 && (
                   <div className="text-xs text-green-700 mt-1">
@@ -498,7 +519,7 @@ export default function CustomerStatementPage() {
                   {t("statement.creditBalance")}
                 </div>
                 <div className="text-xl font-mono font-bold">
-                  {fmtEur(statement.creditBalance)}
+                  {money(statement.creditBalance)}
                 </div>
                 <div className="text-xs text-gray-600 mt-1">
                   {statement.creditBalance > 0
@@ -566,10 +587,10 @@ export default function CustomerStatementPage() {
                         }
                         data-testid="statement-line-amount"
                       >
-                        {fmtEur(line.amount)}
+                        {money(line.amount)}
                       </td>
                       <td className="py-1 px-2 text-right font-mono font-semibold">
-                        {fmtEur(line.balance)}
+                        {money(line.balance)}
                       </td>
                     </tr>
                   ))}

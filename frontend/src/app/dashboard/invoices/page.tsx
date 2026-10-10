@@ -1232,7 +1232,12 @@ function InvoicesPageInner() {
                       <span className="ml-2">{invoice.invoiceNumber}</span>
                     </td>
                     <td className="px-4 py-3">{invoice.customer?.name || "-"}</td>
-                    <td className="px-4 py-3">€{Number(invoice.total).toFixed(2)}</td>
+                    {/* Tier 653: an invoice in another currency stood here with "€" */}
+                    <td className="px-4 py-3">
+                      {(invoice as { currency?: string }).currency && (invoice as { currency?: string }).currency !== "EUR"
+                        ? `${Number(invoice.total).toFixed(2)} ${(invoice as { currency?: string }).currency}`
+                        : `€${Number(invoice.total).toFixed(2)}`}
+                    </td>
                     <td className="px-4 py-3">{formatDateDE(invoice.issueDate)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-xs ${getStatusColor(invoice.status)}`}>

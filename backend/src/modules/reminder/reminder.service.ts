@@ -6,6 +6,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { MahnungspauseService } from './mahnungspause.service';
 import { invoicesHeldByPlan } from './installment-hold';
+import { invoiceEurFactor } from '../invoice/tax-breakdown'
 
 /**
  * Tier 123: per-company dunning config.
@@ -76,6 +77,18 @@ export function readDunningConfig(settings: unknown): DunningConfig {
 const openOf = (inv: { total: unknown; payments: Array<{ amount: unknown }> }): number =>
   Math.max(0, Math.round((Number(inv.total) - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)) * 100) / 100)
 
+/**
+ * Tier 653 — the currency of an invoice and the rate its euros were computed
+ * at (1 EUR = rate of the currency; 1 for an EUR invoice). The dunning texts
+ * said "EUR" and "€" for every invoice: 2 380 USD overdue were demanded as
+ * "2.380,00 EUR", plus a fee in euros in the same sum.
+ */
+export const fxOf = (inv: { currency?: unknown; exchangeRate?: unknown }): { currency: string; rate: number } => {
+  const currency = String(inv.currency || 'EUR').toUpperCase()
+  const rate = Number(inv.exchangeRate)
+  return { currency, rate: currency !== 'EUR' && rate > 0 ? rate : 1 }
+}
+
 /** 1190 → "1.190,00", as a German letter writes an amount. */
 const germanAmount = (n: number): string =>
   n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -99,6 +112,8 @@ export interface OverdueInvoice {
   total: string;
   /** Tier 638: the total less what was paid or credited — what the reminder is about. */
   openAmount?: string;
+  /** Tier 653: the currency the two amounts are in */
+  currency?: string;
   dueDate: string;
   // Rechnungsdatum — needed by the Mahnung PDF and
   // by the auto-reminder cron (which renders the
@@ -211,6 +226,8 @@ export class ReminderService {
         id: true,
         invoiceNumber: true,
         total: true,
+        currency: true, // Tier 653
+        exchangeRate: true,
         dueDate: true,
         skontoDays: true,
         skontoPercent: true,
@@ -347,6 +364,7 @@ export class ReminderService {
         },
         total: inv.total.toString(),
         openAmount: openOf(inv).toString(),
+        currency: fxOf(inv as any).currency,
         dueDate: inv.dueDate!.toISOString(),
         issueDate: inv.issueDate.toISOString(),
         daysOverdue,
@@ -655,9 +673,22 @@ Mit freundlichen Grüßen,
       bank.bic && `BIC: ${bank.bic}`,
     ].filter(Boolean).join('\n')
 
+    // Tier 653: the texts name the currency after the amount ("{{openAmount}}
+    // EUR") — in the defaults and in whatever the company wrote itself. For
+    // an invoice in another currency that word is the invoice's.
+    const { currency } = fxOf(invoice)
+    const AMOUNT = String.raw`\{\{\s*(?:totalAmount|openAmount|invoiceTotal)\s*\}\}`
+    const inCurrency = (text: string): string =>
+      currency === 'EUR'
+        ? text
+        : text
+            // (a code needs the space a sign can do without: "…{{x}}€" → "… USD")
+            .replace(new RegExp(`(${AMOUNT})(\\s*)(?:EUR\\b|€)`, 'g'), (_m, amount: string, gap: string) => `${amount}${gap || ' '}{{currency}}`)
+            .replace(new RegExp(`(?:EUR\\b|€)(\\s*)(${AMOUNT})`, 'g'), (_m, gap: string, amount: string) => `${amount}${gap || ' '}{{currency}}`)
     const ctx: Record<string, string | number> = {
       customerName,
       invoiceNumber: invoice.invoiceNumber,
+      currency,
       totalAmount: germanAmount(open),
       openAmount: germanAmount(open),
       invoiceTotal: germanAmount(total),
@@ -669,8 +700,8 @@ Mit freundlichen Grüßen,
     }
 
     return {
-      subject: this.renderTemplate(template.subject, ctx),
-      body: this.renderTemplate(template.body, ctx),
+      subject: this.renderTemplate(inCurrency(template.subject), ctx),
+      body: this.renderTemplate(inCurrency(template.body), ctx),
     }
   }
 
@@ -785,7 +816,7 @@ Mit freundlichen Grüßen,
           dueDate: { lt: today },
           type: 'INV',
         },
-        select: { total: true, payments: { select: { amount: true } } },
+        select: { total: true, eurTotal: true, payments: { select: { amount: true } } },
       }),
       this.prisma.emailSend.count({
         where: {
@@ -800,7 +831,9 @@ Mit freundlichen Grüßen,
 
     return {
       overdueCount,
-      totalOverdueAmount: (Math.round(totalOverdueAmount.reduce((sum, inv) => sum + openOf(inv), 0) * 100) / 100).toString(),
+      // Tier 653: in euros — the sum added what is open in USD and in SEK to
+      // what is open in EUR.
+      totalOverdueAmount: (Math.round(totalOverdueAmount.reduce((sum, inv) => sum + openOf(inv) * invoiceEurFactor({ ...inv, totalVat: 0 }), 0) * 100) / 100).toString(),
       recentReminders,
     };
   }
@@ -948,9 +981,12 @@ Mit freundlichen Grüßen,
     dueDate: Date | null,
     level: 'first' | 'second' | 'final',
     consumer: boolean,
+    /** Tier 653: 1 EUR = rate of the invoice's currency — the fee is set in
+     *  euros and is demanded in the currency of the invoice, in one sum. */
+    rate = 1,
   ) {
     const cfg = await this.getFeeConfig(companyId);
-    const mahngebuehr = cfg.mahngebuehr[level] || 0;
+    const mahngebuehr = (cfg.mahngebuehr[level] || 0) * (rate > 0 ? rate : 1);
     // Tier 421: `verzugszinsPct` is the surcharge over the Basiszinssatz — as
     // the settings page always said (§ 288 Abs. 2 BGB) — not the whole rate,
     // which is how it was applied (a flat 9 % a year). A consumer owes at
@@ -1025,6 +1061,8 @@ Mit freundlichen Grüßen,
         total: true,
         dueDate: true,
         status: true,
+        currency: true,
+        exchangeRate: true,
         customer: { select: { type: true } },
       },
     });
@@ -1039,10 +1077,12 @@ Mit freundlichen Grüßen,
       invoice.dueDate,
       level,
       isConsumer(invoice.customer?.type),
+      fxOf(invoice).rate,
     );
     return {
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
+      currency: fxOf(invoice).currency,
       openBalance: principalGross,
       dueDate: invoice.dueDate,
       daysOverdue,

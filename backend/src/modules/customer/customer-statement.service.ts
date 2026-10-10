@@ -31,7 +31,7 @@
 //   closing_balance = running_balance(last row)
 //   opening_balance + sum(lines.delta) === closing_balance
 
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ISSUED_STATUSES, CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
@@ -99,6 +99,12 @@ export interface CustomerStatement {
     vatId: string | null
   }
   period: { from: string; to: string }
+  /** Tier 653: the currency of this statement — its invoices, credit notes
+   *  and payments are the customer's in this currency only — and every
+   *  currency the customer has documents in (EUR first). A statement added
+   *  2 380 USD, 11 900 SEK and 396,66 CHF to one balance in "€". */
+  currency: string
+  currencies: string[]
   openingBalance: number
   lines: StatementLine[]
   closingBalance: number
@@ -155,6 +161,7 @@ export class CustomerStatementService {
     from: Date,
     to: Date,
     order: 'asc' | 'desc' = 'desc',
+    currency?: string,
   ): Promise<CustomerStatement> {
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, companyId },
@@ -169,6 +176,21 @@ export class CustomerStatementService {
     if (!customer) {
       throw new NotFoundException(`Customer ${customerId} not found`)
     }
+
+    // Tier 653: one statement, one currency.
+    const used = await this.prisma.invoice.groupBy({
+      by: ['currency'],
+      where: { customerId, companyId, status: { in: ISSUED_STATUSES }, type: { in: STATEMENT_TYPES }, issueDate: { lte: to } },
+    })
+    const currencies = [...new Set(used.map((u) => String(u.currency || 'EUR').toUpperCase()))]
+      .sort((a, b) => (a === 'EUR' ? -1 : b === 'EUR' ? 1 : a.localeCompare(b)))
+    const wanted = String(currency || '').toUpperCase()
+    if (wanted && !/^[A-Z]{3}$/.test(wanted)) {
+      throw new BadRequestException('currency muss ein Währungscode aus drei Buchstaben sein')
+    }
+    const cur = wanted || currencies[0] || 'EUR'
+    // (a code stored in small letters before Tier 652 is the same currency)
+    const inCur = { equals: cur, mode: 'insensitive' as const }
 
     // ── Opening balance ────────────────────────────────
     // Sum of all invoices issued BEFORE 'from' (positive)
@@ -186,12 +208,13 @@ export class CustomerStatementService {
           status: { in: ISSUED_STATUSES },
           type: { in: STATEMENT_TYPES },
           issueDate: { lt: from },
+          currency: inCur,
         },
         _sum: { total: true },
       }),
       this.prisma.payment.aggregate({
         where: {
-          invoice: { customerId, companyId },
+          invoice: { customerId, companyId, currency: inCur },
           paymentDate: { lt: from },
           paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS }, // Tier 431: nor a credit applied
         },
@@ -212,6 +235,7 @@ export class CustomerStatementService {
           status: { in: ISSUED_STATUSES },
           type: { in: STATEMENT_TYPES },
           issueDate: { gte: from, lte: to },
+          currency: inCur,
         },
         select: {
           id: true,
@@ -224,7 +248,7 @@ export class CustomerStatementService {
       }),
       this.prisma.payment.findMany({
         where: {
-          invoice: { customerId, companyId },
+          invoice: { customerId, companyId, currency: inCur },
           paymentDate: { gte: from, lte: to },
           // Tier 424: a credit note books a synthetic 'Gutschrift' payment on
           // the invoice it corrects; the statement shows the credit note
@@ -426,6 +450,7 @@ export class CustomerStatementService {
           companyId,
           customerId,
           status: 'active',
+          invoice: { currency: inCur },
         },
         include: {
           invoice: {
@@ -507,6 +532,8 @@ export class CustomerStatementService {
         vatId: customer.vatId,
       },
       period: { from: from.toISOString(), to: to.toISOString() },
+      currency: cur,
+      currencies: currencies.length ? currencies : ['EUR'],
       openingBalance,
       lines,
       closingBalance,
@@ -517,7 +544,9 @@ export class CustomerStatementService {
       // render a single "Guthaben" badge without an extra
       // round-trip. Computed in the same generate() pass
       // — the aggregate is a single index-backed SUM.
-      creditBalance: await this.getCreditBalance(companyId, customer.id),
+      // Tier 653: the ledger is in euros; it is not part of a statement in
+      // another currency.
+      creditBalance: cur === 'EUR' ? await this.getCreditBalance(companyId, customer.id) : 0,
       totals: {
         invoicesCount,
         invoicesAmount,

@@ -309,12 +309,14 @@ export function generateZUGFeRDXml(
            Tier 493: with a Leistungszeitraum only a recorded date is stated. -->${deliveryEvent}
     </ram:ApplicableHeaderTradeDelivery>
     <ram:ApplicableHeaderTradeSettlement>
-      <ram:InvoiceCurrencyCode>${cur}</ram:InvoiceCurrencyCode>${paymentMeans}${taxBreakdown}${billingPeriod}${allowances}${paymentTerms}
+      ${data.taxCurrency ? `<ram:TaxCurrencyCode>${escapeXml(data.taxCurrency.code)}</ram:TaxCurrencyCode>
+      ` : ''}<ram:InvoiceCurrencyCode>${cur}</ram:InvoiceCurrencyCode>${paymentMeans}${taxBreakdown}${billingPeriod}${allowances}${paymentTerms}
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
         <ram:LineTotalAmount>${formatCents(t.lineExtension)}</ram:LineTotalAmount>
         ${t.allowanceTotal !== 0 ? `<ram:AllowanceTotalAmount>${formatCents(t.allowanceTotal)}</ram:AllowanceTotalAmount>` : ''}
         <ram:TaxBasisTotalAmount>${formatCents(t.taxExclusive)}</ram:TaxBasisTotalAmount>
         <ram:TaxTotalAmount currencyID="${cur}">${formatCents(t.taxTotal)}</ram:TaxTotalAmount>
+        ${data.taxCurrency ? `<ram:TaxTotalAmount currencyID="${escapeXml(data.taxCurrency.code)}">${data.taxCurrency.taxTotal.toFixed(2)}</ram:TaxTotalAmount>` : ''}
         <ram:GrandTotalAmount>${formatCents(t.taxInclusive)}</ram:GrandTotalAmount>
         ${t.prepaid !== 0 ? `<ram:TotalPrepaidAmount>${formatCents(t.prepaid)}</ram:TotalPrepaidAmount>` : ''}
         <ram:DuePayableAmount>${formatCents(t.payable)}</ram:DuePayableAmount>

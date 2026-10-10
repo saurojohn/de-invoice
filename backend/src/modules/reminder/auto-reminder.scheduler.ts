@@ -44,7 +44,7 @@ import { Cron } from "@nestjs/schedule"
 import { PrismaService } from "../../prisma/prisma.service"
 import { MailService } from "../mail/mail.service"
 import { ReminderService } from "./reminder.service"
-import { readDunningConfig } from "./reminder.service"
+import { readDunningConfig, fxOf } from "./reminder.service"
 // Tier 119: every cron tick records to the shared
 // CronHealthService for the admin dashboard.
 import { CronHealthService } from "../admin/cron-health.service"
@@ -235,12 +235,16 @@ export class AutoReminderService {
         // Per-level — typically 0/5/10 EUR for the
         // default config. The Mahnung PDF renders the
         // fee under the overdue-amount table.
+        // Tier 653: set in euros, demanded in the invoice's currency
+        const fx = fxOf(inv as any)
         const mahngebuehr =
-          level === "first"
-            ? dunningConfig.level1Fee
-            : level === "second"
-            ? dunningConfig.level2Fee
-            : dunningConfig.level3Fee
+          Math.round(
+            (level === "first"
+              ? dunningConfig.level1Fee
+              : level === "second"
+              ? dunningConfig.level2Fee
+              : dunningConfig.level3Fee) * fx.rate * 100,
+          ) / 100
 
         // 3c: generate Mahnung PDF and prepare the email.
         const neueFrist = computeNeueFrist(today, level)
@@ -252,6 +256,7 @@ export class AutoReminderService {
           invoiceDate: new Date(inv.issueDate),
           dueDate,
           totalAmount: total,
+          currency: fx.currency,
           mahngebuehr,
           customer: inv.customer,
           company: {

@@ -1614,7 +1614,7 @@
     "startDateLabel": "Startdatum"
   },
   "reminder": {
-    "ofInvoiceTotal": "von {total} € Rechnungsbetrag",
+    "ofInvoiceTotal": "von {total} Rechnungsbetrag",
     "title": "Zahlungserinnerungen",
     "overdueInvoices": "Überfällige Rechnungen",
     "overdueAmount": "Überfälliger Gesamtbetrag",
@@ -1834,7 +1834,9 @@
     "orderAscHint": "Älteste Bewegung oben (Buchführungs-Reihenfolge)",
     "creditBalance": "Kundenguthaben (laufend)",
     "creditBalancePositiveNote": "Der Kunde hat aktuell ein Guthaben. Auf Anfrage erstatten wir den Betrag (Auszahlung) oder verrechnen ihn mit der nächsten Rechnung.",
-    "creditBalanceNegativeNote": "Hinweis: negatives Guthaben — manueller Ausgleich durch den Steuerberater empfohlen."
+    "creditBalanceNegativeNote": "Hinweis: negatives Guthaben — manueller Ausgleich durch den Steuerberater empfohlen.",
+    "currency": "Währung",
+    "currencyHint": "Ein Kontoauszug umfasst die Posten einer Währung."
   },
   "storage": {
     "title": "Speichereinstellungen",
