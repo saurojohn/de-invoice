@@ -3425,7 +3425,7 @@
   },
   "anlageSo": {
     "title": "Anlage SO (Sonstige Einkünfte)",
-    "subtitle": "Sonstige Einkünfte (§ 22 EStG) — private Veräußerungsgeschäfte (Krypto / Gold / Aktien innerhalb der Spekulationsfrist) + wiederkehrende Bezüge (private Pensionen, Unterhaltsleistungen). Freigrenze 600 EUR/Jahr für Veräußerungsgewinne (§ 23 Abs. 3 Satz 5 EStG).",
+    "subtitle": "Sonstige Einkünfte (§ 22 EStG) — private Veräußerungsgeschäfte (Krypto / Gold / Aktien innerhalb der Spekulationsfrist) + wiederkehrende Bezüge (private Pensionen, Unterhaltsleistungen). Freigrenze für Veräußerungsgewinne: unter 1.000 EUR im Jahr steuerfrei (bis 2023: 600 EUR), ab der Grenze voll steuerpflichtig (§ 23 Abs. 3 Satz 5 EStG).",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
@@ -3485,7 +3485,7 @@
       "lossCarryforwardInFristGain": "In-Frist-Gewinne",
       "lossCarryforwardInFristLoss": "In-Frist-Verluste",
       "lossCarryforwardTaxable": "Verbleibender steuerpflichtiger Gewinn",
-      "lossCarryforwardApplied": "Freigrenze angewendet (≤ 600 EUR)",
+      "lossCarryforwardApplied": "Freigrenze angewendet (Gesamtgewinn unter der Grenze)",
       "lossCarryforwardNotApplied": "Freigrenze überschritten",
       "lossCarryforwardKz99": "Kz 99 (Verlustvortrag) im BMF-Vordruck"
     }

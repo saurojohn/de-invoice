@@ -2653,6 +2653,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 656 — Anlage SO: the limit for private sales is the year's, and it is a limit
+
+The second annex of a person's return read against the statute (§ 23 EStG, gesetze-im-internet.de, 10.10.2026). Two things fixed, one left open **and said on the form**.
+
+- **The Freigrenze** (§ 23 Abs. 3 S. 5): gains stay tax-free when their total in the year is *less than* 1 000 € — from 2024; 600 € before. The form had 600 € for every year. And the service the page and its PDF use **subtracted** it: 3 000 € of gain were shown as 2 400 € taxable, 601 € as 1 €. It is a limit — from it on the whole gain is taxable. `anlage-so-rules.ts` (`freigrenzeFor(year)`, `afterFreigrenze`), used by both services.
+- **Open — the kinds of asset and their periods are wrong, and need a new data model.** The form knows two kinds: „Wertpapier“ (period 1 year) and „Sonstige“ (10 years). By § 23 Abs. 1: ten years is for real estate only (Nr. 1); other assets — gold, art, crypto — one year (Nr. 2); and securities bought since 2009 are not private sales at all but capital income (§ 20 Abs. 2, Anlage KAP). So gold sold after two years is shown as taxable, and shares sold after two years as tax-free. Crypto is filed under „Wertpapier“ to get the one-year period, and lines 32 and 34 print the same sum. Three kinds (crypto / other, real estate, securities → KAP), the CSV import, the section and two specs would have to change. Until then the disclaimer of both services says so, in so many words („Achtung, noch nicht dem Gesetz entsprechend: …“). §9 item 25.
+- There are still two services for one form (`anlage-so.service.ts` for the page and its PDF, `anlage-so-v2.service.ts` for the adviser's package and `/anlage-so/v2`); the first does not offset losses, the second does.
+
+Specs 135 and 138 changed with it: 3 000 € → 3 000 € (was 2 400), 600 € → 0, 1 000 € → 1 000 € (601 € had given 1 €), the limit of the year 1 000; net 1 100 € → 1 100 €.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 655 — Anlage R: the taxable share of a pension follows the year it began
 
 Found while reading the previews' notes for translation: Anlage R said „Besteuerungsanteil: 50% (bis 2040) bis 83% (2024) — fällt jährlich um 1 Prozentpunkt bis 50% in 2057“. That was not only a sentence — it was the table the form computed with.
@@ -9127,6 +9137,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**
     - **Foreign currency (Tier 652):** invoices are converted at the ECB reference rate of the invoice's day. § 16 Abs. 6 UStG names the monthly average rates the BMF publishes; the daily rate needs the tax office's consent. Daily rate (as built), or the monthly average entered by hand on each invoice — or should the program fetch the monthly average?
+    - **The annexes of a person's return (Tiers 655–656):** Anlage R and the limit of Anlage SO were corrected against the statute. Anlage SO's kinds of asset and holding periods are still wrong (it says so itself) and need a new data model; Anlage N, Kind, AUS, KAP and V were not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
     - **OSS:** (whether the company takes part is a setting since Tier 649.) Still for the Steuerberater: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.

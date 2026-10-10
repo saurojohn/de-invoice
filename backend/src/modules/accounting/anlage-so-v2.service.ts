@@ -1,3 +1,4 @@
+import { afterFreigrenze, freigrenzeFor } from './anlage-so-rules'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -101,7 +102,7 @@ export interface CsvImportResult {
   transactions: VgTransaction[]
 }
 
-const FREIGRENZE_2024 = 600
+// Tier 656: the limit depends on the year — anlage-so-rules.ts
 const SPEKULATIONSFRIST_YEARS: Record<string, number> = {
   wertpapier: 1,
   sonstige: 10,
@@ -398,7 +399,8 @@ export class AnlageSOV2Service {
       0,
       inFristLoss + priorYearLoss - inFristGain,
     )
-    const freigrenzeApplied = totalTaxableGain <= FREIGRENZE_2024
+    // Tier 656: less than the limit of the year (was: ≤ 600 for every year)
+    const freigrenzeApplied = afterFreigrenze(totalTaxableGain, year) === 0
     const vgTotal = freigrenzeApplied ? 0 : totalTaxableGain
 
     // v2: persist the carryforward for next year (if
@@ -491,8 +493,8 @@ export class AnlageSOV2Service {
       {
         kennziffer: '20',
         label:
-          'Freigrenze für private Veräußerungsgeschäfte (§ 23 Abs. 3 Satz 5 EStG) — 600 EUR/Jahr',
-        amount: inFristCount > 0 ? FREIGRENZE_2024 : 0,
+          'Freigrenze für private Veräußerungsgeschäfte (§ 23 Abs. 3 Satz 5 EStG): unter 1.000 EUR Gesamtgewinn im Jahr steuerfrei (bis 2023: 600 EUR)',
+        amount: inFristCount > 0 ? freigrenzeFor(year) : 0,
         source: 'computed',
       },
       // v2 NEW: Kz 99 — Verlustvortrag / Verlustverrechnung
@@ -555,7 +557,7 @@ export class AnlageSOV2Service {
         freigrenzeApplied,
         vgTotal: round2(vgTotal),
       },
-      freigrenze: FREIGRENZE_2024,
+      freigrenze: freigrenzeFor(year),
       lines,
       totals: {
         vgTotal: round2(vgTotal),
@@ -578,12 +580,17 @@ export class AnlageSOV2Service {
         'Satz 3-5 EStG — in-Frist-Verluste werden mit in-Frist-' +
         'Gewinnen verrechnet; der nicht verrechnigte Anteil wird ' +
         'als Verlustvortrag ' +
-        'in das Folgejahr übernommen. Freigrenze 600 EUR (§ 23 ' +
+        'in das Folgejahr übernommen. Die Freigrenze (§ 23 ' +
         'Abs. 3 Satz 5 EStG) wird NACH Verlustverrechnung ' +
-        'angewendet (≤ 600 EUR → komplett steuerfrei). ' +
+        'angewendet: unter 1.000 EUR (bis 2023: 600 EUR) steuerfrei, ab der Grenze in voller Höhe steuerpflichtig. ' +
         'Spekulationsfrist: 1 Jahr für Wertpapiere (§ 23 Abs. 1 ' +
         'Nr. 2 EStG, inkl. Kryptowährungen), 10 Jahre für ' +
         'sonstige Wirtschaftsgüter (§ 23 Abs. 1 Nr. 1 EStG). ' +
+        'Achtung, noch nicht dem Gesetz entsprechend: diese Vorschau kennt nur die Arten „Wertpapier“ (Frist 1 Jahr) ' +
+        'und „Sonstige“ (Frist 10 Jahre). Nach § 23 Abs. 1 EStG gilt die Zehnjahresfrist nur für Grundstücke (Nr. 1), ' +
+        'für andere Wirtschaftsgüter — Gold, Kunst, Kryptowerte — ein Jahr (Nr. 2); Wertpapiere, die seit 2009 ' +
+        'angeschafft wurden, gehören gar nicht hierher, sondern in die Anlage KAP (§ 20 Abs. 2 EStG). ' +
+        'Der Berater prüft jedes Geschäft. ' +
         'Die Geschäfte lassen sich als CSV-Datei einlesen (Buchhaltung, Anlage SO).',
     }
   }
@@ -1020,7 +1027,7 @@ export class AnlageSOV2Service {
         doc.text(`• Verlustvortrag in Folgejahre: ${this.fmtEur(data.vg.carryforward)} €`)
       }
       if (data.vg.freigrenzeApplied) {
-        doc.text(`• Freigrenze (600 EUR) angewendet — vgTotal = 0`)
+        doc.text(`• Freigrenze (${freigrenzeFor(year)} EUR) angewendet — vgTotal = 0`)
       } else {
         doc.text(`• Freigrenze überschritten — vgTotal = ${this.fmtEur(data.vg.vgTotal)} €`)
       }

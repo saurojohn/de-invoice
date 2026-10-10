@@ -91,11 +91,14 @@ TOTAL_GAIN=$(json_field "$BODY" "vg.totalGain")
 assert_close "totalGain = 3000" "$TOTAL_GAIN" "3000"
 TAXABLE_GAIN=$(json_field "$BODY" "vg.taxableGain")
 assert_close "taxableGain = 3000" "$TAXABLE_GAIN" "3000"
-# vgTotal = taxableGain - Freigrenze (600) = 2400
+# Tier 656: § 23 Abs. 3 S. 5 EStG is a Freigrenze — a gain of 1 000 € or more
+# (600 € up to 2023) is taxable in full. The limit was 600 € for every year
+# and was subtracted from the gain: 3 000 € were shown as 2 400 €.
 VG_TOTAL=$(json_field "$BODY" "totals.vgTotal")
-assert_close "vgTotal = 2400 (after 600 Freigrenze)" "$VG_TOTAL" "2400"
+assert_close "vgTotal = 3000 — the whole gain (was 2400: the limit subtracted)" "$VG_TOTAL" "3000"
 EINKUENFTE=$(json_field "$BODY" "totals.einkuenfte")
-assert_close "einkuenfte = 2400" "$EINKUENFTE" "2400"
+assert_close "einkuenfte = 3000" "$EINKUENFTE" "3000"
+assert_close "the limit of the year is 1 000 € (was 600)" "$(json_field "$BODY" "freigrenze")" "1000"
 
 # ===== 4. Sonstige WG outside 10-Jahr Frist is NOT taxable =====
 echo
@@ -154,17 +157,17 @@ COUNT=$(json_field "$BODY" "vg.count")
 assert_eq "2 transactions" "$COUNT" "2"
 IN_FRIST_3=$(json_field "$BODY" "vg.inSpekulationsfrist")
 assert_eq "1 in Frist" "$IN_FRIST_3" "1"
-# Taxable gain = 2000 (only the Wertpapier), vgTotal = 2000 - 600 = 1400
+# Taxable gain = 2000 (only the Wertpapier) — at or above the limit, so all of it
 VG_TOTAL_3=$(json_field "$BODY" "totals.vgTotal")
-assert_close "vgTotal = 1400" "$VG_TOTAL_3" "1400"
+assert_close "vgTotal = 2000 (was 1400)" "$VG_TOTAL_3" "2000"
 # Wiederkehrende = 12000, Werbungskosten = 102
 WB_TOTAL=$(json_field "$BODY" "totals.wiederkehrendeBezuegeTotal")
 assert_close "wiederkehrendeBezuegeTotal = 12000" "$WB_TOTAL" "12000"
 WK_TOTAL=$(json_field "$BODY" "totals.werbungskostenTotal")
 assert_close "werbungskostenTotal = 102" "$WK_TOTAL" "102"
-# Einkünfte = 1400 + 12000 - 102 = 13298
+# Einkünfte = 2000 + 12000 - 102 = 13898
 EINK_3=$(json_field "$BODY" "totals.einkuenfte")
-assert_close "einkuenfte = 13298" "$EINK_3" "13298"
+assert_close "einkuenfte = 13898" "$EINK_3" "13898"
 
 # ===== 6. BMF Vordruck Kz lines are present =====
 echo
@@ -216,11 +219,11 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
 api_get "/api/v1/accounting/anlage-so?companyId=$COMPANY_ID&year=$YEAR"
 # Taxable gain = 600, Freigrenze 600, vgTotal = 0
 VG_TOTAL_4=$(json_field "$BODY" "totals.vgTotal")
-assert_close "vgTotal = 0 (gain = 600 ≤ Freigrenze)" "$VG_TOTAL_4" "0"
+assert_close "vgTotal = 0 (gain = 600 < 1 000)" "$VG_TOTAL_4" "0"
 
-# ===== 9. Just above Freigrenze: gain = 601 → vgTotal = 1 =====
+# ===== 9. At the limit: gain = 1000 → all of it =====
 echo
-note "=== 9. Just above Freigrenze: gain = 601 → vgTotal = 1 ==="
+note "=== 9. At the Freigrenze: a gain of 1 000 € is taxable in full (601 € gave 1 €) ==="
 # Acquisition just 1 month before sale so we're within
 # the 1-year Wertpapier Spekulationsfrist.
 api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
@@ -233,7 +236,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
         \"acquisitionDate\": \"$YEAR-01-01\",
         \"acquisitionCost\": 1000,
         \"saleDate\": \"$YEAR-02-01\",
-        \"salePrice\": 1601
+        \"salePrice\": 2000
       }
     ],
     \"wiederkehrendeBezuege\": 0,
@@ -241,7 +244,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   }"
 api_get "/api/v1/accounting/anlage-so?companyId=$COMPANY_ID&year=$YEAR"
 VG_TOTAL_5=$(json_field "$BODY" "totals.vgTotal")
-assert_close "vgTotal = 1 (gain = 601 > Freigrenze 600)" "$VG_TOTAL_5" "1"
+assert_close "vgTotal = 1000 (weniger als 1 000 € bleibt frei — 1 000 € nicht)" "$VG_TOTAL_5" "1000"
 
 # ===== 10. PUT roundtrip: GET after PUT returns same data =====
 echo

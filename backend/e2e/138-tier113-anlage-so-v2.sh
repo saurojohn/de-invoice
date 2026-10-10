@@ -194,17 +194,18 @@ assert_close "taxable = 500" "$TAXABLE3" "500"
 assert_close "vgTotal = 0 (Freigrenze)" "$VG3" "0"
 test "$FGA3" = "True" && pass "freigrenzeApplied = true" || fail "freigrenzeApplied = $FGA3"
 
-# ───── 4. Freigrenze edge: gain - loss = 700 → vgTotal = 700 ─────
+# ───── 4. Freigrenze edge: gain - loss = 1100 → vgTotal = 1100 ─────
 echo
-note "=== 4. Freigrenze edge: gain - loss = 700 ==="
-# gain=2000, loss=1300 → net=700 → >600 → vgTotal=700
+note "=== 4. Freigrenze edge: gain - loss = 1100 ==="
+# Tier 656: the limit is 1 000 € from 2024 (600 € before).
+# gain=2000, loss=900 → net=1100 → ≥1000 → vgTotal=1100
 api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
       { \"type\": \"wertpapier\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-08-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-06-01\", \"salePrice\": 2000 },
       { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-09-01\", \"acquisitionCost\": 500, \"saleDate\": \"$YEAR-07-01\", \"salePrice\": 1500 },
-      { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 700 }
+      { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 1100 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0
@@ -212,7 +213,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
 api_get "/api/v1/accounting/anlage-so/v2?companyId=$COMPANY_ID&year=$YEAR"
 VG4=$(json_field "$BODY" "vg.vgTotal")
 FGA4=$(json_field "$BODY" "vg.freigrenzeApplied")
-assert_close "vgTotal = 700 (gain-loss=700, > Freigrenze)" "$VG4" "700"
+assert_close "vgTotal = 1100 (gain-loss=1100, at or above the limit)" "$VG4" "1100"
 test "$FGA4" = "False" && pass "freigrenzeApplied = false" || fail "freigrenzeApplied = $FGA4"
 
 # ───── 5. Loss carryforward: gain=100, loss=1000 → carryforward=900 ─────

@@ -1,3 +1,4 @@
+import { afterFreigrenze, freigrenzeFor } from './anlage-so-rules'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -109,7 +110,7 @@ export interface AnlageSOResult {
 // Standard-Freigrenze für private Veräußerungsgeschäfte
 // (§ 23 Abs. 3 Satz 5 EStG): 600 EUR/Jahr. v1: hard-coded
 // 2024 figure. v2: per-year BMF table.
-const FREIGRENZE_2024 = 600
+// Tier 656: the limit depends on the year — anlage-so-rules.ts
 
 // Spekulationsfrist per type (in years). § 23 Abs. 1
 // EStG: 1 year for Wertpapiere (Nr. 2), 10 years for
@@ -157,7 +158,7 @@ const LINES: Array<{
   {
     kz: '20',
     label:
-      'Freigrenze für private Veräußerungsgeschäfte (§ 23 Abs. 3 Satz 5 EStG) — 600 EUR/Jahr. Bis zu diesem Betrag steuerfrei.',
+      'Freigrenze für private Veräußerungsgeschäfte (§ 23 Abs. 3 Satz 5 EStG): unter 1.000 EUR Gesamtgewinn im Jahr steuerfrei (bis 2023: 600 EUR), ab der Grenze in voller Höhe steuerpflichtig.',
     source: 'computed',
   },
   // Kz 11-16: Wiederkehrende Bezüge
@@ -278,10 +279,9 @@ export class AnlageSOService {
     // the whole thing is tax-free. v1: only positive
     // gains count toward the Freigrenze (losses don't
     // reduce the Freigrenze).
-    const vgTotal =
-      taxableGain > 0 && taxableGain <= FREIGRENZE_2024
-        ? 0
-        : Math.max(taxableGain - FREIGRENZE_2024, 0)
+    // Tier 656: a Freigrenze — below it nothing, from it on everything
+    // (the limit was subtracted, as if it were an allowance).
+    const vgTotal = afterFreigrenze(taxableGain, year)
 
     // Build the BMF Vordruck Kz lines
     const lines: AnlageSOLine[] = LINES.map((d) => {
@@ -312,7 +312,7 @@ export class AnlageSOService {
         )
       } else if (d.kz === '20') {
         // Freigrenze: 600 (or 0 if no gains)
-        amount = taxableGain > 0 ? FREIGRENZE_2024 : 0
+        amount = taxableGain > 0 ? freigrenzeFor(year) : 0
       } else if (d.kz === '11') {
         amount = round2(wiederkehrendeBezuege)
       } else if (d.kz === '12') {
@@ -347,7 +347,7 @@ export class AnlageSOService {
         taxableGain: round2(taxableGain),
         inSpekulationsfrist,
       },
-      freigrenze: FREIGRENZE_2024,
+      freigrenze: freigrenzeFor(year),
       lines,
       totals: {
         vgTotal: round2(vgTotal),
@@ -366,7 +366,14 @@ export class AnlageSOService {
         '(erfasst unter Buchhaltung, Anlage SO) generiert. ' +
         'Spekulationsfrist: 1 Jahr für Wertpapiere (§ 23 Abs. 1 ' +
         'Nr. 2 EStG), 10 Jahre für sonstige Wirtschaftsgüter ' +
-        '(§ 23 Abs. 1 Nr. 1 EStG). Freigrenze: 600 EUR/Jahr ' +
+        '(§ 23 Abs. 1 Nr. 1 EStG). ' +
+        'Achtung, noch nicht dem Gesetz entsprechend: diese Vorschau kennt nur die Arten „Wertpapier“ (Frist 1 Jahr) ' +
+        'und „Sonstige“ (Frist 10 Jahre). Nach § 23 Abs. 1 EStG gilt die Zehnjahresfrist nur für Grundstücke (Nr. 1), ' +
+        'für andere Wirtschaftsgüter — Gold, Kunst, Kryptowerte — ein Jahr (Nr. 2); Wertpapiere, die seit 2009 ' +
+        'angeschafft wurden, gehören gar nicht hierher, sondern in die Anlage KAP (§ 20 Abs. 2 EStG). ' +
+        'Der Berater prüft jedes Geschäft. ' +
+        'Freigrenze: bleibt der Gesamtgewinn des Jahres unter 1.000 EUR (bis 2023: 600 EUR), ist er steuerfrei; ' +
+        'ab der Grenze ist er in voller Höhe steuerpflichtig ' +
         '(§ 23 Abs. 3 Satz 5 EStG). Veräußerungen außerhalb der ' +
         'Spekulationsfrist sind steuerfrei. Verluste aus ' +
         'Veräußerungen innerhalb der Frist werden hier nicht ' +

@@ -3425,7 +3425,7 @@
   },
   "anlageSo": {
     "title": "Anlage SO (Other Income)",
-    "subtitle": "Other income (§ 22 EStG) — private Veräußerungsgeschäfte (crypto / gold / stocks within the Spekulationsfrist) + wiederkehrende Bezüge (private pensions, maintenance). €600/year Freigrenze for Veräußerungsgewinne (§ 23 Abs. 3 sentence 5 EStG).",
+    "subtitle": "Other income (§ 22 EStG) — private Veräußerungsgeschäfte (crypto / gold / stocks within the Spekulationsfrist) + wiederkehrende Bezüge (private pensions, maintenance). Freigrenze for Veräußerungsgewinne: tax-free below €1,000 a year (€600 up to 2023), taxable in full from the limit on (§ 23 Abs. 3 sentence 5 EStG).",
     "year": "Fiscal year",
     "recompute": "Recompute",
     "downloadPdf": "Download PDF",
@@ -3485,7 +3485,7 @@
       "lossCarryforwardInFristGain": "In-Frist gains",
       "lossCarryforwardInFristLoss": "In-Frist losses",
       "lossCarryforwardTaxable": "Remaining taxable gain",
-      "lossCarryforwardApplied": "Freigrenze applied (≤ 600 EUR)",
+      "lossCarryforwardApplied": "Freigrenze applied (total gain below the limit)",
       "lossCarryforwardNotApplied": "Freigrenze exceeded",
       "lossCarryforwardKz99": "Kz 99 (loss carryforward) in BMF form"
     }

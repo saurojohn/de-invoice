@@ -3425,7 +3425,7 @@
   },
   "anlageSo": {
     "title": "Anlage SO（其他收入）",
-    "subtitle": "其他收入 (§ 22 EStG) — 私人 Veräußerungsgeschäfte（加密货币 / 黄金 / 股票在 Spekulationsfrist 内）+ 经常性收入（私人养老金、抚养费）。Veräußerungsgewinne 免税额 600 EUR/年 (§ 23 Abs. 3 Satz 5 EStG)。",
+    "subtitle": "其他收入 (§ 22 EStG) — 私人 Veräußerungsgeschäfte（加密货币 / 黄金 / 股票在 Spekulationsfrist 内）+ 经常性收入（私人养老金、抚养费）。Veräußerungsgewinne 的免税限额：全年合计低于 1,000 EUR 免税（2023 年及以前为 600 EUR），达到限额则全额应税 (§ 23 Abs. 3 Satz 5 EStG)。",
     "year": "财年",
     "recompute": "重算",
     "downloadPdf": "下载 PDF",
@@ -3485,7 +3485,7 @@
       "lossCarryforwardInFristGain": "Frist 内盈利",
       "lossCarryforwardInFristLoss": "Frist 内亏损",
       "lossCarryforwardTaxable": "剩余应税盈利",
-      "lossCarryforwardApplied": "免税额已应用（≤ 600 EUR）",
+      "lossCarryforwardApplied": "已适用免税限额（合计收益低于限额）",
       "lossCarryforwardNotApplied": "超过免税额",
       "lossCarryforwardKz99": "BMF 表格中 Kz 99（亏损结转）"
     }
