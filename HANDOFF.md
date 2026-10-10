@@ -2651,6 +2651,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 644b — the same PDFs, looked at again: the amount column's heading, sums, page breaks
+
+With the worst gone, the PDFs were opened once more and measured for a second thing — text placed outside the page. Three more faults, all in `common/pdf-flow.ts` again, so every preview gets the repair:
+
+- **The heading of the amount column was off the page in fourteen PDFs.** The header cells were written with `continued: true` („Kz“, „Bezeichnung“, then „Betrag (€)“ at its own x); pdfkit continues the line and adds the width of what came before, and „Betrag (€)“ was set at x = 893 on a page 595 points wide. A call with a position of its own now starts its own text. (The EÜR writes all its rows that way; its second line of a wrapped label lay under the next row — the row's height now counts a continued cell too.)
+- **A sum stood a line below its label** — „Summe“ at `(x, doc.y)` and its amount at `(x2, doc.y)`, the cursor having moved in between (Bilanz, G+V, KSt 1, the annexes, EÜR). A cell that starts to the right of the cell just written, at exactly the y that cell ended on, is in that cell's row.
+- **A row at the foot of a page was torn apart**: pdfkit breaks the page inside the cell that overflows, and the row's other cells, written at the y the caller remembered, land at that height on the new page — in Anlage G „GewStG)“ alone at the top of page 2 and its „0,00“ at the bottom of an otherwise empty page. A row that does not fit (with room for a label of two lines and its note) moves to the next page as a whole.
+
+One of these repairs broke something on the way and was caught by the count of text lines, not by a spec: measuring a `continued` cell with `heightOfString` took its text out of the line, and the EÜR came out with amounts and no labels (32 lines instead of 138) until the measurement skipped such cells. Spec 381 now also asserts that no line is off the page (16 PDFs) and that the EÜR's numbers and labels stand in their columns (22 assertions).
+
+Still as they were: the developer wording of the notes; the E-Bilanz PDF's 19 pages; a table's header row can stand alone at the foot of a page.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 644 — the tax previews as PDFs: from the left margin, in characters the font has
 
 Tier 643b ended with „the other PDFs were not opened“. They were then: all nineteen of the accounting page, for a GmbH with a month of business, each measured by where its lines of text start and the suspicious ones looked at.

@@ -49,7 +49,23 @@ for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.S):
     try: t = zlib.decompress(m.group(1))
     except Exception: continue
     xs += [float(x) for x in re.findall(rb'1 0 0 1 ([0-9.]+) [0-9.]+ Tm', t)]
-print(d[:4].decode('latin1'), len(xs) > 20, sum(1 for x in xs if x >= 250 and abs(x - round(x)) < 0.01))
+print(d[:4].decode('latin1'), len(xs) > 40, sum(1 for x in xs if x >= 250 and abs(x - round(x)) < 0.01))
+PY
+}
+# Tier 644b: lines placed beyond the page's right edge or below its bottom —
+# the "Betrag (€)" heading of the amount column stood at x = 893 on a page
+# 595 points wide in fourteen PDFs (a `continued` cell before it).
+offpage() { python3 - "$1" <<'PY'
+import re, sys, zlib
+d = open(sys.argv[1], 'rb').read()
+w = re.search(rb'/MediaBox\s*\[\s*0\s+0\s+([0-9.]+)', d)
+width = float(w.group(1)) if w else 595.28
+n = 0
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.S):
+    try: t = zlib.decompress(m.group(1))
+    except Exception: continue
+    n += sum(1 for x, y in re.findall(rb'1 0 0 1 ([0-9.]+) ([0-9.]+) Tm', t) if float(x) > width or float(y) < 20)
+print(n)
 PY
 }
 for form in accounting/euer accounting/anlage-s accounting/anlage-v accounting/anlage-kap accounting/anlage-g accounting/anlage-n \
@@ -57,8 +73,26 @@ for form in accounting/euer accounting/anlage-s accounting/anlage-v accounting/a
             accounting/anhang ustva/ustja; do
   name=${form#*/}
   code=$(curl -sS -o "$TMP/$name.pdf" -w '%{http_code}' "$API/api/v1/$form.pdf?companyId=$C&year=$YEAR" -H "x-user-id: $U" -H "x-company-id: $C")
-  assert_eq "$name.pdf: a PDF with text, and no line starts at the left edge of a right-hand column" "$code $(scan "$TMP/$name.pdf")" "200 %PDF True 0"
+  assert_eq "$name.pdf: a PDF with text, no line starts at the left edge of a right-hand column, none is off the page" "$code $(scan "$TMP/$name.pdf") $(offpage "$TMP/$name.pdf")" "200 %PDF True 0 0"
 done
+for form in accounting/bilanz accounting/guv; do
+  name=${form#*/}
+  code=$(curl -sS -o "$TMP/$name.pdf" -w '%{http_code}' "$API/api/v1/$form.pdf?companyId=$C&year=$YEAR" -H "x-user-id: $U" -H "x-company-id: $C")
+  assert_eq "$name.pdf: no line of text is off the page (was: the amount column's heading and more)" "$code $(offpage "$TMP/$name.pdf")" "200 0"
+done
+# the EÜR's rows are written as `continued` cells: number, label, amount
+assert_eq "euer.pdf has its numbers and labels in their columns: twenty rows start at x = 50 and at x = 100" \
+  "$(python3 - "$TMP/euer.pdf" <<'PY'
+import re, sys, zlib
+d = open(sys.argv[1], 'rb').read()
+xs = []
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.S):
+    try: t = zlib.decompress(m.group(1))
+    except Exception: continue
+    xs += [round(float(x)) for x in re.findall(rb'1 0 0 1 ([0-9.]+) [0-9.]+ Tm', t)]
+print(xs.count(50) >= 20, xs.count(100) >= 20)
+PY
+)" "True True"
 
 note "=== 2. every tax preview goes through it, and the signs are printable ==="
 cd "$SCRIPT_DIR/.."
