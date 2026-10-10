@@ -326,8 +326,8 @@ test.describe('Tier 151 — Mahnung e-mail template editor', () => {
       )
       expect(res.status()).toBe(201)
       const body = await res.json()
-      // The default for "second" starts with "2. Mahnung"
-      expect(body.subject).toMatch(/2\. Mahnung/)
+      // Tier 647: the second level is the "1. Mahnung", in the subject as in the letter
+      expect(body.subject).toMatch(/^1\. Mahnung/)
       expect(body.isDefault).toBe(true)
     } finally {
       await ctx.dispose()

@@ -53,6 +53,13 @@ test("an overdue invoice with a part payment: the open amount, and the total nex
   await expect(page.getByText("2.000,00 €", { exact: true })).toHaveCount(2)
   await expect(page.getByText("2.380,00 €", { exact: true })).toHaveCount(0)
 
+  // Tier 647: the three levels by the names the e-mail and the letter use
+  for (const name of ["Zahlungserinnerung", "1. Mahnung", "Letzte Mahnung"]) {
+    await expect(page.getByRole("option", { name, exact: true }).first(), name).toBeAttached()
+  }
+  await expect(page.locator("body")).not.toContainText("2. Mahnung")
+  await expect(page.locator("body")).not.toContainText("1. Erinnerung")
+
   // the editor offers the tokens the default texts use
   await page.goto("/dashboard/mahnungen/templates")
   for (const key of ["openAmount", "invoiceTotal", "issueDateFormatted", "dueDateFormatted", "totalAmount"]) {

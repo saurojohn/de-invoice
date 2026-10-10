@@ -1515,8 +1515,8 @@ function InvoicesPageInner() {
                   <div className="space-y-2">
                     {(
                       [
-                        { value: "first", label: t("invoices.mahnungLevelFirst") || "1. Zahlungserinnerung" },
-                        { value: "second", label: t("invoices.mahnungLevelSecond") || "2. Mahnung" },
+                        { value: "first", label: t("invoices.mahnungLevelFirst") || "Zahlungserinnerung" },
+                        { value: "second", label: t("invoices.mahnungLevelSecond") || "1. Mahnung" },
                         { value: "final", label: t("invoices.mahnungLevelFinal") || "Letzte Mahnung" },
                       ] as const
                     ).map((opt) => (

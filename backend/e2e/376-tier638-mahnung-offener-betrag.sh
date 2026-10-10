@@ -83,6 +83,14 @@ assert_eq "an edited template: {{totalAmount}} is the amount to pay, {{invoiceTo
 AS GET "/api/v1/reminders/templates/final?companyId=$C"
 assert_eq "…and it stays as edited" "$(field "d['isDefault'], d['body'][:10]")" "(False, 'Zu zahlen:')"
 
+# Tier 647: the three levels have one name each — in the e-mail's subject as in
+# the letter attached to it (the subject said "2. Mahnung" above a letter
+# headed "1. Mahnung", and the interface a third thing).
+SUBJ=""
+for lv in first second; do AS GET "/api/v1/reminders/templates/$lv?companyId=$C"; SUBJ="$SUBJ$(field "d['subject'].split(':')[0]")|"; done
+AS POST "/api/v1/reminders/templates/final/reset?companyId=$C"; SUBJ="$SUBJ$(field "d['subject'].split(':')[0]")"
+assert_eq "the default subjects name the levels as the letter does (was: Erinnerung | 2. Mahnung | Letzte Mahnung)" "$SUBJ" "Zahlungserinnerung|1. Mahnung|Letzte Mahnung"
+
 note "=== 4. what is sent ==="
 AS POST "/api/v1/reminders/send" '{"companyId":"'$C'","invoiceId":"'$A'","level":"first"}'
 assert_eq "the reminder that goes out has that text" \

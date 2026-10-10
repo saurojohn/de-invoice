@@ -19,9 +19,10 @@ interface ReminderTemplate {
 }
 
 const LEVEL_LABEL: Record<Level, { de: string; en: string; zh: string }> = {
-  first: { de: "1. Mahnung (Erinnerung)", en: "1st Reminder", zh: "第 1 次催款" },
-  second: { de: "2. Mahnung", en: "2nd Reminder", zh: "第 2 次催款" },
-  final: { de: "Letzte Mahnung (Inkasso-Androhung)", en: "Final Reminder", zh: "最后催款" },
+  // Tier 647: the names every page, the e-mail and the letter use
+  first: { de: "Zahlungserinnerung", en: "Payment reminder", zh: "付款提醒" },
+  second: { de: "1. Mahnung", en: "1st dunning notice", zh: "第一次催款" },
+  final: { de: "Letzte Mahnung", en: "Final dunning notice", zh: "最后催款" },
 }
 
 const PLACEHOLDERS = [

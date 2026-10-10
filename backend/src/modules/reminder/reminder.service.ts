@@ -22,7 +22,7 @@ import { invoicesHeldByPlan } from './installment-hold';
  * The defaults match German Mittelstand best
  * practice: friendly reminder at 1 Werktag
  * overdue, formal 1. Mahnung at 7 Werktage, final
- * 2. Mahnung at 14 Werktage.
+ * Letzte Mahnung at 14 Werktage.
  *
  * Validation: thresholds must be strictly
  * increasing (level1 < level2 < level3) so the
@@ -34,7 +34,7 @@ export interface DunningConfig {
   level1Days: number
   /** Werktage after dueDate before level 2 (1. Mahnung) */
   level2Days: number
-  /** Werktage after dueDate before level 3 (2. Mahnung) */
+  /** Werktage after dueDate before level 3 (Letzte Mahnung) */
   level3Days: number
   /** Late fee in EUR for level 1 (default 0 — friendly) */
   level1Fee: number
@@ -387,7 +387,7 @@ export class ReminderService {
 
     const templates: Record<'first' | 'second' | 'final', ReminderTemplate> = {
       first: {
-        subject: `Erinnerung: Rechnung ${invoice.invoiceNumber} ist überfällig`,
+        subject: `Zahlungserinnerung: Rechnung ${invoice.invoiceNumber} ist überfällig`,
         body: `Sehr geehrte/r ${customerName},
 
 hiermit möchten wir Sie freundlich daran erinnern, dass die Rechnung ${invoice.invoiceNumber} vom ${dueDateFormatted} mit einem Betrag von EUR ${totalAmount} bereits überfällig ist.
@@ -407,7 +407,7 @@ Mit freundlichen Grüßen,
 ${company.name}`,
       },
       second: {
-        subject: `2. Mahnung: Rechnung ${invoice.invoiceNumber} - Zahlung sofort erforderlich`,
+        subject: `1. Mahnung: Rechnung ${invoice.invoiceNumber} - Zahlung sofort erforderlich`,
         body: `Sehr geehrte/r ${customerName},
 
 leider mussten wir feststellen, dass die Rechnung ${invoice.invoiceNumber} vom ${dueDateFormatted} trotz unserer ersten Erinnerung noch nicht beglichen wurde.
@@ -533,10 +533,13 @@ ${company.name}`,
    * for new companies; the user can edit them in the UI
    * and the override persists in ReminderTemplate.
    */
+  // Tier 647: one name per level, everywhere — Zahlungserinnerung, 1. Mahnung,
+  // Letzte Mahnung, as the letter (mahnung-pdf.service.ts) always had them.
+  // The e-mail's subject said "2. Mahnung" above a letter headed "1. Mahnung".
   private defaultTemplates(): Record<'first' | 'second' | 'final', { subject: string; body: string }> {
     return {
       first: {
-        subject: 'Erinnerung: Rechnung {{invoiceNumber}} ist überfällig',
+        subject: 'Zahlungserinnerung: Rechnung {{invoiceNumber}} ist überfällig',
         body: `Sehr geehrte/r {{customerName}},
 
 hiermit möchten wir Sie freundlich daran erinnern, dass aus der Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, noch {{openAmount}} EUR offen sind.
@@ -553,7 +556,7 @@ Mit freundlichen Grüßen,
 {{companyName}}`,
       },
       second: {
-        subject: '2. Mahnung: Rechnung {{invoiceNumber}} - Zahlung sofort erforderlich',
+        subject: '1. Mahnung: Rechnung {{invoiceNumber}} - Zahlung sofort erforderlich',
         body: `Sehr geehrte/r {{customerName}},
 
 leider mussten wir feststellen, dass die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, trotz unserer ersten Erinnerung noch nicht beglichen wurde.
@@ -830,7 +833,7 @@ Mit freundlichen Grüßen,
    * Default values per §288 BGB (Tier 164 update):
    *   - verzugszinsPct: 9.0 % per annum over Basiszinssatz for B2B
    *   - mahngebuehr first:  5.00 €  (1. Mahnung / Zahlungserinnerung — friendly but billable)
-   *   - mahngebuehr second: 5.00 €  (2. Mahnung)
+   *   - mahngebuehr second: 5.00 €  (1. Mahnung)
    *   - mahngebuehr final:  10.00 € (3. Mahnung / Mahnbescheid — the heavier one)
    *
    * The Verzugszins is computed as:
