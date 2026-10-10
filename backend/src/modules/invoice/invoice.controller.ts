@@ -1,3 +1,4 @@
+import { csvCell, csvNumber } from '../../common/csv';
 import { businessTodayIso } from '../../common/business-date'
 import { strictFlag } from '../../common/strict-boolean'
 import { queryInt } from '../../common/query';
@@ -482,11 +483,9 @@ export class InvoiceController {
       })
       // RFC 4180-style escaping: wrap fields that contain quotes,
       // commas, or newlines in double quotes; double internal quotes.
-      const esc = (v: unknown) => {
-        if (v === null || v === undefined) return ''
-        const s = String(v)
-        return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-      }
+      // Tier 648: numbers with a comma (common/csv.ts); a comma is no reason
+      // to quote a cell between semicolons.
+      const esc = csvCell
       const header = [
         'Rechnungsnummer',
         'Typ',
@@ -530,14 +529,14 @@ export class InvoiceController {
           // code read `inv.netAmount` / `inv.vatAmount` (always
           // undefined) and the CSV always exported 0.00 for Netto and
           // USt. Use the correct column names here.
-          Number(inv.subtotal || 0).toFixed(2),
-          Number(inv.totalVat || 0).toFixed(2),
-          total.toFixed(2),
+          csvNumber(Number(inv.subtotal || 0)),
+          csvNumber(Number(inv.totalVat || 0)),
+          csvNumber(total),
           inv.currency || 'EUR',
           inv.referenceInvoice?.invoiceNumber || '',
           (inv.items || []).length,
-          paid.toFixed(2),
-          Math.max(0, total - paid).toFixed(2),
+          csvNumber(paid),
+          csvNumber(Math.max(0, total - paid)),
           inv.createdAt ? new Date(inv.createdAt).toISOString() : '',
           inv.updatedAt ? new Date(inv.updatedAt).toISOString() : '',
         ].map(esc).join(';')

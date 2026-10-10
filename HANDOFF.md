@@ -2653,6 +2653,20 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 648 — the CSV files a person opens have a comma in their numbers
+
+Decided by the owner on 10.10.2026 (§9 item 25: „用小数逗号“). Every CSV the application writes was fetched for a company with data and its numbers counted by form. With a point: the invoice list (`GET /invoices/export/csv`), the hours report (`/time-entries/report.csv`), the product list and the ageing report (both written in the browser), and the cash book's daily-close column („154.7 EUR (Differenz: 0 EUR)“). The cash book's amounts had a comma and a thousands separator („1.234,50“). With a comma already: the OSS report, the cost-centre report, the statement batch's index, and everything in a format of its own (DATEV EXTF, Buchungsliste, USt-Verprobung).
+
+`common/csv.ts` — `csvNumber` (two decimals, a comma, no thousands separator) and `csvCell` (quoted for a quote, a semicolon or a line break) — is used by the three backend writers; the browser's export button writes a number with a comma. **Found on the way:** the export button and the ageing report quoted a cell for a *comma* and not for the *semicolon* that separates the cells, and the sales report's export quoted nothing — a customer or product with a semicolon in its name split its row. All three quote for the semicolon now. Left as they are: the audit log's export (raw stored values) and the files for DATEV and the GoBD archive.
+
+Spec `383-tier648-csv-mit-komma.sh` (7 assertions): the invoice list's amounts, a name with a semicolon as one quoted cell of eighteen, the cash book's amount and daily close, the hours report, and no cell of the three files that is digits-point-digits. Spec 373 expects commas. Playwright `csv-comma-tier648.spec.ts`: the product list downloaded — „19,99“, „"Tasche; groß"“. The product import already read „19,99“.
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 647 — one name for each dunning level
+
+Decided by the owner on 10.10.2026 („你来改“). The three levels had five sets of names: the letter said Zahlungserinnerung / 1. Mahnung / Letzte Mahnung; the e-mail's subject Erinnerung / „2. Mahnung“ / Letzte Mahnung; the reminders page „1. Erinnerung“ / „2. Mahnung“; the settings „2. Mahnung (1. Mahnung)“ and, for the third level, both „3. Mahnung (Letzte Mahnung)“ and „2. Mahnung (3. Stufe)“; the invoice page's selector „1. 1. Erinnerung“ / „2. 2. Mahnung“ (a number in front of a label that had one). A customer got an e-mail headed „2. Mahnung“ with a letter headed „1. Mahnung“.
+
+One set, the letter's: **Zahlungserinnerung · 1. Mahnung · Letzte Mahnung** (en: Payment reminder · 1st dunning notice · Final dunning notice; zh: 付款提醒 · 第一次催款 · 最后催款), and where the level's number is meant, „Stufe 2: 1. Mahnung“. Changed: the e-mail's default subjects (a template nobody edited follows, Tier 638), twenty message keys in three languages, the two pages with names of their own. Spec 376 asserts the three default subjects; Playwright `reminders-open-amount-tier638.spec.ts` the three options of the reminders page and that „2. Mahnung“ / „1. Erinnerung“ are gone; `mahnung-templates-tier151.spec.ts` expected „2. Mahnung“ and expects „1. Mahnung“.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 646c — the accounting page's sections are moved, not placed late (a flaky test, read three runs too late)
 
 Reading the counts for the snapshot: „1 047 passed, **1 flaky**“ — and the same line in the three runs before it, back to the run that brought Tier 643. Each time a test of `/dashboard/accounting` had failed and passed on its retry (`gobd-archive.spec.ts` three times, then `kst-vorauszahlungen-tier507.spec.ts`: four quarters filled with 250, saved, 750 stored). The runs were green and the conclusion was all that was looked at.
@@ -8998,10 +9012,10 @@ frontend's build arg, and the frontend image refuses to build without it.
     - **OSS:** does the company take part in the OSS scheme (§ 18j UStG)? The app cannot tell, and treats a sale to a consumer in another member state by its rate: a rate that is not German is that state's tax (out of the UStVA, in the OSS report), 19 % or 7 % is German tax (Kz 81 / 86) — wrong for an OSS seller's customers in Cyprus. A switch in the company settings would settle it. And: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.
-    - **Dunning levels:** the three levels are called Erinnerung / „2. Mahnung“ / Letzte Mahnung in the e-mail subjects and the interface, and Zahlungserinnerung / „1. Mahnung“ / Letzte Mahnung in the letter (the settings say „2. Mahnung (1. Mahnung)“). One naming should be chosen; a Playwright test pins the e-mail's.
+    - (**Dunning levels:** decided 10.10.2026, Tier 647 — Zahlungserinnerung / 1. Mahnung / Letzte Mahnung everywhere.)
     - **Bank files:** the CAMT.053 and MT940 readers were rebuilt from the schema (Tier 642) without a real file to test against — the first statement downloaded from the company's bank should be put through the preview before it is relied on.
     - **Bank import:** an amount beyond what is open on the matched invoice stays on the bank entry; it is not turned into a customer credit (a payment entered by hand is, Tier 58).
-    - **Two questions asked earlier and not answered:** should the time sheet be attached to an invoice e-mail by default (it is), and should CSV exports use a decimal comma (they use a point, like the invoice export)?
+    - **Two questions asked earlier and not answered:** should the time sheet be attached to an invoice e-mail by default (it is), and should CSV exports use a decimal comma — **answered 10.10.2026: a comma (Tier 648)**.
 
 ## 10. Critical patterns / lessons (must read)
 

@@ -97,26 +97,28 @@ export default function AgingReportPage() {
       'Kunde', 'KdNr', 'Rechnungen', ...BUCKET_ORDER,
       'Summe offen', 'Kundenguthaben', 'Netto offen', 'Älteste überfällig (Tage)',
     ]
+    // Tier 648: numbers with a comma; a cell is quoted for a semicolon, not for a comma
+    const num = (n: number) => n.toFixed(2).replace('.', ',')
     const rows = sortedRows.map((r) => [
       r.customerName,
       r.customerNumber || '',
       String(r.invoiceCount),
-      ...BUCKET_ORDER.map((b) => r.buckets[b].toFixed(2)),
-      r.totalOpen.toFixed(2),
-      r.creditBalance.toFixed(2),
-      r.netOpen.toFixed(2),
+      ...BUCKET_ORDER.map((b) => num(r.buckets[b])),
+      num(r.totalOpen),
+      num(r.creditBalance),
+      num(r.netOpen),
       String(r.oldestDaysOverdue),
     ])
     const totals = [
       'GESAMT', '', '',
-      ...BUCKET_ORDER.map((b) => report.totals[b].toFixed(2)),
-      report.grandTotal.toFixed(2),
-      report.totalCreditBalance.toFixed(2),
-      report.grandNetTotal.toFixed(2),
+      ...BUCKET_ORDER.map((b) => num(report.totals[b])),
+      num(report.grandTotal),
+      num(report.totalCreditBalance),
+      num(report.grandNetTotal),
       '',
     ]
     const csv = [header, ...rows, totals]
-      .map((r) => r.map((c) => /[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c).join(';'))
+      .map((r) => r.map((c) => /[";\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c).join(';'))
       .join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)

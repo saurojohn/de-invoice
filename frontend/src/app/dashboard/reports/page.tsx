@@ -159,9 +159,14 @@ export default function ReportsPage() {
   }
 
   const exportToCSV = (data: any[], filename: string, headers: string[]) => {
+    // Tier 648: a customer's name with a semicolon in it split its row
+    const cell = (v: unknown) => {
+      const s = typeof v === "number" ? String(v).replace(".", ",") : String(v ?? "")
+      return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
     const csvContent = [
-      headers.join(";"),
-      ...data.map((row) => Object.values(row).join(";"))
+      headers.map(cell).join(";"),
+      ...data.map((row) => Object.values(row).map(cell).join(";"))
     ].join("\n")
 
     const BOM = "\uFEFF"

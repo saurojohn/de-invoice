@@ -104,9 +104,10 @@ assert_eq "the report by customer as a CSV for Excel: a BOM, semicolons, named a
   "$CODE/$(grep -ci '^content-type: text/csv' "/tmp/$TAG.hdr")/$(head -c 3 "/tmp/$TAG.csv" | od -An -tx1 | tr -d ' \n')/$(grep -c "filename=\"Zeitauswertung_customer_${TODAY}_${TODAY}.csv\"" "/tmp/$TAG.hdr")/$(sed -n 1p "/tmp/$TAG.csv" | sed 's/^\xef\xbb\xbf//')" \
   "200/1/efbbbf/1/Kunde;Einträge;Stunden;davon abrechenbar;davon abgerechnet;davon offen;abgerechnet EUR;offen EUR"
 assert_eq "a customer called like a formula is written as text; a name with a semicolon is quoted" \
-  "$(grep -c "^'=SUMME(A1:A9);1;1.00;1.00;0.00;1.00;0.00;100.00$" "/tmp/$TAG.csv")/$(grep -c "^\"$TAG Müller; Söhne\";1;0.50;0.50;0.00;0.50;0.00;40.00$" "/tmp/$TAG.csv")/$(grep -c '^=' "/tmp/$TAG.csv")" "1/1/0"
+  "$(grep -c "^'=SUMME(A1:A9);1;1,00;1,00;0,00;1,00;0,00;100,00$" "/tmp/$TAG.csv")/$(grep -c "^\"$TAG Müller; Söhne\";1;0,50;0,50;0,00;0,50;0,00;40,00$" "/tmp/$TAG.csv")/$(grep -c '^=' "/tmp/$TAG.csv")" "1/1/0"
 AS GET "/api/v1/time-entries/report?companyId=$C&groupBy=customer&from=$TODAY&to=$TODAY"
-TOTAL=$(field "'%d;%.2f;%.2f;%.2f;%.2f;%.2f;%.2f' % (d['total']['entries'], d['total']['minutes']/60, d['total']['billableMinutes']/60, d['total']['billedMinutes']/60, d['total']['openMinutes']/60, d['total']['billedAmount'], d['total']['openAmount'])")
+# Tier 648: the file's numbers have a comma
+TOTAL=$(field "('%d;%.2f;%.2f;%.2f;%.2f;%.2f;%.2f' % (d['total']['entries'], d['total']['minutes']/60, d['total']['billableMinutes']/60, d['total']['billedMinutes']/60, d['total']['openMinutes']/60, d['total']['billedAmount'], d['total']['openAmount'])).replace('.', ',')")
 assert_eq "the last line is the sum, as the report on the page has it; every customer of the day has a line" "$(tail -n 1 "/tmp/$TAG.csv") $(($(wc -l < "/tmp/$TAG.csv") - 2))" "Summe;$TOTAL $(field "len(d['rows'])")"
 AS GET "/api/v1/time-entries/report.csv?companyId=$C&groupBy=rate"; A=$STATUS
 UA=$U; CA=$C; U=$UB; C=$CB

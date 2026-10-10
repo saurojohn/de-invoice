@@ -256,8 +256,8 @@ export default function ProductsPage() {
                 { header: "Typ", accessor: (p) => p.type },
                 { header: "Kategorie", accessor: (p) => p.category?.name || "" },
                 { header: "Einheit", accessor: (p) => p.unit || "" },
-                { header: "Grundpreis", accessor: (p) => p.basePrice },
-                { header: "MwSt-Satz", accessor: (p) => p.vatRate },
+                { header: "Grundpreis", accessor: (p) => Number(p.basePrice) },
+                { header: "MwSt-Satz", accessor: (p) => Number(p.vatRate) },
                 { header: "Beschreibung", accessor: (p) => p.description || "" },
               ]}
             />

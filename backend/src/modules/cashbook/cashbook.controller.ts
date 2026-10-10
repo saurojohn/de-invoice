@@ -1,3 +1,4 @@
+import { csvCell, csvNumber } from '../../common/csv'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { queryDate, requiredQueryDate, queryInt, requiredQueryInt, YEAR, MONTH } from '../../common/query';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, Res } from '@nestjs/common';
@@ -219,7 +220,8 @@ export class CashBookController {
     for (const e of list.data) {
       const dateStr = e.businessDate.toISOString().split('T')[0];
       const close = closeByDate.get(dateStr);
-      const amount = Number(e.amount).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      // Tier 648: as every other export — a comma, no thousands separator
+      const amount = csvNumber(Number(e.amount));
       const typeLabel = { einnahme: 'Einnahme', ausgabe: 'Ausgabe', umbuchung: 'Umbuchung', eroeffnung: 'Eröffnung' }[e.type] || e.type;
       rows.push([
         dateStr,
@@ -230,10 +232,10 @@ export class CashBookController {
         amount,
         e.vatRate ? `${(Number(e.vatRate) * 100).toFixed(0)}%` : '',
         e.notes || '',
-        close ? `${close.endbestand} EUR (Differenz: ${close.differenz} EUR)` : 'offen',
+        close ? `${csvNumber(Number(close.endbestand))} EUR (Differenz: ${csvNumber(Number(close.differenz))} EUR)` : 'offen',
       ]);
     }
-    const csv = '\uFEFF' + rows.map((r) => r.map((c) => /[",\n;]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c).join(';')).join('\r\n');
+    const csv = '\uFEFF' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n');
     const filename = `Kassenbuch_${fromStr}_${toStr}.csv`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

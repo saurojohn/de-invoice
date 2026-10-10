@@ -1,3 +1,4 @@
+import { csvNumber } from '../../common/csv'
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -607,11 +608,12 @@ export class TimeEntryService {
       return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
     }
     const text = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s)
-    const hours = (minutes: number) => (Math.round((minutes / 60) * 100) / 100).toFixed(2)
+    // Tier 648: hours and amounts with a comma (common/csv.ts)
+    const hours = (minutes: number) => csvNumber(Math.round((minutes / 60) * 100) / 100)
     const first = r.groupBy === 'customer' ? 'Kunde' : r.groupBy === 'project' ? 'Projekt' : 'Mitarbeiter'
     const header = [first, 'Einträge', 'Stunden', 'davon abrechenbar', 'davon abgerechnet', 'davon offen', 'abgerechnet EUR', 'offen EUR']
     const line = (name: string, x: { entries: number; minutes: number; billableMinutes: number; billedMinutes: number; openMinutes: number; billedAmount: number; openAmount: number }) =>
-      [text(name), x.entries, hours(x.minutes), hours(x.billableMinutes), hours(x.billedMinutes), hours(x.openMinutes), x.billedAmount.toFixed(2), x.openAmount.toFixed(2)].map(cell).join(';')
+      [text(name), x.entries, hours(x.minutes), hours(x.billableMinutes), hours(x.billedMinutes), hours(x.openMinutes), csvNumber(x.billedAmount), csvNumber(x.openAmount)].map(cell).join(';')
     const none = r.groupBy === 'customer' ? '(ohne Kunde)' : r.groupBy === 'project' ? '(ohne Projekt)' : '(unbekannt)'
     const csv = '\uFEFF' + [header.map(cell).join(';'), ...r.rows.map((x) => line(x.name || none, x)), line('Summe', r.total)].join('\n') + '\n'
     return { csv, filename: `Zeitauswertung_${r.groupBy}_${r.from ?? 'alle'}_${r.to ?? 'alle'}.csv` }

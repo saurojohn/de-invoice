@@ -32,10 +32,13 @@ export function ExportCSVButton<T>({
 
     const escape = (v: unknown) => {
       if (v === null || v === undefined) return ""
-      const s = String(v)
-      // RFC 4180: fields with quotes, commas, or newlines must be quoted;
-      // embedded quotes are doubled.
-      if (/[",\n\r]/.test(s)) {
+      // Tier 648: a number with a comma, as a German spreadsheet reads it
+      // (the product list wrote "19.99").
+      const s = typeof v === "number" ? String(v).replace(".", ",") : String(v)
+      // The cells stand between semicolons: a cell with a quote, a semicolon
+      // or a line break is quoted, embedded quotes are doubled. (It quoted
+      // on a comma instead — a name with a semicolon in it split its row.)
+      if (/[";\n\r]/.test(s)) {
         return `"${s.replace(/"/g, '""')}"`
       }
       return s
