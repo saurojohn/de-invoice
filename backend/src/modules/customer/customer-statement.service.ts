@@ -79,6 +79,18 @@ export interface RatenplanLine {
 }
 
 export interface CustomerStatement {
+  /**
+   * Tier 646: the company the statement is from. The PDF had one company's
+   * name, address, tax number, VAT id, bank and IBAN written into its
+   * letterhead and footer — the first company's — whoever sent it.
+   */
+  company: {
+    name: string
+    address: Record<string, any>
+    taxId: string | null
+    vatId: string | null
+    bankInfo: Record<string, any>
+  }
   customer: {
     id: string
     name: string
@@ -469,17 +481,24 @@ export class CustomerStatementService {
     // Now apply the user-requested display order. Balances are
     // already attached to each line — sorting doesn't recompute
     // them, just reorders.
-    lines.sort((a, b) => {
-      const ad = new Date(a.date).getTime()
-      const bd = new Date(b.date).getTime()
-      if (ad !== bd) {
-        return order === 'asc' ? ad - bd : bd - ad
-      }
-      const cmp = a.type.localeCompare(b.type)
-      return order === 'asc' ? cmp : -cmp
+    // Tier 646: the order the balances were run in, or exactly its reverse.
+    // Sorting again by date and type left two payments of one day in their
+    // ascending order inside a descending list, and the Saldo column jumped
+    // (3 128,36 above 2 778,50 above 3 300,86).
+    lines.splice(0, lines.length, ...(order === 'asc' ? sortedForBalance : [...sortedForBalance].reverse()))
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, legalName: true, address: true, taxId: true, vatId: true, bankInfo: true },
     })
 
     return {
+      company: {
+        name: company?.legalName || company?.name || '',
+        address: (company?.address as Record<string, any>) ?? {},
+        taxId: company?.taxId ?? null,
+        vatId: company?.vatId ?? null,
+        bankInfo: (company?.bankInfo as Record<string, any>) ?? {},
+      },
       customer: {
         id: customer.id,
         name: customer.name,

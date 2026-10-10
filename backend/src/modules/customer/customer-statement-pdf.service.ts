@@ -121,7 +121,7 @@ export async function generateStatementPdf(
       },
       info: {
         Title: `Kontoauszug ${data.customer.customerNumber || data.customer.name}`,
-        Author: 'SH Leder GmbH',
+        Author: data.company.name,
         Subject: 'Kontoauszug',
         CreationDate: new Date(data.generatedAt),
       },
@@ -134,8 +134,16 @@ export async function generateStatementPdf(
 
     // ── Letterhead (5pt, single line, ink-saving) ─────
     doc.font('Helvetica').fontSize(5).fillColor('black')
+    // Tier 646: the sending company's, from its record (it was one company's
+    // name and address, written here, on every company's statement)
+    const sender = data.company
+    const senderAddress = [
+      sender.address?.street,
+      [sender.address?.postalCode, sender.address?.city].filter(Boolean).join(' '),
+      sender.address?.country,
+    ].filter(Boolean)
     doc.text(
-      'SH Leder GmbH · Otto-Hahn-Str. 24 · 63303 Dreieich · Deutschland',
+      [sender.name, ...senderAddress].filter(Boolean).join(' · '),
       PAGE_MARGIN,
       PAGE_MARGIN - 12,
       { width: CONTENT_WIDTH, align: 'left' },
@@ -163,7 +171,7 @@ export async function generateStatementPdf(
     doc.font('Helvetica').fontSize(10)
     doc.text(
       data.customer.name + (data.customer.vatId ? `  ·  USt-ID ${data.customer.vatId}` : ''),
-      PAGE_MARGIN + 50,
+      PAGE_MARGIN + 72,
       y,
     )
     y = doc.y + 2
@@ -172,14 +180,14 @@ export async function generateStatementPdf(
       doc.font('Helvetica-Bold').fontSize(9)
       doc.text('Kundennr.', PAGE_MARGIN, y)
       doc.font('Helvetica').fontSize(10)
-      doc.text(data.customer.customerNumber, PAGE_MARGIN + 50, y)
+      doc.text(data.customer.customerNumber, PAGE_MARGIN + 72, y)
       y = doc.y + 2
     }
 
     doc.font('Helvetica-Bold').fontSize(9)
     doc.text('Saldostichtag', PAGE_MARGIN, y)
     doc.font('Helvetica').fontSize(10)
-    doc.text(fmtDateDE(data.period.to), PAGE_MARGIN + 50, y)
+    doc.text(fmtDateDE(data.period.to), PAGE_MARGIN + 72, y)
     y = doc.y + 14
 
     // ── Address block (right column) ────────────────
@@ -224,7 +232,8 @@ export async function generateStatementPdf(
     doc.text('Saldo', COL_BAL_X, y, { width: 80, align: 'right' })
     y = doc.y + 2
     doc.moveTo(PAGE_MARGIN, y).lineTo(PAGE_MARGIN + CONTENT_WIDTH, y).stroke()
-    y = doc.y + 4
+    // Tier 646: below the rule — `doc.y + 4` was 2 pt under it, the row on the rule
+    y += 5
 
     doc.font('Helvetica').fontSize(9)
 
@@ -245,7 +254,7 @@ export async function generateStatementPdf(
         doc.text('Saldo', COL_BAL_X, y, { width: 80, align: 'right' })
         y = doc.y + 2
         doc.moveTo(PAGE_MARGIN, y).lineTo(PAGE_MARGIN + CONTENT_WIDTH, y).stroke()
-        y = doc.y + 4
+        y += 5
         doc.font('Helvetica').fontSize(9)
       }
 
@@ -289,7 +298,7 @@ export async function generateStatementPdf(
 
     // ── Totals + closing balance ─────────────────────
     doc.moveTo(PAGE_MARGIN, y).lineTo(PAGE_MARGIN + CONTENT_WIDTH, y).stroke()
-    y = doc.y + 4
+    y += 5
 
     doc.font('Helvetica').fontSize(9)
     doc.text(`Summe Rechnungen: ${data.totals.invoicesCount}`,
@@ -450,14 +459,21 @@ export async function generateStatementPdf(
     doc.fillColor('black')
     doc.font('Helvetica').fontSize(7)
     const footerY = PAGE_HEIGHT - PAGE_MARGIN + 8
-    doc.text(
-      `Erstellt am ${fmtDateDE(data.generatedAt)} · ` +
-      `SH Leder GmbH · Steuer-Nr. 044 243 16529 · USt-ID DE308630106 · ` +
-      `Bank Sparkasse Dreieich · IBAN DE32 4455 6667 88 543 3 3`,
-      PAGE_MARGIN,
-      footerY,
-      { width: CONTENT_WIDTH, align: 'left' },
-    )
+    // Tier 646: the sender's own details, where it has them. And the footer
+    // stands below the bottom margin: pdfkit starts a new page for text
+    // written there, and every statement ended with a page that held this
+    // one line. Written with the margin lifted, it stays on its page.
+    const bank = sender.bankInfo || {}
+    const footer = [
+      `Erstellt am ${fmtDateDE(data.generatedAt)}`,
+      sender.name,
+      sender.taxId ? `Steuer-Nr. ${sender.taxId}` : '',
+      sender.vatId ? `USt-ID ${sender.vatId}` : '',
+      bank.bankName ? `Bank ${bank.bankName}` : '',
+      bank.iban ? `IBAN ${bank.iban}` : '',
+    ].filter(Boolean).join(' · ')
+    doc.page.margins.bottom = 0
+    doc.text(footer, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH, align: 'left', height: PAGE_MARGIN - 12 })
 
     doc.end()
   })

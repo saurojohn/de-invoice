@@ -347,12 +347,20 @@ export class SigningService {
     // sees the Adobe Reader signature badge
     // in the panel, not a visible widget on
     // the page.
+    // Tier 646: who signed, from the company's record. The signature of
+    // every company's invoice named one company, its e-mail address and a
+    // town ("SH Leder GmbH", "info@shleder.de", "Stuttgart") — written here.
+    const signer = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true, legalName: true, email: true, address: true },
+    })
+    const signerName = signer?.legalName || signer?.name || signing.commonName || ''
     const placeholderBuffer = plainAddPlaceholder({
       pdfBuffer,
       reason: 'Rechnung GoBD-konform signiert',
-      contactInfo: 'info@shleder.de',
-      name: 'SH Leder GmbH',
-      location: 'Stuttgart',
+      contactInfo: signer?.email || signerName,
+      name: signerName,
+      location: ((signer?.address as { city?: string } | null)?.city || '').trim(),
       signatureLength: 4096,
       widgetRect: [0, 0, 0, 0],
     })
@@ -570,7 +578,8 @@ export class SigningService {
       reason: 'Berater-Signatur',
       contactInfo: signing.commonName,
       name: signing.commonName,
-      location: 'Stuttgart',
+      // Tier 646: no town is known for a user; it said "Stuttgart" for everyone
+      location: '',
       signatureLength: 4096,
       widgetRect: [0, 0, 0, 0],
     })

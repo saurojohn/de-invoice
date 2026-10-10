@@ -403,9 +403,11 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
       // Heading row — matches the visual weight of the rest
       // of the document. The label is the same uppercase
       // style used by the rest of the PDF column headers.
+      // Tier 646: the heading carried "0,00 €" above 5,00 € and 7,15 € — it
+      // is what the two come to.
       feeLines.push({
         label: "ZUSÄTZLICHE KOSTEN",
-        value: 0,
+        value: Math.round((feeM + feeV) * 100) / 100,
         bold: true,
       })
       if (feeM > 0) {
@@ -476,8 +478,7 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
       y,
       { width: CONTENT_WIDTH, continued: false },
     )
-    doc.font("Helvetica-Bold").text(`(${input.neueFrist === "" ? "" : ""}Werktage)`)
-    doc.font("Helvetica")
+    // Tier 646: a line of its own that said "(Werktage)" and nothing else stood here.
     y = doc.y + 12
 
     // Bank info
@@ -527,6 +528,9 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i)
       const footerY = PAGE_HEIGHT - 30
+      // Tier 646: below the bottom margin pdfkit starts a new page for the
+      // text — every reminder letter had a second page with this line on it.
+      doc.page.margins.bottom = 0
       doc
         .fontSize(7)
         .fillColor("#666666")
