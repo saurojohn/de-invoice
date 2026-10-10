@@ -9,18 +9,21 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–646 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–657 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 646.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 657.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 38021079126 / commit `7363651`, Tier 646):**
-  - Backend e2e: **381 passed / 0 failed / 1 skipped** of 382 specs — 100
-    two-digit + 282 three-digit (Tiers 636–646 added 376 the reminder's open amount, 377 the bank
+- **Test counts (last green CI, run 38053576781 / commit `88bc847`, Tier 657; the Docker workflow, run 38053576775, started both images hardened):**
+  - Backend e2e: **388 passed / 0 failed / 1 skipped** of 389 specs — 100
+    two-digit + 289 three-digit (Tiers 647–657 added 383 CSV files with a decimal comma, 384 the FinTS
+    matcher, 385 the previews' notes without developer wording and the Hebesatz, 386 the exchange rate
+    of the invoice's day, 387 foreign currency on what the customer gets, 388 the containers without
+    root, 389 the previews' translations; Playwright: 1055 passed, 0 flaky; Tiers 636–646 added 376 the reminder's open amount, 377 the bank
     matching against what is open, 378 OSS sales out of the UStVA, 379 bank files as a bank writes
     them, 380 the tax forms by legal form, 381 the layout of the tax PDFs, 382 the statement's sender and the signature's signer; Tiers 629–635 added 374 the role in a 403 and the sealed SMTP
     password, 375 the customer portal's own data; Tiers 626–628 added 373 rounding per customer,
@@ -360,7 +363,7 @@ Operational scripts:
   three-digit; `dryrun-tier247-validate.sh` is manual). Seed driver
   `backend/e2e/ci-seed.sh` = 640 lines. `run-all.sh` has a per-spec
   `SPEC_TIMEOUT` watchdog and a `QUARANTINE` list (empty) — see §8, Tier 361.
-- **Playwright:** 227 spec files in `frontend/e2e/`;
+- **Playwright:** 232 spec files in `frontend/e2e/`;
   config `frontend/playwright.config.ts` = 129 lines.
   **No root-level `playwright.config.ts`** — only the frontend copy.
 - All bash scripts use `set -uo pipefail`. 46 historical scripts
