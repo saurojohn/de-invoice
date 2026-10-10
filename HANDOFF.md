@@ -2651,6 +2651,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 646c — the accounting page's sections are moved, not placed late (a flaky test, read three runs too late)
+
+Reading the counts for the snapshot: „1 047 passed, **1 flaky**“ — and the same line in the three runs before it, back to the run that brought Tier 643. Each time a test of `/dashboard/accounting` had failed and passed on its retry (`gobd-archive.spec.ts` three times, then `kst-vorauszahlungen-tier507.spec.ts`: four quarters filled with 250, saved, 750 stored). The runs were green and the conclusion was all that was looked at.
+
+The cause was Tier 643's own caution: the sections were placed only once `GET /accounting/forms` had answered, „so none loads its figures twice“. That moved every section's first load to a later moment — after the page counts as loaded — and a field filled in that moment was overwritten when the section's own load arrived. A person who types fast meets the same thing as the test. Now all nineteen sections are in **one keyed list from the first render**, in the old order; the answer reorders the list and inserts the line as one more keyed element. React moves a keyed element, it does not mount it again: nothing loads twice, and nothing waits.
+
+Playwright `accounting-forms-tier643.spec.ts`, third test (fails on the version before, which shows no section while the answer is held): the answer is held back by a route; the sections are there in the old order; a year is typed into KSt 1; the answer is released; the section has moved to second place, is the same DOM element, and still holds the year. The two tests that had been flaky cannot run on this machine (port 3001) — the CI run of this commit is their check: **0 flaky** is the number to read.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 646 — the statement and the signature are the sending company's; statement and reminder letter are one page
 
 Tier 645 named three PDFs it had not opened. Two were opened (a reminder letter and a customer statement, for a company made an hour before), and the statement had **another company's letterhead**.
@@ -9046,6 +9054,8 @@ finding critical/high issues. Future agents must respect them:
 - **A PDF is checked by opening it (Tier 644).** Nineteen PDF routes had specs: status 200, `%PDF`, a size, sometimes a page count. Eleven of them had headings broken mid-word in the wrong column and their explanations cut off at the page edge, and the balance sheet printed „!³“ in front of every note — since the tier that made them. Read the file as an image once; and where a layout rule can be stated, read it out of the content stream (the x of each line: `1 0 0 1 x y Tm`).
 
 - **Look at the output as a company that is not the first one (Tier 646).** The owner's company name, tax number and IBAN stood as literals in a PDF's letterhead and in the invoice signature; every check by eye had been made as that company, where they are right. A literal that is true for the developer's own data is invisible until someone else's data is used — search the source for the seed company's name, VAT id and e-mail domain.
+
+- **A green run with „1 flaky“ is a finding (Tier 646c).** Playwright retries twice in CI; a test that fails once and passes on retry leaves the run green and one word in the summary line. Four runs carried it before it was read — it was a timing change of that very tier. After every run read the summary line (`N passed`, `flaky`, `skipped`), not the conclusion; a flaky test on a page just changed is caused by the change until shown otherwise.
 
 ## 11. What to do when you start
 

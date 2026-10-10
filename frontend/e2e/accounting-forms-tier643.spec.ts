@@ -57,6 +57,35 @@ test("a GmbH: KSt 1 and the annual accounts first, the annexes of a person's ret
   await expect(page.getByTestId("anlage-n-year")).toBeVisible()
 })
 
+// Tier 646c: the sections are on the page from the first render and are moved,
+// not placed late and not mounted again. Placing them only once the answer
+// was there (Tier 643) made two other tests of this page need their retry in
+// every CI run: a field filled right after the page loaded was overwritten by
+// the section's own load, which now came later.
+test("the sections are there before the answer and keep what was typed when they move", async ({ page, request }) => {
+  test.setTimeout(180_000)
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => { release = resolve })
+  await page.route("**/api/v1/accounting/forms?*", async (route) => {
+    await held
+    await route.continue()
+  })
+  await open(page, request, "Tier643 Langsam GmbH")
+  // the answer is still held back: the old order, no line
+  expect((await order(page)).slice(0, 3)).toEqual(["beraterPackager", "euer", "anlageS"])
+  await expect(page.getByTestId("forms-other")).toHaveCount(0)
+  const year = page.getByTestId("kst1-year")
+  await expect(year).toBeVisible({ timeout: 60_000 })
+  await year.fill("2019")
+  await page.evaluate(() => { (document.querySelector('[data-form-section="kst1"]') as HTMLElement).dataset.seen = "before" })
+  release()
+  await expect(page.getByTestId("forms-other")).toBeVisible({ timeout: 60_000 })
+  expect((await order(page)).slice(0, 2)).toEqual(["beraterPackager", "kst1"])
+  // the same element, moved — and the field still holds what was typed
+  await expect(page.locator('[data-form-section="kst1"]')).toHaveAttribute("data-seen", "before")
+  await expect(year).toHaveValue("2019")
+})
+
 test("a company whose legal form is not known: the old order, no line", async ({ page, request }) => {
   test.setTimeout(180_000)
   await open(page, request, "Tier643 Werkstatt")

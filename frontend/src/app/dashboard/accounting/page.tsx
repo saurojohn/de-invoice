@@ -173,19 +173,12 @@ export default function AccountingPage() {
     forms: string[]
     other: string[]
   } | null>(null)
-  // The sections are placed once the answer is there (or has failed): placed
-  // before and moved after, each would load its figures twice.
-  const [taxFormsReady, setTaxFormsReady] = useState(false)
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
-    if (!companyId) {
-      setTaxFormsReady(true)
-      return
-    }
+    if (!companyId) return
     apiGet<NonNullable<typeof taxForms>>(`/api/v1/accounting/forms?companyId=${companyId}`)
       .then(setTaxForms)
       .catch(() => setTaxForms(null))
-      .finally(() => setTaxFormsReady(true))
   }, [])
   const sections: Record<string, React.ReactNode> = {
     // Tier 85: Anlage Steuererklärung packager — top-of-page callout
@@ -1256,24 +1249,29 @@ export default function AccountingPage() {
           (GET /accounting/forms); the others follow under a line that says
           so. Nothing is hidden — with an unknown legal form the order is the
           old one. */}
-      {taxFormsReady && (taxForms?.rechtsform ? taxForms.forms : SECTION_ORDER).map((key) => (
+      {/* Tier 646c: one keyed list, there from the first render in the old
+          order; the answer moves the sections and puts the line between
+          them. Waiting for the answer before placing them (Tier 643) changed
+          when each section loads — a field filled right after the page was
+          "complete" was overwritten by the section's own load a moment
+          later, and two Playwright tests of this page needed their retry in
+          every CI run since. A keyed element that moves is not mounted
+          again, so nothing loads twice either. */}
+      {(taxForms?.rechtsform && taxForms.other.length > 0
+        ? [...taxForms.forms, "forms-other", ...taxForms.other]
+        : taxForms?.rechtsform ? taxForms.forms : SECTION_ORDER
+      ).map((key) => key === "forms-other" ? (
+        <div key={key} className="mt-10 mb-4 border-t pt-6" data-testid="forms-other">
+          <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+            {t("accounting.formsOtherTitle", { rechtsform: taxForms?.rechtsform ?? "" })}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {t(taxForms?.rechtsformSource === "abgeleitet" ? "accounting.formsOtherHintDerived" : "accounting.formsOtherHint")}
+          </p>
+        </div>
+      ) : (
         <div key={key} data-form-section={key}>{sections[key]}</div>
       ))}
-      {taxFormsReady && taxForms?.rechtsform && taxForms.other.length > 0 && (
-        <>
-          <div className="mt-10 mb-4 border-t pt-6" data-testid="forms-other">
-            <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
-              {t("accounting.formsOtherTitle", { rechtsform: taxForms.rechtsform })}
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {t(taxForms.rechtsformSource === "abgeleitet" ? "accounting.formsOtherHintDerived" : "accounting.formsOtherHint")}
-            </p>
-          </div>
-          {taxForms.other.map((key) => (
-            <div key={key} data-form-section={key}>{sections[key]}</div>
-          ))}
-        </>
-      )}
     </main>
   )
 }
