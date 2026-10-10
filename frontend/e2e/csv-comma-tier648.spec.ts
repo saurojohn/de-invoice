@@ -42,7 +42,8 @@ test("the product list as a CSV: a comma in the price, a semicolon inside quotes
     page.waitForEvent("download"),
     page.getByRole("button", { name: /CSV/ }).first().click(),
   ])
-  const text = readFileSync((await file.path())!, "utf8").replace(/^﻿/, "")
+  const raw = readFileSync((await file.path())!, "utf8")
+  const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw
   const [header, row] = text.split("\n")
   expect(header).toBe("Artikelnummer;Name;Typ;Kategorie;Einheit;Grundpreis;MwSt-Satz;Beschreibung")
   // eight cells, the name one of them
