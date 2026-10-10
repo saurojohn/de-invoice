@@ -94,6 +94,23 @@ print(xs.count(50) >= 20, xs.count(100) >= 20)
 PY
 )" "True True"
 
+# Tier 645: the invoice. Its total stands in a box; the box ended exactly where
+# the amount ends (the right content edge, 545,28), the last digit on the
+# border. 5 pt of room, as on the left.
+curl -sS -o "$TMP/invoice.pdf" "$API/api/v1/invoices/$I/pdf?companyId=$C" -H "x-user-id: $U" -H "x-company-id: $C"
+assert_eq "the invoice's total box ends 5 pt right of the amounts (was: 545.28, on the last digit)" \
+  "$(python3 - "$TMP/invoice.pdf" <<'PY'
+import re, sys, zlib
+d = open(sys.argv[1], 'rb').read()
+out = []
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.S):
+    try: t = zlib.decompress(m.group(1))
+    except Exception: continue
+    out += [round(float(x) + float(w), 2) for x, y, w, h in re.findall(rb'([0-9.]+) ([0-9.]+) ([0-9.]+) ([0-9.]+) re', t) if float(w) > 150]
+print(d[:4].decode('latin1'), out)
+PY
+)" "%PDF [550.28]"
+
 note "=== 2. every tax preview goes through it, and the signs are printable ==="
 cd "$SCRIPT_DIR/.."
 BARE=$(grep -rln "new PDFDocument(" src/modules/accounting src/modules/reports --include='*.ts' | while read -r f; do

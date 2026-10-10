@@ -798,7 +798,9 @@ export async function generateInvoicePDF(
     const gesamtY = totalsY + 5 + rows.length * totalsLineHeight
     const gesamtHeight = gesamtHeightPre
     const gesamtBoxX = totalsLabelX - 5
-    const gesamtBoxWidth = rightMargin - gesamtBoxX
+    // Tier 645: 5 pt of room on the right as on the left — the box ended where
+    // the amount ends, and the last digit stood on its border.
+    const gesamtBoxWidth = rightMargin - gesamtBoxX + 5
     doc.lineWidth(1.0)
     if (!hidePrices) doc.rect(gesamtBoxX, gesamtY, gesamtBoxWidth, gesamtHeight).stroke()
     doc.fillColor(textColor).font(fontFor('bold')).fontSize(totalsFontSize + 2)

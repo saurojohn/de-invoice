@@ -2651,6 +2651,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 645 — the invoice's total box
+
+The PDFs outside the tax previews were measured the same way (invoice, journal, time sheet, voucher, VAT audit, Anlage SO v2): no line off the page, none in a wrong column. The invoice was opened: one flaw — the box around „Gesamtbetrag“ (and „Zahlbetrag“ after an advance) ended exactly where the amount ends, the last digit on its border; the label has 5 pt of room on the left. The box is 5 pt wider on the right. Spec 381 reads the rectangle out of the PDF (550,28; it was 545,28). Not opened in this pass: the reminder letter, the customer statement, the cash-book close (they need fixtures the scenario did not have).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 644b — the same PDFs, looked at again: the amount column's heading, sums, page breaks
 
 With the worst gone, the PDFs were opened once more and measured for a second thing — text placed outside the page. Three more faults, all in `common/pdf-flow.ts` again, so every preview gets the repair:
