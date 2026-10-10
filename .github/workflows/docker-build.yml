@@ -112,8 +112,11 @@ jobs:
             --read-only --tmpfs /tmp --tmpfs /var/run/postgresql \
             --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add SETGID --cap-add SETUID \
             --security-opt no-new-privileges:true postgres:16-alpine
-          for i in $(seq 1 60); do docker exec harden-pg pg_isready -U de_invoice -d de_invoice >/dev/null 2>&1 && break; sleep 1; done
-          docker exec harden-pg psql -U de_invoice -d de_invoice -Atc 'select 1'
+          # Over TCP: while the image initialises a new data directory its
+          # temporary server answers on the socket only — pg_isready said
+          # "ready" there and the database did not exist yet.
+          for i in $(seq 1 90); do docker exec harden-pg psql -h 127.0.0.1 -U de_invoice -d de_invoice -Atc 'select 1' >/dev/null 2>&1 && break; sleep 1; done
+          docker exec harden-pg psql -h 127.0.0.1 -U de_invoice -d de_invoice -Atc 'select 1'
           HARD=(--read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true)
           ENVS=(--network harden -e NODE_ENV=production -e DISABLE_CRON=1
                 -e "DATABASE_URL=postgresql://de_invoice:ci-only@postgres:5432/de_invoice?schema=public"
