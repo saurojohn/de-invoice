@@ -1054,7 +1054,15 @@ export class AccountingController {
       ruerup: Math.max(0, Number(body.ruerup) || 0),
       privat: Math.max(0, Number(body.privat) || 0),
       sonstige: Math.max(0, Number(body.sonstige) || 0),
+      // Tier 655: when each pension began; a body without them keeps what is there
+      drvBeginn: body.drvBeginn !== undefined ? body.drvBeginn : (rentenAll[body.year]?.drvBeginn ?? null),
+      ruerupBeginn: body.ruerupBeginn !== undefined ? body.ruerupBeginn : (rentenAll[body.year]?.ruerupBeginn ?? null),
+      sonstigeBeginn: body.sonstigeBeginn !== undefined ? body.sonstigeBeginn : (rentenAll[body.year]?.sonstigeBeginn ?? null),
+      privatAlter: body.privatAlter !== undefined ? body.privatAlter : (rentenAll[body.year]?.privatAlter ?? null),
     }
+    if (rentenUpdate.drvBeginn != null && rentenUpdate.drvBeginn > body.year) throw new BadRequestException('drvBeginn liegt nach dem Steuerjahr')
+    if (rentenUpdate.ruerupBeginn != null && rentenUpdate.ruerupBeginn > body.year) throw new BadRequestException('ruerupBeginn liegt nach dem Steuerjahr')
+    if (rentenUpdate.sonstigeBeginn != null && rentenUpdate.sonstigeBeginn > body.year) throw new BadRequestException('sonstigeBeginn liegt nach dem Steuerjahr')
     rentenAll[body.year] = rentenUpdate
     if (body.werbungskosten) wkAll[body.year] = body.werbungskosten
 

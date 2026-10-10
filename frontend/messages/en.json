@@ -2957,10 +2957,18 @@
       "sonstige": "Sonstige (accident, widow-)"
     },
     "fieldHint": "Enter the gross Rentenbezüge (before Besteuerungsanteil) from your pension notices. Enter to-the-cent.",
-    "besteuerungsanteilHint": "Besteuerungsanteil decreases by 1% per year: 2005 = 50% → 2024 = 83% → 2057 = 50% (final).",
+    "besteuerungsanteilHint": "The taxable share depends on the year the pension began (§ 22 Nr. 1 S. 3 a) aa) EStG): 50 % up to 2005, 80 % for 2020, 84 % for 2026, 100 % from 2058. Company and Riester pensions are taxed in full, private annuities at the share for the age at which they began.",
     "wkHint": "210 = Werbungskosten-Pauschbetrag (auto, 102 EUR). Kz 200 / 220 / 230 are manual.",
     "savedOk": "Rentenbezüge saved.",
-    "generatedAt": "Generated"
+    "generatedAt": "Generated",
+    "beginnTitle": "Start of the pensions",
+    "beginnHint": "The taxable share depends on the year the pension began, not on the tax year. Without it the highest share is used.",
+    "beginn": {
+      "drv": "Statutory pension: year it began",
+      "ruerup": "Rürup pension: year it began",
+      "sonstige": "Other annuities: year they began",
+      "privatAlter": "Private annuity: age when it began"
+    }
   },
   "anlageKind": {
     "title": "Anlage Kind (preview)",

@@ -63,14 +63,19 @@ EK=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['einkuenf
 assert_eq "einkuenfte == -102 (no Rentenbezüge, only Pauschbetrag)" "$EK" "-102"
 rm -f "$TMP"
 
-# ===== 4. Besteuerungsanteil for year 2026 = 81% =====
+# ===== 4. Besteuerungsanteil =====
+# Tier 655: it follows the year the pension BEGAN (§ 22 Nr. 1 S. 3 a) aa)
+# EStG: 50 % to 2005, 80 % for 2020, 82,5 % for 2023, 84 % for 2026, 100 %
+# from 2058) — not the tax year, by a table that fell again after 2024 (81 %
+# "for 2026", 50 % "in 2057"). Nothing entered: the share of a pension that
+# begins in the tax year, the highest there can be.
 echo
-note "=== 4. Besteuerungsanteil 2026 == 81% (BMF-Tabelle) ==="
+note "=== 4. no start entered: the share of a pension beginning in 2026, 84 % ==="
 api_get "/api/v1/accounting/anlage-r?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
 
 BA=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['besteuerungsanteil'])" < "$TMP")
-assert_eq "besteuerungsanteil == 81 (2026 BMF)" "$BA" "81"
+assert_eq "besteuerungsanteil == 84 (a pension beginning in 2026; was 81)" "$BA" "84"
 rm -f "$TMP"
 
 # ===== 5. PUT Rentenbezüge + GET reflects values =====
@@ -80,7 +85,7 @@ PUT_HEAD=$(curl -sS -X PUT -o /tmp/anlage-r-put-$TS.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -H "Content-Type: application/json" \
   "$API/api/v1/accounting/anlage-r/settings?companyId=$COMPANY_ID" \
-  -d '{"year": 2026, "drv": 18000, "bav": 6000, "riester": 1200, "ruerup": 0, "privat": 2400, "sonstige": 0, "werbungskosten": {"200": 0, "220": 0, "230": 150}}')
+  -d '{"year": 2026, "drv": 18000, "bav": 6000, "riester": 1200, "ruerup": 0, "privat": 2400, "sonstige": 0, "drvBeginn": 2010, "privatAlter": 65, "werbungskosten": {"200": 0, "220": 0, "230": 150}}')
 assert_eq "PUT 200" "$PUT_HEAD" "200"
 
 api_get "/api/v1/accounting/anlage-r?companyId=$COMPANY_ID&year=2026"
@@ -102,16 +107,39 @@ d = json.load(sys.stdin)
 drv_anteil = next(l for l in d['einnahmen'] if l['kennziffer'] == '100')['amount']
 privat_anteil = next(l for l in d['einnahmen'] if l['kennziffer'] == '140')['amount']
 einnahmen_total = d['totals']['einnahmenTotal']
-expected_drv = round(18000 * 0.81, 2)
-expected_privat = round(2400 * 0.50, 2)
-expected_einnahmen = expected_drv + round(6000 * 0.81, 2) + round(1200 * 0.81, 2) + expected_privat
+# Tier 655: the statutory pension began in 2010 → 60 %; the private annuity at
+# 65 → Ertragsanteil 18 % (was a flat 50 %); the company pension and the
+# Riester pension in full, § 22 Nr. 5 (were 81 % too)
+expected_drv = round(18000 * 0.60, 2)
+expected_privat = round(2400 * 0.18, 2)
+expected_einnahmen = expected_drv + 6000 + 1200 + expected_privat
 print(f'{abs(drv_anteil - expected_drv) < 0.01}|{abs(privat_anteil - expected_privat) < 0.01}|{abs(einnahmen_total - expected_einnahmen) < 0.01}|{drv_anteil}|{privat_anteil}|{einnahmen_total}|{expected_drv}|{expected_privat}|{expected_einnahmen}')
 " < "$TMP")
-assert_eq "DRV × 81% == 14580" "$(echo "$MATH" | cut -d'|' -f1)" "True"
-assert_eq "privat × 50% == 1200" "$(echo "$MATH" | cut -d'|' -f2)" "True"
-assert_eq "Einnahmen total" "$(echo "$MATH" | cut -d'|' -f3)" "True"
-pass "DRV=${MATH##*|}=14580, privat=$(echo "$MATH" | cut -d'|' -f5) (expected $(echo "$MATH" | cut -d'|' -f8))"
+assert_eq "DRV × 60 % (begun 2010) == 10800 (was × 81 % = 14580)" "$(echo "$MATH" | cut -d'|' -f1)" "True"
+assert_eq "privat × 18 % (begun at 65) == 432 (was × 50 % = 1200)" "$(echo "$MATH" | cut -d'|' -f2)" "True"
+assert_eq "Einnahmen total = 10800 + 6000 + 1200 + 432" "$(echo "$MATH" | cut -d"|" -f6)" "18432"
 rm -f "$TMP"
+
+# Tier 655: the table, by start year and by age
+share() { # body-fields → "aa-share|bb-share"
+  curl -sS -o /dev/null -X PUT -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" \
+    "$API/api/v1/accounting/anlage-r/settings?companyId=$COMPANY_ID" -d '{"year": 2026, "drv": 1000, "privat": 1000, '"$1"'}'
+  api_get "/api/v1/accounting/anlage-r?companyId=$COMPANY_ID&year=2026"
+  python3 -c "import json,sys; t=json.load(sys.stdin)['totals']; print('%s|%s' % (t['besteuerungsanteil'], t['ertragsanteil']))" <<< "$BODY"
+}
+assert_eq "begun 1998, at 60: 50 % and 22 %" "$(share '"drvBeginn": 1998, "privatAlter": 60')" "50|22"
+assert_eq "begun 2020, at 63: 80 % and 20 %" "$(share '"drvBeginn": 2020, "privatAlter": 63')" "80|20"
+assert_eq "begun 2022, at 67: 82 % and 17 %" "$(share '"drvBeginn": 2022, "privatAlter": 67')" "82|17"
+assert_eq "begun 2023, at 70: 82.5 % and 15 %" "$(share '"drvBeginn": 2023, "privatAlter": 70')" "82.5|15"
+assert_eq "begun 2025, at 97: 83.5 % and 1 %" "$(share '"drvBeginn": 2025, "privatAlter": 97')" "83.5|1"
+assert_eq "not known (null): 84 % and the highest Ertragsanteil, 59 %" "$(share '"drvBeginn": null, "privatAlter": null')" "84|59"
+api_get "/api/v1/accounting/anlage-r?companyId=$COMPANY_ID&year=2026"
+echo "$BODY" | grep -q "Rentenbeginn nicht eingetragen" && pass "… and the line says that the start is missing" || fail "no note about the missing start"
+for bad in '"drvBeginn": 2030' '"drvBeginn": "früher"' '"privatAlter": 130' '"privatAlter": 64.5'; do
+  CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X PUT -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" \
+    "$API/api/v1/accounting/anlage-r/settings?companyId=$COMPANY_ID" -d '{"year": 2026, "drv": 1000, '"$bad"'}')
+  assert_eq "refused: $bad" "$CODE" "400"
+done
 
 # ===== 7. Einkünfte = Einnahmen - Werbungskosten =====
 echo

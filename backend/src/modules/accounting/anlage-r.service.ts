@@ -48,6 +48,9 @@ export interface AnlageRLine {
   amount: number
   source?: 'computed' | 'placeholder'
   note?: string
+  /** Tier 655: the pension before the share, and the share applied (percent) */
+  gross?: number
+  anteil?: number
 }
 
 export interface AnlageRResult {
@@ -61,6 +64,9 @@ export interface AnlageRResult {
     privat: number
     sonstige: number
   }
+  /** Tier 655: the year each pension began, and the age at the start of a
+   *  private annuity — what the taxable share depends on. null: not entered. */
+  beginn: { drv: number | null; ruerup: number | null; sonstige: number | null; privatAlter: number | null }
   einnahmen: AnlageRLine[]
   werbungskosten: AnlageRLine[]
   totals: {
@@ -85,41 +91,23 @@ export interface AnlageRResult {
 // Ertragsanteil (§ 22 Nr. 1 S. 3 lit. a EStG).
 // Sonstige (Unfallrenten etc.) use Besteuerungs-
 // anteil by default.
+// Tier 655: which rule a line follows.
+//   'aa'   § 22 Nr. 1 S. 3 a) aa) — the Besteuerungsanteil of the year the
+//          pension BEGAN (statutory pension, Basisrente, widow's pension …)
+//   'bb'   § 22 Nr. 1 S. 3 a) bb) — the Ertragsanteil of the age at its start
+//   'voll' § 22 Nr. 5 S. 1 — taxed in full (subsidised contributions)
 const EINNAHMEN_LINES: Array<{
   kz: string
   label: string
-  besteuerungsanteil: 'drv' | 'privat' | 'ertragsanteil'
+  rule: 'aa' | 'bb' | 'voll'
+  beginn?: 'drv' | 'ruerup' | 'sonstige'
 }> = [
-  {
-    kz: '100',
-    label: 'Leibrenten aus der gesetzlichen Rentenversicherung (DRV, DRV-Bescheid)',
-    besteuerungsanteil: 'drv',
-  },
-  {
-    kz: '110',
-    label: 'Betriebsrenten (BAV, Pensionskasse, Direktversicherung)',
-    besteuerungsanteil: 'drv',
-  },
-  {
-    kz: '120',
-    label: 'Riester-Renten (reguläre Besteuerung in der Auszahlungsphase)',
-    besteuerungsanteil: 'drv',
-  },
-  {
-    kz: '130',
-    label: 'Rürup-Renten / Basis-Renten (Leibrenten aus privater Altersvorsorge)',
-    besteuerungsanteil: 'drv',
-  },
-  {
-    kz: '140',
-    label: 'Private Leibrenten (z.B. private Rentenversicherung — Ertragsanteil nach Alter bei Rentenbeginn)',
-    besteuerungsanteil: 'privat',
-  },
-  {
-    kz: '150',
-    label: 'Sonstige Rentenbezüge (Unfallrenten, Witwen-/Waisenrente, etc.)',
-    besteuerungsanteil: 'drv',
-  },
+  { kz: '100', label: 'Leibrenten aus der gesetzlichen Rentenversicherung (DRV, DRV-Bescheid)', rule: 'aa', beginn: 'drv' },
+  { kz: '110', label: 'Betriebsrenten (BAV, Pensionskasse, Direktversicherung)', rule: 'voll' },
+  { kz: '120', label: 'Riester-Renten (reguläre Besteuerung in der Auszahlungsphase)', rule: 'voll' },
+  { kz: '130', label: 'Rürup-Renten / Basis-Renten (Leibrenten aus privater Altersvorsorge)', rule: 'aa', beginn: 'ruerup' },
+  { kz: '140', label: 'Private Leibrenten (z.B. private Rentenversicherung — Ertragsanteil nach Alter bei Rentenbeginn)', rule: 'bb' },
+  { kz: '150', label: 'Sonstige Leibrenten wie die gesetzliche Rente (Witwen-/Waisenrente, berufsständische Versorgung)', rule: 'aa', beginn: 'sonstige' },
 ]
 
 // Tier 103: Anlage R Werbungskosten 200-250.
@@ -153,70 +141,43 @@ const WERBUNGSKOSTEN_LINES: Array<{ kz: string; label: string; amount: number; n
   },
 ]
 
-// Besteuerungsanteil for DRV + BAV + Riester + Rürup + Sonstige:
-// Tabelle nach § 22 Nr. 1 S. 3 lit. a Doppelbuchst. aa EStG
-// (year → %). v1: 2005-2040+. v2: dynamically lookup BMF table.
-const BESTEUERUNGSANTEIL_TABLE: Record<number, number> = {
-  2005: 0.50,
-  2006: 0.52,
-  2007: 0.54,
-  2008: 0.56,
-  2009: 0.58,
-  2010: 0.60,
-  2011: 0.62,
-  2012: 0.64,
-  2013: 0.66,
-  2014: 0.68,
-  2015: 0.70,
-  2016: 0.72,
-  2017: 0.74,
-  2018: 0.76,
-  2019: 0.78,
-  2020: 0.80,
-  2021: 0.81,
-  2022: 0.82,
-  2023: 0.82,
-  2024: 0.83,
-  2025: 0.82,
-  2026: 0.81, // Current year
-  2027: 0.80,
-  2028: 0.79,
-  2029: 0.78,
-  2030: 0.77,
-  2031: 0.76,
-  2032: 0.75,
-  2033: 0.74,
-  2034: 0.73,
-  2035: 0.72,
-  2036: 0.71,
-  2037: 0.70,
-  2038: 0.69,
-  2039: 0.68,
-  2040: 0.67,
-  2041: 0.66,
-  2042: 0.65,
-  2043: 0.64,
-  2044: 0.63,
-  2045: 0.62,
-  2046: 0.61,
-  2047: 0.60,
-  2048: 0.59,
-  2049: 0.58,
-  2050: 0.57,
-  2051: 0.56,
-  2052: 0.55,
-  2053: 0.54,
-  2054: 0.53,
-  2055: 0.52,
-  2056: 0.51,
-  2057: 0.50, // End: 50% (full deduction)
+/**
+ * Tier 655 — the Besteuerungsanteil, § 22 Nr. 1 Satz 3 Buchst. a Doppelbuchst.
+ * aa EStG (read from gesetze-im-internet.de on 10.10.2026): by the year the
+ * pension BEGAN — 50 % up to 2005, two points more each year to 80 % in 2020,
+ * 81 % in 2021, 82 % in 2022, then half a point a year (82,5 % in 2023) to
+ * 100 % in 2058.
+ *
+ * Before: a table by TAX year that rose to 83 % in 2024 and then fell by a
+ * point a year to 50 % in 2057 — applied to every pension whenever it began,
+ * and to company and Riester pensions as well. A pension that began in 2010
+ * (60 %) was taxed at 81 % in 2026; one beginning in 2040 (91 %) would have
+ * been taxed at 67 %.
+ */
+export function besteuerungsanteil(beginn: number): number {
+  if (beginn <= 2005) return 50
+  if (beginn <= 2020) return 50 + (beginn - 2005) * 2
+  if (beginn <= 2022) return 80 + (beginn - 2020)
+  return Math.min(100, 82 + (beginn - 2022) * 0.5)
 }
 
-// Ertragsanteil for private Leibrenten (§ 22 Nr. 1
-// S. 3 lit. a EStG). v1: simplified to 50% for all
-// private Rente (the post-2012 default). v2: full
-// BMF table by age.
-const ERTRAGSANTEIL_DEFAULT = 0.50
+/**
+ * Tier 655 — the Ertragsanteil, § 22 Nr. 1 Satz 3 Buchst. a Doppelbuchst. bb
+ * EStG, by the age completed when the annuity began (same source). It was a
+ * flat 50 %, which is the share of someone aged 19 or 20; at 65 it is 18 %.
+ */
+const ERTRAGSANTEIL: Array<[number, number]> = [
+  [1, 59], [3, 58], [5, 57], [8, 56], [10, 55], [12, 54], [14, 53], [16, 52], [18, 51], [20, 50],
+  [22, 49], [24, 48], [26, 47], [27, 46], [29, 45], [31, 44], [32, 43], [34, 42], [35, 41], [37, 40],
+  [38, 39], [40, 38], [41, 37], [42, 36], [44, 35], [45, 34], [47, 33], [48, 32], [49, 31], [50, 30],
+  [52, 29], [53, 28], [54, 27], [56, 26], [57, 25], [58, 24], [59, 23], [61, 22], [62, 21], [63, 20],
+  [64, 19], [66, 18], [67, 17], [68, 16], [70, 15], [71, 14], [73, 13], [74, 12], [75, 11], [77, 10],
+  [79, 9], [80, 8], [82, 7], [84, 6], [87, 5], [91, 4], [93, 3], [96, 2],
+]
+export function ertragsanteil(alter: number): number {
+  for (const [bis, pct] of ERTRAGSANTEIL) if (alter <= bis) return pct
+  return 1
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -264,6 +225,13 @@ export class AnlageRService {
       privat: Math.max(0, Number(r.privat) || 0),
       sonstige: Math.max(0, Number(r.sonstige) || 0),
     }
+    const yearOrNull = (v: unknown) => (Number.isInteger(v) && (v as number) >= 1900 && (v as number) <= year ? (v as number) : null)
+    const beginn = {
+      drv: yearOrNull(r.drvBeginn),
+      ruerup: yearOrNull(r.ruerupBeginn),
+      sonstige: yearOrNull(r.sonstigeBeginn),
+      privatAlter: Number.isInteger(r.privatAlter) && r.privatAlter >= 0 && r.privatAlter <= 120 ? (r.privatAlter as number) : null,
+    }
     const hasRentenbezuege =
       rentenbezuege.drv > 0 ||
       rentenbezuege.bav > 0 ||
@@ -271,11 +239,6 @@ export class AnlageRService {
       rentenbezuege.ruerup > 0 ||
       rentenbezuege.privat > 0 ||
       rentenbezuege.sonstige > 0
-
-    // Besteuerungsanteil for the year
-    const besteuerungsanteil =
-      BESTEUERUNGSANTEIL_TABLE[year] ?? 0.50 // default 50% for years outside table
-    const ertragsanteil = ERTRAGSANTEIL_DEFAULT
 
     // Build einnahmen lines
     const einnahmen: AnlageRLine[] = []
@@ -288,15 +251,37 @@ export class AnlageRService {
       '140': rentenbezuege.privat,
       '150': rentenbezuege.sonstige,
     }
+    // Tier 655: each line by its own rule. Where the start of a pension is
+    // not entered, the share of a pension beginning in the tax year itself is
+    // taken — the highest it can be, so the preview never shows too little.
+    const de = (n: number) => n.toLocaleString('de-DE', { maximumFractionDigits: 1 })
     for (const def of EINNAHMEN_LINES) {
       const raw = kzToBetrag[def.kz] || 0
-      const anteil = def.besteuerungsanteil === 'privat' ? ertragsanteil : besteuerungsanteil
-      const taxable = round2(raw * anteil)
+      let pct = 100
+      let note: string | undefined
+      if (def.rule === 'aa') {
+        const b = beginn[def.beginn!]
+        pct = besteuerungsanteil(b ?? year)
+        note = b
+          ? `Rentenbeginn ${b}: Besteuerungsanteil ${de(pct)} % (§ 22 Nr. 1 S. 3 a) aa) EStG). Der steuerfreie Teil ist ein fester Eurobetrag aus dem Jahr nach dem Rentenbeginn — spätere Rentenerhöhungen sind voll steuerpflichtig; hier wird vereinfacht der Anteil auf den Jahresbetrag angewendet.`
+          : `Rentenbeginn nicht eingetragen — gerechnet mit dem Anteil für einen Rentenbeginn ${year} (${de(pct)} %), dem höchsten, der in Frage kommt. Bitte das Jahr des Rentenbeginns eintragen.`
+      } else if (def.rule === 'bb') {
+        pct = ertragsanteil(beginn.privatAlter ?? 0)
+        note = beginn.privatAlter != null
+          ? `Alter bei Rentenbeginn ${beginn.privatAlter}: Ertragsanteil ${pct} % (§ 22 Nr. 1 S. 3 a) bb) EStG).`
+          : `Alter bei Rentenbeginn nicht eingetragen — gerechnet mit dem höchsten Ertragsanteil (${pct} %). Bitte das Alter eintragen.`
+      } else {
+        note = 'In voller Höhe steuerpflichtig, soweit die Beiträge gefördert oder steuerfrei waren (§ 22 Nr. 5 S. 1 EStG) — der Regelfall. Der Berater prüft Leistungen aus nicht geförderten Beiträgen.'
+      }
+      const taxable = round2(raw * (pct / 100))
       einnahmen.push({
         kennziffer: def.kz,
         label: def.label,
         amount: taxable,
         source: 'computed',
+        gross: round2(raw),
+        anteil: pct,
+        ...(raw > 0 ? { note } : {}),
       })
       einnahmenTotal += taxable
     }
@@ -336,12 +321,14 @@ export class AnlageRService {
       year,
       companyId,
       rentenbezuege,
+      beginn,
       einnahmen,
       werbungskosten,
       totals: {
         rentenbezuegeTotal,
-        besteuerungsanteil: round2(besteuerungsanteil * 100),
-        ertragsanteil: round2(ertragsanteil * 100),
+        // (the share of the statutory pension's line, and of the private annuity's)
+        besteuerungsanteil: besteuerungsanteil(beginn.drv ?? year),
+        ertragsanteil: ertragsanteil(beginn.privatAlter ?? 0),
         einnahmenTotal: round2(einnahmenTotal),
         werbungskostenTotal: round2(werbungskostenTotal),
         einkuenfte,
@@ -353,8 +340,10 @@ export class AnlageRService {
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren Rentenbezügen-Daten ' +
         '(erfasst unter Buchhaltung, Anlage R) + der BMF-Tabelle der Besteuerungsanteile ' +
-        'für das Geschäftsjahr generiert. Besteuerungsanteil: 50% (bis 2040) bis ' +
-        '83% (2024) — fällt jährlich um 1 Prozentpunkt bis 50% in 2057. ' +
+        'generiert. Der Besteuerungsanteil richtet sich nach dem Jahr des Rentenbeginns ' +
+        '(§ 22 Nr. 1 S. 3 a) aa) EStG): 50 % bis 2005, 80 % für 2020, 84 % für 2026, 100 % ab 2058. ' +
+        'Betriebs- und Riester-Renten sind in voller Höhe angesetzt (§ 22 Nr. 5 EStG), ' +
+        'private Leibrenten mit dem Ertragsanteil nach dem Alter bei Rentenbeginn. ' +
         'Werbungskosten-Pauschbetrag 102 EUR (Kz 210) ist auto-berechnet. ' +
         'Anlage R ist für Einkünfte aus Renten und Bezügen (§ 22 EStG) — ' +
         'gesetzliche Rente (DRV), Betriebsrente (BAV), Riester, Rürup, ' +
@@ -418,10 +407,14 @@ export class AnlageRService {
         .fontSize(8)
         .fillColor('#666')
         .text(
-          `Besteuerungsanteil ${data.totals.besteuerungsanteil.toFixed(0).replace('.', ',')} % (§ 22 Nr. 1 S. 3 lit. a EStG, BMF-Tabelle)`,
+          `Gesetzliche Rente: Besteuerungsanteil ${String(data.totals.besteuerungsanteil).replace('.', ',')} % ` +
+            (data.beginn.drv ? `(Rentenbeginn ${data.beginn.drv})` : '(Rentenbeginn nicht eingetragen — höchster Anteil)') +
+            ', § 22 Nr. 1 S. 3 a) aa) EStG',
         )
         .text(
-          `Ertragsanteil private Leibrenten ${data.totals.ertragsanteil.toFixed(0).replace('.', ',')} % (vereinfacht; maßgeblich ist die BMF-Tabelle nach dem Alter bei Rentenbeginn)`,
+          `Private Leibrenten: Ertragsanteil ${data.totals.ertragsanteil} % ` +
+            (data.beginn.privatAlter != null ? `(Alter bei Rentenbeginn ${data.beginn.privatAlter})` : '(Alter bei Rentenbeginn nicht eingetragen — höchster Anteil)') +
+            ', § 22 Nr. 1 S. 3 a) bb) EStG',
         )
         .fillColor('#000')
       doc.moveDown(1)

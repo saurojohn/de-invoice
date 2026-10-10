@@ -26,6 +26,8 @@ interface AnlageRResult {
     privat: number
     sonstige: number
   }
+  // Tier 655: the year each pension began, the age at the start of a private annuity
+  beginn?: { drv: number | null; ruerup: number | null; sonstige: number | null; privatAlter: number | null }
   einnahmen: AnlageRLine[]
   werbungskosten: AnlageRLine[]
   totals: {
@@ -50,6 +52,10 @@ interface RentenInput {
   ruerup: string
   privat: string
   sonstige: string
+  drvBeginn: string
+  ruerupBeginn: string
+  sonstigeBeginn: string
+  privatAlter: string
   werbungskosten200: string
   werbungskosten220: string
   werbungskosten230: string
@@ -85,6 +91,10 @@ export function AnlageRSection() {
     ruerup: "",
     privat: "",
     sonstige: "",
+    drvBeginn: "",
+    ruerupBeginn: "",
+    sonstigeBeginn: "",
+    privatAlter: "",
     werbungskosten200: "",
     werbungskosten220: "",
     werbungskosten230: "",
@@ -111,6 +121,10 @@ export function AnlageRSection() {
         ruerup: String(result.rentenbezuege.ruerup || ""),
         privat: String(result.rentenbezuege.privat || ""),
         sonstige: String(result.rentenbezuege.sonstige || ""),
+        drvBeginn: String(result.beginn?.drv ?? ""),
+        ruerupBeginn: String(result.beginn?.ruerup ?? ""),
+        sonstigeBeginn: String(result.beginn?.sonstige ?? ""),
+        privatAlter: String(result.beginn?.privatAlter ?? ""),
         werbungskosten200: String(
           result.werbungskosten.find((l) => l.kennziffer === "200")?.amount || "",
         ),
@@ -150,6 +164,11 @@ export function AnlageRSection() {
           ruerup: toNum(rentenInput.ruerup),
           privat: toNum(rentenInput.privat),
           sonstige: toNum(rentenInput.sonstige),
+          // Tier 655: empty = not known (null), which the preview then says
+          drvBeginn: rentenInput.drvBeginn === "" ? null : Number(rentenInput.drvBeginn),
+          ruerupBeginn: rentenInput.ruerupBeginn === "" ? null : Number(rentenInput.ruerupBeginn),
+          sonstigeBeginn: rentenInput.sonstigeBeginn === "" ? null : Number(rentenInput.sonstigeBeginn),
+          privatAlter: rentenInput.privatAlter === "" ? null : Number(rentenInput.privatAlter),
           werbungskosten: {
             "200": toNum(rentenInput.werbungskosten200),
             "220": toNum(rentenInput.werbungskosten220),
@@ -302,7 +321,7 @@ export function AnlageRSection() {
                     className="mt-2 text-[10px] text-blue-600 dark:text-blue-400"
                     data-testid="anlage-r-besteuerungsanteil-hint"
                   >
-                    Besteuerungsanteil {data.totals.besteuerungsanteil.toFixed(0)} % (§ 22 Nr. 1 S. 3 lit. a EStG, BMF-Tabelle)
+                    {tRef.current("anlageR.besteuerungsanteilHint")}
                   </p>
                 </div>
               )}
@@ -409,6 +428,37 @@ export function AnlageRSection() {
                     }
                     className="w-full border rounded px-3 py-2 text-sm mt-1 font-mono text-right"
                     placeholder="0,00"
+                    data-testid={`renten-input-${key}`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Tier 655: what the taxable share depends on */}
+            <h3 className="text-sm font-semibold mb-1 mt-4">{tRef.current("anlageR.beginnTitle")}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{tRef.current("anlageR.beginnHint")}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              {(
+                [
+                  ["drvBeginn", "beginn.drv", 1900, 2100],
+                  ["ruerupBeginn", "beginn.ruerup", 1900, 2100],
+                  ["sonstigeBeginn", "beginn.sonstige", 1900, 2100],
+                  ["privatAlter", "beginn.privatAlter", 0, 120],
+                ] as [keyof RentenInput, string, number, number][]
+              ).map(([key, labelKey, min, max]) => (
+                <div key={key}>
+                  <label htmlFor={`renten-input-${key}`} className="text-xs text-gray-500 dark:text-gray-400">
+                    {tRef.current(`anlageR.${labelKey}`)}
+                  </label>
+                  <input
+                    id={`renten-input-${key}`}
+                    type="number"
+                    step="1"
+                    min={min}
+                    max={max}
+                    value={rentenInput[key]}
+                    onChange={(e) => setRentenInput({ ...rentenInput, [key]: e.target.value })}
+                    className="w-full border rounded px-3 py-2 text-sm mt-1 font-mono text-right"
                     data-testid={`renten-input-${key}`}
                   />
                 </div>

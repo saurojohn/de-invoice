@@ -2957,10 +2957,18 @@
       "sonstige": "其他（工伤金、遗属）"
     },
     "fieldHint": "从您的养老金通知书输入毛额（征税比例前）。精确到分。",
-    "besteuerungsanteilHint": "征税比例每年下降 1%：2005 = 50% → 2024 = 83% → 2057 = 50%（终值）。",
+    "besteuerungsanteilHint": "应税比例取决于养老金开始领取的年份（§ 22 Nr. 1 S. 3 a) aa) EStG）：2005 年及以前 50 %，2020 年 80 %，2026 年 84 %，2058 年起 100 %。企业养老金和 Riester 养老金全额应税，私人年金按开始领取时的年龄确定应税份额。",
     "wkHint": "210 = Werbungskosten 免税额（自动 102 EUR）。Kz 200 / 220 / 230 需手动输入。",
     "savedOk": "养老金收入已保存。",
-    "generatedAt": "生成时间"
+    "generatedAt": "生成时间",
+    "beginnTitle": "养老金开始领取的时间",
+    "beginnHint": "应税比例取决于开始领取的年份，而不是报税年度。未填写时按最高比例计算。",
+    "beginn": {
+      "drv": "法定养老金：开始领取的年份",
+      "ruerup": "Rürup 养老金：开始领取的年份",
+      "sonstige": "其他年金：开始领取的年份",
+      "privatAlter": "私人年金：开始领取时的年龄"
+    }
   },
   "anlageKind": {
     "title": "Anlage Kind 附件（预览）",

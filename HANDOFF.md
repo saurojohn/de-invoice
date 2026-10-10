@@ -2653,6 +2653,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 655 — Anlage R: the taxable share of a pension follows the year it began
+
+Found while reading the previews' notes for translation: Anlage R said „Besteuerungsanteil: 50% (bis 2040) bis 83% (2024) — fällt jährlich um 1 Prozentpunkt bis 50% in 2057“. That was not only a sentence — it was the table the form computed with.
+
+- **By tax year, and falling.** `BESTEUERUNGSANTEIL_TABLE[year]`: 81 % „for 2026“, a point less each year to 50 % in 2057. § 22 Nr. 1 S. 3 a) aa) EStG goes by the year the pension **began** and only rises: 50 % up to 2005, 80 % for 2020, 81 / 82 % for 2021 / 2022, then half a point a year — 82,5 % for 2023, 84 % for 2026, 100 % from 2058. A pension begun in 2010 (60 %) was taxed at 81 %; one beginning in 2040 (91 %) would have been taxed at 67 %.
+- **Company and Riester pensions** took the same share; they are taxed in full (§ 22 Nr. 5 S. 1 EStG, the usual case of subsidised contributions).
+- **Private annuities** took a flat 50 % „Ertragsanteil“ — the share of someone aged 19 or 20. At 65 it is 18 % (§ 22 Nr. 1 S. 3 a) bb) EStG).
+- Both tables were read from gesetze-im-internet.de on 10.10.2026, not written from memory. `besteuerungsanteil(beginn)` and `ertragsanteil(alter)` in `anlage-r.service.ts`.
+- New inputs, in the section and in `PUT /accounting/anlage-r/settings`: the year the statutory pension, the Rürup pension and other annuities began; the age at the start of a private annuity. Not entered: the share of a pension beginning in the tax year (the highest there can be — the preview never shows too little) and a note on the line that says so.
+- Still a simplification, and the line says it: the tax-free part is a fixed euro amount from the year after the start, later increases are taxable in full; the preview applies the share to the year's amount. „Unfallrenten“ are gone from the label of line 150 (they are tax-free, § 3 Nr. 1 a EStG).
+
+**Not looked at in the same way:** the other annexes of a person's return (N, Kind, SO, AUS, KAP, V) were built as previews with flat rates „as of 2024“. Their arithmetic is covered by their specs; their rules were not checked against the law line by line. For a GmbH they are not the forms that matter (Tier 643 puts them below the line) — for a sole trader's owner they would be.
+
+Spec 129 rewritten for it (50 assertions): 18 000 € begun 2010 → 10 800 €, a private annuity begun at 65 → 18 %, company and Riester pensions in full, six points of the two tables, nothing entered → 84 % / 59 % and the note, a start after the tax year refused.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 654 — the containers run without root's powers
 
 §9 items 23 and 24 („the backend container runs as root, the compose file sets no `read_only` / `cap_drop` / `no-new-privileges`“), done („都做“, 10.10.2026) — and tried, with the images on this machine.

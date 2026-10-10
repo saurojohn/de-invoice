@@ -124,6 +124,13 @@ export class AnlageRSettingsDto extends YearDto {
   @Amount() privat?: number
   @Amount() sonstige?: number
 
+  // Tier 655: the year each pension began (the Besteuerungsanteil depends on
+  // it, not on the tax year) and the age at the start of a private annuity.
+  @ValidateIf((_o, v) => v !== undefined && v !== null) @StrictNumber() @IsInt({ message: 'drvBeginn muss ein Jahr sein' }) @Min(1900) @Max(2100) drvBeginn?: number | null
+  @ValidateIf((_o, v) => v !== undefined && v !== null) @StrictNumber() @IsInt({ message: 'ruerupBeginn muss ein Jahr sein' }) @Min(1900) @Max(2100) ruerupBeginn?: number | null
+  @ValidateIf((_o, v) => v !== undefined && v !== null) @StrictNumber() @IsInt({ message: 'sonstigeBeginn muss ein Jahr sein' }) @Min(1900) @Max(2100) sonstigeBeginn?: number | null
+  @ValidateIf((_o, v) => v !== undefined && v !== null) @StrictNumber() @IsInt({ message: 'privatAlter muss ein Alter in Jahren sein' }) @Min(0) @Max(120) privatAlter?: number | null
+
   @IsOptional() @IsKennzifferAmounts() werbungskosten?: Record<string, number>
 }
 

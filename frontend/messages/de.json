@@ -2957,10 +2957,18 @@
       "sonstige": "Sonstige (Unfallrente, Witwen-)"
     },
     "fieldHint": "Brutto-Rentenbezüge (vor Besteuerungsanteil) aus Ihren Rentenbescheiden eintragen. Cent-genau eingeben.",
-    "besteuerungsanteilHint": "Besteuerungsanteil fällt jährlich um 1 Prozentpunkt: 2005 = 50 % → 2024 = 83 % → 2057 = 50 % (final).",
+    "besteuerungsanteilHint": "Der Besteuerungsanteil richtet sich nach dem Jahr des Rentenbeginns (§ 22 Nr. 1 S. 3 a) aa) EStG): 50 % bis 2005, 80 % für 2020, 84 % für 2026, 100 % ab 2058. Betriebs- und Riester-Renten sind voll steuerpflichtig, private Leibrenten mit dem Ertragsanteil nach dem Alter bei Rentenbeginn.",
     "wkHint": "210 = Werbungskosten-Pauschbetrag (auto, 102 EUR). Kz 200 / 220 / 230 sind manuell einzutragen.",
     "savedOk": "Rentenbezüge gespeichert.",
-    "generatedAt": "Erstellt"
+    "generatedAt": "Erstellt",
+    "beginnTitle": "Beginn der Renten",
+    "beginnHint": "Der steuerpflichtige Anteil hängt vom Jahr des Rentenbeginns ab, nicht vom Steuerjahr. Ohne Angabe wird mit dem höchsten Anteil gerechnet.",
+    "beginn": {
+      "drv": "Gesetzliche Rente: Jahr des Rentenbeginns",
+      "ruerup": "Rürup-Rente: Jahr des Rentenbeginns",
+      "sonstige": "Sonstige Leibrenten: Jahr des Rentenbeginns",
+      "privatAlter": "Private Leibrente: Alter bei Rentenbeginn"
+    }
   },
   "anlageKind": {
     "title": "Anlage Kind (Vorschau)",
