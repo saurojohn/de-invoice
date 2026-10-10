@@ -80,6 +80,16 @@ for form in accounting/bilanz accounting/guv; do
   code=$(curl -sS -o "$TMP/$name.pdf" -w '%{http_code}' "$API/api/v1/$form.pdf?companyId=$C&year=$YEAR" -H "x-user-id: $U" -H "x-company-id: $C")
   assert_eq "$name.pdf: no line of text is off the page (was: the amount column's heading and more)" "$code $(offpage "$TMP/$name.pdf")" "200 0"
 done
+# Tier 646b: the cash book's daily close. Its signature block stood in the
+# amount column like the headings above, and the table's "Betrag" heading
+# off the page.
+CASHDAY=$(python3 -c "import datetime;print((datetime.date.fromisoformat('$TODAY')-datetime.timedelta(days=2)).isoformat())")
+AS POST "/api/v1/cashbook/entries?companyId=$C" '{"businessDate":"'$CASHDAY'","type":"einnahme","description":"Barverkauf","amount":119}'
+AS POST "/api/v1/cashbook/close-day?companyId=$C" '{"date":"'$CASHDAY'","physicalCount":119}'
+code=$(curl -sS -o "$TMP/kasse.pdf" -w '%{http_code}' "$API/api/v1/cashbook/kassenabschluss.pdf?companyId=$C&date=$CASHDAY" -H "x-user-id: $U" -H "x-company-id: $C")
+assert_eq "kassenabschluss.pdf: the day is closed, no line starts at the left edge of a right-hand column, none is off the page" \
+  "$STATUS $code $(scan "$TMP/kasse.pdf" | cut -d' ' -f1,3) $(offpage "$TMP/kasse.pdf")" "201 200 %PDF 0 0"
+
 # the EÜR's rows are written as `continued` cells: number, label, amount
 assert_eq "euer.pdf has its numbers and labels in their columns: twenty rows start at x = 50 and at x = 100" \
   "$(python3 - "$TMP/euer.pdf" <<'PY'

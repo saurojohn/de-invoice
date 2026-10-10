@@ -2662,7 +2662,9 @@ Tier 645 named three PDFs it had not opened. Two were opened (a reminder letter 
 
 Not changed, a wording decision (§9 item 25): the second dunning level is „2. Mahnung“ in the e-mail's subject and in the interface and „1. Mahnung“ in the letter attached to that e-mail.
 
-Spec `382-tier646-kontoauszug-absender-und-eine-seite.sh` (12 assertions, 6 of the first 10 fail on the code before): the statement names its sender; the balance column runs in both orders; statement and reminder letter are one page; the PDF's author and the signature's signer, place and contact are the company's; neither source file contains a company's name or numbers. Still not opened: the cash-book close.
+**Tier 646b — the cash book's daily close**, the last PDF not yet opened: its signature block („Integritäts-Signatur“, algorithm, hash, date) stood in the amount column, a few letters to a line, under a heading that read „Integritäts-Signatur (Tier 194)“; the table's „Betrag“ heading was off the page. It is made with `flowFromLeft` now and the heading is the heading. Spec 381 fetches it for a closed day.
+
+Spec `382-tier646-kontoauszug-absender-und-eine-seite.sh` (12 assertions, 6 of the first 10 fail on the code before): the statement names its sender; the balance column runs in both orders; statement and reminder letter are one page; the PDF's author and the signature's signer, place and contact are the company's; neither source file contains a company's name or numbers. With this every PDF route of the application has been opened once.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 645 — the invoice's total box
 

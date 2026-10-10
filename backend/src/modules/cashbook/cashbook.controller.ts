@@ -1,4 +1,4 @@
-import { printableText } from '../../common/pdf-flow'
+import { flowFromLeft } from '../../common/pdf-flow'
 import { queryDate, requiredQueryDate, queryInt, requiredQueryInt, YEAR, MONTH } from '../../common/query';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, Res } from '@nestjs/common';
 import type { Response } from 'express';
@@ -323,7 +323,7 @@ export class CashBookController {
     const PDFDocument = (await import('pdfkit')).default
     const QRCode = (await import('qrcode')).default
     const company = await this.svc.getCompanyHeader(companyId)
-    const doc = printableText(new PDFDocument({ size: 'A4', margin: 50 }))
+    const doc = flowFromLeft(new PDFDocument({ size: 'A4', margin: 50 }))
     res.setHeader('Content-Type', 'application/pdf')
     const dateSlug = dateStr.slice(0, 10)
     res.setHeader(
@@ -421,7 +421,7 @@ export class CashBookController {
       }
     }
     doc.moveDown(0.6)
-    doc.fontSize(13).text('Integritäts-Signatur (Tier 194)', { underline: true })
+    doc.fontSize(13).text('Integritäts-Signatur', { underline: true })
     doc.moveDown(0.3)
     doc.fontSize(9)
     if (verification.signed) {
