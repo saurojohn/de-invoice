@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
+import { FormLabel, FormNote } from "@/lib/tax-form-text"
 
 interface GuVLine {
   position: string
@@ -134,8 +135,8 @@ export function GuVSection() {
           <thead>
             <tr className="text-xs text-gray-500 border-b">
               <th className="text-left py-1 w-12">Pos</th>
-              <th className="text-left py-1">Bezeichnung</th>
-              <th className="text-right py-1 w-32">Betrag (€)</th>
+              <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+              <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
             </tr>
           </thead>
           <tbody>
@@ -147,10 +148,10 @@ export function GuVSection() {
               >
                 <td className="py-1 font-mono">{l.position}</td>
                 <td className="py-1 text-xs">
-                  {l.label}
+                  <FormLabel text={l.label} />
                   {l.note && (
                     <div className="text-[10px] text-gray-500 italic mt-0.5">
-                      ↳ {l.note}
+                      ↳ <FormNote text={l.note} />
                     </div>
                   )}
                 </td>
@@ -273,7 +274,7 @@ export function GuVSection() {
                 className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-800 dark:text-amber-200"
                 data-testid="guv-disclaimer"
               >
-                ⚠ {data.disclaimer}
+                ⚠ <FormNote text={data.disclaimer} />
               </div>
 
               <div className="mt-2 text-xs text-gray-500" data-testid="guv-counts">

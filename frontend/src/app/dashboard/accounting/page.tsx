@@ -74,6 +74,7 @@ import { BeraterPackagerSection } from "./BeraterPackagerSection"
 import { EBilanzTab } from "./EBilanzTab"
 import { GobdArchiveSection } from "./GobdArchiveSection"
 import { BooksClosingCard } from "@/components/BooksClosingCard"
+import { useFormTexts } from "@/lib/tax-form-text"
 
 // The enriched Voucher summary returned by the
 // GET /api/v1/accounting/vouchers endpoint. The list
@@ -166,6 +167,9 @@ function getCompanyId(): string {
 const SECTION_ORDER = ["beraterPackager", "euer", "anlageS", "anlageV", "anlageKAP", "anlageG", "anlageN", "kst1", "anlageR", "anlageKind", "anlageSO", "anlageAUS", "ustja", "gewst", "bilanz", "guv", "anhang", "ebilanz", "gobdArchive"]
 
 export default function AccountingPage() {
+  // Tier 657: rendered again when the tax forms' dictionary has loaded (the
+  // sections' tooltips are computed during their render)
+  useFormTexts()
   // Tier 643: which forms the company's legal form files
   const [taxForms, setTaxForms] = useState<{
     rechtsform: string | null

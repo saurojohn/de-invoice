@@ -118,7 +118,7 @@ const EINNAHMEN_LINES: Array<{
 const WERBUNGSKOSTEN_LINES: Array<{ kz: string; label: string; amount: number; note?: string }> = [
   {
     kz: '200',
-    label: 'Krankheitskosten im Zusammenhang mit der Rentenbezügen',
+    label: 'Krankheitskosten im Zusammenhang mit den Rentenbezügen',
     amount: 0,
     note: 'Vom Rentner manuell einzutragen — abzugsfähig ab 1 % des Rentenbezugs (zumutbare Belastung).',
   },

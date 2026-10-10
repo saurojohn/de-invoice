@@ -3472,7 +3472,7 @@
       "csvError": "CSV import failed",
       "csvInvalid": "CSV invalid",
       "expenseImportTitle": "Take over from expenses",
-      "expenseImportHint": "Bank transactions with Expense.category = 'crypto' or 'brokerage' are automatically converted into private Veräußerungsgeschäfte. Already-imported expenses are skipped (idempotent).",
+      "expenseImportHint": "Expenses in the categories \"crypto\" and \"brokerage\" are taken over as private sales. Those already taken over are skipped.",
       "expenseImportButton": "Import from expenses",
       "expenseListTitle": "Importable expenses",
       "expenseImportAll": "Import all",

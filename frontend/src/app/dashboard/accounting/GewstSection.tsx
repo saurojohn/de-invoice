@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, ApiError } from "@/lib/api"
+import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
 
 interface GewstLine {
   kennziffer: string
@@ -178,11 +179,11 @@ export function GewstSection() {
     >
       <td className="py-1 font-mono">{l.kennziffer}</td>
       <td className="py-1 text-xs">
-        {l.label}
+        <FormLabel text={l.label} />
         {l.source === "placeholder" && (
           <span
             className="ml-1 text-[10px] text-amber-600 dark:text-amber-400"
-            title={l.note}
+            title={formTextNow(l.note)}
           >
             ⚠
           </span>
@@ -340,8 +341,8 @@ export function GewstSection() {
                 <thead>
                   <tr className="text-xs text-gray-500 border-b">
                     <th className="text-left py-1 w-12">Kz</th>
-                    <th className="text-left py-1">Bezeichnung</th>
-                    <th className="text-right py-1 w-32">Betrag / %</th>
+                    <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                    <th className="text-right py-1 w-32"><FormNote text="Betrag / %" /></th>
                   </tr>
                 </thead>
                 <tbody>{data.lines.map(renderLine)}</tbody>
@@ -404,7 +405,7 @@ export function GewstSection() {
                 className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-800 dark:text-amber-200"
                 data-testid="gewst-disclaimer"
               >
-                ⚠ {data.disclaimer}
+                ⚠ <FormNote text={data.disclaimer} />
               </div>
 
               <div className="mt-2 text-xs text-gray-500" data-testid="gewst-counts">

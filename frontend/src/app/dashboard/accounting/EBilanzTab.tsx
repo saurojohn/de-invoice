@@ -7,6 +7,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { API_BASE, apiGet } from "@/lib/api"
+import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
 
 interface EBilanzPosition {
   elementId: string
@@ -312,7 +313,7 @@ export function EBilanzTab() {
               </table>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
-              {data.disclaimer}
+              <FormNote text={data.disclaimer} />
             </p>
           </CardContent>
         </Card>
@@ -365,7 +366,7 @@ function SectionGroup({
           data-testid={`ebilanz-row-${p.elementId}`}
         >
           <td className="py-2 px-2 font-mono text-xs break-all">{p.elementId}</td>
-          <td className="py-2 px-2 text-xs break-words">{p.label}</td>
+          <td className="py-2 px-2 text-xs break-words"><FormLabel text={p.label} /></td>
           <td
             className={`py-2 px-2 text-right font-mono text-xs w-24 ${
               p.value !== null ? "font-bold" : "text-gray-400"
@@ -384,7 +385,7 @@ function SectionGroup({
             ) : (
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800"
-                title={p.note}
+                title={formTextNow(p.note)}
               >
                 —
               </span>

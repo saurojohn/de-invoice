@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
+import { FormNote } from "@/lib/tax-form-text"
 
 interface AnhangParagraph {
   auto: boolean
@@ -209,7 +210,7 @@ export function AnhangSection() {
                 className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-800 dark:text-amber-200"
                 data-testid="anhang-disclaimer"
               >
-                ⚠ {data.disclaimer}
+                ⚠ <FormNote text={data.disclaimer} />
               </div>
 
               <div className="mt-2 text-xs text-gray-500" data-testid="anhang-generatedAt">

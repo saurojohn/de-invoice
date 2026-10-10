@@ -185,7 +185,7 @@ export const EBILANZ_MAPPING: EBilanzMapping[] = [
   // ===== Bilanz Aktiva — Anlagevermögen =====
   {
     elementId: "de-gcd:bs.ass.fixAss.intangAss",
-    label: "Immaterialielle Vermögensgegenstände",
+    label: "Immaterielle Vermögensgegenstände",
     source: "bilanz.aktiva.fixass.intang",
     section: "bilanzAktivaAnlage",
     computed: true,

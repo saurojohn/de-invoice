@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
+import { FormLabel, FormNote } from "@/lib/tax-form-text"
 
 interface EuerLine {
   kennziffer: string
@@ -156,8 +157,8 @@ export function EuerSection() {
                     <thead>
                       <tr className="text-xs text-gray-500 border-b">
                         <th className="text-left py-1 w-12">Kz</th>
-                        <th className="text-left py-1">Bezeichnung</th>
-                        <th className="text-right py-1 w-32">Betrag (€)</th>
+                        <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                        <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -168,7 +169,7 @@ export function EuerSection() {
                           data-testid={`euer-rev-${l.kennziffer}`}
                         >
                           <td className="py-1 font-mono">{l.kennziffer}</td>
-                          <td className="py-1 text-xs">{l.label}</td>
+                          <td className="py-1 text-xs"><FormLabel text={l.label} /></td>
                           <td
                             className={`py-1 text-right font-mono ${
                               l.amount < 0
@@ -194,8 +195,8 @@ export function EuerSection() {
                     <thead>
                       <tr className="text-xs text-gray-500 border-b">
                         <th className="text-left py-1 w-12">Kz</th>
-                        <th className="text-left py-1">Bezeichnung</th>
-                        <th className="text-right py-1 w-32">Betrag (€)</th>
+                        <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                        <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -206,7 +207,7 @@ export function EuerSection() {
                           data-testid={`euer-exp-${l.kennziffer}`}
                         >
                           <td className="py-1 font-mono">{l.kennziffer}</td>
-                          <td className="py-1 text-xs">{l.label}</td>
+                          <td className="py-1 text-xs"><FormLabel text={l.label} /></td>
                           <td
                             className={`py-1 text-right font-mono ${
                               l.amount < 0
@@ -257,7 +258,7 @@ export function EuerSection() {
                 className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-800 dark:text-amber-200"
                 data-testid="euer-disclaimer"
               >
-                ⚠ {data.disclaimer}
+                ⚠ <FormNote text={data.disclaimer} />
               </div>
 
               {/* Counts */}

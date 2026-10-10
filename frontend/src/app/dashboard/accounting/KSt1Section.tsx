@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, ApiError } from "@/lib/api"
+import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
 
 interface KSt1Line {
   kennziffer: string
@@ -148,11 +149,11 @@ export function KSt1Section() {
     >
       <td className="py-1 font-mono">{l.kennziffer}</td>
       <td className="py-1 text-xs">
-        {l.label}
+        <FormLabel text={l.label} />
         {l.source === 'placeholder' && (
           <span
             className="ml-1 text-[10px] text-amber-600 dark:text-amber-400"
-            title={l.note}
+            title={formTextNow(l.note)}
           >
             ⚠
           </span>
@@ -254,7 +255,7 @@ export function KSt1Section() {
                 </div>
                 <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">
                   {data.counts.jahresueberschussSource === "computed"
-                    ? `aus G+V Vorschau (${data.counts.invoices} Rechnungen, ${data.counts.expenses} Ausgaben)`
+                    ? formTextNow(`aus G+V Vorschau (${data.counts.invoices} Rechnungen, ${data.counts.expenses} Ausgaben)`)
                     : "nicht ausgewiesen — bitte Gu+V prüfen"}
                 </p>
               </div>
@@ -267,8 +268,8 @@ export function KSt1Section() {
                 <thead>
                   <tr className="text-xs text-gray-500 border-b">
                     <th className="text-left py-1 w-12">Kz</th>
-                    <th className="text-left py-1">Bezeichnung</th>
-                    <th className="text-right py-1 w-32">Betrag (€)</th>
+                    <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                    <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -390,7 +391,7 @@ export function KSt1Section() {
                 className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-800 dark:text-amber-200"
                 data-testid="kst1-disclaimer"
               >
-                ⚠ {data.disclaimer}
+                ⚠ <FormNote text={data.disclaimer} />
               </div>
 
               <div className="mt-2 text-xs text-gray-500" data-testid="kst1-counts">

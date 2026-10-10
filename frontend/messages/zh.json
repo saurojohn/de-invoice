@@ -3472,7 +3472,7 @@
       "csvError": "CSV 导入失败",
       "csvInvalid": "CSV 无效",
       "expenseImportTitle": "从支出中取用",
-      "expenseImportHint": "Expense.category 为 'crypto' 或 'brokerage' 的银行流水会自动转换为私人 Veräußerungsgeschäfte。已导入的会跳过（幂等）。",
+      "expenseImportHint": "类别为“加密货币”和“券商”的支出会转为私人出售交易。已转入的会跳过。",
       "expenseImportButton": "从 Ausgaben 导入",
       "expenseListTitle": "可导入的 Ausgaben",
       "expenseImportAll": "全部导入",

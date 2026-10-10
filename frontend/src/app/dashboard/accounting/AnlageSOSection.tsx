@@ -38,6 +38,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, apiPost, ApiError } from "@/lib/api"
 import { Textarea } from "@/components/ui/textarea"
+import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
 
 interface AnlageSOLine {
   kennziffer: string
@@ -1102,8 +1103,8 @@ export function AnlageSOSection() {
                   <thead>
                     <tr className="text-left border-b dark:border-gray-700">
                       <th className="py-1 pr-2 w-10">Kz</th>
-                      <th className="py-1 pr-2">Bezeichnung</th>
-                      <th className="py-1 pr-2 text-right w-28">Betrag (€)</th>
+                      <th className="py-1 pr-2"><FormNote text="Bezeichnung" /></th>
+                      <th className="py-1 pr-2 text-right w-28"><FormNote text="Betrag (€)" /></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1115,9 +1116,9 @@ export function AnlageSOSection() {
                       >
                         <td className="py-1 pr-2 font-mono">{l.kennziffer}</td>
                         <td className="py-1 pr-2">
-                          {l.label}
+                          <FormLabel text={l.label} />
                           {l.source === "placeholder" && (
-                            <span className="ml-2 text-amber-600 dark:text-amber-400" title={l.note}>
+                            <span className="ml-2 text-amber-600 dark:text-amber-400" title={formTextNow(l.note)}>
                               ⚠
                             </span>
                           )}
@@ -1135,7 +1136,7 @@ export function AnlageSOSection() {
                       .filter((l) => l.note)
                       .map((l) => (
                         <div key={l.kennziffer}>
-                          <strong>Kz {l.kennziffer}:</strong> {l.note}
+                          <strong>Kz {l.kennziffer}:</strong> <FormNote text={l.note} />
                         </div>
                       ))}
                   </div>
@@ -1202,7 +1203,7 @@ export function AnlageSOSection() {
             {/* Disclaimer */}
             {data && (
               <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                {data.disclaimer}
+                <FormNote text={data.disclaimer} />
               </p>
             )}
           </>

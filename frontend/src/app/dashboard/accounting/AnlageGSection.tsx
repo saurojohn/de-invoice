@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
+import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
 
 interface AnlageGLine {
   kennziffer: string
@@ -144,11 +145,11 @@ export function AnlageGSection() {
     >
       <td className="py-1 font-mono">{l.kennziffer}</td>
       <td className="py-1 text-xs">
-        {l.label}
+        <FormLabel text={l.label} />
         {l.source === 'placeholder' && (
           <span
             className="ml-1 text-[10px] text-amber-600 dark:text-amber-400"
-            title={l.note}
+            title={formTextNow(l.note)}
           >
             ⚠
           </span>
@@ -230,8 +231,8 @@ export function AnlageGSection() {
                     <thead>
                       <tr className="text-xs text-gray-500 border-b">
                         <th className="text-left py-1 w-12">Kz</th>
-                        <th className="text-left py-1">Bezeichnung</th>
-                        <th className="text-right py-1 w-32">Betrag (€)</th>
+                        <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                        <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -248,8 +249,8 @@ export function AnlageGSection() {
                     <thead>
                       <tr className="text-xs text-gray-500 border-b">
                         <th className="text-left py-1 w-12">Kz</th>
-                        <th className="text-left py-1">Bezeichnung</th>
-                        <th className="text-right py-1 w-32">Betrag (€)</th>
+                        <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                        <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -283,8 +284,8 @@ export function AnlageGSection() {
                     <thead>
                       <tr className="text-xs text-gray-500 border-b">
                         <th className="text-left py-1 w-12">Kz</th>
-                        <th className="text-left py-1">Bezeichnung</th>
-                        <th className="text-right py-1 w-32">Betrag (€)</th>
+                        <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                        <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -307,8 +308,8 @@ export function AnlageGSection() {
                     <thead>
                       <tr className="text-xs text-gray-500 border-b">
                         <th className="text-left py-1 w-12">Kz</th>
-                        <th className="text-left py-1">Bezeichnung</th>
-                        <th className="text-right py-1 w-32">Betrag (€)</th>
+                        <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                        <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -340,11 +341,11 @@ export function AnlageGSection() {
                     ./. {tRef.current("anlageG.freibetrag")}: <b>{fmt(data.totals.freibetrag)}</b>
                   </div>
                   <div>
-                    = Gewerbeertrag nach Freibetrag:{" "}
+                    <FormNote text="= Gewerbeertrag nach Freibetrag:" />{" "}
                     <b>{fmt(data.totals.gewerbeertragNachFreibetrag)}</b>
                   </div>
                   <div>
-                    × Steuermesszahl:{" "}
+                    <FormNote text="× Steuermesszahl:" />{" "}
                     <b>{(data.totals.gewerbesteuerMesszahl * 100).toFixed(1)} %</b>
                   </div>
                   <div>
@@ -367,7 +368,7 @@ export function AnlageGSection() {
                 className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-800 dark:text-amber-200"
                 data-testid="anlage-g-disclaimer"
               >
-                ⚠ {data.disclaimer}
+                ⚠ <FormNote text={data.disclaimer} />
               </div>
 
               <div className="mt-2 text-xs text-gray-500" data-testid="anlage-g-counts">

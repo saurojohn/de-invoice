@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
+import { FormLabel, FormNote } from "@/lib/tax-form-text"
 
 interface UstjaLine {
   kennziffer: string
@@ -195,7 +196,7 @@ export function UstjaSection() {
               className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-sm text-amber-800 dark:text-amber-200"
               data-testid="ustja-no-data"
             >
-              ⚠ Keine USt-Daten für {data?.year || year} erfasst. Buchen Sie Rechnungen / Eingangsrechnungen, um die UStJA zu berechnen.
+              <FormNote text={`⚠ Keine USt-Daten für ${data?.year || year} erfasst. Buchen Sie Rechnungen / Eingangsrechnungen, um die UStJA zu berechnen.`} />
             </div>
           )}
 
@@ -222,7 +223,7 @@ export function UstjaSection() {
                         className="border-b"
                         data-testid={`ustja-month-${m.month}`}
                       >
-                        <td className="py-1">{m.monthLabel}</td>
+                        <td className="py-1"><FormNote text={m.monthLabel} /></td>
                         <td className={`py-1 text-right font-mono ${m.umsatzsteuer > 0 ? "font-bold" : "text-gray-400"}`}>
                           {fmt(m.umsatzsteuer)}
                         </td>
@@ -247,9 +248,9 @@ export function UstjaSection() {
                   <thead>
                     <tr className="text-xs text-gray-500 border-b">
                       <th className="text-left py-1 w-12">Kz</th>
-                      <th className="text-left py-1">Bezeichnung</th>
-                      <th className="text-right py-1 w-32">Betrag (€)</th>
-                      <th className="text-right py-1 w-28">Steuer (€)</th>
+                      <th className="text-left py-1"><FormNote text="Bezeichnung" /></th>
+                      <th className="text-right py-1 w-32"><FormNote text="Betrag (€)" /></th>
+                      <th className="text-right py-1 w-28"><FormNote text="Steuer (€)" /></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -258,7 +259,7 @@ export function UstjaSection() {
                     {data.lines.length === 0 && (
                       <tr data-testid="ustja-no-lines">
                         <td colSpan={4} className="py-2 text-xs text-gray-500">
-                          Keine Umsätze oder Vorsteuerbeträge in diesem Jahr.
+                          <FormNote text="Keine Umsätze oder Vorsteuerbeträge in diesem Jahr." />
                         </td>
                       </tr>
                     )}
@@ -269,7 +270,7 @@ export function UstjaSection() {
                         data-testid={`ustja-${l.kennziffer || "ohne-kz"}`}
                       >
                         <td className="py-1 font-mono">{l.kennziffer}</td>
-                        <td className="py-1 text-xs">{l.label}</td>
+                        <td className="py-1 text-xs"><FormLabel text={l.label} /></td>
                         <td
                           className={`py-1 text-right font-mono ${
                             (l.amount ?? l.net ?? 0) > 0
@@ -339,7 +340,7 @@ export function UstjaSection() {
                 className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-800 dark:text-amber-200"
                 data-testid="ustja-disclaimer"
               >
-                ⚠ {data.disclaimer}
+                ⚠ <FormNote text={data.disclaimer} />
               </div>
 
               <div className="mt-2 text-xs text-gray-500" data-testid="ustja-counts">
