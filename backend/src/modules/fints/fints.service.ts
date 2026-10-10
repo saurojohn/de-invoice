@@ -951,88 +951,86 @@ export class FinTsService {
     let matched = 0
     let suggested = 0
 
-    // Pre-load open invoices for this
-    // company once. The list is small in
-    // practice (≤200 open invoices per
-    // company at any time) and the smart
-    // matchers need to query it multiple
-    // times per transaction.
-    const openInvoices = await this.prisma.invoice.findMany({
+    // Tier 650: the same three faults the statement import's matcher had
+    // (Tier 639), in this second matcher:
+    //   - the amount was compared with the invoice's total, not with what is
+    //     open on it;
+    //   - "sum to invoice" paired ANY unmatched receipts that added up to an
+    //     invoice's total — two customers' payments of 500 € and 690 € were
+    //     proposed for a third customer's invoice of 1 190 € at confidence 95;
+    //   - of several invoices that fit, the first one found was taken, not the
+    //     best: a receipt naming invoice B went to invoice A of the same
+    //     amount ("one match per tx (highest confidence wins)" took the first).
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const openInvoices = (await this.prisma.invoice.findMany({
       where: {
         companyId,
-        status: { in: ['sent', 'overdue', 'partial'] },
+        status: { in: ['sent', 'overdue'] },
+        type: { not: 'CN' },
       },
-      include: { customer: true },
-    })
+      include: { customer: true, payments: { select: { amount: true } } },
+    }))
+      .map((inv) => ({
+        inv,
+        open: r2(parseFloat(inv.total.toString()) - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)),
+      }))
+      .filter((x) => x.open > 0)
+    const names = (purpose: string | null | undefined, invoiceNumber: string) => !!purpose && purpose.includes(invoiceNumber)
+    const payer = (t: { counterpartyIban?: string | null; counterpartyName?: string | null }) =>
+      (t.counterpartyIban || '').replace(/\s/g, '').toUpperCase() || (t.counterpartyName || '').trim().toLowerCase()
+    const namesAny = (t: { purpose?: string | null }) => openInvoices.some(({ inv }) => names(t.purpose, inv.invoiceNumber))
+    // receipts of this run that got a match, so a later one does not take them again
+    const taken = new Set<string>()
+    // An invoice whose open amount is already spoken for by suggestions —
+    // from this run or an earlier one — is not proposed for one more receipt.
+    const pending = new Map<string, number>()
+    for (const row of await this.prisma.bankReconciliation.groupBy({
+      by: ['invoiceId'],
+      where: { companyId, status: 'suggested' },
+      _sum: { appliedAmount: true },
+    })) {
+      pending.set(row.invoiceId, Number(row._sum.appliedAmount ?? 0))
+    }
+    const spokenFor = (invoiceId: string, open: number) => (pending.get(invoiceId) ?? 0) >= open - 0.01
+    const claim = (invoiceId: string, amount: number) => pending.set(invoiceId, (pending.get(invoiceId) ?? 0) + amount)
+    const incoming = unreconciled.filter((t) => parseFloat(t.amount.toString()) > 0)
 
-    for (const tx of unreconciled) {
+    for (const tx of incoming) {
+      if (taken.has(tx.id)) continue
       const txAmount = parseFloat(tx.amount.toString())
-      if (txAmount <= 0) {
-        // Outgoing payment — not a customer
-        // paying an invoice. Skip in this
-        // version (future: match to vendor /
-        // expense).
-        continue
-      }
 
-      // Skip transactions already
-      // matched by Rule B's previous
-      // iteration (a sum-to-invoice match
-      // creates recon rows for each
-      // contributing txn, so a
-      // subsequent per-txn pass would
-      // double-count).
-      const alreadyMatched = await this.prisma.bankReconciliation.findFirst({
-        where: { bankTransactionId: tx.id },
-      })
-      if (alreadyMatched) continue
-
-      // --- Rule B: sum-to-invoice (first
-      // pass) — try to group 2..N
-      // unreconciled incoming txns that
-      // sum to an open invoice.
-      for (const inv of openInvoices) {
-        const invTotal = parseFloat(inv.total.toString())
-        // Find other unreconciled txns to
-        // combine with this one. Exclude
-        // ones that already have a
-        // recon row (already matched to
-        // something else).
-        const others = await this.prisma.bankTransaction.findMany({
-          where: {
-            companyId,
-            id: { not: tx.id },
-            amount: { gt: 0 },
-            matches: { none: {} },
-          },
-          take: 10,
-        })
+      // --- Rule B: several receipts that are one invoice's payment. They
+      // belong together when each names the invoice, or they come from one
+      // payer; together they are what is open on it.
+      let paired = false
+      for (const { inv, open } of openInvoices) {
+        const mine = names(tx.purpose, inv.invoiceNumber)
+        if (spokenFor(inv.id, open) && !mine) continue
+        const pool = incoming.filter((t) => t.id !== tx.id && !taken.has(t.id))
+        // by the invoice's number — or, where this receipt names no invoice
+        // at all, by one payer who is the invoice's customer
+        const fromCustomer = !mine && !namesAny(tx) && !!payer(tx)
+          && fuzzyMatchCustomerName(`${tx.counterpartyName || ''} ${tx.purpose || ''}`, inv.customer?.name)
+        const others = (mine
+          ? pool.filter((t) => names(t.purpose, inv.invoiceNumber))
+          : fromCustomer
+            ? pool.filter((t) => !namesAny(t) && payer(t) === payer(tx))
+            : []
+        ).slice(0, 10)
+        if (others.length === 0) continue
         const candidates = [tx, ...others]
-        // Search 2..N subsets: try all
-        // pairs first (covers 90% of real
-        // cases — 2 installments), then
-        // 3-element combinations if no
-        // pair matched. O(n^2) for n=10 is
-        // fine; we'd never have 10+
-        // unreconciled txns at once.
-        let found: any[] | null = null
+        let found: typeof candidates | null = null
         for (let size = 2; size <= candidates.length && !found; size++) {
-          const combos = combinations(candidates, size)
-          for (const combo of combos) {
-            const sum = combo.reduce(
-              (s, t) => s + parseFloat(t.amount.toString()),
-              0,
-            )
-            // Match within 1 cent (FX rounding
-            // tolerance for combined txns).
-            if (Math.abs(sum - invTotal) < 0.01) {
+          for (const combo of combinations(candidates, size)) {
+            if (!combo.includes(tx)) continue
+            const sum = combo.reduce((s, t) => s + parseFloat(t.amount.toString()), 0)
+            if (Math.abs(sum - open) < 0.01) {
               found = combo
               break
             }
           }
         }
-        if (found && found.length > 1) {
-          // Match all N txns to this invoice.
+        if (found) {
           for (const t of found) {
             await this.prisma.bankReconciliation.create({
               data: {
@@ -1042,51 +1040,49 @@ export class FinTsService {
                 appliedAmount: t.amount,
                 status: 'suggested',
                 confidence: 95,
-                matchReason: `Summe ${found.length} Buchungen = Rechnungsbetrag (${inv.invoiceNumber})`,
+                matchReason: `Summe ${found.length} Buchungen = offener Betrag (${inv.invoiceNumber})`,
               },
             })
+            taken.add(t.id)
+            claim(inv.id, parseFloat(t.amount.toString()))
             suggested++
           }
           matched++
-          break // tx is now matched, move on
+          paired = true
+          break
         }
       }
+      if (paired) continue
 
-      // Re-check: did Rule B match this tx?
-      const recheck = await this.prisma.bankReconciliation.findFirst({
-        where: { bankTransactionId: tx.id },
-      })
-      if (recheck) continue
-
-      // --- Rules A, C + Tier 6 (per-txn
-      // matchers) — exact amount + ±0.50
-      // tolerance.
-      for (const inv of openInvoices) {
-        const invTotal = parseFloat(inv.total.toString())
-        const exactDelta = Math.abs(txAmount - invTotal)
+      // --- Rules A, C + Tier 6 (one receipt, one invoice): the amount that is
+      // open, exactly or within 0,50 €. Every invoice is scored and the best
+      // one taken. A receipt that names an open invoice is that invoice's.
+      const namesOne = namesAny(tx)
+      let best: { invoiceId: string; confidence: number; reason: string } | null = null
+      for (const { inv, open } of openInvoices) {
+        // (a receipt that names the invoice is still proposed for it: a
+        // suggestion is not a fact, and an earlier wrong one must not shut
+        // the right one out)
+        if (spokenFor(inv.id, open) && !names(tx.purpose, inv.invoiceNumber)) continue
+        const exactDelta = Math.abs(txAmount - open)
         const isExact = exactDelta < 0.01
         const isWithin50ct = exactDelta <= 0.50
         if (!isExact && !isWithin50ct) continue
-
-        let confidence = 0
-        let reason = ''
-        const inPurpose =
-          tx.purpose && tx.purpose.includes(inv.invoiceNumber)
+        const inPurpose = names(tx.purpose, inv.invoiceNumber)
+        if (namesOne && !inPurpose) continue
         const ibanMatch =
-          tx.counterpartyIban &&
+          !!tx.counterpartyIban &&
           (() => {
             const c = (inv.customer?.contact as any) || {}
             const a = (inv.customer?.address as any) || {}
             const customerIban = c.iban || a.iban || null
             if (!customerIban) return false
-            return (
-              customerIban.replace(/\s/g, '') ===
-              tx.counterpartyIban!.replace(/\s/g, '')
-            )
+            return customerIban.replace(/\s/g, '') === tx.counterpartyIban!.replace(/\s/g, '')
           })()
-        const nameFuzzy =
-          tx.purpose && fuzzyMatchCustomerName(tx.purpose, inv.customer?.name)
+        const nameFuzzy = !!tx.purpose && fuzzyMatchCustomerName(tx.purpose, inv.customer?.name)
 
+        let confidence = 0
+        let reason = ''
         if (inPurpose && isExact) {
           confidence = 100
           reason = `Betrag exakt + Rechnungsnummer im Verwendungszweck`
@@ -1112,20 +1108,24 @@ export class FinTsService {
           confidence = 30
           reason = `Betrag ±${exactDelta.toFixed(2)} (innerhalb FX-Toleranz)`
         }
+        if (!best || confidence > best.confidence) best = { invoiceId: inv.id, confidence, reason }
+      }
+      if (best) {
         await this.prisma.bankReconciliation.create({
           data: {
             bankTransactionId: tx.id,
-            invoiceId: inv.id,
+            invoiceId: best.invoiceId,
             companyId,
             appliedAmount: tx.amount,
             status: 'suggested',
-            confidence,
-            matchReason: reason,
+            confidence: best.confidence,
+            matchReason: best.reason,
           },
         })
-        if (confidence >= 80) matched++
+        taken.add(tx.id)
+        claim(best.invoiceId, txAmount)
+        if (best.confidence >= 80) matched++
         else suggested++
-        break // one match per tx (highest confidence wins)
       }
     }
     return { matched, suggested }
