@@ -1,4 +1,5 @@
 import { StrictNumber } from '../../../common/strict-number'
+import { StrictBoolean } from '../../../common/strict-boolean'
 import { RECHTSFORMEN } from '../rechtsform';
 import {
   IsString,
@@ -12,6 +13,7 @@ import {
   IsObject,
   ValidateIf,
   MaxLength,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -211,6 +213,12 @@ export class UpdateCompanyDto {
   @IsIn(['soll', 'ist'], { message: "besteuerungsart muss 'soll' oder 'ist' sein" })
   @IsOptional()
   besteuerungsart?: string | null;
+
+  // Tier 649: takes part in the OSS scheme (§ 18j UStG).
+  @StrictBoolean()
+  @IsBoolean({ message: 'ossVerfahren muss true oder false sein' })
+  @IsOptional()
+  ossVerfahren?: boolean;
 
   // Tier 464: 'euer' | 'bilanz'; null = derived from the legal form.
   @IsString()

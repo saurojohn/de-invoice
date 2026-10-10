@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { normaliseCountry } from '../invoice/ust-behandlung-detector'
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown'
-import { consumerAbroad } from './oss-scope'
+import { consumerAbroad, isGermanRate } from './oss-scope'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -160,7 +160,11 @@ export interface OssResult {
     excludedSameCountry: number
     excludedNonEU: number
     excludedDraft: number
+    /** Tier 649: sales to consumers abroad at a German rate by a company that is not in the OSS scheme — German tax, in the UStVA */
+    excludedGermanRate: number
   }
+  /** Tier 649: the company's setting */
+  ossVerfahren: boolean
   generatedAt: string
   disclaimer: string
 }
@@ -201,8 +205,12 @@ export class OssService {
     // regular UStVA.
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { address: true },
+      select: { address: true, ossVerfahren: true },
     })
+    // Tier 649: a company that is not in the OSS scheme charges German tax
+    // on a sale to a consumer abroad at 19 % / 7 % — that sale is in the
+    // UStVA and not here. One that is in it has every such sale here.
+    const inOss = company?.ossVerfahren === true
     const homeCountryRaw = (company?.address as any)?.country || 'DE'
     const homeCountry = normaliseCountry(homeCountryRaw) || 'DE'
 
@@ -258,6 +266,7 @@ export class OssService {
     let excludedSameCountry = 0
     let excludedNonEU = 0
     let excludedDraft = 0
+    const germanRate = new Set<string>()
 
     for (const inv of invoices) {
       // Drafts: separate counter; never in any bucket.
@@ -287,6 +296,16 @@ export class OssService {
       }
 
       // Eligible: EU B2C in a different country.
+      // Tier 409: per rate, after the invoice discount (see tax-breakdown.ts).
+      // Tier 649: without the amounts that are German tax for a company not
+      // in the OSS scheme — an invoice that has nothing else is not counted,
+      // and its country gets no line.
+      const own = invoiceTaxBreakdown(inv).byRate.filter((bucket) => {
+        const german = !inOss && bucket.rate > 0 && isGermanRate(bucket.rate, inv.issueDate)
+        if (german) germanRate.add(inv.id)
+        return !german
+      })
+      if (own.length === 0) continue
       let items = countryItems.get(country)
       if (!items) {
         items = []
@@ -298,8 +317,7 @@ export class OssService {
         countryInvoiceIds.set(country, ids)
       }
       ids.add(inv.id)
-      // Tier 409: per rate, after the invoice discount (see tax-breakdown.ts).
-      for (const bucket of invoiceTaxBreakdown(inv).byRate) {
+      for (const bucket of own) {
         items.push({
           invoiceId: inv.id,
           vatRate: bucket.rate,
@@ -335,6 +353,7 @@ export class OssService {
       if (!country || !ref) continue
       const sameQuarter = ref.issueDate >= start && ref.issueDate <= end
       for (const bucket of invoiceTaxBreakdown(cn).byRate) {
+        if (!inOss && bucket.rate > 0 && isGermanRate(bucket.rate, ref.issueDate)) continue
         if (sameQuarter) {
           let items = countryItems.get(country)
           if (!items) {
@@ -477,7 +496,9 @@ export class OssService {
         excludedSameCountry,
         excludedNonEU,
         excludedDraft,
+        excludedGermanRate: germanRate.size,
       },
+      ossVerfahren: inOss,
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus EU-B2C-Rechnungen generiert. ' +

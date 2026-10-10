@@ -116,7 +116,28 @@ CSV=$(curl -sS "$API/api/v1/reports/oss.csv?companyId=$C&year=$Y&quarter=$Q" -H 
 assert_eq "the CSV has the line, the correction and what the return comes to" \
   "$(echo "$CSV" | grep -c '^Frankreich;20,00 %;50,00;10,00;60,00;2$')/$(echo "$CSV" | grep -c "^Frankreich;Q$Q0/$Y0;-80,00;-16,00$")/$(echo "$CSV" | grep -c '^Zu zahlen (Quartal und Berichtigungen);;;-6,00$')" "1/1/1"
 
-note "=== 4. Ist-Versteuerung ==="
+note "=== 4. the company's own word: in the OSS scheme or not ==="
+# Tier 649. A sale to a consumer in Cyprus at 19 % — Cyprus's rate and
+# Germany's. The rate does not say whose tax it is; the company does.
+CY=$(customer "Andreas Georgiou" individual CY)
+invoice "$CY" "$TODAY" 500 0.19
+ustva "$Y" "$M"
+assert_eq "not in the OSS scheme (the default): German tax — Kz 81 has it" "$STATUS $(field "[(k['kz'], k['value'], k.get('tax')) for k in d['kennzahlen'] if k['kz']=='81']")" "200 [('81', 500, 95)]"
+oss "$Y" "$Q"
+assert_eq "…and the OSS report leaves it out and says so" \
+  "$(field "d['ossVerfahren'], d['counts']['excludedGermanRate'], [c['country'] for c in d['countries']]")" "(False, 1, ['FR'])"
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"ossVerfahren":"ja"}'
+assert_eq "the setting is a flag: a word is refused" "$STATUS" "400"
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"ossVerfahren":true}'
+assert_eq "the company registers for the OSS scheme" "$STATUS $(field "d['ossVerfahren']")" "200 True"
+ustva "$Y" "$M"
+assert_eq "in the OSS scheme: Cyprus's tax — no Kz 81, and named with the other OSS sales" \
+  "$(field "[(k['kz'], k['value']) for k in d['kennzahlen'] if k['kz']=='81' and k['value']], d['ossSales']")" "([], {'net': 470, 'vat': 89})"
+oss "$Y" "$Q"
+assert_eq "…and in the OSS report: Cyprus 19 %, 500,00 / 95,00" \
+  "$(field "d['ossVerfahren'], d['counts']['excludedGermanRate'], [(l['vatRate'], l['netAmount'], l['vatAmount']) for c in d['countries'] if c['country']=='CY' for l in c['vatRates']]")" "(True, 0, [(0.19, 500, 95)])"
+
+note "=== 5. Ist-Versteuerung ==="
 AS PUT "/api/v1/companies/$C?companyId=$C" '{"besteuerungsart":"ist"}'
 AS POST "/api/v1/invoices/$F1/payments?companyId=$C" '{"amount":120,"paymentDate":"'$TODAY'","paymentMethod":"bank_transfer"}'
 ustva "$Y" "$M"

@@ -93,6 +93,8 @@ interface CompanySettings {
   besteuerungsart: "soll" | "ist" | null
   // Tier 464: null = derived from the legal form
   gewinnermittlung: "euer" | "bilanz" | null
+  // Tier 649: takes part in the OSS scheme (§ 18j UStG)
+  ossVerfahren: boolean
 }
 
 // Tier 441: the values the backend accepts (company/rechtsform.ts).
@@ -237,6 +239,7 @@ export default function SettingsPage() {
     rechtsform: null,
     besteuerungsart: null,
     gewinnermittlung: null,
+    ossVerfahren: false,
   })
 
   const [storageForm, setStorageForm] = useState<StorageSettings>({
@@ -335,6 +338,7 @@ export default function SettingsPage() {
               rechtsform: data.rechtsform ?? null,
               besteuerungsart: data.besteuerungsart ?? null,
               gewinnermittlung: data.gewinnermittlung ?? null,
+              ossVerfahren: data.ossVerfahren === true,
             })
 
             if (data.logoPath) {
@@ -591,9 +595,11 @@ export default function SettingsPage() {
           rechtsform: fresh.rechtsform ?? null,
           besteuerungsart: fresh.besteuerungsart ?? null,
           gewinnermittlung: fresh.gewinnermittlung ?? null,
+          ossVerfahren: fresh.ossVerfahren === true,
         })
       }
-      toast.error(t("settings.saved"))
+      // Tier 649: "erfolgreich gespeichert" was shown as an error (red)
+      toast.success(t("settings.saved"))
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : t("settings.saveError")
       toast.error(msg)
@@ -1260,6 +1266,23 @@ export default function SettingsPage() {
                   </select>
                   <p className="text-xs text-gray-600 mt-1">
                     {t("settings.gewinnermittlungHelp")}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {t("settings.ossVerfahren")}
+                  </label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3"
+                    value={form.ossVerfahren ? "ja" : "nein"}
+                    onChange={(e) => setForm({ ...form, ossVerfahren: e.target.value === "ja" })}
+                    data-testid="settings-oss-verfahren"
+                  >
+                    <option value="nein">{t("settings.ossVerfahrenNo")}</option>
+                    <option value="ja">{t("settings.ossVerfahrenYes")}</option>
+                  </select>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {t("settings.ossVerfahrenHelp")}
                   </p>
                 </div>
                 <div>

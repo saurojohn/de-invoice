@@ -83,4 +83,23 @@ test("French tax is named apart on the UStVA page; a later credit note is a corr
   await expect(row).toContainText(`Q${earlyQuarter}/${early.slice(0, 4)}`)
   await expect(row).toContainText("-16,00")
   await expect(page.getByTestId("oss-vat-due")).toHaveText(/4,00/)
+
+  // Tier 649: whether the company is in the OSS scheme is its own setting
+  await expect(page.getByTestId("oss-setting-note")).toContainText("nicht angemeldet")
+  await page.goto("/dashboard/settings")
+  const setting = page.getByTestId("settings-oss-verfahren")
+  await expect(setting).toHaveValue("nein", { timeout: 60_000 })
+  await expect(page.getByLabel("OSS-Verfahren (§ 18j UStG)")).toHaveCount(1)
+  await setting.selectOption("ja")
+  await page.getByTestId("settings-save").click()
+  // saved, and said so as a success — it was shown as an error
+  const toast = page.getByText("Einstellungen erfolgreich gespeichert!")
+  await expect(toast).toBeVisible({ timeout: 30_000 })
+  const company = await (await request.get(`${API}/api/v1/companies/${companyId}?${q}`, { headers: H })).json()
+  expect(company.ossVerfahren).toBe(true)
+  await page.reload()
+  await expect(page.getByTestId("settings-oss-verfahren")).toHaveValue("ja", { timeout: 60_000 })
+  await page.goto("/dashboard/reports")
+  await page.getByTestId("tab-oss").click({ timeout: 60_000 })
+  await expect(page.getByTestId("oss-setting-note")).toContainText("OSS-Verfahren: angemeldet", { timeout: 30_000 })
 })

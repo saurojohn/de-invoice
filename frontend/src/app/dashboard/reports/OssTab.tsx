@@ -49,7 +49,10 @@ interface OssResult {
     excludedSameCountry: number
     excludedNonEU: number
     excludedDraft: number
+    excludedGermanRate?: number
   }
+  // Tier 649
+  ossVerfahren?: boolean
   generatedAt: string
   disclaimer: string
 }
@@ -402,6 +405,11 @@ export function OssTab() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Tier 649: what the report is, by the company's own setting */}
+          <p className="text-sm rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-3 py-2 text-blue-900 dark:text-blue-200" data-testid="oss-setting-note">
+            {tRef.current(data.ossVerfahren ? "oss.settingOn" : "oss.settingOff", { count: data.counts.excludedGermanRate ?? 0 })}
+          </p>
 
           {/* Disclaimer */}
           <p className="text-xs text-gray-500 dark:text-gray-400 italic" data-testid="oss-disclaimer">

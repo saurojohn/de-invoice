@@ -153,6 +153,9 @@ export class UstvaService {
     const { start, end } = this.getDateRange(year, quarter, month);
     // Tier 457: Soll- or Ist-Versteuerung (ustva-ist.ts).
     const art = await besteuerungsart(this.prisma, companyId);
+    // Tier 649: in the OSS scheme every taxed sale to a consumer in another
+    // member state is that state's, whatever its rate.
+    const inOss = (await this.prisma.company.findUnique({ where: { id: companyId }, select: { ossVerfahren: true } }))?.ossVerfahren === true;
 
     // ── OUTPUT SIDE ───────────────────────────────────────────────
     // Sales invoices (excl. cancelled, finalized only — draft is not part of Voranmeldung)
@@ -253,7 +256,7 @@ export class UstvaService {
     // Tier 641: another member state's tax is not in this return (oss-scope.ts).
     const oss = { net: 0, vat: 0 };
     const addTaxed = (doc: any, rate: number, net: number, vat: number) => {
-      if (taxedAbroad(doc, rate)) {
+      if (taxedAbroad(doc, rate, 'DE', inOss)) {
         oss.net += net;
         oss.vat += vat;
       } else {

@@ -2653,6 +2653,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 649 — the company says whether it is in the OSS scheme
+
+Decided by the owner on 10.10.2026 („可以“, §9 item 25). Tier 641 could tell another member state's tax only by its rate, and was wrong where that rate is 19 % too. `Company.ossVerfahren` (migration `20261010000001_company_oss_verfahren`, default false), set on the settings page next to Besteuerungsart („OSS-Verfahren (§ 18j UStG): Nicht angemeldet / Angemeldet“).
+
+- **Not registered** (the default — a seller below the 10 000 € threshold of § 3c Abs. 4 UStG): a sale to a consumer in another member state at 19 % or 7 % is German tax, in Kz 81 / 86, and **no longer in the OSS report** (it used to be in both); the report counts such invoices (`counts.excludedGermanRate`) and says under its table that they are in the UStVA. A sale at a rate that is not German stays out of the UStVA and in the OSS report, as since Tier 641 — it cannot be German tax.
+- **Registered**: every taxed sale to a consumer in another member state is that state's — out of every Kennzahl, in `ossSales`, in the OSS report (Cyprus 19 %: 500,00 / 95,00).
+
+The owner's own company: the switch is off until someone turns it on; nothing changes for a company that sells within Germany. Also on the settings page: saving showed „Einstellungen erfolgreich gespeichert!“ as a red error toast (`toast.error`); it is a success.
+
+Spec 378 (20 assertions, 4 of the new 6 fail on the code before): the Cyprus sale under both settings in the UStVA and in the OSS report; a word instead of a flag is refused. Playwright `oss-ustva-tier641.spec.ts`: the note on the OSS tab, the setting found by its label, saved, kept after a reload, the note changed. **The owner's dev database now has 9 pending additive migrations.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 648 — the CSV files a person opens have a comma in their numbers
 
 Decided by the owner on 10.10.2026 (§9 item 25: „用小数逗号“). Every CSV the application writes was fetched for a company with data and its numbers counted by form. With a point: the invoice list (`GET /invoices/export/csv`), the hours report (`/time-entries/report.csv`), the product list and the ageing report (both written in the browser), and the cash book's daily-close column („154.7 EUR (Differenz: 0 EUR)“). The cash book's amounts had a comma and a thousands separator („1.234,50“). With a comma already: the OSS report, the cost-centre report, the statement batch's index, and everything in a format of its own (DATEV EXTF, Buchungsliste, USt-Verprobung).
@@ -9009,7 +9020,7 @@ frontend's build arg, and the frontend image refuses to build without it.
     - **What the three checks did not cover:** the reconciliation — a real exchange rate (the balance sheet, and through it the bank file formats: Tier 642; OSS: Tier 641; the bank import: Tier 639; Ist-Versteuerung and dunning: reconciled in Tier 638; a Kleinunternehmer: checked with the new document types); the page walk — clicking through tasks, other browsers, a real device, a screen reader; the cross-company test — 26 of 74 GET routes with a path parameter had no live target (roles inside one company: done in Tier 629; one customer against another in the portal: Tier 631; the operator's routes: Tier 632).
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**
-    - **OSS:** does the company take part in the OSS scheme (§ 18j UStG)? The app cannot tell, and treats a sale to a consumer in another member state by its rate: a rate that is not German is that state's tax (out of the UStVA, in the OSS report), 19 % or 7 % is German tax (Kz 81 / 86) — wrong for an OSS seller's customers in Cyprus. A switch in the company settings would settle it. And: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
+    - **OSS:** (whether the company takes part is a setting since Tier 649.) Still for the Steuerberater: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.
     - (**Dunning levels:** decided 10.10.2026, Tier 647 — Zahlungserinnerung / 1. Mahnung / Letzte Mahnung everywhere.)

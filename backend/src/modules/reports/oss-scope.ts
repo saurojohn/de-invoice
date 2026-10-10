@@ -11,10 +11,12 @@
  *
  * What can be told from the invoice alone: the customer has no VAT id and
  * lives in another member state, and the rate is none German law has had.
- * A sale to such a customer at 19 % or 7 % is taken for German tax (a seller
- * below the 10 000 € threshold of § 3c Abs. 4 UStG) — for a seller in the OSS
- * that is wrong where the other state's rate is 19 % too (Cyprus); whether the
- * company takes part in the OSS is not recorded anywhere yet.
+ *
+ * Tier 649: and what the company says of itself — `Company.ossVerfahren`.
+ * A seller in the OSS taxes every sale to a consumer in another member state
+ * there, also where that state's rate is 19 % like the German one (Cyprus).
+ * A seller who is not (below the 10 000 € threshold of § 3c Abs. 4 UStG)
+ * charges German tax on such a sale at 19 % / 7 %, and it is German tax.
  */
 import { normaliseCountry } from '../invoice/ust-behandlung-detector'
 
@@ -48,6 +50,7 @@ export function taxedAbroad(
   doc: { issueDate: Date | string; customer?: Customer },
   rate: number,
   homeCountry = 'DE',
+  ossVerfahren = false,
 ): boolean {
-  return rate > 0 && !isGermanRate(rate, doc.issueDate) && consumerAbroad(doc.customer, homeCountry) !== null
+  return rate > 0 && (ossVerfahren || !isGermanRate(rate, doc.issueDate)) && consumerAbroad(doc.customer, homeCountry) !== null
 }

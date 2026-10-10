@@ -65,6 +65,10 @@ model Company {
   // Tier 457: 'soll' (default, NULL) or 'ist' — Ist-Versteuerung (§ 20 UStG):
   // the UStVA owes output tax when the payment arrives (reports/ustva-ist.ts).
   besteuerungsart    String?
+  // Tier 649: the company takes part in the OSS scheme (§ 18j UStG) — every
+  // taxed sale to a consumer in another member state is that state's tax and
+  // goes into the OSS return, not the UStVA (reports/oss-scope.ts).
+  ossVerfahren       Boolean  @default(false)
   // Tier 464: 'euer' (§ 4 Abs. 3 EStG, counted when paid) or 'bilanz'
   // (accrual). NULL = derived from the legal form (company/gewinnermittlung.ts).
   gewinnermittlung   String?

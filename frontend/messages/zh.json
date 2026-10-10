@@ -1657,6 +1657,10 @@
     }
   },
   "settings": {
+    "ossVerfahren": "OSS 程序（§ 18j UStG）",
+    "ossVerfahrenNo": "未登记",
+    "ossVerfahrenYes": "已登记——对欧盟消费者的销售通过 OSS 申报",
+    "ossVerfahrenHelp": "已登记：卖给其他欧盟国家消费者的每一笔应税销售都在对方国家纳税，列入 OSS 申报，不进入德国增值税预申报。未登记：按 19 % 或 7 % 开出的此类销售属于德国增值税（每年不超过 10 000 欧元，§ 3c Abs. 4 UStG）。",
     "title": "设置",
     "companyLogo": "公司徽标",
     "companyInfo": "公司信息",
@@ -2727,6 +2731,8 @@
     "disclaimer": "档案包含发票 PDF、支出元数据 + 凭证、DATEV 总账和审计日志。MANIFEST 条目包含 SHA-256 哈希用于完整性验证。"
   },
   "oss": {
+    "settingOn": "OSS 程序：已登记（设置 → 公司）。卖给其他欧盟国家消费者的全部应税销售列在这里，不进入德国增值税预申报。",
+    "settingOff": "OSS 程序：未登记（设置 → 公司）。这里只列出按对方国家税率开出的销售；另有 {count} 张按 19 % / 7 % 开给欧盟消费者的发票按德国增值税计算，列在预申报里。",
     "correctionsTitle": "以前季度的更正",
     "correctedPeriod": "被更正的期间",
     "vatDue": "应缴（本季度及更正）",

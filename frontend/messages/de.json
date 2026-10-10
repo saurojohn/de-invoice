@@ -1657,6 +1657,10 @@
     }
   },
   "settings": {
+    "ossVerfahren": "OSS-Verfahren (§ 18j UStG)",
+    "ossVerfahrenNo": "Nicht angemeldet",
+    "ossVerfahrenYes": "Angemeldet — Verkäufe an EU-Verbraucher über das OSS",
+    "ossVerfahrenHelp": "Angemeldet: Jeder steuerpflichtige Verkauf an einen Verbraucher in einem anderen EU-Staat wird dort versteuert und steht in der OSS-Meldung, nicht in der Umsatzsteuer-Voranmeldung. Nicht angemeldet: Ein solcher Verkauf zu 19 % oder 7 % ist deutsche Umsatzsteuer (bis 10 000 € im Jahr, § 3c Abs. 4 UStG).",
     "title": "Einstellungen",
     "companyLogo": "Firmenlogo",
     "companyInfo": "Firmeninformationen",
@@ -2727,6 +2731,8 @@
     "disclaimer": "Das Archiv enthält Rechnungs-PDFs, Ausgaben-Metadaten + Belege, den DATEV-Buchungsstapel und das Audit-Log. Der MANIFEST-Eintrag enthält SHA-256-Hashes für die Integritätsprüfung."
   },
   "oss": {
+    "settingOn": "OSS-Verfahren: angemeldet (Einstellungen → Unternehmen). Alle steuerpflichtigen Verkäufe an Verbraucher in anderen EU-Staaten stehen hier und nicht in der Umsatzsteuer-Voranmeldung.",
+    "settingOff": "OSS-Verfahren: nicht angemeldet (Einstellungen → Unternehmen). Hier stehen nur Verkäufe zum Steuersatz des anderen Staates; {count} Rechnung(en) zu 19 % / 7 % an EU-Verbraucher zählen als deutsche Umsatzsteuer und stehen in der Voranmeldung.",
     "correctionsTitle": "Berichtigungen früherer Quartale",
     "correctedPeriod": "Berichtigter Zeitraum",
     "vatDue": "Zu zahlen (Quartal und Berichtigungen)",
