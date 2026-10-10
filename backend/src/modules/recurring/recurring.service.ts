@@ -846,6 +846,20 @@ export class RecurringService {
     // a run that failed after this point left a hole in the series (the note
     // "not changed" under Tier 585).
     let takenNumber: string | null = null
+    // Tier 652: the rate of a foreign-currency template is asked for before
+    // the transaction — a request to the ECB does not belong inside one. The
+    // ECB reference rate of the invoice's day; without one the run fails and
+    // says so (it is retried on the next tick) — it used to book the invoice
+    // 1 : 1.
+    const tplCurrency = await this.prisma.recurringInvoice.findFirst({
+      where: { id: templateId, companyId },
+      select: { currency: true },
+    })
+    const fx = await this.exchangeRates.rateForInvoice(
+      companyId,
+      String(tplCurrency?.currency || 'EUR'),
+      businessTodayDate(now),
+    )
 
     return this.prisma.$transaction(async (tx) => {
       // Lock the template row for the duration of the
@@ -1058,11 +1072,7 @@ export class RecurringService {
       const totalVat4 = Math.round(totalVat * 10000) / 10000
       const total4 = Math.round(total * 10000) / 10000
       const invoiceCurrency = String(tpl.currency || 'EUR').toUpperCase()
-      let exchangeRate = 1
-      if (invoiceCurrency !== 'EUR') {
-        const parsed = parseFloat(await this.exchangeRates.getRate(companyId, invoiceCurrency))
-        exchangeRate = Number.isFinite(parsed) && parsed > 0 ? parsed : 1
-      }
+      const exchangeRate = invoiceCurrency === 'EUR' ? 1 : fx.rate
       const toEur4 = (v: number) =>
         (invoiceCurrency === 'EUR' ? v : Math.round((v / exchangeRate) * 10000) / 10000).toFixed(4)
 
@@ -1099,6 +1109,7 @@ export class RecurringService {
           total: total4.toFixed(4),
           currency: tpl.currency,
           exchangeRate: exchangeRate.toFixed(6),
+          exchangeRateSource: invoiceCurrency === 'EUR' ? null : fx.source,
           eurSubtotal: toEur4(subtotal4),
           eurTotalVat: toEur4(totalVat4),
           eurTotal: toEur4(total4),

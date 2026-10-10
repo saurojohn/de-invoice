@@ -1259,7 +1259,7 @@
     "referenceInvoice": "关联原发票",
     "referenceInvoiceHelp": "贷项通知单关联原始发票",
     "currency": "货币",
-    "currencyHint": "ISO 4217 货币代码。EUR 保持不变;USD/CHF/GBP 按欧洲央行每日参考汇率换算为 EUR。",
+    "currencyHint": "ISO 4217 货币代码。外币发票按发票日期当天的欧洲央行参考汇率换算成欧元，或按旁边填写的汇率换算。",
     "cashPayment": "现金支付",
     "bankTransfer": "银行转账",
     "cash": "现金",
@@ -1316,7 +1316,10 @@
     "statusOverdue": "已逾期",
     "statusPaid": "已支付",
     "statusSent": "已发送",
-    "cloneTitle": "复制为新草稿"
+    "cloneTitle": "复制为新草稿",
+    "exchangeRate": "汇率",
+    "exchangeRatePlaceholder": "留空 = 发票日期当天的欧洲央行参考汇率",
+    "exchangeRateHint": "留空则使用发票日期当天的欧洲央行参考汇率。若按 § 16 Abs. 6 UStG 采用 BMF 公布的月平均汇率换算，请在此填写。"
   },
   "invoiceTemplates": {
     "title": "发票模板",
@@ -4083,7 +4086,11 @@
     "sendByEmail": "通过邮件发送",
     "paymentLink": "显示付款链接",
     "paymentLinkCreating": "正在生成链接...",
-    "attachTimesheet": "附上工时明细"
+    "attachTimesheet": "附上工时明细",
+    "rateEcb": "{date} 的欧洲央行参考汇率",
+    "rateManual": "手工填写",
+    "rateUnknown": "未记录汇率来源",
+    "eurEquivalent": "折合欧元"
   },
   "booksClosing": {
     "title": "账簿结账 (Festschreibung)",

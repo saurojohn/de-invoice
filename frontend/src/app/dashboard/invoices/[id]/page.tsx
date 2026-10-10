@@ -36,6 +36,10 @@ interface Invoice {
   servicePeriodStart?: string | null
   servicePeriodEnd?: string | null
   currency: string
+  // Tier 652: the rate (1 EUR = … of the currency), where it is from, the total in euros
+  exchangeRate?: string | number | null
+  exchangeRateSource?: string | null
+  eurTotal?: string | number | null
   subtotal: string
   totalVat: string
   total: string
@@ -2100,7 +2104,28 @@ export default function InvoiceDetailPage() {
                   <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.deliveryDate")}</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div>{nonFiscal ? docTypeLabel(invoice.type) : invoice.type}</div></div>
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.currency")}</div><div>{invoice.currency}</div></div>
+                <div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.currency")}</div>
+                  <div>{invoice.currency}</div>
+                  {/* Tier 652: what the invoice is in euros, and at which rate */}
+                  {invoice.currency && invoice.currency !== "EUR" && Number(invoice.exchangeRate) > 0 && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1" data-testid="invoice-rate-note">
+                      1 EUR = {Number(invoice.exchangeRate).toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 6 })} {invoice.currency}
+                      {" — "}
+                      {String(invoice.exchangeRateSource || "").startsWith("ecb:")
+                        ? t("invoicePage.rateEcb").replace("{date}", formatDate(String(invoice.exchangeRateSource).slice(4)))
+                        : invoice.exchangeRateSource === "manual"
+                          ? t("invoicePage.rateManual")
+                          : t("invoicePage.rateUnknown")}
+                      {invoice.eurTotal != null && (
+                        <>
+                          <br />
+                          {t("invoicePage.eurEquivalent")}: {Number(invoice.eurTotal).toLocaleString("de-DE", { style: "currency", currency: "EUR" })}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

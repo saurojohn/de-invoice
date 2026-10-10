@@ -193,9 +193,10 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required, e.g. https://rechnung.shleder.de}
       # Production secrets — see README for rotation
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      # Optional — used by ECB rate fetcher
-      # (no-op if unset)
+      # Optional — another address for the ECB reference rates; empty means
+      # the ECB's own (see .env.example)
       ECB_API_URL: ${ECB_API_URL:-}
+      ECB_API_BASE: ${ECB_API_BASE:-}
       # Tier 555: this list is all the backend sees — a variable that is only
       # in .env does not reach it. The x-user-id header authenticates nobody
       # in production (session cookie / Bearer only).

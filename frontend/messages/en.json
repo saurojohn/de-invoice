@@ -1275,7 +1275,7 @@
     "cash": "Cash",
     "cashPayment": "Cash payment",
     "currency": "Currency",
-    "currencyHint": "ISO 4217 currency code. EUR stays unchanged; USD/CHF/GBP are converted to EUR at the ECB daily reference rate.",
+    "currencyHint": "ISO 4217 currency code. Invoices in a foreign currency are converted to euros at the ECB reference rate of the invoice date, or at the rate entered next to it.",
     "dueDateEmpty": "No due date (due immediately)",
     "dueDateImmediately": "Due immediately",
     "installments": "Installments",
@@ -1316,7 +1316,10 @@
     "statusOverdue": "Overdue",
     "statusPaid": "Paid",
     "statusSent": "Sent",
-    "cloneTitle": "Duplicate as new draft"
+    "cloneTitle": "Duplicate as new draft",
+    "exchangeRate": "Exchange rate",
+    "exchangeRatePlaceholder": "empty = ECB reference rate of the invoice date",
+    "exchangeRateHint": "Leave empty for the ECB reference rate of the invoice date. If you convert at the monthly average rate published by the BMF (§ 16 Abs. 6 UStG), enter it here."
   },
   "invoiceTemplates": {
     "title": "Invoice templates",
@@ -4083,7 +4086,11 @@
     "sendByEmail": "Send by e-mail",
     "paymentLink": "Show payment link",
     "paymentLinkCreating": "Creating link...",
-    "attachTimesheet": "Attach the time sheet"
+    "attachTimesheet": "Attach the time sheet",
+    "rateEcb": "ECB reference rate of {date}",
+    "rateManual": "entered by hand",
+    "rateUnknown": "origin of the rate not recorded",
+    "eurEquivalent": "In euros"
   },
   "booksClosing": {
     "title": "Close the books (Festschreibung)",

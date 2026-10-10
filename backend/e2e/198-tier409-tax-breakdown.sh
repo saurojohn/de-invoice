@@ -77,6 +77,11 @@ assert_eq "the customer's account clears: invoices = payments (A was 100 short)"
 rm -f "$SCRIPT_DIR/../.t198.csv"
 
 note "=== 4. OSS uses the discounted amounts ==="
+# Tier 649: the company says whether it is in the OSS scheme. Outside it, a
+# sale at a German rate to a consumer abroad is German tax and not in this
+# report at all — so the fixture registers.
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"ossVerfahren":true}'
+assert_eq "fixture: the company is in the OSS scheme" "$STATUS" "200"
 AS POST "/api/v1/customers?companyId=$C" \
   "{\"name\":\"$TAG AT\",\"type\":\"individual\",\"address\":{\"street\":\"1\",\"city\":\"Wien\",\"postalCode\":\"1010\",\"country\":\"Österreich\"}}"
 KAT=$(json_field "$BODY" id)

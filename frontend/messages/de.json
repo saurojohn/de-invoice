@@ -1259,7 +1259,7 @@
     "referenceInvoice": "Referenzrechnung",
     "referenceInvoiceHelp": "Gutschrift bezieht sich auf die ursprüngliche Rechnung",
     "currency": "Währung",
-    "currencyHint": "ISO 4217 Währungscode. EUR bleibt unverändert; USD/CHF/GBP werden zum ECB-Tageskurs in EUR umgerechnet.",
+    "currencyHint": "ISO-4217-Währungscode. Rechnungen in fremder Währung werden zum EZB-Referenzkurs des Rechnungsdatums in Euro umgerechnet, oder zu dem Kurs, der daneben eingetragen wird.",
     "cashPayment": "Barzahlung",
     "bankTransfer": "Überweisung",
     "cash": "Bargeld",
@@ -1316,7 +1316,10 @@
     "statusOverdue": "Überfällig",
     "statusPaid": "Bezahlt",
     "statusSent": "Versendet",
-    "cloneTitle": "Als neuen Entwurf kopieren"
+    "cloneTitle": "Als neuen Entwurf kopieren",
+    "exchangeRate": "Umrechnungskurs",
+    "exchangeRatePlaceholder": "leer = EZB-Referenzkurs des Rechnungsdatums",
+    "exchangeRateHint": "Leer lassen: Es gilt der EZB-Referenzkurs vom Rechnungsdatum. Wer nach § 16 Abs. 6 UStG mit dem Monatsdurchschnittskurs des BMF umrechnet, trägt ihn hier ein."
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",
@@ -4083,7 +4086,11 @@
     "sendByEmail": "Per E-Mail senden",
     "paymentLink": "Zahlungslink anzeigen",
     "paymentLinkCreating": "Erstelle Link...",
-    "attachTimesheet": "Stundennachweis anhängen"
+    "attachTimesheet": "Stundennachweis anhängen",
+    "rateEcb": "EZB-Referenzkurs vom {date}",
+    "rateManual": "von Hand eingetragen",
+    "rateUnknown": "Herkunft des Kurses nicht festgehalten",
+    "eurEquivalent": "In Euro"
   },
   "booksClosing": {
     "title": "Bücher abschließen (Festschreibung)",

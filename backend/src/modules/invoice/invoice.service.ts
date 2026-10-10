@@ -662,21 +662,11 @@ export class InvoiceService {
     // the invoice total still contributes to EÜR
     // revenue.
     // ──────────────────────────────────────────────────────
+    // Tier 652: the rate of the invoice's own day (or the one entered by
+    // hand), and no 1 : 1 for want of a rate — see rateForInvoice.
     const invoiceCurrency = (dto.currency || 'EUR').toUpperCase()
-    let exchangeRateStr = '1.0000'
-    if (invoiceCurrency !== 'EUR') {
-      try {
-        exchangeRateStr = await this.exchangeRates.getRate(companyId, invoiceCurrency)
-      } catch (e: any) {
-        // Fall through with rate=1.0000 — the
-        // invoice is still created, just without
-        // an EUR equivalent.
-        console.warn(
-          `[Tier 118] Failed to look up rate for ${invoiceCurrency}, falling back to 1.0000: ${e?.message}`,
-        )
-      }
-    }
-    const exchangeRate = parseFloat(exchangeRateStr)
+    const fx = await this.exchangeRates.rateForInvoice(companyId, invoiceCurrency, issueDate, dto.exchangeRate || null)
+    const exchangeRate = fx.rate
     // EUR = currency / rate (since rate = 1 EUR = X currency)
     const eurSubtotal =
       invoiceCurrency === 'EUR'
@@ -728,8 +718,9 @@ export class InvoiceService {
         ...servicePeriod,
         type: dto.type || 'INV',
         status: 'draft',
-        currency: dto.currency || 'EUR',
+        currency: invoiceCurrency,
         language: dto.language || 'de-DE',
+        exchangeRateSource: invoiceCurrency === 'EUR' ? null : fx.source,
         // Tier 118: multi-currency. Pre-computed EUR
         // equivalents for cross-currency aggregation.
         // For EUR invoices all three mirror the
@@ -1176,38 +1167,40 @@ export class InvoiceService {
         discountPercent: discountPercent || null,
         discountAmount: discountAmount > 0 ? discountAmount : null,
       };
-      // Tier 118: re-compute EUR equivalents on edit
-      // when totals change. Currency may have changed
-      // too (user can flip EUR ↔ USD on a same-day
-      // edit). We re-derive everything from the
-      // EFFECTIVE currency (new value if passed, else
-      // existing).
-      const effectiveCurrency = (dto.currency ?? existing.currency ?? 'EUR').toUpperCase()
-      if (effectiveCurrency !== 'EUR') {
-        let rateStr = '1.0000'
-        try {
-          rateStr = await this.exchangeRates.getRate(companyId, effectiveCurrency)
-        } catch {
-          rateStr = '1.0000'
-        }
-        const rate = parseFloat(rateStr)
-        const t = totalsData
-        totalsData = {
-          ...t,
-          exchangeRate: rate,
-          eurSubtotal: Math.round((t.subtotal / rate) * 10000) / 10000,
-          eurTotalVat: Math.round((t.totalVat / rate) * 10000) / 10000,
-          eurTotal: Math.round((t.total / rate) * 10000) / 10000,
-        }
-      } else {
-        // EUR: rate=1, EUR amounts = originals
-        totalsData = {
-          ...totalsData,
-          exchangeRate: 1.0,
-          eurSubtotal: totalsData.subtotal,
-          eurTotalVat: totalsData.totalVat,
-          eurTotal: totalsData.total,
-        }
+    }
+
+    // Tier 652: the EUR equivalents follow the lines, the currency and the
+    // rate. They were recomputed only when lines came with the request — a
+    // draft switched from EUR to USD kept its euro figures — and at the
+    // latest cached rate, whatever the invoice's day. A rate entered by hand
+    // stays until another is entered, the currency changes, or 0 asks for
+    // the ECB's again.
+    const effectiveCurrency = (dto.currency ?? existing.currency ?? 'EUR').toUpperCase()
+    const currencyChanged = effectiveCurrency !== String(existing.currency || 'EUR').toUpperCase()
+    if (dto.items?.length || currencyChanged || dto.exchangeRate != null) {
+      const keptManual =
+        !currencyChanged && dto.exchangeRate == null && (existing as any).exchangeRateSource === 'manual'
+          ? Number(existing.exchangeRate)
+          : null
+      const fx = await this.exchangeRates.rateForInvoice(
+        companyId,
+        effectiveCurrency,
+        existing.issueDate,
+        dto.exchangeRate ? dto.exchangeRate : keptManual,
+      )
+      const base = {
+        subtotal: totalsData.subtotal ?? Number(existing.subtotal),
+        totalVat: totalsData.totalVat ?? Number(existing.totalVat),
+        total: totalsData.total ?? Number(existing.total),
+      }
+      const eur = (v: number) => (effectiveCurrency === 'EUR' ? v : Math.round((v / fx.rate) * 10000) / 10000)
+      totalsData = {
+        ...totalsData,
+        exchangeRate: fx.rate,
+        exchangeRateSource: effectiveCurrency === 'EUR' ? null : fx.source,
+        eurSubtotal: eur(base.subtotal),
+        eurTotalVat: eur(base.totalVat),
+        eurTotal: eur(base.total),
       }
     }
 
@@ -1234,7 +1227,7 @@ export class InvoiceService {
         pdfPath: null,
         notes: dto.notes ?? undefined,
         internalNotes: dto.internalNotes ?? undefined,
-        currency: dto.currency ?? undefined,
+        currency: dto.currency ? effectiveCurrency : undefined,
         language: dto.language ?? undefined,
         templateType: dto.templateType ?? undefined,
         // Tier 39: costCenter + costObject. Trim + coerce
@@ -2087,6 +2080,17 @@ export class InvoiceService {
     // Tier 415: cents, by invoice-amounts.ts (negative unit prices).
     const amounts = computeInvoiceAmounts(cnLines, cnDiscount)
     const { subtotal, totalVat, total } = amounts
+    // Tier 652: in the original's currency, at the original's rate.
+    const cnCurrency = String(original.currency || 'EUR').toUpperCase()
+    const cnRate = cnCurrency !== 'EUR' && Number(original.exchangeRate) > 0 ? Number(original.exchangeRate) : 1
+    const cnToEur = (v: number) => (cnCurrency === 'EUR' ? v : Math.round((v / cnRate) * 10000) / 10000)
+    const cnEur = {
+      exchangeRate: cnRate,
+      exchangeRateSource: cnCurrency === 'EUR' ? null : ((original as any).exchangeRateSource ?? null),
+      eurSubtotal: cnToEur(subtotal),
+      eurTotalVat: cnToEur(totalVat),
+      eurTotal: cnToEur(total),
+    }
 
     // Tier 416: credit notes cannot take back more than the invoice stated.
     // Measured: two full refunds of a 1 190 € invoice were both accepted
@@ -2139,6 +2143,13 @@ export class InvoiceService {
           subtotal,
           totalVat,
           total,
+          // Tier 652: a credit note is in the currency of what it credits and
+          // takes the tax base back at the rate it was reported at (§ 17
+          // UStG). It was created in EUR without a rate: 1 190 USD credited
+          // took 1 000 € and 190 € of VAT out of the UStVA instead of
+          // 892,38 € and 169,55 €.
+          currency: original.currency || 'EUR',
+          ...cnEur,
           discountPercent: cnDiscount.discountPercent ?? null,
           discountAmount: amounts.discountAmount !== 0 ? amounts.discountAmount : null,
           // The original is the source — copy over

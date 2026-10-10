@@ -863,6 +863,11 @@ model Invoice {
   // Nullable for backward compat: legacy EUR invoices
   // without a rate are treated as rate=1.
   exchangeRate Decimal? @db.Decimal(12, 6)
+  // Tier 652: where the rate is from — 'ecb:2026-09-15' (the ECB reference
+  // rate of that day) or 'manual' (entered on the invoice, e.g. the BMF's
+  // monthly average of § 16 Abs. 6 UStG). NULL: an EUR invoice, or one from
+  // before the rate was looked up for the invoice's day.
+  exchangeRateSource String?
   eurSubtotal  Decimal? @db.Decimal(12, 4)
   eurTotalVat  Decimal? @db.Decimal(12, 4)
   eurTotal     Decimal? @db.Decimal(12, 4)

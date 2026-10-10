@@ -192,6 +192,8 @@ function CreateInvoicePageInner() {
   const [templateType, setTemplateType] = useState<InvoiceTemplateType>('standard')
   // Tier 480: the company is a Kleinunternehmer (§ 19 UStG) — no VAT.
   const [kleinunternehmer, setKleinunternehmer] = useState(false)
+  // Tier 652: the exchange rate entered by hand (text, as typed)
+  const [manualRate, setManualRate] = useState("")
   const [form, setForm] = useState({
     customerId: "",
     referenceInvoiceId: "",
@@ -303,6 +305,9 @@ function CreateInvoicePageInner() {
     const prefillFromInvoice = (inv: any, opts: { isClone: boolean }) => {
       setInvoiceType(inv.type || 'INV')
       setTemplateType(inv.templateType || 'standard')
+      // Tier 652: a rate entered by hand stays with the draft; a clone gets
+      // the rate of its own day
+      setManualRate(!opts.isClone && inv.exchangeRateSource === 'manual' ? String(Number(inv.exchangeRate)) : "")
       if (inv.customer?.name) {
         setCustomerSearch(inv.customer.name)
       } else {
@@ -1074,8 +1079,14 @@ function CreateInvoicePageInner() {
       // always empty here. deliveryDate is pre-filled with
       // today's date by default, but the user can clear it; if
       // cleared, treat it as "not set" instead of "set to empty".
+      // Tier 652: the rate entered by hand for a foreign-currency invoice
+      // (1 EUR = … of the currency). Empty: the ECB reference rate of the
+      // invoice's day — on an edit that is said with 0, so that a rate
+      // entered before is given up.
+      const rateText = manualRate.trim().replace(",", ".")
       const payload = {
         ...form,
+        exchangeRate: form.currency === "EUR" ? undefined : rateText ? Number(rateText) : isEdit ? 0 : undefined,
         type: invoiceType,
         templateType,
         dueDate: form.dueDate || undefined,
@@ -1562,8 +1573,38 @@ function CreateInvoicePageInner() {
                     <option value="PLN">PLN (zł)</option>
                     <option value="CZK">CZK (Kč)</option>
                     <option value="CNY">CNY (¥)</option>
+                    {/* Tier 652: the rate is asked for per currency and day, so
+                        the list is no longer the seven of the nightly run */}
+                    <option value="AUD">AUD</option>
+                    <option value="CAD">CAD</option>
+                    <option value="DKK">DKK</option>
+                    <option value="HKD">HKD</option>
+                    <option value="HUF">HUF</option>
+                    <option value="NOK">NOK</option>
+                    <option value="RON">RON</option>
+                    <option value="SEK">SEK</option>
+                    <option value="SGD">SGD</option>
+                    <option value="TRY">TRY</option>
                   </select>
                 </div>
+
+                {form.currency !== "EUR" && (
+                  <div>
+                    <label htmlFor="invoice-exchange-rate" className="block text-sm font-medium mb-1">
+                      {t("invoice.exchangeRate")} (1 EUR = … {form.currency})
+                    </label>
+                    <input
+                      id="invoice-exchange-rate"
+                      className="w-full h-10 border rounded-md px-3"
+                      inputMode="decimal"
+                      value={manualRate}
+                      onChange={(e) => setManualRate(e.target.value)}
+                      placeholder={t("invoice.exchangeRatePlaceholder")}
+                      data-testid="invoice-exchange-rate"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("invoice.exchangeRateHint")}</p>
+                  </div>
+                )}
 
                 {/* Tier 39: DATEV Kostenstelle 1 + Kostenträger
                     stamps. The costCenter dropdown is populated

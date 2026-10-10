@@ -2653,6 +2653,35 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 652 — an invoice in a foreign currency is converted at the rate of its own day, never 1 : 1
+
+§9 item 24 („the reconciliation — a real exchange rate“), done („都做“, 10.10.2026) — and it opened more than it closed; Tiers 653 f. are the rest. A company was set up against the real ECB reference rates (the local backend without `EXCHANGE_RATES_MOCK`; read from data-api.ecb.europa.eu on 10.10.2026: USD 1,1206 on 09.10., 1,1539 on 15.09., 1,1535 on 03.08.; SEK 11,1675) and its invoices worked out by hand:
+
+| invoice | booked before | by hand | now |
+| --- | --- | --- | --- |
+| 10 000 USD + 19 %, today, company one hour old | 10 000 € / 1 900 € (rate 1 — no rate fetched yet) | 8 923,79 / 1 695,52 | 8 923,79 / 1 695,52 (`ecb:2026-10-09`) |
+| 10 000 SEK + 19 %, today | 10 000 € / 1 900 € (not one of the seven currencies fetched: 1 : 1 for good) | 895,46 / 170,14 | 895,46 / 170,14 |
+| 10 000 USD dated 15.09., typed in on 10.10. | 8 923,79 / 1 695,52 (the latest rate, 1,1206) | 8 666,26 / 1 646,59 (1,1539) | 8 666,26 / 1 646,59 (`ecb:2026-09-15`) |
+| 2 000 USD dated 03.08. | 1 784,76 / 339,10 | 1 733,85 / 329,43 (1,1535) | 1 733,85 / 329,43 |
+| credit note of 1 190 USD on the first | −1 000 € / −190 € (created in EUR, without a rate) | −892,38 / −169,55 | −892,38 / −169,55 |
+
+The arithmetic after the rate was right everywhere (the UStVA of each month is the sum of the rows above, to the cent). What was wrong was the rate.
+
+- `ExchangeRateService.ecbRateOn(currency, day)` asks the ECB for one currency and the ten days up to a day and takes the last rate published on or before it (a Sunday gets Friday's). Any currency the ECB quotes; `null` for one it does not (RUB since 2022: an empty answer; a code that is none: 404). `rateForInvoice()` is what create, update and the recurring run call: the rate entered by hand, else the ECB's, else **refused** — 400 „Für SEK veröffentlicht die EZB … keinen Referenzkurs. Bitte den Umrechnungskurs von Hand eintragen“, or 503 when the ECB cannot be reached and the nightly snapshot is not the rate of that day. The request to the ECB of a recurring run is made before its transaction.
+- `Invoice.exchangeRateSource` (`ecb:YYYY-MM-DD` | `manual`; migration `20261010000002`) — the tenth pending additive migration in the owner's dev database.
+- `exchangeRate` in the invoice's create and update bodies: 1 EUR = … of the currency, as the ECB and the BMF quote it. **§ 16 Abs. 6 UStG names the BMF's monthly average rates; the daily rate is what the tax office may allow instead.** The default here is the daily ECB rate; who converts at the monthly average enters it (the ECB's own monthly averages for August and September were 1,1593 and 1,1513). Which of the two the company uses is for the Steuerberater — §9 item 25.
+- A draft switched from EUR to USD kept its euro figures (they were recomputed only when lines came with the request). They follow the currency, the lines and the rate now; a rate entered by hand stays until another is entered, the currency changes, or 0 asks for the ECB's again.
+- A credit note is in the currency of what it credits, at that invoice's rate (§ 17 UStG: the tax base is corrected by what was reported).
+- `currency` must be three letters („Dollar“ was stored as it came, and found no rate).
+- The form: a rate field for a foreign currency, ten more currencies (the list was the seven of the nightly run); the invoice page says „1 EUR = 1,1206 USD — EZB-Referenzkurs vom 09.10.2026 · In Euro: 10.619,31 €“.
+- The nightly run still fetches the whole history of seven currencies since 1999 (10,7 MB uncompressed, 0,8 s with gzip) to keep the last day. It is only the DATEV settings page's display and the fallback now.
+
+**Found on the way and not done yet (Tiers 653 f.):** the invoice PDF prints every amount with „€“ — the USD invoice above went out as „Gesamtbetrag € 11.900,00“ — and a GiroCode in EUR; the XRechnung has no VAT amount in EUR (BT-6 / BT-111); the reminder e-mail says „2.380,00 EUR“ for 2 380 USD; the Mahnung and the statement print „€“; the aging report, the reminder statistics and the statement's balance add USD, SEK and CHF to euros (50 376,66 „€“ for six invoices in three currencies).
+
+Also: spec 198 (OSS uses the discounted amounts) sold at a German rate to an Austrian consumer and expected it in the OSS report; since Tier 649 that is German tax unless the company is in the scheme. The CI run of Tiers 649–651 (38038560482) failed on exactly this assertion (383 passed, 1 failed) — the spec registers its company for the scheme now. `infra/prod/.env.example` said of `ECB_API_URL` „leave empty to disable“; empty means the ECB's own address.
+
+Spec `386-tier652-fremdwaehrung-kurs-des-rechnungstags.sh` (44 assertions, 33 fail on the code before): the cases above with the fixed rates of the test mode, the draft that changes, the credit note, the UStVA, a recurring run in USD and in SEK — and the request itself against a server of the spec's own that answers as the ECB does (a Tuesday, a Sunday, SEK, an empty series, a 404, a 500). Playwright `foreign-currency-rate-tier652.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 651 — the notes of the tax previews are written for their reader; the Hebesatz can be entered
 
 §9 item 24 („developer wording in the previews“), done („都做“, 10.10.2026). The previews close with notes for the owner and the adviser. They were written while the forms were built and said so — 79 string literals in 20 services, the same texts on the screen, in the PDFs and in the `MANIFEST.md` of the adviser's package: „Tier 506: Steuerrückstellungen …“, „v1: Berater trägt die Vorauszahlungen via PUT /gewst/settings ein“, „v2: Korrekturen werden aus Company.settings.kst1Korrekturen[year] gelesen“, „Rechnungen (status=paid/sent/overdue)“, „PRIMARY tax form“, „Nur enthalten, wenn … ODER `settings.anlageKAP === true`“. Rewritten for the reader: tier numbers and versions of the program gone, a field name replaced by where the figure is entered („erfasst unter Buchhaltung, Anlage N“), a route by the place in the interface, a status code by the word, and the sentences about „v2“ — a promise nobody decided to keep — removed. The same sweep over the message files (14 texts in each of de/en/zh).
@@ -9050,6 +9079,7 @@ frontend's build arg, and the frontend image refuses to build without it.
     - **What the three checks did not cover:** the reconciliation — a real exchange rate (the balance sheet, and through it the bank file formats: Tier 642; OSS: Tier 641; the bank import: Tier 639; Ist-Versteuerung and dunning: reconciled in Tier 638; a Kleinunternehmer: checked with the new document types); the page walk — clicking through tasks, other browsers, a real device, a screen reader; the cross-company test — 26 of 74 GET routes with a path parameter had no live target (roles inside one company: done in Tier 629; one customer against another in the portal: Tier 631; the operator's routes: Tier 632).
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**
+    - **Foreign currency (Tier 652):** invoices are converted at the ECB reference rate of the invoice's day. § 16 Abs. 6 UStG names the monthly average rates the BMF publishes; the daily rate needs the tax office's consent. Daily rate (as built), or the monthly average entered by hand on each invoice — or should the program fetch the monthly average?
     - **OSS:** (whether the company takes part is a setting since Tier 649.) Still for the Steuerberater: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.
