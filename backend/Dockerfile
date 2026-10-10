@@ -167,19 +167,16 @@ COPY --from=dev --chown=app:app /app/scripts ./scripts
 # from /app/dist/invoices is /, so /infra/kosit.
 COPY --from=kosit / /infra/kosit/
 
-# Switch back to root for runtime. The
-# `app` user was originally added for
-# defense in depth, but the named
-# volume comes up root-owned from an
-# earlier container start and a
-# non-root user can't chown or even
-# mkdir inside it without CAP_CHOWN
-# (which the default compose config
-# doesn't grant). Docker isolation
-# (separate PID/net/mount namespaces)
-# is the actual security boundary —
-# "root in container" ≠ "root on host".
-USER root
+# Tier 654: the program runs as `app`, not as root.
+#
+# It ran as root because "the named volume comes up root-owned and a non-root
+# user can't mkdir inside it". A new named volume takes the owner of the
+# directory it is mounted over — so the directory is made here, owned by
+# `app`, and the volume comes up as `app`'s. A volume that an earlier image
+# left root-owned is handed over by the entrypoint (see there).
+RUN mkdir -p /data/invoice-system && chown app:app /data/invoice-system /app
+COPY --chown=app:app docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod 0555 /app/docker-entrypoint.sh
 EXPOSE 3001
 
 # Healthcheck: /health (liveness, no DB
@@ -199,25 +196,15 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 # and drops them in .prisma/client/.
 # The prisma client picks them up
 # automatically on first use.
-USER root
+# (As `app`, whose node_modules these are; npm's cache goes to /tmp — the
+# root filesystem is read-only when the container runs, see the compose file.)
+USER app
+ENV NPM_CONFIG_CACHE=/tmp/.npm \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
 RUN DATABASE_URL=postgresql://nobody:nobody@127.0.0.1:1/nobody \
-    npx prisma generate 2>&1 | tail -2
-USER root
+    npx prisma generate 2>&1 | tail -2 && rm -rf /tmp/.npm
 
 # Tier 580: the compiled program. --enable-source-maps makes a stack trace
 # name the .ts line (the maps are in dist/).
-#
-# We run as root inside the container.
-# The `app` user was originally added
-# for defense in depth, but the
-# Prisma engine's tmp-file dance and
-# the volume's pre-existing root-
-# ownership both require root perms.
-# A non-root user would need
-# CAP_CHOWN / CAP_FOWNER capabilities
-# that the default compose config
-# doesn't grant. The container is
-# still isolated by the Docker network
-# — root inside the container isn't
-# root on the host.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "--enable-source-maps", "dist/main.js"]

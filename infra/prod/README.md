@@ -418,10 +418,15 @@ The full security checklist lives in [`SECURITY.md`](SECURITY.md).
 > - `/api/v1/auth/login` is rate-limited by the backend (`@Throttle`, 5/min per
 >   visitor address, plus a lockout after repeated failures). There is no
 >   limit in Caddy: stock Caddy has no `rate_limit` directive (Tier 561).
-> - All containers run as root inside the container, but Docker isolation
->   (separate PID/net/mount namespaces) is the security boundary —
->   not "non-root inside the container". See `backend/Dockerfile` for
->   the long-form reasoning.
+> - The backend and the frontend run as the unprivileged user `app`. Every
+>   container has a read-only root filesystem, no Linux capability beyond
+>   what it needs (none for backend, frontend and backup; binding ports 80
+>   and 443 for Caddy; taking over its data directory for PostgreSQL) and
+>   `no-new-privileges` (Tier 654). The backend writes to the `storage`
+>   volume and to `/tmp` (in memory) only. If the `storage` volume was
+>   written by an image from before Tier 654 — or restored from a copy as
+>   root — the backend refuses to start and names the one command that hands
+>   the volume over.
 > - Webhook payloads are HMAC-SHA256 signed. The signing secret is
 >   shown once at webhook creation time; the backend stores only the hash.
 > - VIES rate limiting prevents accidentally hammering the EU's free API.

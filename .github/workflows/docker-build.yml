@@ -17,6 +17,8 @@ on:
     branches: [main]
     paths:
       - 'backend/Dockerfile'
+      - 'backend/docker-entrypoint.sh'
+      - 'infra/prod/docker-compose.yml'
       - 'backend/.dockerignore'
       - 'backend/package.json'
       - 'backend/package-lock.json'
@@ -90,3 +92,62 @@ jobs:
             java -version
           '
           test "$(docker inspect -f '{{json .Config.Cmd}}' de-invoice-backend:ci)" = '["node","--enable-source-maps","dist/main.js"]'
+          # Tier 654: not root
+          test "$(docker inspect -f '{{.Config.User}}' de-invoice-backend:ci)" = 'app'
+
+      # Tier 654: the image started the way infra/prod/docker-compose.yml
+      # starts it — read-only root filesystem, no capability, no new
+      # privileges — against a PostgreSQL started the same way: the
+      # migrations run, the program answers, it is `app`, and it can write
+      # its storage and nothing else.
+      - name: Run the backend image hardened
+        if: matrix.name == 'backend'
+        run: |
+          set -euo pipefail
+          bash backend/scripts/ci-pull-image.sh postgres:16-alpine
+          docker network create harden
+          docker run -d --name harden-pg --network harden --network-alias postgres \
+            -e POSTGRES_DB=de_invoice -e POSTGRES_USER=de_invoice -e POSTGRES_PASSWORD=ci-only \
+            -v "$PWD/infra/prod/init.sql:/docker-entrypoint-initdb.d/init.sql:ro" \
+            --read-only --tmpfs /tmp --tmpfs /var/run/postgresql \
+            --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add SETGID --cap-add SETUID \
+            --security-opt no-new-privileges:true postgres:16-alpine
+          for i in $(seq 1 60); do docker exec harden-pg pg_isready -U de_invoice -d de_invoice >/dev/null 2>&1 && break; sleep 1; done
+          docker exec harden-pg psql -U de_invoice -d de_invoice -Atc 'select 1'
+          HARD=(--read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true)
+          ENVS=(--network harden -e NODE_ENV=production -e DISABLE_CRON=1
+                -e "DATABASE_URL=postgresql://de_invoice:ci-only@postgres:5432/de_invoice?schema=public"
+                -e JWT_SECRET=ci-only-0123456789abcdef0123456789abcdef -e FRONTEND_URL=http://localhost:3000)
+          docker run --rm "${ENVS[@]}" -v harden-storage:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci npx prisma migrate deploy | tail -2
+          docker run -d --name harden-be "${ENVS[@]}" -v harden-storage:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci
+          for i in $(seq 1 60); do docker exec harden-be wget -qO- http://localhost:3001/api/v1/health/deep >/dev/null 2>&1 && break; sleep 2; done
+          docker exec harden-be sh -ec '
+            test "$(id -un)" = app
+            wget -qO- http://localhost:3001/api/v1/health/deep | grep -q "\"storage\":{\"status\":\"ok\""
+            grep -q "^CapEff:.0000000000000000" /proc/1/status
+            grep -q "^NoNewPrivs:.1" /proc/1/status
+            ! touch /app/written 2>/dev/null
+            touch /data/invoice-system/written
+          ' || { docker logs harden-be | tail -40; exit 1; }
+          # a volume that belongs to root, with a file in it (an image from before
+          # Tier 654; Docker gives an EMPTY volume the image's owner again by
+          # itself): refused in words
+          docker run --rm --user root --entrypoint sh -v harden-legacy:/data/invoice-system de-invoice-backend:ci \
+            -c 'echo old > /data/invoice-system/old.pdf; chown -R root:root /data/invoice-system'
+          if docker run --rm -v harden-legacy:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci true 2> refusal.txt; then echo "started on a volume it cannot write"; exit 1; fi
+          grep -q "is not writable by app" refusal.txt
+          # … and handed over by the one run the message names
+          docker run --rm -v harden-legacy:/data/invoice-system "${HARD[@]}" --user root \
+            --cap-add CHOWN --cap-add FOWNER --cap-add DAC_OVERRIDE --cap-add SETUID --cap-add SETGID de-invoice-backend:ci true
+          docker run --rm -v harden-legacy:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci \
+            sh -ec 'test "$(id -un)" = app; test "$(stat -c %U /data/invoice-system/old.pdf)" = app; touch /data/invoice-system/written'
+
+      - name: Run the frontend image hardened
+        if: matrix.name == 'frontend'
+        run: |
+          set -euo pipefail
+          test "$(docker inspect -f '{{.Config.User}}' de-invoice-frontend:ci)" = 'app'
+          docker run -d --name harden-fe -e NODE_ENV=production -e PORT=3000 -e HOSTNAME=0.0.0.0 \
+            --read-only --tmpfs /tmp --tmpfs /app/.next/cache --cap-drop ALL --security-opt no-new-privileges:true de-invoice-frontend:ci
+          for i in $(seq 1 30); do docker exec harden-fe wget -q --spider http://localhost:3000/login 2>/dev/null && break; sleep 2; done
+          docker exec harden-fe wget -q --spider http://localhost:3000/login || { docker logs harden-fe | tail -40; exit 1; }

@@ -290,8 +290,8 @@ done
 log "  applying Prisma migrations (migrate deploy)..."
 docker compose -f infra/prod/docker-compose.yml run --rm backend \
   npx prisma migrate deploy 2>&1 | tail -3
-docker compose -f infra/prod/docker-compose.yml run --rm backend \
-  npx prisma generate 2>&1 | tail -2
+# (Tier 654: `prisma generate` was run here too — in a container that was then
+# thrown away. The image generates its client when it is built.)
 
 # ─── (no seeding) ───────────────────────────────────────
 # Tier 584: this script inserted a company row here ("seed the first

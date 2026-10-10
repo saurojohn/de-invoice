@@ -138,6 +138,19 @@ services:
       # Init script: enables citext, uuid-ossp extensions if
       # the app needs them later. Idempotent.
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # Tier 654: what a process in this container may do. The root filesystem
+    # is read-only (the data is in the volume, the socket and temporary files
+    # in memory); of root's capabilities only the five the image's entrypoint
+    # needs to take over the data directory and step down to `postgres`;
+    # nothing in it can gain more through a setuid binary.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       # pg_isready exits 0 when postgres is ready to
       # accept connections. We use the dedicated
@@ -234,6 +247,16 @@ services:
       # compose file just doesn't set it.
     volumes:
       - storage:/data/invoice-system
+    # Tier 654: the image runs as `app` (it ran as root). Read-only root
+    # filesystem — uploads and PDFs go to the volume, temporary files (the
+    # validator's reports, npm's cache for `npx prisma migrate deploy`) to
+    # memory — no capability at all, and no way to gain one.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3001/api/v1/health || exit 1"]
       interval: 30s
@@ -278,6 +301,15 @@ services:
       # keepalive 30s). Node's default is 5 s — the proxy would reuse a
       # connection this server has just closed.
       KEEP_ALIVE_TIMEOUT: "65000"
+    # Tier 654: as the backend — runs as `app` already; read-only apart from
+    # Next's cache, which is kept in memory.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1"]
       interval: 30s
@@ -362,6 +394,13 @@ services:
       # the image's hooks (/hooks) — see its README.
     volumes:
       - backups:/backups
+    # Tier 654: it writes dumps into its volume and nothing else.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
   # ─── Caddy (reverse proxy + auto-TLS) ──────────────────
   # Tier 114: replaces the host-nginx pattern from
@@ -405,6 +444,14 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    # Tier 654: the one capability Caddy needs is to listen on 80 and 443.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
     environment:
       # Caddy reads the Caddyfile from the bind-mount
       # above. No env vars needed for the basic config;
