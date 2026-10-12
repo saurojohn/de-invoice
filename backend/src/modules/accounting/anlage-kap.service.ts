@@ -6,53 +6,35 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 
 /**
- * Tier 98: Anlage KAP — Einkünfte aus
- * Kapitalvermögen (§ 20 EStG).
+ * Anlage KAP — Einkünfte aus Kapitalvermögen (§ 20 EStG): a preview from the
+ * credits of the imported bank accounts whose purpose names interest or a
+ * dividend.
  *
- * The German tax filing for investment
- * income: a year-end attachment to the
- * Einkommensteuererklärung. Pairs with Anlage
- * S (freelancer) and Anlage V (Vermietung).
+ * Tier 670 — read against the statute (gesetze-im-internet.de, 12.10.2026):
  *
- * Three key concepts:
- *   1. **Abgeltungssteuer** — 25% flat tax on
- *      most Kapitalerträge (Zinsen, Dividenden,
- *      Veräußerungsgewinne). Already deducted
- *      at source by the bank / depot. The Anlage
- *      KAP declares the gross + the tax already
- *      paid so the Finanzamt can apply the
- *      Sparer-Pauschbetrag (801 EUR / 1602 EUR
- *      Zusammenveranlagung).
- *   2. **Sparer-Pauschbetrag** — 1000 EUR
- *      (single) / 2000 EUR (Zusammenveranlagung)
- *      tax-free allowance. Only the difference
- *      is taxable.
- *   3. **Kirchensteuer + Solidaritätszuschlag**
- *      — additional 5.5% Soli on the Abgeltungs-
- *      steuer, plus 8-9% KiSt depending on
- *      Bundesland.
+ *   § 20 Abs. 8   Capital income that belongs to a business is business
+ *                 income, not capital income: it goes into the profit, and
+ *                 the Sparer-Pauschbetrag is not for it (§ 32d Abs. 1: the
+ *                 25 % are for income "die nicht unter § 20 Absatz 8
+ *                 fallen"). The accounts imported here are mostly the
+ *                 business's — the form says so, and leaves out what is
+ *                 booked or matched to an invoice: that is in the books.
+ *   § 20 Abs. 9   Sparer-Pauschbetrag 1 000 € (2 000 € for spouses assessed
+ *                 together) from 2023, 801 € / 1 602 € before; never more
+ *                 than the capital income. Before: 1 000 € for every year,
+ *                 no way to say "together", and the full amount shown
+ *                 against 300 € of income.
+ *   What a bank credits is what is left after the tax it withheld; the
+ *   gross income and the tax are on the bank's Steuerbescheinigung, from
+ *   which the real Anlage KAP is filled in. The 25 % + Soli shown here are
+ *   what would be due if nothing was withheld — the form says that too.
  *
- * v1 heuristic: bank transactions with
- * "Zins" / "Zinsen" / "Dividende" / "Ausschüttung"
- * in the purpose field are tentatively classified
- * as Kapitalerträge. The opt-in flag
- * `Company.settings.anlageKAP === true` gates
- * whether the report is generated (the user
- * enables Anlage KAP on a per-company basis
- * when the company has investment income).
+ * Before, „Zins“ anywhere in the purpose made a credit interest income: a
+ * customer's payment „Rechnung 12 inkl. Verzugszinsen“ of 1 190 € counted,
+ * as would a rent paid as „Mietzins“.
  *
- * Output: per-Kennziffer lines + Sparer-Pausch-
- * betrag + taxable base + summary. Same VORSCHAU
- * (preview) caveat as Anlage S / Anlage V — the
- * disclaimer surfaces in the response + the PDF
- * footer.
- *
- * The Kennziffern 7100-7900 are an internal
- * namespace (not BMF's actual Zeile numbers in
- * the printable Anlage KAP form). The Berater
- * maps them to the BMF Zeile positions when
- * transcribing the VORSCHAU into the actual
- * ElsterForm / PDF form.
+ * The Kennziffern 7100-7900 are this preview's own numbers, not the lines
+ * of the official form.
  */
 export interface AnlageKAPLine {
   kennziffer: string
@@ -87,7 +69,11 @@ export interface AnlageKAPResult {
     bankTransactions: number
     matchedZinsTransactions: number
     matchedDividendeTransactions: number
+    /** credits naming interest or a dividend that are booked or matched to an invoice — business income, left out */
+    leftOutBooked: number
   }
+  /** § 20 Abs. 9: the allowance of the year, and whether the spouses' joint one */
+  sparerPauschbetrag: { voll: number; angesetzt: number; zusammenveranlagung: boolean }
   generatedAt: string
   disclaimer: string
 }
@@ -97,6 +83,16 @@ export interface AnlageKAPResult {
 // to tentatively identify Zinserträge and
 // Dividendenerträge. The user can override
 // in their ELSTER submission.
+// „Zinsen“, „Habenzinsen“, „Zinsgutschrift“ … as words of their own — not the
+// „zins“ inside Verzugszinsen, Mietzins, Erbbauzins, Sollzinsen
+const ZINS = /(?<![A-Za-zÄÖÜäöüß])(?:Haben|Guthaben|Spar|Gutschrifts)?zins(?:en|gutschrift|ertrag|erträge|abschluss)?(?![A-Za-zÄÖÜäöüß])/i
+const DIVIDENDE = /(?<![A-Za-zÄÖÜäöüß])(?:Dividenden?(?:zahlung|gutschrift)?|Ausschüttung(?:en)?|Kupon(?:zahlung|gutschrift)?)(?![A-Za-zÄÖÜäöüß])/i
+const isGerman = (tx: any): boolean => !tx.counterpartyIban || String(tx.counterpartyIban).toUpperCase().startsWith('DE')
+
+/** § 20 Abs. 9 EStG: 1 000 € from 2023, 801 € before; twice for spouses assessed together. */
+export const sparerPauschbetragFor = (year: number, together = false): number =>
+  (year >= 2023 ? 1000 : 801) * (together ? 2 : 1)
+
 const EINNAHMEN_LINES: Array<{
   kz: string
   label: string
@@ -106,37 +102,22 @@ const EINNAHMEN_LINES: Array<{
   {
     kz: '7100',
     label: 'Inländische Zinserträge (Tagesgeld, Festgeld, Sparbuch)',
-    matcher: (tx) =>
-      Number(tx.amount) > 0 &&
-      /Zins(en)?|Habenzins|Gutschriftszins/i.test(tx.purpose || '') &&
-      // Inländisch if the counterparty IBAN starts with DE
-      (!tx.counterpartyIban || tx.counterpartyIban.startsWith('DE')),
+    matcher: (tx) => Number(tx.amount) > 0 && ZINS.test(tx.purpose || '') && isGerman(tx),
   },
   {
     kz: '7110',
     label: 'Ausländische Zinserträge',
-    matcher: (tx) =>
-      Number(tx.amount) > 0 &&
-      /Zins(en)?|Habenzins|Gutschriftszins/i.test(tx.purpose || '') &&
-      tx.counterpartyIban &&
-      !tx.counterpartyIban.startsWith('DE'),
+    matcher: (tx) => Number(tx.amount) > 0 && ZINS.test(tx.purpose || '') && !isGerman(tx),
   },
   {
     kz: '7120',
     label: 'Inländische Dividendenerträge / Ausschüttungen',
-    matcher: (tx) =>
-      Number(tx.amount) > 0 &&
-      /Dividende|Ausschüttung|Kupongewinn/i.test(tx.purpose || '') &&
-      (!tx.counterpartyIban || tx.counterpartyIban.startsWith('DE')),
+    matcher: (tx) => Number(tx.amount) > 0 && DIVIDENDE.test(tx.purpose || '') && isGerman(tx),
   },
   {
     kz: '7130',
     label: 'Ausländische Dividendenerträge',
-    matcher: (tx) =>
-      Number(tx.amount) > 0 &&
-      /Dividende|Ausschüttung/i.test(tx.purpose || '') &&
-      tx.counterpartyIban &&
-      !tx.counterpartyIban.startsWith('DE'),
+    matcher: (tx) => Number(tx.amount) > 0 && DIVIDENDE.test(tx.purpose || '') && !isGerman(tx),
   },
   {
     kz: '7140',
@@ -207,8 +188,8 @@ const ABZUEGE_LINES: Array<{
   },
   {
     kz: '7300',
-    label: 'Sparer-Pauschbetrag (1.000 EUR / 2.000 EUR Zusammenveranlagung)',
-    amount: 'auto', // 1000 default; user can adjust in settings (v2)
+    label: 'Sparer-Pauschbetrag', // the amounts of the year are added in compute()
+    amount: 'auto',
   },
   {
     kz: '7400',
@@ -281,6 +262,8 @@ export class AnlageKAPService {
         amount: true,
         purpose: true,
         counterpartyIban: true,
+        voucherId: true,
+        matches: { where: { status: { not: 'rejected' } }, select: { id: true } },
       },
     })
 
@@ -296,10 +279,14 @@ export class AnlageKAPService {
       transactionsByKz[line.kz] = []
     }
 
+    // § 20 Abs. 8: a credit that is booked, or matched to an invoice, is in
+    // the business's books — business income, not capital income
+    let leftOutBooked = 0
     for (const tx of bankTransactions) {
       for (const line of EINNAHMEN_LINES) {
         if (line.matcher(tx)) {
-          transactionsByKz[line.kz].push(tx)
+          if (tx.voucherId || tx.matches.length > 0) leftOutBooked++
+          else transactionsByKz[line.kz].push(tx)
           break // first match wins
         }
       }
@@ -333,21 +320,16 @@ export class AnlageKAPService {
       .concat(transactionsByKz['7130'] || [])
       .length
 
-    // Abzüge: 7300 is 'auto' (Sparer-Pauschbetrag,
-    // default 1000 EUR — the user adjusts via
-    // Company.settings.sparerPauschbetrag if
-    // they want Zusammenveranlagung's 2000).
-    // v1: hard-coded 1000; v2: read from
-    // Company.settings.sparerPauschbetrag.
+    // § 20 Abs. 9: the allowance of the year — and never more than the income
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { settings: true },
     })
     const settings = (company?.settings as any) || {}
-    const sparerPauschbetrag =
-      typeof settings.sparerPauschbetrag === 'number'
-        ? settings.sparerPauschbetrag
-        : 1000
+    const zusammenveranlagung = settings.anlageKAPZusammenveranlagung === true
+    const voll = sparerPauschbetragFor(year, zusammenveranlagung)
+    const sparerPauschbetrag = Math.min(voll, Math.max(0, round2(einnahmenTotal)))
+    const eur = (n: number): string => new Intl.NumberFormat('de-DE').format(n)
 
     const abzuege: AnlageKAPLine[] = []
     let abzuegeTotal = 0
@@ -356,10 +338,18 @@ export class AnlageKAPService {
         line.amount === 'auto' ? sparerPauschbetrag : line.amount
       abzuege.push({
         kennziffer: line.kz,
-        label: line.label,
+        label:
+          line.amount === 'auto'
+            ? `Sparer-Pauschbetrag (§ 20 Abs. 9 EStG): ${eur(sparerPauschbetragFor(year))} EUR, bei Zusammenveranlagung ${eur(sparerPauschbetragFor(year, true))} EUR — höchstens die Kapitalerträge`
+            : line.label,
         amount: round2(amount),
         source: line.amount === 'auto' ? 'computed' : 'placeholder',
-        note: line.note,
+        note:
+          line.amount === 'auto'
+            ? zusammenveranlagung
+              ? 'Angesetzt ist der gemeinsame Sparer-Pauschbetrag (Zusammenveranlagung).'
+              : undefined
+            : line.note,
       })
       abzuegeTotal += amount
     }
@@ -397,16 +387,22 @@ export class AnlageKAPService {
         bankTransactions: bankTransactions.length,
         matchedZinsTransactions: matchedZins,
         matchedDividendeTransactions: matchedDividende,
+        leftOutBooked,
       },
+      sparerPauschbetrag: { voll, angesetzt: sparerPauschbetrag, zusammenveranlagung },
       generatedAt: new Date().toISOString(),
       disclaimer:
-        'Diese Anlage KAP ist eine VORSCHAU basierend auf den in de-invoice verfügbaren Daten. ' +
-        'Die Klassifizierung der Kapitalerträge erfolgt anhand einer Heuristik auf den Verwendungszweck-Feldern ' +
-        'importierter Banktransaktionen. Anlage KAP-spezifische Themen (Investmentfonds-Thesaurierung, ' +
-        'Veräußerungsgewinne, Termingeschäfte, ausländische Quellensteuer, Kirchensteuer auf ' +
-        'Abgeltungssteuer, Verlustvortrag nach § 20 Abs. 6 EStG) sind als Platzhalter markiert. ' +
-        'Der Steuerberater prüft die Klassifizierung im ELSTER-Mein-ELSTER-Client und ergänzt die ' +
-        'fehlenden Positionen aus den Jahresdepotauszügen.',
+        'Diese Vorschau zeigt Gutschriften der hier importierten Konten, deren Verwendungszweck Zinsen oder ' +
+        'Dividenden nennt und die weder verbucht noch einer Rechnung zugeordnet sind. ' +
+        'Erträge eines betrieblichen Kontos sind keine Einkünfte aus Kapitalvermögen, sondern Betriebseinnahmen ' +
+        '(§ 20 Abs. 8 EStG): sie gehören in die Gewinnermittlung, der Sparer-Pauschbetrag gilt für sie nicht. ' +
+        'In die Anlage KAP gehören nur Erträge privater Konten. ' +
+        'Eine Gutschrift ist der Betrag nach Abzug der von der Bank einbehaltenen Kapitalertragsteuer; der ' +
+        'Bruttoertrag und die einbehaltene Steuer stehen in der Steuerbescheinigung der Bank, nach der die ' +
+        'Anlage KAP ausgefüllt wird. ' +
+        'Nicht erfasst und als Platzhalter gezeigt: Fondserträge, Veräußerungsgewinne, Termingeschäfte, ' +
+        'ausländische Quellensteuer, Kirchensteuer, Verluste und der Verlustvortrag nach § 20 Abs. 6 EStG — ' +
+        'der Steuerberater ergänzt sie aus den Bescheinigungen der Banken.',
     }
   }
 
@@ -445,7 +441,10 @@ export class AnlageKAPService {
       .fontSize(11)
       .font('Helvetica-Bold')
       .text(
-        `${data.counts.matchedZinsTransactions} Zins- + ${data.counts.matchedDividendeTransactions} Dividendentransaktionen aus ${data.counts.bankTransactions} Bankbuchungen erkannt.`,
+        `${data.counts.matchedZinsTransactions} Zins- und ${data.counts.matchedDividendeTransactions} Dividendengutschriften unter ${data.counts.bankTransactions} Bankbuchungen` +
+          (data.counts.leftOutBooked > 0
+            ? `; ${data.counts.leftOutBooked} weitere sind verbucht oder einer Rechnung zugeordnet — Betriebseinnahmen (§ 20 Abs. 8 EStG), hier nicht angesetzt.`
+            : '.'),
       )
       .moveDown(0.5)
 
@@ -573,17 +572,17 @@ export class AnlageKAPService {
     doc
       .fontSize(13)
       .font('Helvetica-Bold')
-      .text('Abgeltungssteuer (zur Information)', { align: 'left' })
+      .text('Abgeltungsteuer, wenn die Bank nichts einbehalten hat', { align: 'left' })
       .moveDown(0.3)
     doc.fontSize(10).font('Helvetica')
     doc.text(
-      `Erwartete Abgeltungssteuer (25%): ${data.abgeltungssteuer.expectedSteuer.toFixed(2)} EUR`,
+      `Abgeltungsteuer (25 %, § 32d Abs. 1 EStG): ${data.abgeltungssteuer.expectedSteuer.toFixed(2)} EUR`,
       40,
       doc.y,
       { width: 515 },
     )
     doc.text(
-      `Erwarteter Solidaritätszuschlag (5.5%): ${data.abgeltungssteuer.expectedSoli.toFixed(2)} EUR`,
+      `Solidaritätszuschlag (5,5 % der Steuer): ${data.abgeltungssteuer.expectedSoli.toFixed(2)} EUR`,
       40,
       doc.y,
       { width: 515 },
@@ -592,7 +591,7 @@ export class AnlageKAPService {
       .fontSize(8)
       .fillColor('#666')
       .text(
-        'Diese Beträge werden in der Regel direkt von der Bank / dem Depot einbehalten und im Jahresdepotauszug ausgewiesen. Der Steuerberater prüft die Übereinstimmung mit dem Anlage KAP.',
+        'Gerechnet auf die Gutschriften abzüglich Sparer-Pauschbetrag. Hat die Bank Kapitalertragsteuer einbehalten, ist die Gutschrift schon der Betrag danach und nichts mehr zu zahlen; maßgeblich ist die Steuerbescheinigung der Bank.',
         40,
         doc.y,
         { width: 515 },

@@ -2841,19 +2841,21 @@
   },
   "anlageKAP": {
     "title": "Anlage KAP 附件（预览）",
-    "subtitle": "资本收入（§ 20 EStG）— 自动从导入的银行交易生成。适用于有利息/股息收入的个人投资者。25% 资本利得税（Abgeltungssteuer）通常由银行代扣。请税务师审核。",
+    "subtitle": "资本收益（§ 20 EStG）— 已导入账户中尚未入账的利息和股息入账。仅适用于私人账户：营业账户的收益属于营业收入（§ 20 第 8 款 EStG），应计入利润核算。",
     "year": "财年",
     "recompute": "计算",
     "downloadPdf": "下载 PDF",
     "einnahmen": "收入",
     "abzuege": "扣除 / 免税额",
     "zuVersteuern": "应税金额",
-    "abgeltungssteuer": "预期资本利得税 + Soli（参考信息）",
-    "abgeltungHint": "这些金额通常由银行/券商代扣 — 详见年度券商对账单。",
+    "abgeltungssteuer": "银行未代扣时应缴的预提税 + 团结附加税",
+    "abgeltungHint": "按入账金额减去储蓄免税额计算。如果银行已代扣资本收益税，入账金额就是扣税后的金额，无需再缴 — 以银行的税务证明为准。",
     "bankTransactions": "银行交易",
     "matchedZins": "利息收入",
     "matchedDividende": "股息收入",
-    "generatedAt": "生成时间"
+    "generatedAt": "生成时间",
+    "zusammenveranlagung": "夫妻合并申报（共同储蓄免税额）",
+    "leftOutBooked": "另有 {n} 笔利息/股息入账已入账或已匹配到发票 — 属于营业收入，此处不计。"
   },
   "anlageG": {
     "title": "Anlage G 附件（预览）",

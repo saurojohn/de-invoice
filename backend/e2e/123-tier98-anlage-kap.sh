@@ -141,15 +141,15 @@ note "=== 9. Sparer-Pauschbetrag default == 1000 EUR ==="
 api_get "/api/v1/accounting/anlage-kap?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
 
+# Tier 670: the year's allowance is 1 000 €; what is applied is never more
+# than the capital income (§ 20 Abs. 9 Satz 4 EStG) — line 7300 shows that
 PAUSCH=$(python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-for l in d['abzuege']:
-  if l['kennziffer'] == '7300':
-    print(l['amount'])
-    break
+line = [l for l in d['abzuege'] if l['kennziffer'] == '7300'][0]
+print(d['sparerPauschbetrag']['voll'], line['amount'] == min(1000, d['totals']['einnahmenTotal']))
 " < "$TMP")
-assert_eq "Sparer-Pauschbetrag (7300) == 1000" "$PAUSCH" "1000"
+assert_eq "Sparer-Pauschbetrag 2026: 1 000, applied up to the income" "$PAUSCH" "1000 True"
 rm -f "$TMP"
 
 # ===== 10. Berater packager includes 03_Anlage-KAP when KAP-relevant =====

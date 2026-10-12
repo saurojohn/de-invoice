@@ -2656,6 +2656,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 670 — Anlage KAP read against §§ 20, 32d EStG
+
+Read from gesetze-im-internet.de on 12.10.2026, then measured with a company that has interest credits of 2022 and 2024, debit interest, a customer's payment and a foreign dividend:
+
+- **Sparer-Pauschbetrag (§ 20 Abs. 9):** 1 000 € for every year — it is 801 € (1 602 € together) up to 2022 — and shown in full against 300 € of income, though it may never exceed the income. „Zusammenveranlagung“ stood in the label with nothing to choose it: `settings.sparerPauschbetrag`, which the service read, was written by no page and no route. Now `sparerPauschbetragFor(year, together)`, applied up to the income; `PUT /accounting/anlage-kap/settings {zusammenveranlagung}` and a checkbox on the page.
+- **What counted as interest:** „Zins“ anywhere in the purpose. A customer's payment „Rechnung INV-12 inkl. Verzugszinsen“ of 1 190 € was capital income with tax computed on it; „Mietzins“ would have been too. Whole words now (Zinsen, Habenzinsen, Zinsgutschrift …; Dividende, Ausschüttung, Kupon).
+- **§ 20 Abs. 8:** capital income of a business is business income, not capital income — and the accounts imported here are mostly the business's. The form cannot know which account is private; it leaves out every credit that is booked or matched to an invoice (`counts.leftOutBooked`, shown), and says in its subtitle and closing text that only private accounts' income belongs on Anlage KAP.
+- **Net, not gross:** a credit is what is left after the tax the bank withheld. The block „Erwartete Abgeltungssteuer“ is now „Abgeltungsteuer + Soli, wenn die Bank nichts einbehalten hat“, with the reason.
+
+Spec `397-tier670-anlage-kap-nach-dem-gesetz.sh` (25 assertions); spec 123 follows; three texts added to both tax-form dictionaries (418 entries). **Not done before the session's usage limit:** the proof that spec 397 fails on the code before, a browser test for the checkbox, and a run of the page's browser tests after this change.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 669 — a year field asks for whole years only
 
 Seen while changing Anlage SO's year field, then measured on all of them (a script that types „2024“ digit by digit into every year field of the accounting page): each of the nineteen forms asked the server for the years 2, 20 and 202 before 2024 — three refusals and three red messages „year ist ungültig“ per field. The same on the UStVA page, the ZM card, the home-office card, the assets page and the BWA, P&L and OSS tabs.

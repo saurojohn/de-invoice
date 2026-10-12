@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiGet, ApiError } from "@/lib/api"
+import { apiGet, apiPut, ApiError } from "@/lib/api"
 import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
 import { useYearField } from "@/lib/year-field"
 
@@ -37,32 +37,21 @@ interface AnlageKAPResult {
     bankTransactions: number
     matchedZinsTransactions: number
     matchedDividendeTransactions: number
+    leftOutBooked?: number
   }
+  // Tier 670: the allowance of the year, and whether the spouses' joint one
+  sparerPauschbetrag?: { voll: number; angesetzt: number; zusammenveranlagung: boolean }
   generatedAt: string
   disclaimer: string
 }
 
 /**
- * Tier 98: Anlage KAP section.
- *
- * Einkünfte aus Kapitalvermögen (§ 20 EStG)
- * — for private investors / Privatinvestoren
- * with Zinserträgen, Dividenden, and other
- * investment income. Sibling of Anlage S
- * (freelancer) + Anlage V (Vermietung).
- *
- * The 25% Abgeltungssteuer is normally already
- * deducted at source by the bank / depot. The
- * Anlage KAP declaration in ELSTER declares
- * the gross + applies the Sparer-Pauschbetrag
- * (1.000 EUR / 2.000 EUR Zusammenveranlagung)
- * so the Finanzamt can apply the allowance.
- *
- * v1: bank transactions with "Zins" /
- * "Dividende" / "Ausschüttung" in the purpose
- * field are tentatively classified as
- * Kapitalerträge. The user adjusts in their
- * ELSTER submission.
+ * Anlage KAP — Einkünfte aus Kapitalvermögen (§ 20 EStG): interest and
+ * dividend credits of the imported accounts that are not in the books.
+ * What the form can and cannot know is said on it (Tier 670): income of a
+ * business account is business income (§ 20 Abs. 8), a credit is what is
+ * left after the tax the bank withheld, the Sparer-Pauschbetrag is the
+ * year's and never more than the income.
  */
 export function AnlageKAPSection() {
   const { t } = useI18n()
@@ -99,6 +88,20 @@ export function AnlageKAPSection() {
   useEffect(() => {
     load(year)
   }, [year, load])
+
+  // Tier 670: spouses assessed together share twice the Sparer-Pauschbetrag
+  const saveTogether = async (zusammenveranlagung: boolean) => {
+    try {
+      const companyId =
+        typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      if (!companyId) return
+      await apiPut(`/api/v1/accounting/anlage-kap/settings?companyId=${companyId}`, { zusammenveranlagung })
+      await load(year)
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.message : tRef.current("common.saveError")
+      toastRef.current.error(msg)
+    }
+  }
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("de-DE", {
@@ -145,6 +148,16 @@ export function AnlageKAPSection() {
                 data-testid="anlage-kap-year"
               />
             </div>
+            <label className="flex items-center gap-2 text-sm pb-2">
+              <input
+                type="checkbox"
+                checked={data?.sparerPauschbetrag?.zusammenveranlagung === true}
+                disabled={!data || loading}
+                onChange={(e) => saveTogether(e.target.checked)}
+                data-testid="anlage-kap-zusammen"
+              />
+              {tRef.current("anlageKAP.zusammenveranlagung")}
+            </label>
             <Button
               onClick={() => load(year)}
               disabled={loading}
@@ -287,6 +300,11 @@ export function AnlageKAPSection() {
                 {tRef.current("anlageKAP.matchedDividende")}: <b>{data.counts.matchedDividendeTransactions}</b> ·{" "}
                 {tRef.current("anlageKAP.generatedAt")}: {new Date(data.generatedAt).toLocaleString("de-DE")}
               </div>
+              {(data.counts.leftOutBooked ?? 0) > 0 && (
+                <div className="mt-1 text-xs text-gray-500" data-testid="anlage-kap-left-out">
+                  {tRef.current("anlageKAP.leftOutBooked").replace("{n}", String(data.counts.leftOutBooked))}
+                </div>
+              )}
             </>
           )}
         </CardContent>

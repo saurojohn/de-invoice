@@ -10,7 +10,7 @@ import {
   AnlageKindSettingsDto,
   AnlageSoSettingsDto,
   AnlageAusSettingsDto,
-  GewstSettingsDto,
+  GewstSettingsDto, AnlageKapSettingsDto,
 } from './dto/tax-settings.dto';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
@@ -700,6 +700,27 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     return this.anlageKAP.compute(companyId, year)
+  }
+
+  // Tier 670: whether the Sparer-Pauschbetrag is the spouses' joint one.
+  // (`settings.sparerPauschbetrag`, which the service read before, was
+  // written by no page and no route.)
+  @Require('accounting.update')
+  @Put('anlage-kap/settings')
+  @UseGuards(HeaderAuthGuard)
+  async updateAnlageKapSettings(
+    @Query('companyId') companyId: string,
+    @Body() body: AnlageKapSettingsDto,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+    const settings = ((company as any).settings ?? {}) as Record<string, any>
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { settings: { ...settings, anlageKAPZusammenveranlagung: body.zusammenveranlagung } } as any,
+    })
+    return { ok: true, zusammenveranlagung: body.zusammenveranlagung }
   }
 
   @Require('accounting.read')

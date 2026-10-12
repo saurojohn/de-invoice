@@ -2841,19 +2841,21 @@
   },
   "anlageKAP": {
     "title": "Anlage KAP (Vorschau)",
-    "subtitle": "Einkünfte aus Kapitalvermögen (§ 20 EStG) — automatisch aus importierten Banktransaktionen generiert. Für Privatinvestoren mit Zinserträgen / Dividenden. Die 25% Abgeltungssteuer wird üblicherweise direkt von der Bank einbehalten. Vom Steuerberater prüfen lassen.",
+    "subtitle": "Einkünfte aus Kapitalvermögen (§ 20 EStG) — Zins- und Dividendengutschriften der importierten Konten, soweit sie nicht verbucht sind. Nur für private Konten: Erträge eines betrieblichen Kontos sind Betriebseinnahmen (§ 20 Abs. 8 EStG) und gehören in die Gewinnermittlung.",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
     "einnahmen": "Einnahmen",
     "abzuege": "Abzüge / Pauschbeträge",
     "zuVersteuern": "Zu versteuern",
-    "abgeltungssteuer": "Erwartete Abgeltungssteuer + Soli (zur Information)",
-    "abgeltungHint": "Diese Beträge werden in der Regel direkt von der Bank / dem Depot einbehalten — siehe Jahresdepotauszug.",
+    "abgeltungssteuer": "Abgeltungsteuer + Soli, wenn die Bank nichts einbehalten hat",
+    "abgeltungHint": "Gerechnet auf die Gutschriften abzüglich Sparer-Pauschbetrag. Hat die Bank Kapitalertragsteuer einbehalten, ist die Gutschrift schon der Betrag danach und nichts mehr zu zahlen — maßgeblich ist die Steuerbescheinigung der Bank.",
     "bankTransactions": "Bankbuchungen",
     "matchedZins": "Zinserträge",
     "matchedDividende": "Dividenden",
-    "generatedAt": "Erstellt"
+    "generatedAt": "Erstellt",
+    "zusammenveranlagung": "Zusammenveranlagung (gemeinsamer Sparer-Pauschbetrag)",
+    "leftOutBooked": "{n} weitere Zins-/Dividendengutschrift(en) sind verbucht oder einer Rechnung zugeordnet — Betriebseinnahmen, hier nicht angesetzt."
   },
   "anlageG": {
     "title": "Anlage G (Vorschau)",

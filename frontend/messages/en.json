@@ -2841,19 +2841,21 @@
   },
   "anlageKAP": {
     "title": "Anlage KAP (preview)",
-    "subtitle": "Income from capital investments (§ 20 EStG) — auto-generated from imported bank transactions. For private investors with interest / dividend income. The 25% flat tax (Abgeltungssteuer) is usually deducted at source by the bank. Have your tax advisor review.",
+    "subtitle": "Income from capital (§ 20 EStG) — interest and dividend credits of the imported accounts, as far as they are not booked. For private accounts only: income of a business account is business income (§ 20 para. 8 EStG) and belongs in the profit calculation.",
     "year": "Fiscal year",
     "recompute": "Compute",
     "downloadPdf": "Download PDF",
     "einnahmen": "Income",
     "abzuege": "Deductions / Allowances",
     "zuVersteuern": "Taxable",
-    "abgeltungssteuer": "Expected flat tax + Soli (informational)",
-    "abgeltungHint": "These amounts are usually deducted at source by the bank / broker — see annual depot statement.",
+    "abgeltungssteuer": "Flat tax + solidarity surcharge if the bank withheld nothing",
+    "abgeltungHint": "Calculated on the credits less the saver's allowance. If the bank withheld tax, the credit already is the amount after it and nothing more is due — the bank's tax certificate is what counts.",
     "bankTransactions": "Bank transactions",
     "matchedZins": "Interest income",
     "matchedDividende": "Dividend income",
-    "generatedAt": "Generated"
+    "generatedAt": "Generated",
+    "zusammenveranlagung": "Joint assessment (the spouses' joint saver's allowance)",
+    "leftOutBooked": "{n} more interest/dividend credit(s) are booked or matched to an invoice — business income, not counted here."
   },
   "anlageG": {
     "title": "Anlage G (preview)",
