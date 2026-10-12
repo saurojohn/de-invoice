@@ -2907,9 +2907,9 @@
       "pflegeversicherung": "长期护理保险（Kz 10)"
     },
     "fieldHint": "复制您工资税证明中的数值。精确到分 — 财政局将四舍五入到整欧元。",
-    "wkhint": "130 = 雇员免税额（自动 1.230 EUR）。其他 Kz（140-190）需手动输入 — 工作日 × 公里 × 0.30 EUR 计算通勤距离。",
-    "sahint": "基础免税额以上的养老储蓄（吕库普/里斯特）。KV/PV 部分已从总工资中扣除。",
-    "abhint": "医疗费用、残疾（按 GdB 免税额）、丧葬费用、护理 — 超过总收入 1% 起可抵扣（合理负担）。",
+    "wkhint": "只要没有填写更高的必要费用，就采用雇员定额扣除（Kz 130）— 是代替实际费用而不是叠加，且最多不超过工资（§ 9a EStG）。Kz 140–190 由您自己填写。",
+    "sahint": "仅供参考 — 特别支出不减少工资收入，而是减少应税所得（§ 2 第 4 款 EStG）。它们填在 Anlage Vorsorgeaufwand 和 Anlage Sonderausgaben，工资税证明上的保险费也是如此。",
+    "abhint": "仅供参考 — 超过可承受负担的部分才可扣除（§ 33 第 3 款 EStG：收入总额的 1 % 至 7 %）；填在 Anlage Außergewöhnliche Belastungen。",
     "savedOk": "工资税证明已保存。",
     "generatedAt": "生成时间"
   },

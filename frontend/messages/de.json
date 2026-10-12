@@ -2907,9 +2907,9 @@
       "pflegeversicherung": "Pflegeversicherung (Kz 10)"
     },
     "fieldHint": "Werte aus Ihrer Lohnsteuerbescheinigung übernehmen. Cent-genau eingeben — das Finanzamt rundet auf volle Euro.",
-    "wkhint": "130 = Arbeitnehmer-Pauschbetrag (auto). Die übrigen Kz (140-190) sind manuell einzutragen — Anzahl der Arbeitstage × km × 0,30 EUR für Entfernungspauschale etc.",
-    "sahint": "Vorsorgeaufwand oberhalb des Grundhöchstbetrags (Basis-Rente, Riester). Die KV/PV-Anteile sind bereits im Brutto berücksichtigt.",
-    "abhint": "Krankheitskosten, Behinderung (Pauschbetrag je nach GdB), Bestattungskosten, Pflege — abzugsfähig ab 1% Brutto (zumutbare Belastung).",
+    "wkhint": "Der Arbeitnehmer-Pauschbetrag (Kz 130) wird angesetzt, solange keine höheren Werbungskosten eingetragen sind — statt ihrer, nicht zusätzlich, und höchstens bis zur Höhe des Arbeitslohns (§ 9a EStG). Kz 140–190 tragen Sie selbst ein.",
+    "sahint": "Zur Information — Sonderausgaben mindern nicht die Einkünfte aus nichtselbständiger Arbeit, sondern das Einkommen (§ 2 Abs. 4 EStG). Sie gehören in die Anlagen Vorsorgeaufwand und Sonderausgaben, die Versicherungsbeiträge aus der Lohnsteuerbescheinigung ebenso.",
+    "abhint": "Zur Information — abzugsfähig, soweit sie die zumutbare Belastung übersteigen (§ 33 Abs. 3 EStG: 1 bis 7 % des Gesamtbetrags der Einkünfte); Anlage Außergewöhnliche Belastungen.",
     "savedOk": "Lohnsteuerbescheinigung gespeichert.",
     "generatedAt": "Erstellt"
   },

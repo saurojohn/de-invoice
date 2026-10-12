@@ -40,11 +40,11 @@ import PDFDocument from 'pdfkit'
  * (Placeholder for Berater — Krankheitskosten,
  * Behinderung, etc.).
  *
- * The bottom line is the Anlage-N-Einkünfte
- * (= Brutto − Werbungskosten − Sonderausgaben
- * − Außergewöhnliche Belastungen − Altersent-
- * lastungsbetrag). The user adds this to their
- * total Einkünfte in the Hauptvordruck.
+ * The bottom line is the income from employment:
+ * wages less Werbungskosten (§ 2 Abs. 2 Nr. 2
+ * EStG; Tier 671). Sonderausgaben and
+ * außergewöhnliche Belastungen are listed for the
+ * adviser and are not part of it.
  *
  * For self-employed (Anlage S / G) and
  * capital income (Anlage KAP), Anlage N is
@@ -94,7 +94,11 @@ export interface AnlageNResult {
     sonderausgabenTotal: number
     aussergewoehnlicheBelastungenTotal: number
     altersentlastungsbetrag: number // Kz 41-44 (§ 24a EStG)
-    einkuenfte: number // Brutto - WK - SA - aB - Altersentlastung
+    einkuenfte: number // wages less Werbungskosten (§ 2 Abs. 2 Nr. 2 EStG)
+    /** § 9a: the year's Pauschbetrag, what of it is applied, and the expenses entered */
+    arbeitnehmerPauschbetrag: number
+    pauschbetragAngesetzt: number
+    werbungskostenNachgewiesen: number
   }
   counts: {
     hasLohnsteuerbescheinigung: boolean
@@ -124,25 +128,46 @@ const LOHNSTEUERBESCHEINIGUNG_KEYS: Array<{
   { key: 'pflegeversicherung', label: 'Pflegeversicherung Arbeitnehmer-Anteil (Kz 10)', min: 0 },
 ]
 
-// Tier 101: Werbungskosten Kennziffern 130-180.
-// Arbeitnehmer-Pauschbetrag (130) defaults to
-// 1.230 EUR — the user opts out by adding
-// real Werbungskosten (Entfernungspauschale,
-// Fortbildung, Arbeitsmittel, etc.).
-// v1: the user enters these via the section's
-// manual input. v2: compute Entfernungspauschale
-// from home address + work address.
+// Werbungskosten, Kennziffern 130-190.
+//
+// Tier 671 — read against §§ 9, 9a EStG (gesetze-im-internet.de, 12.10.2026):
+//   § 9a Satz 1 Nr. 1 a  The Arbeitnehmer-Pauschbetrag is deducted "wenn nicht
+//                        höhere Werbungskosten nachgewiesen werden" — instead
+//                        of the expenses, not on top of them. 1 230 € from
+//                        2023, 1 200 € in 2022, 1 000 € from 2011 to 2021.
+//   § 9a Satz 2          … and only up to the amount of the wages.
+//   § 9 Abs. 1 Nr. 4     Entfernungspauschale: 0,38 € a kilometre from 2026;
+//                        0,30 € and from the 21st kilometre 0,38 € (2022 to
+//                        2025) or 0,35 € (2021); 0,30 € before.
+// Before: 1 230 € for every year, added to the expenses entered (2 000 € of
+// commuting made 3 230 €), and deducted from no wages at all (−1 230 € of
+// income). Sonderausgaben and außergewöhnliche Belastungen were taken off
+// the income from employment — they reduce the Einkommen (§ 2 Abs. 4), on
+// forms of their own.
+export const arbeitnehmerPauschbetragFor = (year: number): number =>
+  year >= 2023 ? 1230 : year === 2022 ? 1200 : year >= 2011 ? 1000 : 920
+
+/** The rates of the Entfernungspauschale of a year, as the form's line names them. */
+export const entfernungspauschaleText = (year: number): string =>
+  year >= 2026
+    ? '0,38 EUR je km einfache Strecke'
+    : year >= 2022
+      ? '0,30 EUR je km einfache Strecke, ab dem 21. km 0,38 EUR'
+      : year === 2021
+        ? '0,30 EUR je km einfache Strecke, ab dem 21. km 0,35 EUR'
+        : '0,30 EUR je km einfache Strecke'
+
 const WERBUNGSKOSTEN_LINES: Array<{ kz: string; label: string; amount: number | 'auto'; note?: string }> = [
   {
     kz: '130',
-    label: 'Arbeitnehmer-Pauschbetrag (§ 9a EStG, automatisch 1.230 EUR)',
-    amount: 1230,
+    label: 'Arbeitnehmer-Pauschbetrag', // the amount of the year is added in compute()
+    amount: 'auto',
   },
   {
     kz: '140',
-    label: 'Entfernungspauschale (0,30 EUR je km einfache Strecke, ab 21. km 0,38 EUR)',
+    label: 'Entfernungspauschale', // the rates of the year are added in compute()
     amount: 0,
-    note: 'Vom Arbeitnehmer manuell einzutragen — Anzahl der Arbeitstage × Kilometer × 0,30 EUR.',
+    note: 'Vom Arbeitnehmer manuell einzutragen — Arbeitstage × volle Kilometer der einfachen Strecke × Satz; höchstens 4.500 EUR im Jahr, außer mit eigenem oder überlassenem Pkw.',
   },
   {
     kz: '150',
@@ -188,7 +213,7 @@ const SONDERAUSGABEN_LINES: Array<{ kz: string; label: string; amount: number | 
     kz: '200',
     label: 'Vorsorgeaufwand — Basis-Rente / Rürup (Altersvorsorge, nicht Riester)',
     amount: 0,
-    note: 'Vom Arbeitnehmer manuell einzutragen — bis 27.566 EUR / 55.132 EUR Zusammenveranlagung abzugsfähig (2026).',
+    note: 'Vom Arbeitnehmer manuell einzutragen — abzugsfähig bis zum Höchstbetrag des Jahres (§ 10 Abs. 3 EStG).',
   },
   {
     kz: '210',
@@ -218,7 +243,7 @@ const AUSSERGEWOEHNLICHE_BELASTUNGEN_LINES: Array<{
     kz: '230',
     label: 'Krankheitskosten (Selbstbehalt, Brille, Zahnarzt, etc.)',
     amount: 0,
-    note: 'Vom Arbeitnehmer manuell einzutragen — abzugsfähig ab 1% des Brutto (zumutbare Belastung).',
+    note: 'Vom Arbeitnehmer manuell einzutragen — abzugsfähig, soweit sie die zumutbare Belastung übersteigen (§ 33 Abs. 3 EStG: 1 bis 7 % des Gesamtbetrags der Einkünfte).',
   },
   {
     kz: '240',
@@ -315,26 +340,42 @@ export class AnlageNService {
       },
     ]
 
-    // Werbungskosten: 130 (Pauschbetrag) auto
-    // at 1.230 EUR, the rest from settings.werbungs-
-    // kosten[year][kz] (user-entered).
+    // Werbungskosten: what was entered (140-190), or the Pauschbetrag when
+    // that is more — never both, and the Pauschbetrag never beyond the wages
     const wkUser = ((settings.werbungskosten || {})[year] || {}) as Record<string, number>
+    const entered = (kz: string): number => (Number.isFinite(Number(wkUser[kz])) ? Number(wkUser[kz]) : 0)
+    const nachgewiesen = round2(
+      WERBUNGSKOSTEN_LINES.filter((d) => d.amount !== 'auto').reduce((sum, d) => sum + entered(d.kz), 0),
+    )
+    const pauschbetragVoll = arbeitnehmerPauschbetragFor(year)
+    const pauschbetrag = Math.min(pauschbetragVoll, Math.max(0, lsbValues.bruttoArbeitslohn))
+    const pauschbetragAngesetzt = nachgewiesen > pauschbetrag ? 0 : pauschbetrag
+    const eur = (n: number): string => new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
     const werbungskosten: AnlageNLine[] = WERBUNGSKOSTEN_LINES.map((d) => {
-      const amount =
-        d.amount === 'auto'
-          ? 1230
-          : Number.isFinite(Number(wkUser[d.kz]))
-            ? Number(wkUser[d.kz])
-            : d.amount
+      if (d.amount === 'auto') {
+        return {
+          kennziffer: d.kz,
+          label: `Arbeitnehmer-Pauschbetrag (§ 9a EStG): ${eur(pauschbetragVoll)} EUR — statt der Werbungskosten, wenn diese nicht höher sind; höchstens der Arbeitslohn`,
+          amount: round2(pauschbetragAngesetzt),
+          source: 'computed' as const,
+          note:
+            pauschbetragAngesetzt === 0 && nachgewiesen > 0
+              ? `Nicht angesetzt: die eingetragenen Werbungskosten (${eur(nachgewiesen)} EUR) sind höher.`
+              : nachgewiesen > 0
+                ? `Angesetzt statt der eingetragenen Werbungskosten (${eur(nachgewiesen)} EUR), die niedriger sind.`
+                : undefined,
+        }
+      }
       return {
         kennziffer: d.kz,
-        label: d.label,
-        amount: round2(amount),
-        source: d.amount === 'auto' ? 'computed' : 'placeholder',
+        label: d.kz === '140' ? `Entfernungspauschale (${entfernungspauschaleText(year)})` : d.label,
+        amount: round2(entered(d.kz)),
+        source: 'placeholder' as const,
         note: d.note,
       }
     })
-    const werbungskostenTotal = werbungskosten.reduce((s, l) => s + l.amount, 0)
+    // § 9a: the greater of the two
+    const werbungskostenTotal = pauschbetragAngesetzt > 0 || nachgewiesen === 0 ? pauschbetragAngesetzt : nachgewiesen
 
     // Sonderausgaben
     const saUser = ((settings.sonderausgaben || {})[year] || {}) as Record<string, number>
@@ -377,19 +418,14 @@ export class AnlageNService {
       0,
     )
 
-    // Altersentlastungsbetrag (§ 24a EStG): only
-    // for employees born before 1940. v1: assume
-    // none (default 0). The user adjusts if
-    // applicable.
+    // Altersentlastungsbetrag (§ 24a EStG): for those who were 64 before the
+    // year began; not modelled — 0, for the adviser.
     const altersentlastungsbetrag = 0
 
-    const einkuenfte = round2(
-      lsbValues.bruttoArbeitslohn -
-        werbungskostenTotal -
-        sonderausgabenTotal -
-        aussergewoehnlicheBelastungenTotal -
-        altersentlastungsbetrag,
-    )
+    // § 2 Abs. 2 Nr. 2: the income from employment is the wages less the
+    // Werbungskosten. Sonderausgaben and außergewöhnliche Belastungen are
+    // shown for the adviser; they reduce the Einkommen, not this figure.
+    const einkuenfte = round2(lsbValues.bruttoArbeitslohn - werbungskostenTotal)
 
     // Lohnsteuer total (Lohnsteuer + Soli + KiSt)
     // is informational only — the user reports
@@ -426,20 +462,24 @@ export class AnlageNService {
         aussergewoehnlicheBelastungenTotal: round2(aussergewoehnlicheBelastungenTotal),
         altersentlastungsbetrag: round2(altersentlastungsbetrag),
         einkuenfte,
+        arbeitnehmerPauschbetrag: pauschbetragVoll,
+        pauschbetragAngesetzt: round2(pauschbetragAngesetzt),
+        werbungskostenNachgewiesen: nachgewiesen,
       },
       counts: {
         hasLohnsteuerbescheinigung,
       },
       generatedAt: new Date().toISOString(),
       disclaimer:
-        'Diese Vorschau wurde automatisch aus Ihren Lohnsteuerbescheinigungs-Daten ' +
-        '(erfasst unter Buchhaltung, Anlage N) + den manuell eingetragenen Werbungskosten / Sonderausgaben / ' +
-        'Außergewöhnlichen Belastungen generiert. Anlage N ist für Einkünfte aus ' +
-        'nichtselbständiger Arbeit (§ 19 EStG) — Arbeitnehmer, Beamte, Gesellschafter-' +
-        'Geschäftsführer mit Anstellung, Teilzeit-Beschäftigte. Der Berater ergänzt ' +
-        'die fehlenden Werte aus der Lohnsteuerbescheinigung des Arbeitgebers und ' +
-        'prüft die Werbungskosten-Höchstbeträge. Bei mehreren Arbeitgebern: Lohnsteuer' +
-        'bescheinigungen aller Arbeitgeber zusammenführen.',
+        'Diese Vorschau wurde aus den Werten Ihrer Lohnsteuerbescheinigung (erfasst unter Buchhaltung, Anlage N) ' +
+        'und den eingetragenen Werbungskosten erstellt. Einkünfte aus nichtselbständiger Arbeit (§ 19 EStG) sind ' +
+        'der Arbeitslohn abzüglich der Werbungskosten; der Arbeitnehmer-Pauschbetrag wird angesetzt, wenn keine ' +
+        'höheren Werbungskosten eingetragen sind — nicht zusätzlich, und höchstens bis zur Höhe des Arbeitslohns ' +
+        '(§ 9a EStG). Sonderausgaben und außergewöhnliche Belastungen sind zur Information aufgeführt: sie mindern ' +
+        'nicht diese Einkünfte, sondern das Einkommen (§ 2 Abs. 4 EStG), und gehören in die Anlagen ' +
+        'Vorsorgeaufwand, Sonderausgaben und Außergewöhnliche Belastungen. Nicht berücksichtigt: Versorgungsbezüge ' +
+        'und der Versorgungsfreibetrag, der Altersentlastungsbetrag (§ 24a EStG), steuerfreier Arbeitslohn. ' +
+        'Bei mehreren Arbeitgebern die Lohnsteuerbescheinigungen zusammenführen — der Steuerberater prüft das.',
     }
   }
 
@@ -523,6 +563,32 @@ export class AnlageNService {
     )
     doc.moveDown(0.8)
 
+    // Einkünfte pill
+    doc.fontSize(13).font('Helvetica-Bold')
+    const e = data.totals.einkuenfte
+    doc
+      .fillColor(e >= 0 ? '#047857' : '#b91c1c')
+      .text(
+        e >= 0
+          ? `Einkünfte aus nichtselbständiger Arbeit: ${this.fmtEur(e)} €`
+          : `Verlust aus nichtselbständiger Arbeit: ${this.fmtEur(Math.abs(e))} € (die nachgewiesenen Werbungskosten übersteigen den Arbeitslohn)`,
+      )
+      .fillColor('#000')
+    doc.moveDown(1)
+
+    // What follows is for the adviser: it reduces the Einkommen (§ 2 Abs. 4
+    // EStG), not the income from employment above
+    doc
+      .fontSize(9)
+      .font('Helvetica')
+      .fillColor('#666')
+      .text(
+        'Zur Information — Sonderausgaben und außergewöhnliche Belastungen mindern nicht die Einkünfte aus nichtselbständiger Arbeit, sondern das Einkommen (§ 2 Abs. 4 EStG).',
+        { width: 515 },
+      )
+      .fillColor('#000')
+    doc.moveDown(0.5)
+
     // Sonderausgaben
     doc.fontSize(12).font('Helvetica-Bold').text('Sonderausgaben')
     doc.moveDown(0.3)
@@ -543,19 +609,6 @@ export class AnlageNService {
       data.totals.aussergewoehnlicheBelastungenTotal,
       'Außergewöhnliche Belastungen',
     )
-    doc.moveDown(1)
-
-    // Einkünfte pill
-    doc.fontSize(13).font('Helvetica-Bold')
-    const e = data.totals.einkuenfte
-    doc
-      .fillColor(e >= 0 ? '#047857' : '#b91c1c')
-      .text(
-        e >= 0
-          ? `Einkünfte aus nichtselbständiger Arbeit: ${this.fmtEur(e)} €`
-          : `Verlust: ${this.fmtEur(Math.abs(e))} € (negative Einkünfte sind steuerlich ein Vorteil — die Werbungskosten / Sonderausgaben übersteigen den Brutto)`,
-      )
-      .fillColor('#000')
     doc.moveDown(1)
 
     // Lohnsteuer info box

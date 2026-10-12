@@ -57,9 +57,9 @@ print(any(l['kennziffer'] == '$kz' for l in all_lines))
 done
 rm -f "$TMP"
 
-# ===== 3. Without Lohnsteuerbescheinigung, einkuenfte = -1230 (only Pauschbetrag) =====
+# ===== 3. Without Lohnsteuerbescheinigung: no wages, no Pauschbetrag (§ 9a Satz 2 EStG; Tier 671 — was -1230) =====
 echo
-note "=== 3. Without LSB: einkuenfte == -1230 (Pauschbetrag) ==="
+note "=== 3. Without LSB: einkuenfte == 0 (the Pauschbetrag only up to the wages) ==="
 # Wipe any existing Lohnsteuerbescheinigung
 # + Werbungskosten for 2026 (cleanup leftover
 # from manual tests)
@@ -71,7 +71,7 @@ api_get "/api/v1/accounting/anlage-n?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
 
 EK=$(python3 -c "import json,sys; print(json.load(sys.stdin)['totals']['einkuenfte'])" < "$TMP")
-assert_eq "einkuenfte == -1230 (no LSB, only Pauschbetrag)" "$EK" "-1230"
+assert_eq "einkuenfte == 0 (no LSB: the Pauschbetrag is not deducted from nothing)" "$EK" "0"
 rm -f "$TMP"
 
 # ===== 4. PUT Lohnsteuerbescheinigung + GET reflects new values =====
@@ -104,7 +104,7 @@ d = json.load(sys.stdin)
 brutto = d['totals']['bruttoArbeitslohn']
 wk = d['totals']['werbungskostenTotal']
 ek = d['totals']['einkuenfte']
-expected = brutto - wk  # 60000 - (1230 + 1500 + 800) = 56470
+expected = brutto - wk  # Tier 671: 60000 - max(1230, 1500 + 800) = 57700 (was 60000 - 3530)
 print(f'{abs(ek - expected) < 0.01}|{brutto}|{wk}|{ek}|{expected}')
 " < "$TMP")
 assert_eq "einkuenfte identity" "$(echo "$EK" | cut -d'|' -f1)" "True"

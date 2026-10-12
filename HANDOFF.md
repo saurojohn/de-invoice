@@ -2656,6 +2656,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 671 — Anlage N read against §§ 2, 9, 9a EStG
+
+Read from gesetze-im-internet.de on 12.10.2026, then measured:
+
+- **The Arbeitnehmer-Pauschbetrag was added to the expenses.** § 9a: it is deducted „wenn nicht höhere Werbungskosten nachgewiesen werden“ — one or the other. 40 000 € of wages with 2 000 € of commuting gave 3 230 € of Werbungskosten. Now the greater of the two; line 130 shows what is applied and says why when it is 0.
+- **… and deducted from nothing.** Satz 2: only up to the wages. A company without any wages entered — every sole trader who opens the page — saw „Verlust 1.230 €“; wages of 800 € gave −430 €. (Expenses that are entered may exceed the wages; that loss stays.)
+- **1 230 € for every year:** 1 200 € in 2022, 1 000 € from 2011 to 2021.
+- **Sonderausgaben and außergewöhnliche Belastungen were taken off the „Einkünfte aus nichtselbständiger Arbeit“.** That income is wages less Werbungskosten (§ 2 Abs. 2 Nr. 2); the others reduce the Einkommen (§ 2 Abs. 4) on forms of their own. They are still listed, marked as information, and the PDF shows the income before them.
+- **Texts:** the commuting line named 0,30 € / 0,38 € from the 21st kilometre for every year (2021: 0,35 €; from 2026: 0,38 € from the first — the statute's current text); a note named 27 566 € as the pension maximum „(2026)“ — the figure of 2024; „abzugsfähig ab 1% des Brutto“ for außergewöhnliche Belastungen (§ 33 Abs. 3: 1 to 7 % of the Gesamtbetrag der Einkünfte); the page said the health-insurance shares were „bereits im Brutto berücksichtigt“. Rewritten; no amount that changes every year is named any more.
+
+Spec `398-tier671-anlage-n-nach-dem-gesetz.sh` (23 assertions, 20 fail on the code before); spec 127 follows (it expected −1 230 €); `anlage-n-tier671.spec.ts`; nine texts added to both tax-form dictionaries (427 entries). Not modelled, and said on the form: Versorgungsbezüge and their Freibetrag, the Altersentlastungsbetrag, tax-free wages.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 670 — Anlage KAP read against §§ 20, 32d EStG
 
 Read from gesetze-im-internet.de on 12.10.2026, then measured with a company that has interest credits of 2022 and 2024, debit interest, a customer's payment and a foreign dividend:
@@ -9289,7 +9301,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**
     - **Foreign currency (Tier 652):** invoices are converted at the ECB reference rate of the invoice's day. § 16 Abs. 6 UStG names the monthly average rates the BMF publishes; the daily rate needs the tax office's consent. Daily rate (as built), or the monthly average entered by hand on each invoice — or should the program fetch the monthly average?
-    - **The annexes of a person's return (Tiers 655–656, 664):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage N, Kind, AUS, KAP and V were not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
+    - **The annexes of a person's return (Tiers 655–656, 664, 670–671):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage KAP (Tier 670) and Anlage N (Tier 671) followed. Anlage Kind, AUS and V were not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
     - **OSS:** (whether the company takes part is a setting since Tier 649.) Still for the Steuerberater: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.

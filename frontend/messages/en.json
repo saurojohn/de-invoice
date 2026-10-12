@@ -2907,9 +2907,9 @@
       "pflegeversicherung": "Long-term care insurance (Kz 10)"
     },
     "fieldHint": "Copy the values from your Lohnsteuerbescheinigung. Enter to-the-cent — the Finanzamt rounds to full euros.",
-    "wkhint": "130 = Arbeitnehmer-Pauschbetrag (auto, 1.230 EUR). The other Kz (140-190) are manual — work days × km × 0.30 EUR for Entfernungspauschale etc.",
-    "sahint": "Vorsorgeaufwand above the basic cap (Rürup / Riester). The KV/PV portions are already deducted from the gross.",
-    "abhint": "Medical costs, disability (Pauschbetrag per GdB), funeral costs, care — deductible from 1% gross (reasonable burden).",
+    "wkhint": "The employee allowance (Kz 130) is applied as long as no higher income-related expenses are entered — instead of them, not on top, and at most up to the wages (§ 9a EStG). You enter Kz 140–190 yourself.",
+    "sahint": "For information — special expenses do not reduce the income from employment but the taxable income (§ 2 para. 4 EStG). They belong on the annexes Vorsorgeaufwand and Sonderausgaben, as do the insurance contributions from the wage tax certificate.",
+    "abhint": "For information — deductible as far as they exceed the reasonable burden (§ 33 para. 3 EStG: 1 to 7 % of the total income); annex Außergewöhnliche Belastungen.",
     "savedOk": "Lohnsteuerbescheinigung saved.",
     "generatedAt": "Generated"
   },
