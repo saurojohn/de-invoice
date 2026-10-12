@@ -1,4 +1,4 @@
-import { freigrenzeFor, fristYears, kindOf, statusOf, vgSummary, VgKind } from './anlage-so-rules'
+import { freigrenzeFor, rowLine, splitRows, statusOf, vgSummary, VgKind, VgListed } from './anlage-so-rules'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -79,6 +79,8 @@ export interface AnlageSOResult {
   year: number
   companyId: string
   transactions: VgTransaction[]
+  /** Tier 665: every stored row, with what it counts as or why it does not */
+  rows: VgListed[]
   wiederkehrendeBezuege: number
   werbungskosten: number
   // Computed per-transaction
@@ -95,6 +97,7 @@ export interface AnlageSOResult {
     totalLoss: number
     taxableGain: number // after Spekulationsfrist check
     inSpekulationsfrist: number // count within Frist
+    countNotCounted: number
   }
   freigrenze: number // 600 EUR
   lines: AnlageSOLine[]
@@ -176,19 +179,6 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-/**
- * Compute the holding period in years (floating point)
- * between two ISO dates. Used for the Spekulationsfrist
- * check (§ 23 Abs. 1 EStG).
- */
-function yearsBetween(startISO: string, endISO: string): number {
-  const a = new Date(startISO)
-  const b = new Date(endISO)
-  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 0
-  const ms = b.getTime() - a.getTime()
-  return ms / (365.25 * 24 * 60 * 60 * 1000)
-}
-
 @Injectable()
 export class AnlageSOService {
   constructor(private prisma: PrismaService) {}
@@ -214,36 +204,9 @@ export class AnlageSOService {
     const anlageSoAll = (settings.anlageSO as any) || {}
     const yearData = anlageSoAll[year] || {}
 
-    // Normalize transactions
-    const rawTx = Array.isArray(yearData.transactions) ? yearData.transactions : []
-    const transactions: VgTransaction[] = rawTx
-      .filter((t: any) => t && typeof t === 'object')
-      .map((t: any) => {
-        // Tier 664: the kind (a row from before knows two, with crypto filed
-        // as a security — kindOf reads the description then)
-        const type = kindOf({ type: t.type, description: t.description })
-        return {
-          type,
-          description: String(t.description || '').trim(),
-          acquisitionDate:
-            typeof t.acquisitionDate === 'string' &&
-            /^\d{4}-\d{2}-\d{2}$/.test(t.acquisitionDate)
-              ? t.acquisitionDate
-              : '',
-          acquisitionCost: Number(t.acquisitionCost) || 0,
-          saleDate:
-            typeof t.saleDate === 'string' &&
-            /^\d{4}-\d{2}-\d{2}$/.test(t.saleDate)
-              ? t.saleDate
-              : '',
-          salePrice: Number(t.salePrice) || 0,
-        }
-      })
-      // Only include transactions that actually sold in `year`
-      .filter((t: VgTransaction) => {
-        if (!t.saleDate) return false
-        return Number(t.saleDate.slice(0, 4)) === year
-      })
+    // Tier 665: every stored row comes back (`rows`); the sales of the year
+    // that are complete are counted (`transactions`)
+    const { counted: transactions, rows } = splitRows(yearData.transactions, year)
 
     const wiederkehrendeBezuege = Number(yearData.wiederkehrendeBezuege) || 0
     const werbungskosten = Number(yearData.werbungskosten) || 0
@@ -293,10 +256,12 @@ export class AnlageSOService {
       year,
       companyId,
       transactions,
+      rows,
       wiederkehrendeBezuege,
       werbungskosten,
       vg: {
         count: transactions.length,
+        countNotCounted: rows.length - transactions.length,
         countWertpapier: sum.countByKind.wertpapier,
         countSonstige: sum.countByKind.sonstige,
         countKrypto: sum.countByKind.krypto,
@@ -392,28 +357,12 @@ export class AnlageSOService {
       doc.moveDown(1)
     }
 
-    // Transactions list
-    if (data.transactions.length > 0) {
+    // Transactions list — every stored row, the ones not counted too
+    if (data.rows.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Private Veräußerungsgeschäfte (§ 23 EStG)')
       doc.moveDown(0.3)
       doc.fontSize(8).font('Helvetica')
-      for (const t of data.transactions) {
-        const gain = t.salePrice - t.acquisitionCost
-        const held = yearsBetween(t.acquisitionDate, t.saleDate)
-        const status = statusOf(t)
-        const frist = fristYears(t.type)
-        const KIND: Record<string, string> = { wertpapier: 'Wertpapier', krypto: 'Kryptowert', sonstige: 'Sonstiges', grundstueck: 'Grundstück' }
-        doc.text(
-          `• [${KIND[t.type] || t.type}] ` +
-            `${t.description || '(ohne Beschreibung)'} — ` +
-            `Anschaffung ${t.acquisitionDate} (${this.fmtEur(t.acquisitionCost)} €) → ` +
-            `Verkauf ${t.saleDate} (${this.fmtEur(t.salePrice)} €) = ` +
-            `${this.fmtEur(gain)} € ${gain >= 0 ? 'Gewinn' : 'Verlust'} ` +
-            (status === 'kap'
-              ? '[seit 2009 angeschafft — Anlage KAP, hier nicht angesetzt]'
-              : `[gehalten: ${held.toFixed(2)} Jahre, Frist: ${frist} J., ${status === 'steuerpflichtig' ? 'in Frist' : 'außerhalb'}]`),
-        )
-      }
+      for (const t of data.rows) doc.text(rowLine(t))
       doc.moveDown(1)
     }
 

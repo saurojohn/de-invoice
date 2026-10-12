@@ -1,4 +1,4 @@
-import { freigrenzeFor, fristYears as fristOf, kindOf, looksLikeCrypto, statusOf, vgSummary, VgKind, VG_KINDS } from './anlage-so-rules'
+import { freigrenzeFor, looksLikeCrypto, rowLine, splitRows, vgSummary, VgKind, VG_KINDS } from './anlage-so-rules'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -84,6 +84,8 @@ export interface VgTransaction {
   saleDate: string
   salePrice: number
   metadata?: { importedFromExpenseId?: string; importedAt?: string }
+  /** 2: the kind is the one chosen (anlage-so-rules.ts) */
+  v?: number
 }
 
 export interface CsvPreviewRow {
@@ -133,16 +135,17 @@ const SECURITY_TICKERS = new Set([
   'FME', 'FRE', 'HEI', 'MTX', 'PAH3', 'QIA', 'SRT3', 'SY1',
 ])
 
+// Tier 665: the categories of an expense that is a purchase of crypto or of
+// securities. The category is free text on the expense; the page names
+// „Krypto“ and „Wertpapier“ — only the exact lower-case English "crypto" and
+// "brokerage" were found before.
+const CRYPTO_CATEGORY = ['krypto', 'crypto']
+const SECURITY_CATEGORY = ['wertpapier', 'brokerage', 'depot', 'aktie']
+const isCryptoCategory = (category: string | null): boolean =>
+  CRYPTO_CATEGORY.some((w) => String(category || '').toLowerCase().startsWith(w))
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100
-}
-
-function yearsBetween(startISO: string, endISO: string): number {
-  const a = new Date(startISO)
-  const b = new Date(endISO)
-  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 0
-  const ms = b.getTime() - a.getTime()
-  return ms / (365.25 * 24 * 60 * 60 * 1000)
 }
 
 /**
@@ -276,6 +279,7 @@ function parseCsvRow(
       acquisitionCost: acqCost ?? 0,
       saleDate: saleDate || '',
       salePrice: salePrice ?? 0,
+      v: 2,
     },
   }
 }
@@ -314,47 +318,9 @@ export class AnlageSOV2Service {
     const carryforwardMap = (settings.anlageSOLossCarryforward as any) || {}
     const priorYearLoss = Number(carryforwardMap[year - 1]) || 0
 
-    // Normalize transactions (same shape as v1, plus
-    // optional `metadata`).
-    const rawTx: any[] = Array.isArray(yearData.transactions) ? yearData.transactions : []
-    const transactions: VgTransaction[] = rawTx
-      .filter((t) => t && typeof t === 'object')
-      .map((t: any) => {
-        const type = kindOf({ type: t.type, description: t.description }) // Tier 664
-        return {
-          type,
-          description: String(t.description || '').trim(),
-          acquisitionDate:
-            typeof t.acquisitionDate === 'string' &&
-            /^\d{4}-\d{2}-\d{2}$/.test(t.acquisitionDate)
-              ? t.acquisitionDate
-              : '',
-          acquisitionCost: Number(t.acquisitionCost) || 0,
-          saleDate:
-            typeof t.saleDate === 'string' &&
-            /^\d{4}-\d{2}-\d{2}$/.test(t.saleDate)
-              ? t.saleDate
-              : '',
-          salePrice: Number(t.salePrice) || 0,
-          metadata:
-            t.metadata && typeof t.metadata === 'object'
-              ? {
-                  importedFromExpenseId:
-                    typeof t.metadata.importedFromExpenseId === 'string'
-                      ? t.metadata.importedFromExpenseId
-                      : undefined,
-                  importedAt:
-                    typeof t.metadata.importedAt === 'string'
-                      ? t.metadata.importedAt
-                      : undefined,
-                }
-              : undefined,
-        }
-      })
-      .filter((t) => {
-        if (!t.saleDate) return false
-        return Number(t.saleDate.slice(0, 4)) === year
-      })
+    // Tier 665: every stored row comes back (`rows`); the sales of the year
+    // that are complete are counted (`transactions`)
+    const { counted: transactions, rows } = splitRows(yearData.transactions, year)
 
     const wiederkehrendeBezuege = Number(yearData.wiederkehrendeBezuege) || 0
     const werbungskosten = Number(yearData.werbungskosten) || 0
@@ -493,10 +459,12 @@ export class AnlageSOV2Service {
       year,
       companyId,
       transactions,
+      rows,
       wiederkehrendeBezuege,
       werbungskosten,
       vg: {
         count: transactions.length,
+        countNotCounted: rows.length - transactions.length,
         countWertpapier: sum.countByKind.wertpapier,
         countSonstige: sum.countByKind.sonstige,
         countKrypto: sum.countByKind.krypto,
@@ -685,6 +653,17 @@ export class AnlageSOV2Service {
       return parseCsvRow(obj, idx + 1)
     })
 
+    // Tier 665: a sale of another year does not belong in this year's list
+    // (it was imported, left out of every sum and deleted by the form's
+    // next save)
+    for (const p of preview) {
+      const saleYear = p.transaction.saleDate.slice(0, 4)
+      if (p.ok && Number(saleYear) !== year) {
+        p.ok = false
+        p.warnings.push(`row ${p.rowIndex}: veräußert ${saleYear} — gehört in die Anlage SO ${saleYear}, nicht ${year}`)
+      }
+    }
+
     if (previewOnly) {
       // Dedupe is informational only at preview time:
       // a duplicate is a (description + acquisitionDate
@@ -770,33 +749,49 @@ export class AnlageSOV2Service {
   }
 
   /**
-   * v2: Auto-import from Expense rows tagged
-   *   category='crypto' or category='brokerage'.
-   * Each Expense becomes one VgTransaction:
-   *   - type:    'sonstige' (crypto) | 'wertpapier' (brokerage)
-   *   - description:  the expense's invoiceNumber+description
-   *   - acquisitionDate:  the year before saleDate
-   *     (heuristic; broker PDFs would carry the
-   *     real date, but for v2 we use a 1-year
-   *     default for crypto + the actual `invoiceDate`
-   *     for brokerage — best-effort)
-   *   - acquisitionCost: grossAmount (the cost basis)
-   *   - saleDate:        invoiceDate
-   *   - salePrice:       grossAmount (1:1 mapping; v2
-   *                      does not separate cost vs.
-   *                      sale — that's a v3 broker-PDF
-   *                      parser job)
-   *   - metadata.importedFromExpenseId: <id>
+   * The expenses that are a purchase of crypto or of securities: the
+   * category the user typed, in German or English, whatever the case. Up to
+   * the end of the year — what is sold this year was often bought earlier.
+   */
+  private purchaseWhere(companyId: string, year: number) {
+    return {
+      companyId,
+      invoiceDate: { lte: new Date(`${year}-12-31T23:59:59.999Z`) },
+      OR: [...CRYPTO_CATEGORY, ...SECURITY_CATEGORY].map((word) => ({
+        category: { startsWith: word, mode: 'insensitive' as const },
+      })),
+    }
+  }
+
+  /** The expenses already taken over — into any year's list. */
+  private importedExpenseIds(settings: Record<string, any>): Set<string> {
+    const ids = new Set<string>()
+    for (const yearData of Object.values((settings.anlageSO as Record<string, any>) || {})) {
+      for (const t of Array.isArray(yearData?.transactions) ? yearData.transactions : []) {
+        const id = t?.metadata?.importedFromExpenseId
+        if (typeof id === 'string' && id) ids.add(id)
+      }
+    }
+    return ids
+  }
+
+  /**
+   * Takes expenses over as the ACQUISITION of an asset: the expense's date and
+   * amount are the acquisition date and cost. The sale is left open — the
+   * user enters it, and until then the row is not counted.
    *
-   * The service is idempotent: re-running the same
-   * import skips any Expense that already has a
-   * transaction (tracked via
-   * `metadata.importedFromExpenseId`). skippedCount
-   * is returned.
+   * Tier 665. Before, every expense became a sale: sold on the day of the
+   * expense for the amount of the expense, "acquired" a month earlier for
+   * the same amount — a sale that had not taken place, with an acquisition
+   * date nobody had entered, printed on the preview for the adviser. And
+   * the page's checkboxes chose nothing: every expense was taken.
+   *
+   * `ids`: the expenses chosen; without it, all that were not taken yet.
    */
   async importFromExpenses(
     companyId: string,
     year: number,
+    ids?: string[],
   ): Promise<CsvImportResult> {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
@@ -812,22 +807,12 @@ export class AnlageSOV2Service {
     const existing: VgTransaction[] = Array.isArray(yearData.transactions)
       ? yearData.transactions
       : []
+    const importedFromIds = this.importedExpenseIds(settings)
 
-    const importedFromIds = new Set(
-      existing
-        .map((t) => t.metadata?.importedFromExpenseId)
-        .filter((x): x is string => !!x),
-    )
-
-    const start = new Date(`${year}-01-01T00:00:00.000Z`)
-    const end = new Date(`${year}-12-31T23:59:59.999Z`)
     const expenses = await this.prisma.expense.findMany({
-      where: {
-        companyId,
-        category: { in: ['crypto', 'brokerage'] },
-        invoiceDate: { gte: start, lte: end },
-      },
+      where: { ...this.purchaseWhere(companyId, year), ...(ids ? { id: { in: ids } } : {}) },
       orderBy: { invoiceDate: 'asc' },
+      take: 500,
     })
 
     const newTransactions: VgTransaction[] = []
@@ -837,30 +822,16 @@ export class AnlageSOV2Service {
         skippedCount++
         continue
       }
-      const type: VgKind = e.category === 'brokerage' ? 'wertpapier' : 'krypto' // Tier 664
-      // For crypto (sonstige, 10-Jahr Frist), set
-      // acquisitionDate = saleDate - 1 month so
-      // the row is *within* Frist (the year is the
-      // same, so inFristCount > 0). For brokerage
-      // (wertpapier, 1-Jahr Frist), set
-      // acquisitionDate = saleDate - 1 month too —
-      // that's a 1-month holding period, well
-      // within the 1-Jahr Frist.
-      const saleDate = e.invoiceDate
-      const acqDate = new Date(saleDate)
-      acqDate.setMonth(acqDate.getMonth() - 1)
-      const saleDateISO = saleDate.toISOString().slice(0, 10)
-      const acqDateISO = acqDate.toISOString().slice(0, 10)
-      const gross = Number(e.grossAmount) || 0
       newTransactions.push({
-        type,
+        type: isCryptoCategory(e.category) ? 'krypto' : 'wertpapier',
         description: e.invoiceNumber
           ? `${e.invoiceNumber} — ${e.description}`
           : e.description,
-        acquisitionDate: acqDateISO,
-        acquisitionCost: gross,
-        saleDate: saleDateISO,
-        salePrice: gross,
+        acquisitionDate: e.invoiceDate.toISOString().slice(0, 10),
+        acquisitionCost: Number(e.grossAmount) || 0,
+        saleDate: '',
+        salePrice: 0,
+        v: 2,
         metadata: {
           importedFromExpenseId: e.id,
           importedAt: new Date().toISOString(),
@@ -885,10 +856,8 @@ export class AnlageSOV2Service {
   }
 
   /**
-   * v2: List the Expense rows that are eligible for
-   * auto-import (used by the UI modal). Includes both
-   * already-imported and not-yet-imported, with a flag
-   * so the UI can pre-check the right ones.
+   * The expenses that can be taken over (the page's list), newest first,
+   * each with whether it was taken already.
    */
   async listImportableExpenses(companyId: string, year: number) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
@@ -900,24 +869,11 @@ export class AnlageSOV2Service {
     })
     if (!company) throw new NotFoundException('Firma nicht gefunden')
     const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const yearData = ((settings.anlageSO as any) || {})[year] || {}
-    const existing: any[] = Array.isArray(yearData.transactions)
-      ? yearData.transactions
-      : []
-    const importedFromIds = new Set(
-      existing
-        .map((t) => t.metadata?.importedFromExpenseId)
-        .filter((x): x is string => !!x),
-    )
-    const start = new Date(`${year}-01-01T00:00:00.000Z`)
-    const end = new Date(`${year}-12-31T23:59:59.999Z`)
+    const importedFromIds = this.importedExpenseIds(settings)
     const expenses = await this.prisma.expense.findMany({
-      where: {
-        companyId,
-        category: { in: ['crypto', 'brokerage'] },
-        invoiceDate: { gte: start, lte: end },
-      },
-      orderBy: { invoiceDate: 'asc' },
+      where: this.purchaseWhere(companyId, year),
+      orderBy: { invoiceDate: 'desc' },
+      take: 500,
     })
     return {
       year,
@@ -1002,26 +958,11 @@ export class AnlageSOV2Service {
       doc.moveDown(1)
     }
 
-    if (data.transactions.length > 0) {
+    if (data.rows.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Private Veräußerungsgeschäfte (§ 23 EStG)')
       doc.moveDown(0.3)
       doc.fontSize(8).font('Helvetica')
-      for (const t of data.transactions) {
-        const gain = t.salePrice - t.acquisitionCost
-        const held = yearsBetween(t.acquisitionDate, t.saleDate)
-        const status = statusOf(t)
-        const fristYears = fristOf(t.type)
-        const inFrist = status === 'steuerpflichtig'
-        const KIND: Record<string, string> = { wertpapier: 'Wertpapier', krypto: 'Kryptowert', sonstige: 'Sonstiges', grundstueck: 'Grundstück' }
-        doc.text(
-          `• [${KIND[t.type] || t.type}] ` +
-            `${t.description || '(ohne Beschreibung)'} — ` +
-            `Anschaffung ${t.acquisitionDate} (${this.fmtEur(t.acquisitionCost)} €) → ` +
-            `Verkauf ${t.saleDate} (${this.fmtEur(t.salePrice)} €) = ` +
-            `${this.fmtEur(gain)} € ${gain >= 0 ? 'Gewinn' : 'Verlust'} ` +
-            `[gehalten: ${held.toFixed(2)} Jahre, Frist: ${fristYears} J., ${inFrist ? 'in Frist' : 'außerhalb'}]`,
-        )
-      }
+      for (const t of data.rows) doc.text(rowLine(t))
       doc.moveDown(1)
     }
 

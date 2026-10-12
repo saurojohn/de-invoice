@@ -153,6 +153,16 @@ export class AnlageKindSettingsDto extends YearDto {
   kinder!: KindDto[]
 }
 
+// Tier 665: where a row came from — kept through the form's save, so that
+// an expense taken over once is not offered again
+export class AnlageSoRowMetadataDto {
+  @IsOptional() @IsString() @MaxLength(100)
+  importedFromExpenseId?: string
+
+  @IsOptional() @IsString() @MaxLength(40)
+  importedAt?: string
+}
+
 export class AnlageSoTransactionDto {
   // Tier 664: the kinds of § 23 Abs. 1 — crypto and other assets (one year),
   // land (ten years); a security bought since 2009 belongs on Anlage KAP
@@ -166,6 +176,9 @@ export class AnlageSoTransactionDto {
   @Amount() acquisitionCost?: number
   @OptionalYmd() saleDate?: string
   @Amount() salePrice?: number
+
+  @IsOptional() @ValidateNested() @Type(() => AnlageSoRowMetadataDto)
+  metadata?: AnlageSoRowMetadataDto
 }
 
 export class AnlageSoSettingsDto extends YearDto {

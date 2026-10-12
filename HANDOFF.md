@@ -2656,6 +2656,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 665 — Anlage SO: what is entered stays, nothing is counted that is not known, nothing is invented
+
+Found while giving the form's rows a column that says what each counts as. Measured on a fresh company with five rows:
+
+- **Rows went.** A row sold in another year, or without a sale date yet, was saved („Gespeichert“) and left out of the answer; the form no longer showed it and its next save deleted it. Now every stored row comes back (`rows`, with `status` or `problem`), the form loads those, and the summary says how many are not counted. The PDFs list them with the reason.
+- **Counted without being known.** No acquisition date: „outside the period“, tax-free. A sale before its acquisition: taxable (5 500 € instead of 4 000 € in the measurement). Neither is counted now; the row says why.
+- **„Aus Ausgaben übernehmen“ invented sales.** Every expense of the categories `crypto`/`brokerage` became a sale: sold on the day of the expense for its amount, „acquired“ a month earlier for the same amount — on the preview for the adviser. An expense is the purchase: its date and amount are the acquisition; the sale is left for the user, and until then the row is not counted. The page's checkboxes chose nothing (every expense was taken, and all were ticked on opening); `ids` are sent and honoured, nothing is ticked. The category is free text and the page names „Krypto“ — only the exact lower-case English words were found; now what begins with Krypto/Crypto/Wertpapier/Brokerage/Depot/Aktie, whatever the case, up to the end of the year (what is sold this year was often bought earlier). An expense taken into any year's list is known as taken; the form's save dropped that mark (`metadata`), so it was offered and taken again.
+- **A security could not be entered as one if its name held a crypto word** („Bitcoin ETF“) — Tier 664's reading of rows from before applied to every row. A row saved since carries `v: 2` and keeps the kind chosen; only a row without it is read by its description.
+- The CSV import took sales of other years into this year's list (counted nowhere, deleted by the next save); they are named in the preview and not imported.
+- The list of expenses had English headings and a sentence with `category=crypto/brokerage` in it.
+
+`anlage-so-rules.ts` holds the cleaning of a stored row, the split and the PDF line for both services and the save (three copies before). Spec `395-tier665-anlage-so-nichts-verschwindet-nichts-erfunden.sh` (43 assertions, 38 fail on the code before); `anlage-so-rows-tier665.spec.ts` (2 tests); specs 138 and 394 follow (138 expected three sales from three expenses).
+
+Left: a CSV or expense import reloads the form, and what was typed and not saved is gone. `GET /anlage-so/v2` writes the loss carried forward into the settings as it computes (a read that writes).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 664 — Anlage SO: the kinds of asset and their holding periods
 
 Tier 656 had corrected the limit and left a warning on the form that its kinds and periods were wrong. Read against § 23 Abs. 1 EStG (gesetze-im-internet.de) and rebuilt:

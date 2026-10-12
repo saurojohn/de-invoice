@@ -136,7 +136,8 @@ export class AnlageSOV2Controller {
 
   /**
    * POST /api/v1/accounting/anlage-so/import-from-expenses?companyId=...&year=...
-   * Body: {} (the year + companyId are in the query)
+   * Body: { ids?: string[] } — the expenses chosen (the year + companyId
+   * are in the query)
    * Returns the import result:
    *   { importedCount, skippedCount, transactions }
    */
@@ -146,13 +147,19 @@ export class AnlageSOV2Controller {
   async importFromExpenses(
     @Query('companyId') companyId: string,
     @Query('year') yearRaw: string,
+    @Body() body?: { ids?: unknown },
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const year = Number(yearRaw)
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
-    return this.anlageSoV2.importFromExpenses(companyId, year)
+    // Tier 665: the expenses chosen on the page (without `ids`: all)
+    const ids = body?.ids
+    if (ids !== undefined && (!Array.isArray(ids) || ids.length > 500 || ids.some((id) => typeof id !== 'string'))) {
+      throw new BadRequestException('ids muss eine Liste von höchstens 500 Kennungen sein')
+    }
+    return this.anlageSoV2.importFromExpenses(companyId, year, ids as string[] | undefined)
   }
 
   /**

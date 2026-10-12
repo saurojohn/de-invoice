@@ -451,10 +451,12 @@ SKIPPED11=$(json_field "$BODY" "skippedCount")
 assert_eq "importedCount = 3" "$IMPORTED11" "3"
 assert_eq "skippedCount = 0" "$SKIPPED11" "0"
 
-# Verify 3 transactions
+# Tier 665: three rows — the acquisitions; none is a sale yet, none is counted
+# (before: each expense became a sale of its own day, "acquired" a month
+# earlier for the same amount)
 api_get "/api/v1/accounting/anlage-so/v2?companyId=$COMPANY_ID&year=$YEAR"
-TX11=$(json_field "$BODY" "vg.count")
-assert_eq "vg.count = 3 (after expense import)" "$TX11" "3"
+TX11=$(echo "$BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d['rows']), d['vg']['count'], d['vg']['countNotCounted'], sorted(set(r['problem'] for r in d['rows'])), sorted(set(r['saleDate'] for r in d['rows'])))")
+assert_eq "3 rows after the import, none counted, none with an invented sale" "$TX11" "3 0 3 ['saleDate'] ['']"
 
 # ───── 12. Expense re-import: re-import → skippedCount=3 ─────
 echo

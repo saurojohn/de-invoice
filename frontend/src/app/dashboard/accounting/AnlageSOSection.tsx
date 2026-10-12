@@ -66,7 +66,10 @@ interface AnlageSOResult {
     totalLoss: number
     taxableGain: number
     inSpekulationsfrist: number
+    countNotCounted?: number
   }
+  // Tier 665: every stored row, with what it counts as or why it does not
+  rows?: VgListed[]
   freigrenze: number
   lines: AnlageSOLine[]
   totals: {
@@ -91,6 +94,13 @@ interface VgTransaction {
   saleDate: string
   salePrice: number
   metadata?: { importedFromExpenseId?: string; importedAt?: string }
+}
+
+type VgStatus = "steuerpflichtig" | "frei" | "kap"
+type VgProblem = "saleDate" | "otherYear" | "acquisitionDate" | "saleBeforeAcquisition"
+interface VgListed extends VgTransaction {
+  status: VgStatus | null
+  problem: VgProblem | null
 }
 
 // Tier 113 v2: AnlageSOV2 compute() response shape.
@@ -147,6 +157,10 @@ interface TransactionRow {
   acquisitionCost: string // string for input
   saleDate: string
   salePrice: string
+  // what the server said of the row as it is stored — gone once it is edited
+  status?: VgStatus | null
+  problem?: VgProblem | null
+  metadata?: VgTransaction["metadata"]
 }
 
 function emptyRow(): TransactionRow {
@@ -161,7 +175,7 @@ function emptyRow(): TransactionRow {
   }
 }
 
-function rowsFromTransactions(txs: VgTransaction[]): TransactionRow[] {
+function rowsFromTransactions(txs: Array<VgTransaction & Partial<VgListed>>): TransactionRow[] {
   return txs.map((t) => ({
     rowId: `row-${t.acquisitionDate || ""}-${t.saleDate || ""}-${Math.random().toString(36).slice(2, 8)}`,
     type: t.type,
@@ -170,6 +184,9 @@ function rowsFromTransactions(txs: VgTransaction[]): TransactionRow[] {
     acquisitionCost: String(t.acquisitionCost || ""),
     saleDate: t.saleDate,
     salePrice: String(t.salePrice || ""),
+    status: t.status,
+    problem: t.problem,
+    metadata: t.metadata,
   }))
 }
 
@@ -219,11 +236,9 @@ export function AnlageSOSection() {
         `/api/v1/accounting/anlage-so?${params}`,
       )
       setData(result)
-      setRows(
-        result.transactions.length > 0
-          ? rowsFromTransactions(result.transactions)
-          : [],
-      )
+      // every stored row — a row that is not counted yet (no sale date, a
+      // sale of another year) stays in the form, with the reason
+      setRows(rowsFromTransactions(result.rows ?? result.transactions))
       setWiederkehrendeBezuege(String(result.wiederkehrendeBezuege || ""))
       setWerbungskosten(String(result.werbungskosten || ""))
     } catch (e: any) {
@@ -281,9 +296,9 @@ export function AnlageSOSection() {
         `/api/v1/accounting/anlage-so/importable-expenses?${params}`,
       )
       setImportableExpenses(result.items)
-      setExpenseSelected(
-        new Set(result.items.filter((i) => !i.alreadyImported).map((i) => i.id)),
-      )
+      // nothing is ticked: the list holds every purchase up to the end of
+      // the year, and what was sold in this one is the user's to say
+      setExpenseSelected(new Set())
     } catch (e: any) {
       const msg =
         e instanceof ApiError ? e.message : tRef.current("anlageSo.v2.csvError")
@@ -397,12 +412,6 @@ export function AnlageSOSection() {
             ? localStorage.getItem("companyId")
             : null
         if (!companyId) return
-        // The /import-from-expenses endpoint imports
-        // ALL eligible expenses for the year. The UI
-        // selection filter is enforced client-side:
-        // we just don't run the import if nothing is
-        // selected. v3: the endpoint could accept an
-        // `ids` filter; v2 keeps the simple shape.
         if (ids && ids.length === 0) {
           toastRef.current.error(
             tRef.current("anlageSo.v2.expenseImportDone").replace(
@@ -417,7 +426,7 @@ export function AnlageSOSection() {
           skippedCount: number
         }>(
           `/api/v1/accounting/anlage-so/import-from-expenses?companyId=${companyId}&year=${year}`,
-          {},
+          ids ? { ids } : {},
         )
         toastRef.current.success(
           tRef
@@ -455,7 +464,9 @@ export function AnlageSOSection() {
 
   const updateRow = (rowId: string, patch: Partial<TransactionRow>) => {
     setRows((prev) =>
-      prev.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r)),
+      prev.map((r) =>
+        r.rowId === rowId ? { ...r, ...patch, status: undefined, problem: undefined } : r,
+      ),
     )
   }
 
@@ -487,6 +498,7 @@ export function AnlageSOSection() {
           acquisitionCost: Number(r.acquisitionCost) || 0,
           saleDate: r.saleDate,
           salePrice: Number(r.salePrice) || 0,
+          ...(r.metadata?.importedFromExpenseId ? { metadata: r.metadata } : {}),
         }))
       await apiPut(
         `/api/v1/accounting/anlage-so/settings?companyId=${companyId}`,
@@ -507,6 +519,24 @@ export function AnlageSOSection() {
       setSaving(false)
     }
   }
+
+  // Tier 665: what a row counts as — as the server said of the stored row
+  const rowStatusText = (r: TransactionRow): string => {
+    if (r.problem === "otherYear") return t("anlageSo.problemOtherYear").replaceAll("{year}", r.saleDate.slice(0, 4))
+    if (r.problem === "saleDate") return t("anlageSo.problemSaleDate")
+    if (r.problem === "acquisitionDate") return t("anlageSo.problemAcquisitionDate")
+    if (r.problem === "saleBeforeAcquisition") return t("anlageSo.problemSaleBeforeAcquisition")
+    if (r.status === "steuerpflichtig") return t("anlageSo.statusTaxable")
+    if (r.status === "frei") return t("anlageSo.statusFree")
+    if (r.status === "kap") return t("anlageSo.statusKap")
+    return t("anlageSo.statusUnsaved")
+  }
+  const rowStatusClass = (r: TransactionRow): string =>
+    r.problem
+      ? "text-amber-700 dark:text-amber-400"
+      : r.status === "frei"
+        ? "text-green-700 dark:text-green-400"
+        : "text-gray-600 dark:text-gray-300"
 
   const fmtEur = (n: number) =>
     new Intl.NumberFormat("de-DE", {
@@ -591,6 +621,7 @@ export function AnlageSOSection() {
                         <th className="py-1 pr-2">{t("anlageSo.acquisitionCost")}</th>
                         <th className="py-1 pr-2">{t("anlageSo.saleDate")}</th>
                         <th className="py-1 pr-2">{t("anlageSo.salePrice")}</th>
+                        <th className="py-1 pr-2">{t("anlageSo.status")}</th>
                         <th className="py-1 pr-2"></th>
                       </tr>
                     </thead>
@@ -680,6 +711,13 @@ export function AnlageSOSection() {
                               }
                               className="w-24 text-right"
                             />
+                          </td>
+                          <td
+                            className={`py-1 pr-2 max-w-[14rem] ${rowStatusClass(r)}`}
+                            data-testid="anlage-so-row-status"
+                            data-status={r.problem || r.status || "unsaved"}
+                          >
+                            {rowStatusText(r)}
                           </td>
                           <td className="py-1 pr-2">
                             <Button
@@ -991,7 +1029,7 @@ export function AnlageSOSection() {
                       <p className="text-xs">…</p>
                     ) : importableExpenses.length === 0 ? (
                       <p className="text-xs text-gray-500">
-                        Keine Ausgaben mit category=crypto/brokerage für {year}.
+                        {t("anlageSo.v2.expenseNone").replace("{year}", String(year))}
                       </p>
                     ) : (
                       <>
@@ -1000,11 +1038,11 @@ export function AnlageSOSection() {
                             <thead>
                               <tr className="text-left border-b dark:border-gray-700">
                                 <th className="py-1 pr-2"></th>
-                                <th className="py-1 pr-2">Date</th>
-                                <th className="py-1 pr-2">Category</th>
-                                <th className="py-1 pr-2">Description</th>
+                                <th className="py-1 pr-2">{t("anlageSo.v2.expenseDate")}</th>
+                                <th className="py-1 pr-2">{t("anlageSo.v2.expenseCategory")}</th>
+                                <th className="py-1 pr-2">{t("anlageSo.description")}</th>
                                 <th className="py-1 pr-2 text-right">
-                                  Gross (€)
+                                  {t("anlageSo.v2.expenseGross")}
                                 </th>
                                 <th className="py-1 pr-2">
                                   {t("anlageSo.v2.expenseAlreadyImported")}
@@ -1166,6 +1204,14 @@ export function AnlageSOSection() {
                   <div className="text-xs text-gray-500">
                     {data.vg.inSpekulationsfrist} {t("anlageSo.inFrist")}
                   </div>
+                  {(data.vg.countNotCounted ?? 0) > 0 && (
+                    <div
+                      className="text-xs text-amber-700 dark:text-amber-400"
+                      data-testid="anlage-so-summary-not-counted"
+                    >
+                      {t("anlageSo.notCounted").replace("{n}", String(data.vg.countNotCounted))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">

@@ -74,6 +74,7 @@ import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Require } from '../../auth/roles.decorator';
+import { cleanRow as cleanSoRow } from './anlage-so-rules';
 
 @Controller('accounting')
 export class AccountingController {
@@ -1268,36 +1269,14 @@ export class AccountingController {
     const settings = ((company as any).settings ?? {}) as Record<string, any>
     const anlageSoAll = (settings.anlageSO as any) || {}
 
-    // Sanitize the input — strip empty/invalid entries,
-    // normalize types + booleans. Empty transaction
-    // rows (no description + no dates) are dropped.
+    // Rows without any content are dropped; every other row is kept as
+    // entered — a row that cannot be counted yet (no sale date, a sale of
+    // another year) comes back from GET /anlage-so with the reason
+    // (Tier 665). The kind is the one chosen (Tier 664).
     const transactions = body.transactions
       .filter((t) => t && typeof t === 'object')
-      .map((t) => {
-        // Tier 664: the four kinds are kept as entered (a fifth is "sonstige")
-        const type = (['wertpapier', 'krypto', 'grundstueck'] as const).find((k) => k === t.type) ?? 'sonstige'
-        return {
-          type,
-          description: String(t.description || '').trim(),
-          acquisitionDate:
-            typeof t.acquisitionDate === 'string' &&
-            /^\d{4}-\d{2}-\d{2}$/.test(t.acquisitionDate)
-              ? t.acquisitionDate
-              : '',
-          acquisitionCost: Number(t.acquisitionCost) || 0,
-          saleDate:
-            typeof t.saleDate === 'string' &&
-            /^\d{4}-\d{2}-\d{2}$/.test(t.saleDate)
-              ? t.saleDate
-              : '',
-          salePrice: Number(t.salePrice) || 0,
-        }
-      })
-      .filter(
-        (t) =>
-          // Drop rows with no useful data at all
-          t.description || t.acquisitionDate || t.saleDate,
-      )
+      .map((t) => cleanSoRow(t, true))
+      .filter((t) => t.description || t.acquisitionDate || t.saleDate || t.acquisitionCost || t.salePrice)
 
     const wiederkehrendeBezuege = Number(body.wiederkehrendeBezuege) || 0
     const werbungskosten = Number(body.werbungskosten) || 0

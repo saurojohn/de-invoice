@@ -90,7 +90,10 @@ echo "$BODY" | grep -q "Anlage KAP" && echo "$BODY" | grep -q "1 Geschäft(e) mi
 put "$(tx grundstueck Acker 2018-05-01 100000 2026-05-01 150000)"
 v1; assert_eq "land sold after eight years: 50 000 € on line 43 (was a placeholder)" "$(field "d['totals']['vgTotal']")|$(line 43)" "50000|50000"
 
-put "$(tx wertpapier 'BTC 0.5' 2025-09-01 8000 2026-03-01 12000)"
+# a row as it was stored before the four kinds (Tier 665: a row saved since
+# then keeps the kind chosen, so the old one is written the way it lies there)
+put ""
+docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c "UPDATE \"Company\" SET settings = jsonb_set(settings::jsonb, '{anlageSO,$Y,transactions}', '[{\"type\":\"wertpapier\",\"description\":\"BTC 0.5\",\"acquisitionDate\":\"2025-09-01\",\"acquisitionCost\":8000,\"saleDate\":\"2026-03-01\",\"salePrice\":12000}]'::jsonb) WHERE id = '$C'" >/dev/null
 v1; assert_eq "a row from before — crypto as a security: on line 34 only (lines 32 and 34 had the same sum)" "$(line 32)|$(line 34)|$(field "d['vg']['countKrypto']")" "0|4000|1"
 
 # the year's losses against its gains, then the Freigrenze
