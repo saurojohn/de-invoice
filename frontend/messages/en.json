@@ -2250,8 +2250,8 @@
     "lineVat": "Tax",
     "exportCsv": "Export CSV",
     "hintVoranmeldung": "Note: Late filing (after the 10th of the following month) may incur late surcharges (§ 152 AO).",
-    "downloadElster": "ELSTER XML",
-    "elsterTooltip": "Download ELSTER XML for Mein-ELSTER upload",
+    "downloadElster": "Kennzahlen (XML)",
+    "elsterTooltip": "The Kennzahlen as an XML file — for copying into Mein ELSTER. Not a file to upload: it has not been checked against the ELSTER schema.",
     "istVersteuerung": "Cash basis (§ 20 UStG): taxable sales in the period the payment arrived.",
     "giftRecipient": "Gift recipient",
     "giftRecipientHint": "Deductible up to 50 € (net) per recipient and year; above it, all gifts to them are non-deductible, input tax included (§ 4 Abs. 5 Nr. 1 EStG, § 15 Abs. 1a UStG). Without a recipient only giveaways up to 10 €.",
@@ -3203,7 +3203,7 @@
   },
   "ebilanz": {
     "title": "E-Bilanz VORSCHAU (XBRL)",
-    "subtitle": "Automatically generates a BMF eBilanz-in-xtml VORSCHAU for the selected year. Berater fills the placeholder positions before ELSTER upload.",
+    "subtitle": "Automatically generates a BMF eBilanz-in-xtml VORSCHAU for the selected year. The adviser fills the placeholder positions before it is transmitted.",
     "year": "Fiscal year",
     "downloadXml": "Download .xbrl file",
     "downloadPdf": "Download VORSCHAU PDF",
@@ -3268,7 +3268,7 @@
   },
   "ustja": {
     "title": "Annual VAT Return (UStJA)",
-    "subtitle": "Adds up the 12 monthly UStVAs (Jan–Dec) to the VAT of the year (§ 18 para. 3 UStG, BMF form 2024). The assessment sets the actual liability; the monthly UStVAs are prepayments. The app sends nothing to ELSTER — the return can be downloaded as an ELSTER XML file, and the tax advisor takes it into ELSTER or their own software.",
+    "subtitle": "Adds up the 12 monthly UStVAs (Jan–Dec) to the VAT of the year (§ 18 para. 3 UStG, BMF form 2024). The assessment sets the actual liability; the monthly UStVAs are prepayments. The app sends nothing to ELSTER — the Kennzahlen can be downloaded as an XML file, and the tax adviser copies them into ELSTER or their own software.",
     "year": "Fiscal year",
     "recompute": "Compute",
     "downloadPdf": "Download PDF",
@@ -3283,10 +3283,10 @@
     "totals": "Summary",
     "restzahlungHint": "Restzahlung (Kz 69) — due to the Finanzamt by 31.07 of the following year",
     "generatedAt": "Generated",
-    "elsterXml": "ELSTER XML",
-    "elsterXmlHint": "Native BMF Datenlieferung packet for ELSTER upload. Since 2024, UStJA is mandatory via ELSTER.",
+    "elsterXml": "Kennzahlen (XML)",
+    "elsterXmlHint": "The Kennzahlen of the return as an XML file, for copying into Mein ELSTER or the adviser's software. Not a file to upload: it has not been checked against the ELSTER schema. The VAT return itself has to be transmitted electronically (§ 18 para. 3 UStG).",
     "asciiPreview": "ASCII preview",
-    "asciiPreviewHint": "Plain-text preview for sanity checking before upload (same format as Mein-ELSTER paste-import)."
+    "asciiPreviewHint": "Plain-text preview of the Kennzahlen, for checking and copying."
   },
   "gewst": {
     "title": "Trade tax return (GewSt)",

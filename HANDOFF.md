@@ -2662,6 +2662,24 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 681 — the owner's open items of §9, done on 12.10.2026; no page promises an ELSTER upload
+
+The owner answered the status report of 12.10.2026 with „都做“ for §9 items 3, 5, 6 and „what needs outside confirmation“, and „同意“ for the dev database.
+
+**The development database** (`de-invoice-postgres`, stopped since the restart of the Mac): started; dumped first to `~/data/backups/de-invoice-manual/vor-migration-2026-10-12.dump` (731 kB, 69 tables, read back with `pg_restore -l`; a directory of its own, not the rotating backup one); the ten pending migrations read (tables, columns, indexes — nothing dropped, renamed or rewritten) and applied with `prisma migrate deploy`: 58 of 58, the row counts as before. A backend started on it on :3012 without its timers answered twelve read routes with 200 and was stopped again.
+
+**§9 item 6 — the recurring templates:** three, all fixtures (customer „BWA Test Kunde GmbH“, e-mail at example.com, never run), all with `sendEmail = true` as the bug of Tier 365 had left them. Set to false — a test template has nobody to write to. There is no real template to review yet.
+
+**§9 item 5 — the audit chain:** counted first without writing: of 1 315 rows one would change, the last of the company's chain (`assets.afa.stornoed`, a SHA-256-V1 row with a Decimal). `scripts/audit-rehash.ts` rewrote that one; the application's own `GET /audit-logs/verify` says ok, 1 263 of 1 263.
+
+**§9 item 3 — the old token:** not done; it needs the owner's GitHub session (the Chrome extension was not connected, and a deletion there asks for the password). Checked here: no token in the remote URL, the repository's config, the reflogs, the tracked files or any commit.
+
+**§9 item 9 — ELSTER:** the official schema is behind the ELSTER developer registration and was not obtained. What could be put right is what the product says. `elster.service.ts` has said since Tier 417 that its XML is no ELSTER upload; three texts on the pages still promised one („ELSTER-XML für Mein-ELSTER-Upload“, „Native BMF-Datenlieferung-Paket für ELSTER-Upload. Seit 2024 …“, „gleiches Format wie Mein-ELSTER-Paste-Import“ — an import Mein ELSTER does not have; electronic filing is § 18 Abs. 3 UStG, not „since 2024“). The buttons read „Kennzahlen (XML)“, the hints say what the file is for and that it is not checked against the schema. Spec `405-tier681-kein-elster-upload-versprochen.sh` (6 assertions, static; fails on the texts before with 16 places).
+
+**For the adviser:** `docs/steuerberater-pruefliste.md` — six questions that need a decision and the assumptions of each form, in German, to hand over with the Berater-Paket.
+
+**The Chinese texts:** not reviewed by a reader of German tax law — that stays open. Compared term by term instead: the renderings written on 12.10. differed from the dictionary's own in six terms (Kapitalgesellschaft, Quellensteuer, Sparer-Pauschbetrag, Kindergeld, nicht abziehbare Betriebsausgaben, Kürzung); 31 places aligned.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 680 — CI run 38285101244 red: two tests, both the suite's own assumptions
 
 Tiers 671–674: backend 400 passed / 1 skipped, Playwright 1065 passed and **3 failed** — none of them the product.
@@ -9074,7 +9092,7 @@ These are **not in the repo** — only the user can do them:
 2. **Repository variable `NEXT_PUBLIC_API_URL`** (the public site URL) before
    pushing any `v*` tag — `release.yml` builds the frontend image with it and
    fails on purpose without it (Tier 363).
-3. **Revoke the old `ghp_` personal access token** that used to be in the git
+3. **Revoke the old `ghp_` personal access token** *(asked for on 12.10.2026, Tier 681 — still the owner's to click: github.com/settings/tokens; nothing of it is left in the repository)* that used to be in the git
    remote URL (github.com/settings/tokens). Corrected in Tier 367: the remote
    does **not** use SSH — `origin` is `https://github.com/saurojohn/de-invoice.git`
    with `credential.helper=osxkeychain`. The token is no longer *in the URL*
@@ -9093,7 +9111,7 @@ These are **not in the repo** — only the user can do them:
    exists (checked with `ls`). `de-invoice-postgres` had already been
    `Exited (1)` for 4 days. Nothing was touched — rebuilding the dev database
    (from `backup-2026-09-05-224235` or fresh) is the user's call.
-5. **Decide whether to re-hash the existing audit chain.** Only for *historical*
+5. ~~**Decide whether to re-hash the existing audit chain.**~~ — **done on the dev database, Tier 681** (12.10.2026): one row rewritten, the chain verifies; a dump from before is kept. Only for *historical*
    rows — since Tier 367 a healthy chain verifies with no re-hash at all, so
    this is no longer needed to make `/audit-logs/verify` return ok. Rows that
    cannot verify under the rules they were written with: pre-Tier-366 rows
@@ -9103,7 +9121,7 @@ These are **not in the repo** — only the user can do them:
    hash and pointer in `seq` order with the fixed canonicalisation — which means
    rewriting stored hashes on historical rows, so it stays a deliberate operator
    decision, ideally with a database backup first.
-6. **Review every recurring template's "Rechnung an Kunden senden" setting.**
+6. ~~**Review every recurring template's "Rechnung an Kunden senden" setting.**~~ — **done, Tier 681**: the three templates are fixtures and were set not to send.
    Until Tier 365 unchecking it was not saved, so all templates are stored
    with `sendEmail = true` and generated invoices were e-mailed regardless.
    Which ones were meant to be off cannot be recovered from the data:
@@ -9114,7 +9132,7 @@ These are **not in the repo** — only the user can do them:
    Anlage AUS uses for § 8b KStG; "GmbH & Co. KG" is no Kapitalgesellschaft.
 8. **Hetzner VPS IP + SSH key** — for `infra/prod/HETZNER-DEPLOY.sh`
    (DNS A record, deploy). `sudo` only for `scripts/fix-dev-pg.sh`.
-9. **Verify the ELSTER UStVA XML format against the official schema** — and,
+9. **Verify the ELSTER UStVA XML format against the official schema** *(Tier 681: the pages no longer promise an upload — the file is offered as the Kennzahlen for copying; the schema itself is still unchecked)* — and,
    since Tier 491, the ZM CSV (`GET /ustva/zm.csv`) against the BZSt upload
    format before the first Zusammenfassende Meldung is filed (found
    Tier 371). `src/modules/reports/elster.service.ts` says its output is "ERiC

@@ -485,7 +485,7 @@ function UstvaPageInner() {
         a.remove()
         URL.revokeObjectURL(url)
       } catch (e: any) {
-        setDownloadError(e?.message || L("ELSTER-XML konnte nicht heruntergeladen werden"))
+        setDownloadError(e?.message || L("Die XML-Datei konnte nicht heruntergeladen werden"))
       }
     })()
   }
@@ -1422,9 +1422,9 @@ function UstvaPageInner() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => downloadElster(f.id, f.periodLabel)}
-                                title={t("ustva.elsterTooltip") || "ELSTER-XML für Mein-ELSTER-Upload herunterladen"}
+                                title={t("ustva.elsterTooltip")}
                               >
-                                {t("ustva.downloadElster") || "ELSTER XML"}
+                                {t("ustva.downloadElster")}
                               </Button>
                             </td>
                           </tr>

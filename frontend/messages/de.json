@@ -2250,8 +2250,8 @@
     "lineVat": "Steuer",
     "exportCsv": "CSV exportieren",
     "hintVoranmeldung": "Hinweis: Bei Abgabe nach dem 10. des Folgemonats kann Verspätungszuschlag erhoben werden (§ 152 AO).",
-    "downloadElster": "ELSTER XML",
-    "elsterTooltip": "ELSTER-XML für Mein-ELSTER-Upload herunterladen",
+    "downloadElster": "Kennzahlen (XML)",
+    "elsterTooltip": "Die Kennzahlen als XML-Datei — zum Übertragen in Mein ELSTER. Keine Datei zum Hochladen: sie ist nicht nach dem ELSTER-Schema geprüft.",
     "istVersteuerung": "Ist-Versteuerung (§ 20 UStG): steuerpflichtige Umsätze im Zeitraum des Zahlungseingangs.",
     "giftRecipient": "Empfänger des Geschenks",
     "giftRecipientHint": "Bis 50 € (netto) je Empfänger und Jahr abziehbar; darüber sind alle Geschenke an ihn nicht abziehbar, auch die Vorsteuer (§ 4 Abs. 5 Nr. 1 EStG, § 15 Abs. 1a UStG). Ohne Empfänger nur Streuartikel bis 10 €.",
@@ -3203,7 +3203,7 @@
   },
   "ebilanz": {
     "title": "E-Bilanz VORSCHAU (XBRL)",
-    "subtitle": "Erstellt automatisch eine BMF eBilanz-in-xtml VORSCHAU für das gewählte Geschäftsjahr. Berater ergänzt die Platzhalter-Positionen vor dem ELSTER-Upload.",
+    "subtitle": "Erstellt automatisch eine BMF eBilanz-in-xtml VORSCHAU für das gewählte Geschäftsjahr. Der Berater ergänzt die Platzhalter-Positionen vor der Übermittlung.",
     "year": "Geschäftsjahr",
     "downloadXml": ".xbrl-Datei herunterladen",
     "downloadPdf": "VORSCHAU-PDF herunterladen",
@@ -3268,7 +3268,7 @@
   },
   "ustja": {
     "title": "Umsatzsteuerjahreserklärung (UStJA)",
-    "subtitle": "Fasst die 12 monatlichen UStVAs (Jan–Dez) zur Umsatzsteuer des Jahres zusammen (§ 18 Abs. 3 UStG, BMF-Vordruck 2024). Der Bescheid setzt die tatsächliche Steuerschuld fest; die monatlichen UStVAs sind Vorauszahlungen. Die App übermittelt nichts an ELSTER — die Erklärung lässt sich als ELSTER-XML-Datei herunterladen, der Berater übernimmt sie in ELSTER oder seine Kanzleisoftware.",
+    "subtitle": "Fasst die 12 monatlichen UStVAs (Jan–Dez) zur Umsatzsteuer des Jahres zusammen (§ 18 Abs. 3 UStG, BMF-Vordruck 2024). Der Bescheid setzt die tatsächliche Steuerschuld fest; die monatlichen UStVAs sind Vorauszahlungen. Die App übermittelt nichts an ELSTER — die Kennzahlen lassen sich als XML-Datei herunterladen, der Berater überträgt sie in ELSTER oder seine Kanzleisoftware.",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
@@ -3283,10 +3283,10 @@
     "totals": "Zusammenfassung",
     "restzahlungHint": "Restzahlung (Kz 69) — bis 31.07. des Folgejahres an das Finanzamt",
     "generatedAt": "Erstellt",
-    "elsterXml": "ELSTER XML",
-    "elsterXmlHint": "Native BMF-Datenlieferung-Paket für ELSTER-Upload. Seit 2024 ist UStJA verpflichtend über ELSTER einzureichen.",
+    "elsterXml": "Kennzahlen (XML)",
+    "elsterXmlHint": "Die Kennzahlen der Erklärung als XML-Datei, zum Übertragen in Mein ELSTER oder in die Software des Beraters. Keine Datei zum Hochladen: sie ist nicht nach dem ELSTER-Schema geprüft. Die Umsatzsteuererklärung selbst ist elektronisch zu übermitteln (§ 18 Abs. 3 UStG).",
     "asciiPreview": "ASCII-Vorschau",
-    "asciiPreviewHint": "Plain-Text-Vorschau zur visuellen Prüfung vor dem Upload (gleiches Format wie Mein-ELSTER-Paste-Import)."
+    "asciiPreviewHint": "Textvorschau der Kennzahlen, zum Prüfen und Abschreiben."
   },
   "gewst": {
     "title": "Gewerbesteuererklärung (GewSt)",
