@@ -200,7 +200,12 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     // already uses.
     let deliveryId: string | undefined
     let deliveryStatus: string | undefined
-    for (let attempt = 0; attempt < 20; attempt++) {
+    // Tier 667: 20 s, not 5 (as webhook-dead-letter-tier198 waits). The delivery goes to httpbin.org and gives up
+    // after 10 s; with that service slow (CI run 38258071990, 12.10.2026)
+    // the row was still 'pending' after 5 s — failed twice, passed on the
+    // third try, "1 flaky". Any terminal status will do here, a timeout's
+    // 'failed' too; the wait only has to outlast the delivery's own limit.
+    for (let attempt = 0; attempt < 80; attempt++) {
       const list = await request.get(
         `http://localhost:3001/api/v1/webhooks/${whId}/deliveries?companyId=${tokens!.companyId}&limit=1`,
         { headers: headers() },
@@ -227,7 +232,7 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
       }
       await new Promise((r) => setTimeout(r, 250))
     }
-    expect(deliveryId, "webhook delivery row must land within 5s").toBeTruthy()
+    expect(deliveryId, "webhook delivery row must land within 20s").toBeTruthy()
     expect(
       deliveryStatus,
       "the delivery must reach a terminal status before we force it to exhausted",

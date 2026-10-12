@@ -2656,6 +2656,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 667 — a second test that waited on httpbin.org; and which reads write
+
+CI run 38258071990 (Tiers 659–663) was green with **1 flaky**: `admin-activity-log-tier202.spec.ts`, test 3. It fires a test delivery to httpbin.org and waited 5 s for it to reach a terminal status; the delivery itself gives up after 10 s, so with that service slow the row was still „pending“ — failed twice, passed on the third try. Tier 663 had said of the other files naming httpbin.org that none depends on its answer; this one depends on its answering *in time*. It waits 20 s now (as `webhook-dead-letter-tier198` does, for the reason written there); a timeout's „failed“ is as good as a success for what the test is about. The two remaining files with a fixed sleep (`webhook-deliveries-csv-tier203`, `webhook-event-type-filter-tier201`) only need the delivery's row to exist. Cannot be run here (it addresses :3001).
+
+After Tier 666, every GET route without a path parameter (and the invoice's and the customer's by id) was called for a company with data, watching the database for a writing transaction: 272 routes, three wrote, each once and not again — `GET /accounting/accounts/seed` (creates the chart of accounts; needs `accounting.create`, so read-only mode refuses it — checked), and the first rendering of an invoice's PDF, directly and inside the GoBD archive (it stores the file's path). No other read writes on every call.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 666 — Anlage SO: reading the form writes nothing
 
 `GET /accounting/anlage-so/v2` stored the loss carried forward as it computed. Measured on a company with a loss in the year: every call updated the company's row and added a line to the audit log — every time the accounting page was opened, for the adviser's package, and in read-only mode too. It wrote the **whole** `settings` back from the copy read at its start: a setting saved in between was gone.
