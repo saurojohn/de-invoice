@@ -215,6 +215,16 @@ export class AnlageAusEntryDto {
   @Amount() grossAmount?: number
   @Amount() foreignTaxPaid?: number
 
+  // Tier 676: the method this entry's treaty provides for — empty leaves it
+  // to the kind of income; and for a corporation's dividend whether the
+  // holding was at least 10 % at the beginning of the year (§ 8b Abs. 4 KStG)
+  @ValidateIf((_o, v) => v !== undefined && v !== '')
+  @IsIn(['freistellung', 'anrechnung'], { message: 'methode muss freistellung oder anrechnung sein' })
+  methode?: 'freistellung' | 'anrechnung' | ''
+
+  @IsOptional() @StrictBoolean() @IsBoolean()
+  beteiligungAb10?: boolean
+
   @IsOptional() @IsString() @MaxLength(500)
   description?: string
 }

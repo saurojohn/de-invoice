@@ -3524,7 +3524,7 @@
   },
   "anlageAus": {
     "title": "Anlage AUS (Ausländische Einkünfte)",
-    "subtitle": "Ausländische Einkünfte (§ 34d EStG) — für Einkünfte aus dem Ausland, die in Deutschland steuerpflichtig sind. Bei DBA-Freistellung Progressionsvorbehalt (§ 32b EStG); ohne DBA Anrechnung der ausländischen Steuer. Für KapG (GmbH / AG / KGaA / UG): § 8b KStG — 95% der ausländischen Dividenden steuerfrei, 5% nicht abziehbare Betriebsausgaben.",
+    "subtitle": "Ausländische Einkünfte (§ 34d EStG). Ein Doppelbesteuerungsabkommen stellt sie frei — bei Personen mit Progressionsvorbehalt (§ 32b EStG) — oder lässt sie steuerpflichtig, mit Anrechnung der ausländischen Steuer (§ 34c EStG); das hängt vom Abkommen und der Art der Einkünfte ab. Ohne Abkommen wird angerechnet. Bei Kapitalgesellschaften gilt für Dividenden § 8b KStG.",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
@@ -3535,8 +3535,8 @@
     "country": "Land (ISO)",
     "countryName": "Land",
     "hasDba": "DBA",
-    "hasDbaYes": "DBA-Freistellung",
-    "hasDbaNo": "Anrechnung",
+    "hasDbaYes": "DBA",
+    "hasDbaNo": "kein DBA",
     "incomeType": "Einkunftsart",
     "dividend": "Dividende (Nr. 5)",
     "interest": "Zinsen (Nr. 5)",
@@ -3558,10 +3558,20 @@
     "anrechnungsbetrag": "Anrechnungsbetrag (§ 34c EStG)",
     "paragraph8b": "§ 8b KStG Pauschale",
     "countryCount": "Länder",
-    "isKapg": "KapG (§ 8b KStG anwendbar)",
+    "isKapg": "Kapitalgesellschaft (§ 8b KStG für Dividenden)",
     "emptyEntries": "Keine ausländischen Einkünfte erfasst. Klicken Sie 'Einkunft hinzufügen' um eine Zeile pro Land einzutragen.",
     "loadError": "Fehler beim Laden der Anlage AUS Daten",
-    "saveError": "Fehler beim Speichern"
+    "saveError": "Fehler beim Speichern",
+    "methode": "Methode",
+    "methodeAuto": "nach Art der Einkünfte",
+    "methodeFreistellung": "Freistellung",
+    "methodeAnrechnung": "Anrechnung",
+    "beteiligungAb10": "Beteiligung mind. 10 % zu Jahresbeginn",
+    "applied": {
+      "freistellung": "angesetzt: freigestellt",
+      "anrechnung": "angesetzt: steuerpflichtig, Steuer angerechnet",
+      "paragraph8b": "angesetzt: § 8b KStG — 95 % steuerfrei, 5 % nicht abziehbar"
+    }
   },
   "installmentPlan": {
     "amount": "Betrag",

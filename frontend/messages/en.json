@@ -3524,7 +3524,7 @@
   },
   "anlageAus": {
     "title": "Anlage AUS (Foreign Income)",
-    "subtitle": "Foreign income (§ 34d EStG) — for income sourced outside Germany that is taxable in Germany. DBA-exempt income gets Progressionsvorbehalt (§ 32b EStG); without DBA, foreign tax is credited. For KapG (GmbH/AG/KGaA/UG): § 8b KStG — 95% of foreign dividends tax-free, 5% non-deductible.",
+    "subtitle": "Foreign income (§ 34d EStG). A double taxation treaty exempts it — for persons with the progression clause (§ 32b EStG) — or leaves it taxable with the foreign tax credited (§ 34c EStG); that depends on the treaty and the kind of income. Without a treaty the tax is credited. For corporations § 8b KStG applies to dividends.",
     "year": "Fiscal year",
     "recompute": "Recompute",
     "downloadPdf": "Download PDF",
@@ -3535,8 +3535,8 @@
     "country": "Country (ISO)",
     "countryName": "Country",
     "hasDba": "DBA",
-    "hasDbaYes": "DBA exemption",
-    "hasDbaNo": "Credit method",
+    "hasDbaYes": "treaty",
+    "hasDbaNo": "no treaty",
     "incomeType": "Income type",
     "dividend": "Dividend (Nr. 5)",
     "interest": "Interest (Nr. 5)",
@@ -3558,10 +3558,20 @@
     "anrechnungsbetrag": "Credit amount (§ 34c EStG)",
     "paragraph8b": "§ 8b KStG flat-rate",
     "countryCount": "Countries",
-    "isKapg": "KapG (§ 8b KStG applicable)",
+    "isKapg": "Corporation (§ 8b KStG for dividends)",
     "emptyEntries": "No foreign income entered. Click 'Add entry' to add a row per country.",
     "loadError": "Failed to load Anlage AUS data",
-    "saveError": "Failed to save"
+    "saveError": "Failed to save",
+    "methode": "Method",
+    "methodeAuto": "by the kind of income",
+    "methodeFreistellung": "exemption",
+    "methodeAnrechnung": "credit",
+    "beteiligungAb10": "holding of at least 10 % at the start of the year",
+    "applied": {
+      "freistellung": "applied: exempt",
+      "anrechnung": "applied: taxable, tax credited",
+      "paragraph8b": "applied: § 8b KStG — 95 % tax-free, 5 % not deductible"
+    }
   },
   "installmentPlan": {
     "amount": "Amount",

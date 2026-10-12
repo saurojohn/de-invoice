@@ -52,6 +52,8 @@ interface AnlageAUSLine {
   note?: string
 }
 
+type AusMethode = "freistellung" | "anrechnung"
+
 interface PerCountryRow {
   country: string
   countryName: string
@@ -76,6 +78,11 @@ interface AnlageAUSResult {
     grossAmount: number
     foreignTaxPaid: number
     description: string
+    // Tier 676: the entry's own method ('' = by the kind of income), the
+    // holding of § 8b Abs. 4 KStG, and what was applied
+    methodeGewaehlt?: AusMethode | ""
+    beteiligungAb10?: boolean
+    methode?: AusMethode | "paragraph8b"
   }>
   perCountry: PerCountryRow[]
   lines: AnlageAUSLine[]
@@ -106,6 +113,10 @@ interface EntryRow {
   grossAmount: string
   foreignTaxPaid: string
   description: string
+  methodeGewaehlt: AusMethode | ""
+  beteiligungAb10: boolean
+  // what the server applied to the stored entry — gone once it is edited
+  methode?: AusMethode | "paragraph8b"
 }
 
 function emptyRow(): EntryRow {
@@ -118,6 +129,8 @@ function emptyRow(): EntryRow {
     grossAmount: "",
     foreignTaxPaid: "",
     description: "",
+    methodeGewaehlt: "",
+    beteiligungAb10: false,
   }
 }
 
@@ -131,6 +144,9 @@ function rowsFromEntries(entries: AnlageAUSResult["entries"]): EntryRow[] {
     grossAmount: String(e.grossAmount || ""),
     foreignTaxPaid: String(e.foreignTaxPaid || ""),
     description: e.description,
+    methodeGewaehlt: e.methodeGewaehlt || "",
+    beteiligungAb10: e.beteiligungAb10 === true,
+    methode: e.methode,
   }))
 }
 
@@ -193,7 +209,7 @@ export function AnlageAUSSection() {
 
   const updateRow = (rowId: string, patch: Partial<EntryRow>) => {
     setRows((prev) =>
-      prev.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r)),
+      prev.map((r) => (r.rowId === rowId ? { ...r, ...patch, methode: undefined } : r)),
     )
   }
 
@@ -225,6 +241,8 @@ export function AnlageAUSSection() {
           grossAmount: Number(r.grossAmount) || 0,
           foreignTaxPaid: Number(r.foreignTaxPaid) || 0,
           description: r.description,
+          methode: r.methodeGewaehlt,
+          beteiligungAb10: r.beteiligungAb10,
         }))
       await apiPut(
         `/api/v1/accounting/anlage-aus/settings?companyId=${companyId}`,
@@ -333,6 +351,7 @@ export function AnlageAUSSection() {
                         <th className="py-1 pr-2">{t("anlageAus.countryName")}</th>
                         <th className="py-1 pr-2">{t("anlageAus.incomeType")}</th>
                         <th className="py-1 pr-2">{t("anlageAus.hasDba")}</th>
+                        <th className="py-1 pr-2">{t("anlageAus.methode")}</th>
                         <th className="py-1 pr-2 text-right">{t("anlageAus.grossAmount")}</th>
                         <th className="py-1 pr-2 text-right">{t("anlageAus.foreignTaxPaid")}</th>
                         <th className="py-1 pr-2">{t("anlageAus.description")}</th>
@@ -405,6 +424,36 @@ export function AnlageAUSSection() {
                               }
                               data-testid={`anlage-aus-dba-${r.rowId}`}
                             />
+                          </td>
+                          <td className="py-1 pr-2" data-testid="anlage-aus-methode-cell">
+                            {/* Tier 676: a treaty exempts or credits — by the kind of income, or as chosen */}
+                            <select
+                              value={r.hasDba ? r.methodeGewaehlt : "anrechnung"}
+                              disabled={!r.hasDba}
+                              onChange={(e) => updateRow(r.rowId, { methodeGewaehlt: e.target.value as AusMethode | "" })}
+                              className="border rounded px-1 py-0.5 bg-white dark:bg-gray-800 disabled:bg-gray-100 dark:disabled:bg-gray-700"
+                              data-testid="anlage-aus-methode"
+                            >
+                              <option value="">{t("anlageAus.methodeAuto")}</option>
+                              <option value="freistellung">{t("anlageAus.methodeFreistellung")}</option>
+                              <option value="anrechnung">{t("anlageAus.methodeAnrechnung")}</option>
+                            </select>
+                            {data?.isKapg && r.incomeType === "dividend" && (
+                              <label className="flex items-center gap-1 mt-1">
+                                <input
+                                  type="checkbox"
+                                  checked={r.beteiligungAb10}
+                                  onChange={(e) => updateRow(r.rowId, { beteiligungAb10: e.target.checked })}
+                                  data-testid="anlage-aus-beteiligung"
+                                />
+                                {t("anlageAus.beteiligungAb10")}
+                              </label>
+                            )}
+                            {r.methode && (
+                              <div className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400" data-testid="anlage-aus-applied" data-methode={r.methode}>
+                                {t(`anlageAus.applied.${r.methode}`)}
+                              </div>
+                            )}
                           </td>
                           <td className="py-1 pr-2">
                             <Input

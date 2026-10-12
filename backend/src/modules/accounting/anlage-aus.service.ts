@@ -6,103 +6,36 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 
 /**
- * Tier 110: Anlage AUS — Ausländische Einkünfte
- * (§ 34d EStG).
+ * Anlage AUS — income from abroad (§ 34d EStG): what of it Germany taxes,
+ * what a treaty exempts, and the foreign tax to be credited.
  *
- * The 9th Anlage form (after S / V / KAP / G / N
- * / R / Kind / SO). For income sourced outside
- * Germany that is taxable in Germany.
+ * Tier 676 — read against § 34c EStG and § 8b KStG (gesetze-im-internet.de,
+ * 12.10.2026):
  *
- * § 34d EStG enumerates 7 categories:
- *   - Nr. 1: Einkünfte aus Land- und Forstwirtschaft
- *     in foreign countries
- *   - Nr. 2: Einkünfte aus Gewerbebetrieb through
- *     a foreign Betriebsstätte
- *   - Nr. 3: Einkünfte aus selbständiger Arbeit
- *     performed abroad
- *   - Nr. 4: Einkünfte aus nichtselbständiger
- *     Arbeit (employment abroad — Lohnsteuer-
- *     bescheinigung country)
- *   - Nr. 5: Einkünfte aus Kapitalvermögen
- *     (foreign dividends / interest)
- *   - Nr. 6: Einkünfte aus Vermietung und
- *     Verpachtung (foreign real estate)
- *   - Nr. 7: Sonstige Einkünfte with foreign
- *     source (§ 22 + § 23 EStG)
+ *   A treaty (DBA) does not mean exemption. § 34c Abs. 6 Satz 2: "Soweit in
+ *   einem Abkommen … die Anrechnung einer ausländischen Steuer vorgesehen
+ *   ist …". By the treaties' usual content (OECD model, Art. 10, 11, 23)
+ *   dividends and interest stay taxable at home, with the source tax
+ *   credited; wages, a permanent establishment's profit and income from
+ *   land are usually exempted, for persons with Progressionsvorbehalt
+ *   (§ 32b EStG). The form assumes that per kind of income and lets every
+ *   entry say otherwise — the single treaty decides.
  *
- * Two key concepts (§ 34d EStG):
+ *   § 8b KStG has nothing to do with a treaty: a corporation's dividends
+ *   are left out of its income (Abs. 1), 5 % of them count as expenses
+ *   that are not deductible (Abs. 5) — but not when the holding was below
+ *   10 % at the beginning of the calendar year (Abs. 4): then they are
+ *   taxed in full.
  *
- *   1. DBA (Doppelbesteuerungsabkommen) — a
- *      bilateral tax treaty between two countries.
- *      The treaty decides WHICH country has the
- *      primary right to tax + which method
- *      applies:
+ * Before: `hasDba` alone decided — every income from a treaty country was
+ * exempt, a US dividend and US interest too; without a treaty everything
+ * was taxed, a GmbH's 30 % holding in a Brazilian company included; § 8b
+ * applied "bei Beteiligung ≥ 1%" and only with a treaty; the dividend that
+ * was shown as exempt still had its tax credited.
  *
- *      - Freistellung (exemption method): the
- *        other country exempts, so only the
- *        source country taxes. Germany exempts
- *        the foreign income BUT the income still
- *        affects the German Steuersatz via
- *        Progressionsvorbehalt (§ 32b EStG).
- *        Typical: employment income, business
- *        income for most DBA countries.
- *
- *      - Anrechnung (credit method): both
- *        countries tax, but the country of
- *        residence credits the foreign tax paid
- *        against its own tax liability. Typical:
- *        passive income (dividends, interest,
- *        rental) in DBA countries with
- *        Anrechnungs-clauses, AND all income
- *        from non-DBA countries.
- *
- *   2. § 8b KStG (only for KapG = GmbH/AG):
- *      Dividends from foreign corporations are
- *      95% tax-exempt (5% non-deductible). This
- *      overrides any DBA Anrechnung for dividends
- *      at the corporate level.
- *
- * v1 covers:
- *   (a) Multiple entries per year, one per
- *       (country + income type) pair.
- *   (b) For each entry: gross amount in EUR +
- *       foreign tax paid in EUR + hasDba flag.
- *   (c) Per-entry math:
- *       - hasDba=true: Progressionsvorbehalt
- *         (add to Steuersatz-affecting sum, NOT
- *         to taxable income)
- *       - hasDba=false (or no DBA clause):
- *         Anrechnung — foreign tax credited
- *         against the German tax on that
- *         portion. v1 simplification: the
- *         Anrechnungsbetrag is the foreign tax
- *         paid (capped at the pro-rata German
- *         tax on that income at the user's
- *         marginal rate, which we don't know
- *         here — the user enters a guess or
- *         the Berater calculates in the
- *         Festsetzung).
- *       - KapG dividends (§ 8b KStG): 95% of
- *         gross is exempt, 5% non-deductible.
- *   (d) BMF Vordruck Anlage AUS 2024 Kz:
- *       - Kz 5: Sum of DBA-freigestellte income
- *         (Progression)
- *       - Kz 6: Sum of taxable foreign income
- *         (Anrechnung)
- *       - Kz 13: Anrechnungsbetrag (foreign tax
- *         credit)
- *       - Kz 20: § 8b KStG pauschale (5%
- *         non-deductible for KapG)
- *
- * v1 data model: Company.settings.anlageAUS[year] = {
- *   entries: Array<{ country, countryName, hasDba,
- *     incomeType, grossAmount, foreignTaxPaid,
- *     description }>
- * }
- *
- * The opt-in flag `Company.settings.anlageAus === true`
- * gates inclusion. v1 also auto-detects entries
- * (length > 0).
+ * Data: Company.settings.anlageAUS[year] = { entries: [{ country,
+ * countryName, hasDba, incomeType, grossAmount, foreignTaxPaid,
+ * description, methode?, beteiligungAb10? }] }
  */
 
 export type AusIncomeType =
@@ -115,6 +48,8 @@ export type AusIncomeType =
   | 'agriculture'
   | 'other'
 
+export type AusMethode = 'freistellung' | 'anrechnung'
+
 export interface AusEntry {
   country: string // ISO 3166-1 alpha-2 (e.g. "US", "CH")
   countryName: string // human-readable (e.g. "USA", "Schweiz")
@@ -123,6 +58,38 @@ export interface AusEntry {
   grossAmount: number // in EUR (after conversion)
   foreignTaxPaid: number // in EUR
   description: string
+  /** the method chosen for this entry — '' leaves it to the kind of income */
+  methodeGewaehlt: AusMethode | ''
+  /** a corporation's dividend: the holding was at least 10 % at the beginning of the year (§ 8b Abs. 4 KStG) */
+  beteiligungAb10: boolean
+  /** what was applied: the method, or § 8b KStG */
+  methode: AusMethode | 'paragraph8b'
+}
+
+/** Kinds of income a treaty usually leaves to the state of residence, with credit (OECD model Art. 10, 11, 21). */
+const CREDIT_UNDER_TREATY: AusIncomeType[] = ['dividend', 'interest', 'other']
+
+/** The method for an entry: without a treaty always credit; with one, the entry's choice or the usual one. */
+export function ausMethode(e: { hasDba: boolean; incomeType: AusIncomeType; methodeGewaehlt?: AusMethode | '' }): AusMethode {
+  if (!e.hasDba) return 'anrechnung'
+  if (e.methodeGewaehlt === 'freistellung' || e.methodeGewaehlt === 'anrechnung') return e.methodeGewaehlt
+  return CREDIT_UNDER_TREATY.includes(e.incomeType) ? 'anrechnung' : 'freistellung'
+}
+
+/** What of an entry is taxed here, what is left out, and the foreign tax to be credited. */
+export function ausBehandlung(
+  e: { hasDba: boolean; incomeType: AusIncomeType; grossAmount: number; foreignTaxPaid: number; methodeGewaehlt?: AusMethode | ''; beteiligungAb10?: boolean },
+  isKapg: boolean,
+): { methode: AusMethode | 'paragraph8b'; taxable: number; exempt: number; credit: number; p8b: number } {
+  if (isKapg && e.incomeType === 'dividend' && e.beteiligungAb10) {
+    const p8b = round2(e.grossAmount * PARAGRAPH_8B_PAUSCHALE)
+    // nothing of the dividend itself is taxed, so there is no tax to credit against
+    return { methode: 'paragraph8b', taxable: p8b, exempt: round2(e.grossAmount - p8b), credit: 0, p8b }
+  }
+  const methode = ausMethode(e)
+  return methode === 'freistellung'
+    ? { methode, taxable: 0, exempt: e.grossAmount, credit: 0, p8b: 0 }
+    : { methode, taxable: e.grossAmount, exempt: 0, credit: e.foreignTaxPaid, p8b: 0 }
 }
 
 export interface AnlageAUSLine {
@@ -157,8 +124,10 @@ export interface AnlageAUSResult {
     // (NOT taxed in Germany, but affects Steuersatz for
     // the rest of the income)
     progressionsvorbehalt: number
-    // Taxable in Germany (Anrechnung method)
+    // Taxable in Germany: income under the credit method, and the 5 % of § 8b
     taxable: number
+    // left out of a corporation's income by § 8b Abs. 1 KStG (95 % of the dividend)
+    paragraph8bFrei: number
     // § 8b KStG: 5% non-deductible portion of KapG dividends
     paragraph8b: number
     // Foreign tax credit (Anrechnungsbetrag)
@@ -187,25 +156,27 @@ const LINES: Array<{
   {
     kz: '5',
     label:
-      'Summe der nach DBA freigestellten ausländischen Einkünfte (§ 34d EStG + Progressionsvorbehalt nach § 32b EStG)',
+      'Nach einem DBA freigestellte ausländische Einkünfte (Freistellungsmethode) — bei natürlichen Personen mit Progressionsvorbehalt (§ 32b EStG)',
     source: 'computed',
+    note:
+      'Die Methode folgt dem üblichen Inhalt der Abkommen: Arbeitslohn, Betriebsstättengewinn und Einkünfte aus Grundbesitz freigestellt, Dividenden und Zinsen steuerpflichtig mit Anrechnung. Das einzelne Abkommen kann abweichen — je Eintrag wählbar.',
   },
   {
     kz: '6',
     label:
-      'Summe der im Inland steuerpflichtigen ausländischen Einkünfte (Anrechnungsmethode, § 34d Abs. 1 EStG)',
+      'Im Inland steuerpflichtige ausländische Einkünfte (Anrechnungsmethode; ohne DBA nach § 34c EStG)',
     source: 'computed',
   },
   {
     kz: '13',
     label:
-      'Anrechnungsbetrag ausländischer Steuer (§ 34c Abs. 1 EStG / DBA) — die im Ausland gezahlte Steuer wird auf die deutsche Einkommensteuer angerechnet',
+      'Anzurechnende ausländische Steuer (§ 34c Abs. 1 und 6 EStG) — höchstens die deutsche Steuer auf diese Einkünfte, bei einem DBA höchstens die dort zugelassene Quellensteuer',
     source: 'computed',
   },
   {
     kz: '20',
     label:
-      '§ 8b KStG Pauschale (5% nicht abziehbare Betriebsausgaben) — nur für KapG (GmbH / AG / KGaA / UG). Bei Beteiligung ≥ 1% an ausländischer Kapitalgesellschaft.',
+      '§ 8b KStG: 5 % der steuerfreien Dividenden gelten als nicht abziehbare Betriebsausgaben — nur Kapitalgesellschaften, bei einer Beteiligung von mindestens 10 % zu Beginn des Kalenderjahres',
     source: 'computed',
   },
   {
@@ -303,12 +274,15 @@ export class AnlageAUSService {
           grossAmount: Number(e.grossAmount) || 0,
           foreignTaxPaid: Number(e.foreignTaxPaid) || 0,
           description: String(e.description || '').trim(),
+          methodeGewaehlt: (e.methode === 'freistellung' || e.methode === 'anrechnung' ? e.methode : '') as AusMethode | '',
+          beteiligungAb10: e.beteiligungAb10 === true,
         }
       })
       .filter(
-        (e: AusEntry) =>
+        (e: Omit<AusEntry, 'methode'>) =>
           e.country || e.countryName || e.description || e.grossAmount > 0,
       )
+      .map((e: Omit<AusEntry, 'methode'>) => ({ ...e, methode: ausBehandlung(e, isKapg).methode }))
 
     // Per-country aggregation
     const countryMap = new Map<
@@ -339,30 +313,10 @@ export class AnlageAUSService {
       existing.count += 1
       existing.grossTotal += e.grossAmount
       existing.foreignTaxTotal += e.foreignTaxPaid
-      // Per-entry: if hasDba, the income is exempt
-      // (Progressionsvorbehalt). If not hasDba, the
-      // income is taxable in Germany with Anrechnung.
-      // § 8b KStG for KapG dividends: 5% taxable, 95% exempt
-      if (e.hasDba) {
-        // DBA-Freistellung: exempt from German income tax
-        // (Progressionsvorbehalt applies separately)
-        if (isKapg && e.incomeType === 'dividend') {
-          // § 8b KStG: 5% taxable (5% of gross)
-          existing.taxablePortion += round2(
-            e.grossAmount * PARAGRAPH_8B_PAUSCHALE,
-          )
-          existing.exemptPortion += round2(
-            e.grossAmount * (1 - PARAGRAPH_8B_PAUSCHALE),
-          )
-        } else {
-          // Pure DBA exemption
-          existing.exemptPortion += e.grossAmount
-        }
-      } else {
-        // No DBA → Anrechnung: fully taxable in Germany,
-        // foreign tax credited
-        existing.taxablePortion += e.grossAmount
-      }
+      existing.hasDba = existing.hasDba || e.hasDba
+      const b = ausBehandlung(e, isKapg)
+      existing.taxablePortion += b.taxable
+      existing.exemptPortion += b.exempt
       countryMap.set(key, existing)
     }
     const perCountry = Array.from(countryMap.values()).map((c) => ({
@@ -376,37 +330,15 @@ export class AnlageAUSService {
       exemptPortion: round2(c.exemptPortion),
     }))
 
-    // Totals
+    // Totals — each entry by its own treatment
     const grossTotal = entries.reduce((s, e) => s + e.grossAmount, 0)
-    const foreignTaxTotal = entries.reduce(
-      (s, e) => s + e.foreignTaxPaid,
-      0,
-    )
-    const progressionsvorbehalt = perCountry
-      .filter((c) => c.hasDba)
-      .reduce((s, c) => s + c.exemptPortion, 0)
-    const taxable = perCountry
-      .filter((c) => !c.hasDba)
-      .reduce((s, c) => s + c.grossTotal, 0)
-    const paragraph8b = isKapg
-      ? entries
-          .filter(
-            (e) => e.hasDba && e.incomeType === 'dividend',
-          )
-          .reduce(
-            (s, e) =>
-              s + round2(e.grossAmount * PARAGRAPH_8B_PAUSCHALE),
-            0,
-          )
-      : 0
-    // Anrechnungsbetrag: sum of foreign tax paid on
-    // non-DBA (Anrechnung) entries + KapG dividend entries
-    // that are still subject to Anrechnung despite § 8b
-    // (since § 8b only applies to KapG for dividends ≥ 1%
-    // participation, otherwise treat as Anrechnung)
-    const anrechnungsbetrag = entries
-      .filter((e) => !e.hasDba || (!isKapg && e.incomeType === 'dividend'))
-      .reduce((s, e) => s + e.foreignTaxPaid, 0)
+    const foreignTaxTotal = entries.reduce((s, e) => s + e.foreignTaxPaid, 0)
+    const treated = entries.map((e) => ausBehandlung(e, isKapg))
+    const progressionsvorbehalt = treated.filter((b) => b.methode === 'freistellung').reduce((s, b) => s + b.exempt, 0)
+    const taxable = treated.reduce((s, b) => s + b.taxable, 0)
+    const paragraph8b = treated.reduce((s, b) => s + b.p8b, 0)
+    const paragraph8bFrei = treated.filter((b) => b.methode === 'paragraph8b').reduce((s, b) => s + b.exempt, 0)
+    const anrechnungsbetrag = treated.reduce((s, b) => s + b.credit, 0)
 
     // Build BMF Vordruck Kz lines
     const lines: AnlageAUSLine[] = LINES.map((d) => {
@@ -454,6 +386,7 @@ export class AnlageAUSService {
         progressionsvorbehalt: round2(progressionsvorbehalt),
         taxable: round2(taxable),
         paragraph8b: round2(paragraph8b),
+        paragraph8bFrei: round2(paragraph8bFrei),
         anrechnungsbetrag: round2(anrechnungsbetrag),
       },
       counts: {
@@ -464,26 +397,20 @@ export class AnlageAUSService {
       },
       generatedAt: new Date().toISOString(),
       disclaimer:
-        'Diese Vorschau wurde automatisch aus Ihren ausländischen ' +
-        'Einkünften (erfasst unter Buchhaltung, Anlage AUS) + dem ' +
-        'DBA-Status pro Land generiert. § 34d EStG unterscheidet 7 ' +
-        'Kategorien (Nr. 1-7) von Auslandseinkünften. Bei DBA-Freistellung ' +
-        'greift der Progressionsvorbehalt nach § 32b EStG: die Einkünfte ' +
-        'sind steuerfrei, erhöhen aber den Steuersatz für die übrigen ' +
-        'Einkünfte. Bei Anrechnung (kein DBA oder DBA mit Anrechnungs- ' +
-        'klausel) wird die ausländische Steuer auf die deutsche Einkommen- ' +
-        'steuer angerechnet (Anrechnungsbetrag = gezahlte ausländische Steuer). ' +
-        '§ 8b KStG (nur für KapG): 95% der ausländischen Dividenden sind ' +
-        'steuerfrei, 5% nicht abziehbare Betriebsausgaben (bei Beteiligung ' +
-        '≥ 1% an ausländischer Kapitalgesellschaft). Der Anrechnungs- ' +
-        'betrag ist die tatsächlich gezahlte ausländische Steuer (nicht ' +
-        'gedeckelt). Die tatsächliche deutsche Einkommensteuer auf den ' +
-        'steuerpflichtigen Anteil (Kz 6) hängt vom Grenzsteuersatz ab — ' +
-        'der Berater prüft im Festsetzungs-Bescheid, ob die ausländische ' +
-        'Steuer den deutschen Anteil übersteigt (ggf. keine Anrechnung, ' +
-        'sondern nur Abzug als Betriebsausgabe nach § 34c Abs. 2 EStG). ' +
-        'Beträge in EUR (Umrechnungskurs zum Zeitpunkt der Vereinnahmung, ' +
-        'siehe BMF-Schreiben).',
+        'Diese Vorschau wurde aus Ihren ausländischen Einkünften (erfasst unter Buchhaltung, Anlage AUS) erstellt. ' +
+        'Ein Doppelbesteuerungsabkommen bedeutet nicht Freistellung: je nach Abkommen und Art der Einkünfte ' +
+        'werden sie freigestellt — bei natürlichen Personen mit Progressionsvorbehalt (§ 32b EStG) — oder ' +
+        'bleiben steuerpflichtig, und die ausländische Steuer wird angerechnet (§ 34c Abs. 6 EStG). ' +
+        'Angesetzt ist der übliche Inhalt der Abkommen: Dividenden und Zinsen mit Anrechnung, Arbeitslohn, ' +
+        'Betriebsstättengewinn und Einkünfte aus Grundbesitz freigestellt; je Eintrag lässt sich die Methode ' +
+        'wählen. Ohne Abkommen wird angerechnet (§ 34c Abs. 1 EStG). ' +
+        'Die anzurechnende Steuer ist hier die gezahlte ausländische Steuer; anrechenbar ist höchstens die ' +
+        'deutsche Steuer, die auf diese Einkünfte entfällt, und bei einem Abkommen höchstens die dort ' +
+        'zugelassene Quellensteuer. Für private Kapitalerträge gilt statt § 34c die Anrechnung nach § 32d Abs. 5 EStG. ' +
+        'Kapitalgesellschaften: Dividenden bleiben nach § 8b Abs. 1 KStG außer Ansatz, 5 % gelten als nicht ' +
+        'abziehbare Betriebsausgaben — nur bei einer Beteiligung von mindestens 10 % zu Beginn des ' +
+        'Kalenderjahres (§ 8b Abs. 4 KStG), sonst sind sie voll steuerpflichtig. ' +
+        'Beträge in EUR, umgerechnet zum Zeitpunkt der Vereinnahmung. Der Steuerberater prüft das einzelne Abkommen.',
     }
   }
 

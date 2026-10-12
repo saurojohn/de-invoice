@@ -2656,6 +2656,19 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 676 — Anlage AUS: a treaty does not mean exemption, § 8b KStG does not hang on a treaty
+
+Read against § 34c EStG and § 8b KStG (gesetze-im-internet.de, 12.10.2026) and measured for a person and a GmbH with the same five entries:
+
+- **`hasDba` decided everything.** Income from a treaty country was „exempt with Progressionsvorbehalt“ — a US dividend and US interest too. § 34c Abs. 6 Satz 2 speaks of treaties that provide for the credit; by their usual content dividends and interest stay taxable at home with the source tax credited, and wages, a permanent establishment's profit and income from land are exempted. The form assumes that per kind of income (`ausMethode`), and each entry can say otherwise (`methode`) — Spain's treaty credits rent, for one. Without a treaty there is only the credit.
+- **The dividend that was shown as exempt had its tax credited all the same**, and the sums per country took the first entry's treaty flag for all of them. Every entry is treated on its own now (`ausBehandlung`), and says what was applied.
+- **§ 8b KStG** applied only with a treaty and „bei Beteiligung ≥ 1%“. It is domestic law: a corporation's dividend is left out of its income and 5 % count as non-deductible — unless the holding was below 10 % at the beginning of the year (Abs. 4), then it is taxed in full. An entry carries `beteiligungAb10`; without it the dividend is taxable with credit. The 95 % are no Progressionsvorbehalt (`totals.paragraph8bFrei`).
+- The credit was called „nicht gedeckelt“: it is at most the German tax on that income and, with a treaty, the withholding tax the treaty allows — said on the line; the form shows the tax paid.
+
+Spec `402-tier676-anlage-aus-methode-und-8b.sh` (30 assertions, 23 fail on the code before); spec 136 follows (it expected § 8b from the treaty and exempt interest); `anlage-aus-tier676.spec.ts`; six texts added to both tax-form dictionaries (451 entries).
+
+With this, every annex of a person's return on the accounting page has been read against the statute once (R 655, SO 656/664–668, KAP 670, N 671, Kind 672, V 673, AUS 676). None of it replaces the adviser: each form says what it does not model.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 675 — the third test that waited on a slow webhook target
 
 CI run 38281048674 (Tiers 668–670b): backend 396 passed / 1 skipped, Playwright 1063 passed and **1 flaky** — `admin-ops-tier195.spec.ts`, test 1. It runs the webhook retry worker by hand and polled 10 s for its `lastRunAt`; that is recorded when the run ends, and the worker first sends what is due, each delivery with its own 10 s limit. With the echo service slow the run was still delivering. It polls 60 s now. Cannot be run here (it addresses :3001, and needs the installation's operator).
@@ -9342,7 +9355,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**
     - **Foreign currency (Tier 652):** invoices are converted at the ECB reference rate of the invoice's day. § 16 Abs. 6 UStG names the monthly average rates the BMF publishes; the daily rate needs the tax office's consent. Daily rate (as built), or the monthly average entered by hand on each invoice — or should the program fetch the monthly average?
-    - **The annexes of a person's return (Tiers 655–656, 664, 670–673):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage KAP (Tier 670), Anlage N (Tier 671), Anlage Kind (Tier 672) and the sorting of Anlage V (Tier 673) followed. Anlage AUS was not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
+    - **The annexes of a person's return (Tiers 655–656, 664, 670–673, 676):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage KAP (Tier 670), Anlage N (Tier 671), Anlage Kind (Tier 672), the sorting of Anlage V (Tier 673) and Anlage AUS (Tier 676) followed — each has been read against the statute once. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
     - **OSS:** (whether the company takes part is a setting since Tier 649.) Still for the Steuerberater: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.

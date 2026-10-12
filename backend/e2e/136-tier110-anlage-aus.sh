@@ -116,7 +116,7 @@ ANRECH=$(json_field "$BODY" "totals.anrechnungsbetrag")
 assert_close "grossTotal = 5000" "$GROSS_T" "5000"
 assert_close "taxable = 5000 (no DBA)" "$TAXABLE_T" "5000"
 assert_close "progressionsvorbehalt = 0" "$PROG_T" "0"
-assert_close "paragraph8b = 0 (not § 8b since hasDba=false)" "$PARA8B" "0"
+assert_close "paragraph8b = 0 (no holding of 10 % entered: taxable in full, § 8b Abs. 4 KStG)" "$PARA8B" "0"
 assert_close "anrechnungsbetrag = 750" "$ANRECH" "750"
 
 # ===== 5. Per-country: US has 1 row, 5000, 100% taxable =====
@@ -144,7 +144,10 @@ assert_eq "US hasDba = false" "$US_DBA" "False"
 
 # ===== 6. PUT: CH (DBA) dividend (KapG) → § 8b KStG: 5% taxable =====
 echo
-note "=== 6. PUT: CH (DBA) dividend 10000 → § 8b 5% = 500 ==="
+# Tier 676: § 8b KStG follows the holding (at least 10 % at the beginning of
+# the year, Abs. 4), not the treaty; the 95 % it leaves out are no
+# Progressionsvorbehalt, and the 5 % are taxable.
+note "=== 6. PUT: CH dividend 10000, holding of 10 % or more → § 8b 5% = 500 ==="
 api_put "/api/v1/accounting/anlage-aus/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
@@ -156,7 +159,8 @@ api_put "/api/v1/accounting/anlage-aus/settings?companyId=$COMPANY_ID" \
         \"incomeType\": \"dividend\",
         \"grossAmount\": 10000,
         \"foreignTaxPaid\": 1500,
-        \"description\": \"Nestlé 50 shares\"
+        \"description\": \"Nestlé 50 shares\",
+        \"beteiligungAb10\": true
       }
     ]
   }"
@@ -165,8 +169,9 @@ PARA8B_2=$(json_field "$BODY" "totals.paragraph8b")
 PROG_2=$(json_field "$BODY" "totals.progressionsvorbehalt")
 TAX_2=$(json_field "$BODY" "totals.taxable")
 assert_close "paragraph8b = 500 (5% of 10000)" "$PARA8B_2" "500"
-assert_close "progressionsvorbehalt = 9500 (DBA-exempt 95%)" "$PROG_2" "9500"
-assert_close "taxable = 0 (5% is not 'Anrechnung taxable')" "$TAX_2" "0"
+assert_close "progressionsvorbehalt = 0 (§ 8b is no treaty exemption)" "$PROG_2" "0"
+assert_close "taxable = 500 (the 5 %)" "$TAX_2" "500"
+assert_close "left out by § 8b Abs. 1 = 9500" "$(json_field "$BODY" "totals.paragraph8bFrei")" "9500"
 
 # ===== 7. Mixed: 3 entries across 2 countries =====
 echo
@@ -182,7 +187,8 @@ api_put "/api/v1/accounting/anlage-aus/settings?companyId=$COMPANY_ID" \
         \"incomeType\": \"dividend\",
         \"grossAmount\": 10000,
         \"foreignTaxPaid\": 1500,
-        \"description\": \"Nestlé\"
+        \"description\": \"Nestlé\",
+        \"beteiligungAb10\": true
       },
       {
         \"country\": \"FR\",
@@ -212,13 +218,14 @@ TAX_3=$(json_field "$BODY" "totals.taxable")
 PARA8B_3=$(json_field "$BODY" "totals.paragraph8b")
 ANRECH_3=$(json_field "$BODY" "totals.anrechnungsbetrag")
 assert_close "grossTotal = 18000 (10000+3000+5000)" "$GROSS_3" "18000"
-# Progression = 9500 (CH div 95% exempt) + 3000 (FR interest 100% DBA) = 12500
-assert_close "progressionsvorbehalt = 12500" "$PROG_3" "12500"
-# Taxable = 0 (CH is § 8b 5% separately) + 0 (FR is fully DBA) + 5000 (US no-DBA)
-assert_close "taxable = 5000" "$TAX_3" "5000"
+# Tier 676: nothing is exempted by a treaty here — interest stays taxable
+# with credit under a treaty (it was "100% DBA-exempt")
+assert_close "progressionsvorbehalt = 0" "$PROG_3" "0"
+# Taxable = 500 (CH: the 5 % of § 8b) + 3000 (FR interest, credit) + 5000 (US, holding below 10 %)
+assert_close "taxable = 8500" "$TAX_3" "8500"
 assert_close "paragraph8b = 500" "$PARA8B_3" "500"
-# Anrechnungsbetrag = 750 (US only; CH+FR are DBA, no Anrechnung)
-assert_close "anrechnungsbetrag = 750" "$ANRECH_3" "750"
+# Credit = 750 (FR) + 750 (US); none on the § 8b dividend
+assert_close "anrechnungsbetrag = 1500" "$ANRECH_3" "1500"
 
 # ===== 8. BMF Vordruck Kz lines are present =====
 echo
@@ -242,9 +249,9 @@ K13=$(echo "$BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(
 K20=$(echo "$BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print([l['amount'] for l in d['lines'] if l['kennziffer']=='20'][0])")
 K32=$(echo "$BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print([l['amount'] for l in d['lines'] if l['kennziffer']=='32'][0])")
 K34=$(echo "$BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print([l['amount'] for l in d['lines'] if l['kennziffer']=='34'][0])")
-assert_close "Kz 5 (Progression) = 12500" "$K5" "12500"
-assert_close "Kz 6 (Taxable) = 5000" "$K6" "5000"
-assert_close "Kz 13 (Anrechnung) = 750" "$K13" "750"
+assert_close "Kz 5 (exempt by treaty) = 0" "$K5" "0"
+assert_close "Kz 6 (Taxable) = 8500" "$K6" "8500"
+assert_close "Kz 13 (Anrechnung) = 1500" "$K13" "1500"
 assert_close "Kz 20 (§ 8b Pauschale) = 500" "$K20" "500"
 assert_close "Kz 32 (Dividends) = 15000" "$K32" "15000"
 assert_close "Kz 34 (Interest) = 3000" "$K34" "3000"
@@ -361,7 +368,7 @@ api_put "/api/v1/accounting/anlage-aus/settings?companyId=$COMPANY_ID" \
     \"entries\": [
       {\"country\": \"US\", \"countryName\": \"USA\", \"hasDba\": false, \"incomeType\": \"dividend\", \"grossAmount\": 1000, \"foreignTaxPaid\": 100, \"description\": \"x1\"},
       {\"country\": \"US\", \"countryName\": \"USA\", \"hasDba\": false, \"incomeType\": \"interest\", \"grossAmount\": 2000, \"foreignTaxPaid\": 200, \"description\": \"x2\"},
-      {\"country\": \"CA\", \"countryName\": \"Kanada\", \"hasDba\": true, \"incomeType\": \"dividend\", \"grossAmount\": 500, \"foreignTaxPaid\": 50, \"description\": \"y1\"}
+      {\"country\": \"CA\", \"countryName\": \"Kanada\", \"hasDba\": true, \"incomeType\": \"dividend\", \"grossAmount\": 500, \"foreignTaxPaid\": 50, \"description\": \"y1\", \"beteiligungAb10\": true}
     ]
   }"
 api_get "/api/v1/accounting/anlage-aus?companyId=$COMPANY_ID&year=$YEAR"

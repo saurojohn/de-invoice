@@ -1428,6 +1428,9 @@ export class AccountingController {
           grossAmount: Number(e.grossAmount) || 0,
           foreignTaxPaid: Number(e.foreignTaxPaid) || 0,
           description: String(e.description || '').trim(),
+          // Tier 676: the entry's own method, and the holding of § 8b Abs. 4 KStG
+          ...(e.methode === 'freistellung' || e.methode === 'anrechnung' ? { methode: e.methode } : {}),
+          ...(e.beteiligungAb10 === true ? { beteiligungAb10: true } : {}),
         }
       })
       .filter(
