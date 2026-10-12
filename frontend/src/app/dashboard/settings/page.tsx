@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import DunningConfigCard from "@/components/DunningConfigCard"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiGetBlob, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 // Tier 94: feature flags card (autoBookAfa + anlageV).
@@ -175,7 +175,7 @@ export default function SettingsPage() {
       )
       setRateSnapshot(data)
     } catch (err: any) {
-      setRateSnapshotError(err?.message || "Fehler beim Laden")
+      setRateSnapshotError(err?.message || L("Fehler beim Laden"))
       setRateSnapshot(null)
     } finally {
       setRateSnapshotLoading(false)
@@ -198,7 +198,7 @@ export default function SettingsPage() {
       )
       setRateSnapshot(data)
     } catch (err: any) {
-      setRateSnapshotError(err?.message || "Fehler beim Aktualisieren")
+      setRateSnapshotError(err?.message || L("Fehler beim Aktualisieren"))
     } finally {
       setRateSnapshotRefreshing(false)
     }
@@ -370,7 +370,7 @@ export default function SettingsPage() {
         // 403/404 are common here if the user is on a role that
         // can't see storage config; surface the message so the user
         // isn't left wondering why the form is empty.
-        const msg = err instanceof ApiError ? err.message : "Konfiguration konnte nicht geladen werden."
+        const msg = err instanceof ApiError ? err.message : L("Konfiguration konnte nicht geladen werden.")
         setStorageError(msg)
       })
 
@@ -431,7 +431,7 @@ export default function SettingsPage() {
       setStorageHealth(health)
       setStoredFiles(Array.isArray(files) ? files : [])
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Speicherstatistik konnte nicht geladen werden."
+      const msg = err instanceof ApiError ? err.message : L("Speicherstatistik konnte nicht geladen werden.")
       setStorageError(msg)
       // Clear stale data so the user doesn't act on numbers from a
       // previous successful load.
@@ -752,7 +752,7 @@ export default function SettingsPage() {
         // non-fatal
       }
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Löschen fehlgeschlagen"
+      const msg = err instanceof ApiError ? err.message : L("Löschen fehlgeschlagen")
       toast.error(msg)
     }
   }
@@ -1010,7 +1010,7 @@ export default function SettingsPage() {
                     onChange={(e) =>
                       setForm({ ...form, address: { ...form.address, street: e.target.value } })
                     }
-                    placeholder="Musterstraße 123"
+                    placeholder={L("Musterstraße 123")}
                   />
                 </div>
                 <div>
@@ -1049,7 +1049,7 @@ export default function SettingsPage() {
                   }
                 >
                   <option value="Deutschland">Deutschland</option>
-                  <option value="Österreich">Österreich</option>
+                  <option value="Österreich">{L("Österreich")}</option>
                   <option value="Schweiz">Schweiz</option>
                   <option value="Frankreich">Frankreich</option>
                   <option value="Niederlande">Niederlande</option>
@@ -1888,7 +1888,7 @@ export default function SettingsPage() {
                       // everything so the UI matches reality.
                       await refetchStorage(cid)
                     } catch (err) {
-                      const msg = err instanceof ApiError ? err.message : "Speichern fehlgeschlagen"
+                      const msg = err instanceof ApiError ? err.message : L("Speichern fehlgeschlagen")
                       setStorageError(msg)
                     } finally {
                       setStorageSaving(false)

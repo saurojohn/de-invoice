@@ -1,4 +1,5 @@
 "use client"
+import { L, monthShortLabel } from "@/components/useI18n"
 
 interface RevenueChartProps {
   // Each entry: { month: "2026-01", totalAmount: 1234.56 }
@@ -28,7 +29,7 @@ export function RevenueChart({ data, height = 200, currency = "EUR" }: RevenueCh
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>
-        Keine Daten verfügbar
+        {L("Keine Daten verfügbar")}
       </div>
     )
   }
@@ -47,11 +48,7 @@ export function RevenueChart({ data, height = 200, currency = "EUR" }: RevenueCh
   const chartTop = 10
   const hasExpenses = rows.some((r) => r.expenses > 0)
 
-  const formatMonth = (m: string) => {
-    const [year, month] = m.split("-")
-    const monthNames = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
-    return `${monthNames[parseInt(month, 10) - 1]} ${year.slice(2)}`
-  }
+  const formatMonth = monthShortLabel
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency, maximumFractionDigits: 0 }).format(n)
@@ -67,7 +64,7 @@ export function RevenueChart({ data, height = 200, currency = "EUR" }: RevenueCh
         <div className="flex gap-4 text-xs text-gray-600 mb-2">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-blue-500 rounded-sm" />
-            <span>Umsatz</span>
+            <span>{L("Umsatz")}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-red-400 rounded-sm" />

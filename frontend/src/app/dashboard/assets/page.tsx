@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 
@@ -204,7 +204,7 @@ export default function AssetsPage() {
       setBookingStatus(status || [])
     } catch (e) {
       console.error("assets load failed", e)
-      toastRef.current.error("Fehler beim Laden")
+      toastRef.current.error(L("Fehler beim Laden"))
     } finally {
       setLoading(false)
     }
@@ -249,7 +249,7 @@ export default function AssetsPage() {
     }
     const ak = parseFloat(draft.anschaffungsKosten)
     if (!ak || ak <= 0) {
-      setCreateError("Anschaffungskosten müssen > 0 sein")
+      setCreateError(L("Anschaffungskosten müssen > 0 sein"))
       return
     }
     const nd = parseInt(draft.nutzungsdauerMonate, 10)
@@ -272,7 +272,7 @@ export default function AssetsPage() {
       setDraft(emptyDraft)
       load()
     } catch (e: any) {
-      const msg = e instanceof ApiError ? e.message : "Fehler beim Speichern"
+      const msg = e instanceof ApiError ? e.message : L("Fehler beim Speichern")
       setCreateError(msg)
     } finally {
       setCreateSaving(false)
@@ -295,7 +295,7 @@ export default function AssetsPage() {
       toastRef.current.success(tRef.current("assets.disposeOk"))
       load()
     } catch (e: any) {
-      const msg = e instanceof ApiError ? e.message : "Fehler beim Veräußern"
+      const msg = e instanceof ApiError ? e.message : L("Fehler beim Veräußern")
       toastRef.current.error(msg)
     }
   }
@@ -331,7 +331,7 @@ export default function AssetsPage() {
       )
       load()
     } catch (e: any) {
-      const msg = e instanceof ApiError ? e.message : "Fehler beim Buchen"
+      const msg = e instanceof ApiError ? e.message : L("Fehler beim Buchen")
       toastRef.current.error(msg)
     } finally {
       setBookingSaving(false)
@@ -365,7 +365,7 @@ export default function AssetsPage() {
       )
       load()
     } catch (e: any) {
-      const msg = e instanceof ApiError ? e.message : "Fehler beim Buchen"
+      const msg = e instanceof ApiError ? e.message : L("Fehler beim Buchen")
       toastRef.current.error(msg)
     } finally {
       setBookingSaving(false)
@@ -399,7 +399,7 @@ export default function AssetsPage() {
       )
       load()
     } catch (e: any) {
-      const msg = e instanceof ApiError ? e.message : "Fehler beim Stornieren"
+      const msg = e instanceof ApiError ? e.message : L("Fehler beim Stornieren")
       toastRef.current.error(msg)
     } finally {
       setStornoSaving(false)
@@ -740,7 +740,7 @@ export default function AssetsPage() {
                   value={draft.bezeichnung}
                   onChange={(e) => setDraft({ ...draft, bezeichnung: e.target.value })}
                   className="w-full border rounded px-2 py-1 text-sm mt-1"
-                  placeholder="z.B. CNC-Fräse, Firmenwagen VW Caddy"
+                  placeholder={L("z.B. CNC-Fräse, Firmenwagen VW Caddy")}
                   data-testid="assets-draft-bez"
                 />
               </div>

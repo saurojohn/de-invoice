@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L, monthShortLabel } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 import { signOut } from "@/lib/auth"
 
@@ -115,14 +115,7 @@ function fmtPct(p: number) {
   return `${sign}${v.toFixed(1)}%`
 }
 
-function fmtMonth(m: string) {
-  const [year, month] = m.split("-")
-  const monthNames = [
-    "Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
-    "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
-  ]
-  return `${monthNames[parseInt(month, 10) - 1]} ${year.slice(2)}`
-}
+const fmtMonth = monthShortLabel
 
 /**
  * Donut chart for the A/R aging buckets. Pure SVG,
@@ -218,7 +211,7 @@ function AgingDonut({ arAging }: { arAging: ArAging }) {
                 className="inline-block w-3 h-3 rounded-sm"
                 style={{ backgroundColor: b.color }}
               />
-              <span className="flex-1">{b.label}</span>
+              <span className="flex-1">{L(b.label)}</span>
               <span className="font-mono">{fmtMoney(v)} €</span>
               <span className="text-gray-400 text-xs">{pct.toFixed(0)}%</span>
             </div>
@@ -270,7 +263,7 @@ function TopCustomersBar({ customers }: { customers: TopCustomer[] }) {
               />
             </div>
             <div className="text-xs text-gray-400">
-              {c.invoiceCount} Rechnungen
+              {c.invoiceCount} {L("Rechnungen")}
             </div>
           </div>
         )
@@ -288,7 +281,7 @@ function RevenueTrendChart({ byMonth }: { byMonth: MonthlyRow[] }) {
   if (!byMonth || byMonth.length === 0) {
     return (
       <div className="text-gray-400 text-sm text-center py-12">
-        Keine Daten verfügbar
+        {L("Keine Daten verfügbar")}
       </div>
     )
   }
@@ -383,7 +376,7 @@ function RevenueTrendChart({ byMonth }: { byMonth: MonthlyRow[] }) {
       <g transform={`translate(${PAD_L}, ${PAD_T - 8})`}>
         <rect x={0} y={-6} width={10} height={2} fill="#2563eb" />
         <text x={14} y={0} className="fill-gray-600" fontSize="11">
-          Umsatz
+          {L("Umsatz")}
         </text>
         <rect x={70} y={-6} width={10} height={2} fill="#dc2626" />
         <text x={84} y={0} className="fill-gray-600" fontSize="11">
@@ -444,7 +437,7 @@ function CostCenterPie({
         className="text-sm text-gray-400 text-center py-12"
         data-testid="cost-center-empty"
       >
-        Keine Kostenträger-Daten vorhanden
+        {L("Keine Kostenträger-Daten vorhanden")}
       </div>
     )
   }
@@ -457,7 +450,7 @@ function CostCenterPie({
         className="text-sm text-gray-400 text-center py-12"
         data-testid="cost-center-empty"
       >
-        Keine Kostenträger-Bewegungen in diesem Zeitraum
+        {L("Keine Kostenträger-Bewegungen in diesem Zeitraum")}
       </div>
     )
   }
@@ -534,7 +527,7 @@ function CostCenterPie({
           className="fill-gray-400"
           fontSize="11"
         >
-          Netto-Summe
+          {L("Netto-Summe")}
         </text>
       </svg>
       <div className="space-y-1 text-sm flex-1 min-w-0">
@@ -585,7 +578,7 @@ export default function DashboardV2Page() {
         setLoading(false)
       })
       .catch((err: any) => {
-        setError(err?.message || "Unbekannter Fehler")
+        setError(err?.message || L("Unbekannter Fehler"))
         setLoading(false)
       })
   }, [router])
@@ -664,7 +657,7 @@ export default function DashboardV2Page() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-xs text-gray-500 uppercase">
-                    Umsatz YTD
+                    {L("Umsatz YTD")}
                   </div>
                   <div
                     className="text-2xl font-bold text-blue-600 mt-1"
@@ -720,7 +713,7 @@ export default function DashboardV2Page() {
                     {fmtMoney(data.kpis.ytd.ust)} €
                   </div>
                   <div className="text-xs text-gray-400 mt-1">
-                    {data.kpis.ytd.countInvoices} Rechnungen
+                    {data.kpis.ytd.countInvoices} {L("Rechnungen")}
                   </div>
                 </CardContent>
               </Card>
@@ -736,7 +729,7 @@ export default function DashboardV2Page() {
                     {fmtMoney(data.kpis.openReceivables)} €
                   </div>
                   <div className="text-xs text-gray-400 mt-1">
-                    nicht bezahlt
+                    {L("nicht bezahlt")}
                   </div>
                 </CardContent>
               </Card>
@@ -747,7 +740,7 @@ export default function DashboardV2Page() {
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle>
-                    Umsatz- und Aufwandsentwicklung (12 Monate)
+                    {L("Umsatz- und Aufwandsentwicklung (12 Monate)")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -770,7 +763,7 @@ export default function DashboardV2Page() {
               <Card data-testid="cost-center-card">
                 <CardHeader>
                   <CardTitle>
-                    Umsatz nach Kostenträger (YTD)
+                    {L("Umsatz nach Kostenträger (YTD)")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -785,7 +778,7 @@ export default function DashboardV2Page() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Top 5 Kunden YTD</CardTitle>
+                  <CardTitle>{L("Top 5 Kunden YTD")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <TopCustomersBar customers={data.topCustomers} />
@@ -793,7 +786,7 @@ export default function DashboardV2Page() {
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle>Letzte Aktivität</CardTitle>
+                  <CardTitle>{L("Letzte Aktivität")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div
@@ -802,7 +795,7 @@ export default function DashboardV2Page() {
                   >
                     {data.recentActivity.length === 0 && (
                       <div className="text-sm text-gray-400">
-                        Keine Aktivität
+                        {L("Keine Aktivität")}
                       </div>
                     )}
                     {data.recentActivity.map((r) => (

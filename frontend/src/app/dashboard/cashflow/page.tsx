@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
 import { CashflowChart } from "@/components/CashflowChart"
@@ -111,11 +111,11 @@ export default function CashflowPage() {
     const sb = Number((startingBalance || "0").replace(/\./g, "").replace(",", "."))
     const m = parseInt(months || "12", 10)
     if (!Number.isFinite(sb) || sb < 0) {
-      toastRef.current.error("Anfangsbestand ungültig")
+      toastRef.current.error(L("Anfangsbestand ungültig"))
       return
     }
     if (!Number.isFinite(m) || m < 1 || m > 36) {
-      toastRef.current.error("Monatsanzahl muss zwischen 1 und 36 liegen")
+      toastRef.current.error(L("Monatsanzahl muss zwischen 1 und 36 liegen"))
       return
     }
     setSubmitting(true)

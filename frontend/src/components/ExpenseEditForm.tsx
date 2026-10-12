@@ -7,7 +7,7 @@
 import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { ApiError, apiPost, apiPut } from "@/lib/api"
 
@@ -190,7 +190,7 @@ export function ExpenseEditForm({
       toast.success(t(create ? "expenses.createSaved" : "expenses.editSaved"))
       onSaved()
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Fehler beim Speichern")
+      toast.error(err instanceof ApiError ? err.message : L("Fehler beim Speichern"))
     } finally {
       setSaving(false)
     }

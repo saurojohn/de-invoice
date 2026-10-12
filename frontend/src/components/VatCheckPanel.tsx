@@ -28,6 +28,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { L } from "@/components/useI18n"
 
 type VatStatus = "valid" | "invalid" | "unreachable" | "pending";
 
@@ -208,7 +209,7 @@ export function VatCheckPanel({
         setError(r.errorMessage);
       }
     } catch (e: any) {
-      setError(e?.message || "Prüfung fehlgeschlagen");
+      setError(e?.message || L("Prüfung fehlgeschlagen"));
     } finally {
       setChecking(false);
     }

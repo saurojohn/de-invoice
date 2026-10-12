@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
 import { FormLabel, FormNote } from "@/lib/tax-form-text"
@@ -321,7 +321,7 @@ export function UstjaSection() {
                   <div className="text-lg font-bold font-mono text-amber-700 dark:text-amber-300" data-testid="ustja-total-zahllast">
                     {fmt(data.totals.zahllast)}
                   </div>
-                  <div className="text-[10px] text-gray-500">Umsatzsteuer − Vorsteuer</div>
+                  <div className="text-[10px] text-gray-500">{L("Umsatzsteuer − Vorsteuer")}</div>
                 </div>
                 <div className="p-3 rounded text-center bg-red-50 dark:bg-red-900/30">
                   <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { VatCheckPanel } from "@/components/VatCheckPanel"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
@@ -129,7 +129,7 @@ export default function SuppliersPage() {
   const save = async () => {
     const companyId = localStorage.getItem("companyId") || ""
     if (!form.name.trim()) {
-      setError("Name ist erforderlich")
+      setError(L("Name ist erforderlich"))
       return
     }
     setSaving(true)
@@ -142,7 +142,7 @@ export default function SuppliersPage() {
       setShowModal(false)
       await reload()
     } catch (e: any) {
-      setError(e?.message || "Speichern fehlgeschlagen")
+      setError(e?.message || L("Speichern fehlgeschlagen"))
     } finally {
       setSaving(false)
     }
@@ -155,7 +155,7 @@ export default function SuppliersPage() {
       await apiDelete(`/api/v1/suppliers/${s.id}?companyId=${companyId}`)
       await reload()
     } catch (e: any) {
-      toast.error(e?.message || "Löschen fehlgeschlagen")
+      toast.error(e?.message || L("Löschen fehlgeschlagen"))
     }
   }
 

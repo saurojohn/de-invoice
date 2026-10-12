@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut } from "@/lib/api"
 
 type Level = "first" | "second" | "final"
@@ -25,14 +25,21 @@ const LEVEL_LABEL: Record<Level, { de: string; en: string; zh: string }> = {
   final: { de: "Letzte Mahnung", en: "Final dunning notice", zh: "最后催款" },
 }
 
+// Tier 659: the tokens reminder.service.renderForInvoice() fills — the list
+// was the one from before Tier 638 ("totalAmount: Gesamtbetrag (EUR)", no
+// open amount, no invoice total, no date of the invoice, no currency).
 const PLACEHOLDERS = [
-  { key: "customerName", de: "Kundenname", en: "Customer name" },
-  { key: "invoiceNumber", de: "Rechnungsnummer", en: "Invoice number" },
-  { key: "totalAmount", de: "Gesamtbetrag (EUR)", en: "Total amount (EUR)" },
-  { key: "dueDateFormatted", de: "Fälligkeitsdatum (formatiert)", en: "Due date (formatted)" },
-  { key: "daysOverdue", de: "Tage überfällig", en: "Days overdue" },
-  { key: "bankInfo", de: "Bankverbindung", en: "Bank details" },
-  { key: "companyName", de: "Eigener Firmenname", en: "Your company name" },
+  { key: "customerName", de: "Kundenname" },
+  { key: "invoiceNumber", de: "Rechnungsnummer" },
+  { key: "openAmount", de: "Offener Betrag" },
+  { key: "totalAmount", de: "Offener Betrag (wie openAmount)" },
+  { key: "invoiceTotal", de: "Rechnungsbetrag" },
+  { key: "currency", de: "Währung der Rechnung" },
+  { key: "issueDateFormatted", de: "Rechnungsdatum" },
+  { key: "dueDateFormatted", de: "Fälligkeitsdatum" },
+  { key: "daysOverdue", de: "Tage überfällig" },
+  { key: "bankInfo", de: "Bankverbindung" },
+  { key: "companyName", de: "Firmenname" },
 ]
 
 export default function ReminderTemplatesPage() {
@@ -240,7 +247,7 @@ export default function ReminderTemplatesPage() {
                                 type="button"
                                 onClick={() => insertPlaceholder(p.key)}
                                 className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:bg-gray-700 rounded border"
-                                title={p.de}
+                                title={L(p.de)}
                               >
                                 {`{{${p.key}}}`}
                               </button>

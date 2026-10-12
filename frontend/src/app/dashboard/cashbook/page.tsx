@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { API_BASE, apiGet, apiPost, apiPut, apiDelete, downloadApiFile } from "@/lib/api"
 
@@ -432,8 +432,8 @@ export default function CashbookPage() {
               <div className="text-sm text-gray-500 dark:text-gray-400">{t("cashbook.entriesToday")}</div>
               <div className="text-2xl font-bold mt-1">{today?.entries.length ?? 0}</div>
               <div className="text-xs text-gray-400 mt-1">
-                Einnahmen: € {fmtMoney(today?.einnahmen ?? 0)} ·
-                Ausgaben: € {fmtMoney(today?.ausgaben ?? 0)}
+                {L("Einnahmen")}: € {fmtMoney(today?.einnahmen ?? 0)} ·{" "}
+                {L("Ausgaben")}: € {fmtMoney(today?.ausgaben ?? 0)}
               </div>
             </CardContent>
           </Card>
@@ -498,12 +498,12 @@ export default function CashbookPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
-                    <th className="py-2">Datum</th>
+                    <th className="py-2">{L("Datum")}</th>
                     <th className="text-right">Anfangsbestand</th>
                     <th className="text-right">Einnahmen</th>
                     <th className="text-right">Ausgaben</th>
                     <th className="text-right">Endbestand</th>
-                    <th className="text-right">Gezählt</th>
+                    <th className="text-right">{L("Gezählt")}</th>
                     <th className="text-right">Differenz</th>
                     <th></th>
                   </tr>
@@ -616,10 +616,10 @@ export default function CashbookPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
-                      <th className="py-2">Datum</th>
+                      <th className="py-2">{L("Datum")}</th>
                       <th>Typ</th>
                       <th>Beschreibung</th>
-                      <th className="text-right">Betrag</th>
+                      <th className="text-right">{L("Betrag")}</th>
                       <th>Gegenkonto</th>
                       <th>Beleg-Nr</th>
                       <th></th>
@@ -733,7 +733,7 @@ export default function CashbookPage() {
                     data-testid="cashbook-description"
                     placeholder={
                       formType === "einnahme" ? "z.B. Barverkauf" :
-                      formType === "ausgabe" ? "z.B. Porto, Büromaterial" :
+                      formType === "ausgabe" ? L("z.B. Porto, Büromaterial") :
                       formType === "umbuchung" ? "z.B. Umbuchung an Bank" :
                       "Anfangsbestand"
                     }
@@ -794,7 +794,7 @@ export default function CashbookPage() {
                       type="text"
                       value={formCounterparty}
                       onChange={(e) => setFormCounterparty(e.target.value)}
-                      placeholder="Kunde / Lieferant"
+                      placeholder={L("Kunde / Lieferant")}
                       className="w-full border rounded px-3 py-2 text-sm"
                     />
                   </div>
@@ -984,7 +984,7 @@ export default function CashbookPage() {
                 value={stornoReason}
                 onChange={(e) => setStornoReason(e.target.value)}
                 rows={3}
-                placeholder="z.B. Falscher Betrag eingegeben, Buchung doppelt"
+                placeholder={L("z.B. Falscher Betrag eingegeben, Buchung doppelt")}
                 className="w-full border rounded px-3 py-2 text-sm"
               />
               <div className="flex gap-2 pt-4">

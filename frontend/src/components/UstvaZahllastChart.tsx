@@ -1,4 +1,5 @@
 "use client"
+import { L } from "@/components/useI18n"
 
 interface UstvaZahllastChartProps {
   // Each entry: { periodLabel: "2026-08", zahllast: 57.00 }
@@ -46,7 +47,7 @@ export function UstvaZahllastChart({ data, height = 200, locale = "de-DE" }: Ust
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>
-        Keine Daten verfügbar
+        {L("Keine Daten verfügbar")}
       </div>
     )
   }

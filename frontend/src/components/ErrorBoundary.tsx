@@ -2,6 +2,7 @@
 
 import React from "react"
 import { reportBoundaryError } from "./useErrorCapture"
+import { L } from "@/components/useI18n"
 
 interface State {
   hasError: boolean
@@ -47,11 +48,10 @@ export class ErrorBoundary extends React.Component<
           <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
             <div className="text-4xl mb-3" aria-hidden>⚠️</div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              Etwas ist schiefgelaufen
+              {L("Etwas ist schiefgelaufen")}
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-              Ein unerwarteter Fehler ist aufgetreten. Der Fehler wurde
-              automatisch gemeldet. Bitte laden Sie die Seite neu.
+              {L("Ein unerwarteter Fehler ist aufgetreten. Der Fehler wurde automatisch gemeldet. Bitte laden Sie die Seite neu.")}
             </p>
             {this.state.error?.message && (
               <pre className="text-left text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded mb-4 overflow-auto max-h-32 text-gray-700 dark:text-gray-300">

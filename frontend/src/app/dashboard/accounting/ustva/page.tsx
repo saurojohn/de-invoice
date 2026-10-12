@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import UstPaymentsCard from "./UstPaymentsCard"
 import ZmCard from "./ZmCard"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut } from "@/lib/api"
 
@@ -329,7 +329,7 @@ function UstvaPageInner() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (!exForm.description || !exForm.invoiceDate || !exForm.netAmount) {
-      toast.warn("Bitte Datum, Beschreibung und Nettobetrag angeben.")
+      toast.warn(L("Bitte Datum, Beschreibung und Nettobetrag angeben."))
       return
     }
     setSaving(true)
@@ -374,7 +374,7 @@ function UstvaPageInner() {
       await loadAll(companyId)
     } catch (err) {
       console.error("Add expense failed:", err)
-      toast.error(err instanceof ApiError ? err.message : "Fehler beim Speichern der Eingangsrechnung")
+      toast.error(err instanceof ApiError ? err.message : L("Fehler beim Speichern der Eingangsrechnung"))
     } finally {
       setSaving(false)
     }
@@ -388,7 +388,7 @@ function UstvaPageInner() {
     try {
       await apiDelete(`/api/v1/ustva/expenses/${id}?companyId=${companyId}`)
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Löschen fehlgeschlagen")
+      toast.error(err instanceof ApiError ? err.message : L("Löschen fehlgeschlagen"))
     }
     await loadAll(companyId)
   }
@@ -424,7 +424,7 @@ function UstvaPageInner() {
       await loadAll(companyId)
     } catch (err) {
       console.error("Save filing failed:", err)
-      toast.error(err instanceof ApiError ? err.message : "Fehler beim Speichern der UStVA")
+      toast.error(err instanceof ApiError ? err.message : L("Fehler beim Speichern der UStVA"))
     } finally {
       setSaving(false)
     }
@@ -483,7 +483,7 @@ function UstvaPageInner() {
         a.remove()
         URL.revokeObjectURL(url)
       } catch (e: any) {
-        setDownloadError(e?.message || "ELSTER-XML konnte nicht heruntergeladen werden")
+        setDownloadError(e?.message || L("ELSTER-XML konnte nicht heruntergeladen werden"))
       }
     })()
   }
@@ -605,18 +605,18 @@ function UstvaPageInner() {
                   <option value="q2">{t("ustva.q2")}</option>
                   <option value="q3">{t("ustva.q3")}</option>
                   <option value="q4">{t("ustva.q4")}</option>
-                  <option value="m1">01 — Januar</option>
-                  <option value="m2">02 — Februar</option>
-                  <option value="m3">03 — März</option>
-                  <option value="m4">04 — April</option>
-                  <option value="m5">05 — Mai</option>
-                  <option value="m6">06 — Juni</option>
-                  <option value="m7">07 — Juli</option>
-                  <option value="m8">08 — August</option>
-                  <option value="m9">09 — September</option>
-                  <option value="m10">10 — Oktober</option>
-                  <option value="m11">11 — November</option>
-                  <option value="m12">12 — Dezember</option>
+                  <option value="m1">{L("01 — Januar")}</option>
+                  <option value="m2">{L("02 — Februar")}</option>
+                  <option value="m3">{L("03 — März")}</option>
+                  <option value="m4">{L("04 — April")}</option>
+                  <option value="m5">{L("05 — Mai")}</option>
+                  <option value="m6">{L("06 — Juni")}</option>
+                  <option value="m7">{L("07 — Juli")}</option>
+                  <option value="m8">{L("08 — August")}</option>
+                  <option value="m9">{L("09 — September")}</option>
+                  <option value="m10">{L("10 — Oktober")}</option>
+                  <option value="m11">{L("11 — November")}</option>
+                  <option value="m12">{L("12 — Dezember")}</option>
                 </select>
               </div>
               <div className="md:col-span-2 flex items-end gap-2 justify-end">
@@ -781,15 +781,15 @@ function UstvaPageInner() {
                       </tr>
                       {/* Tier 417: sales on which the customer owes the tax */}
                       <tr className="border-b" data-testid="ustva-rc-sales">
-                        <td className="py-2">§ 13b — Leistungsempfänger schuldet die Steuer (Kz 60)</td>
+                        <td className="py-2">{L("§ 13b — Leistungsempfänger schuldet die Steuer (Kz 60)")}</td>
                         <td className="py-2 text-right font-medium">{formatCurrency(data.reverseChargeSales ?? 0)}</td>
                       </tr>
                       <tr className="border-b" data-testid="ustva-eu-services">
-                        <td className="py-2">Sonstige Leistungen an Unternehmer in der EU (Kz 21)</td>
+                        <td className="py-2">{L("Sonstige Leistungen an Unternehmer in der EU (Kz 21)")}</td>
                         <td className="py-2 text-right font-medium">{formatCurrency(data.euServicesSales ?? 0)}</td>
                       </tr>
                       <tr>
-                        <td className="py-2">Übrige nicht steuerbare Umsätze (Kz 45)</td>
+                        <td className="py-2">{L("Übrige nicht steuerbare Umsätze (Kz 45)")}</td>
                         <td className="py-2 text-right font-medium">{formatCurrency(data.nonTaxableOther ?? 0)}</td>
                       </tr>
                     </tbody>
@@ -859,7 +859,7 @@ function UstvaPageInner() {
                     </tbody>
                   </table>
                   <p className="text-[11px] text-gray-500 mt-2">
-                    Zur Übertragung in Mein ELSTER. Bemessungsgrundlagen werden dort in vollen Euro eingetragen; die Steuer zu Kz 81/86/89/93 berechnet ELSTER selbst.
+                    {L("Zur Übertragung in Mein ELSTER. Bemessungsgrundlagen werden dort in vollen Euro eingetragen; die Steuer zu Kz 81/86/89/93 berechnet ELSTER selbst.")}
                   </p>
                 </CardContent>
               </Card>
@@ -875,7 +875,7 @@ function UstvaPageInner() {
                         {t("ustva.reverseCharge")}
                       </div>
                       <div className="text-xs text-amber-700 mt-1">
-                        §13b UStG / igE — Steuerschuldnerschaft des Leistungsempfängers
+                        {L("§13b UStG / igE — Steuerschuldnerschaft des Leistungsempfängers")}
                       </div>
                     </div>
                     <div className="text-2xl font-bold text-amber-900">

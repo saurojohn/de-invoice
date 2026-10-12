@@ -36,7 +36,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
 import { signOut } from "@/lib/auth"
 
@@ -65,6 +65,9 @@ const PLACEHOLDERS: { key: string; label: string }[] = [
   { key: "openAmount", label: "Offener Betrag" },
   { key: "totalAmount", label: "Offener Betrag (wie openAmount)" },
   { key: "invoiceTotal", label: "Rechnungsbetrag" },
+  // Tier 653: the invoice's currency — an "EUR" or "€" next to an amount
+  // becomes it by itself for an invoice in another currency
+  { key: "currency", label: "Währung der Rechnung" },
   { key: "issueDateFormatted", label: "Rechnungsdatum" },
   { key: "dueDateFormatted", label: "Fälligkeitsdatum" },
   { key: "daysOverdue", label: "Tage überfällig" },
@@ -183,7 +186,7 @@ export default function MahnungTemplatesPage() {
     if (next === activeLevel) return
     if (isDirty) {
       const ok = window.confirm(
-        "Ungespeicherte Änderungen verwerfen?",
+        L("Ungespeicherte Änderungen verwerfen?"),
       )
       if (!ok) return
     }
@@ -253,7 +256,7 @@ export default function MahnungTemplatesPage() {
       setSavedOk(true)
       setTimeout(() => setSavedOk(false), 3000)
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Speichern fehlgeschlagen"
+      const msg = err instanceof ApiError ? err.message : L("Speichern fehlgeschlagen")
       setError(msg)
     } finally {
       setSaving(false)
@@ -281,7 +284,7 @@ export default function MahnungTemplatesPage() {
       setResetOk(true)
       setTimeout(() => setResetOk(false), 3000)
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Zurücksetzen fehlgeschlagen"
+      const msg = err instanceof ApiError ? err.message : L("Zurücksetzen fehlgeschlagen")
       setError(msg)
     } finally {
       setResetting(false)
@@ -398,7 +401,7 @@ export default function MahnungTemplatesPage() {
         ) : !current ? (
           <Card>
             <CardContent className="p-6 text-sm text-red-600">
-              Vorlage konnte nicht geladen werden. Bitte erneut versuchen.
+              {L("Vorlage konnte nicht geladen werden. Bitte erneut versuchen.")}
             </CardContent>
           </Card>
         ) : (
@@ -540,7 +543,7 @@ export default function MahnungTemplatesPage() {
                             {`{{${p.key}}}`}
                           </span>
                           <span className="text-gray-500 dark:text-gray-400 text-xs">
-                            {p.label}
+                            {L(p.label)}
                           </span>
                         </button>
                       </li>

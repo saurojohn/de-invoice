@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { ExportCSVButton } from "@/components/ExportCSVButton"
 import { Switch } from "@/components/ui/switch"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
@@ -158,7 +158,7 @@ export default function ProductsPage() {
     e.preventDefault()
     const companyId = localStorage.getItem("companyId")
     if (!companyId) {
-      setSaveError("Kein Unternehmen ausgewählt")
+      setSaveError(L("Kein Unternehmen ausgewählt"))
       return
     }
     setSaving(true)
@@ -475,7 +475,7 @@ export default function ProductsPage() {
                     <Input
                       value={form.unit}
                       onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                      placeholder="Stück/Stunde/Projekt"
+                      placeholder={L("Stück/Stunde/Projekt")}
                     />
                   </div>
                   <div>

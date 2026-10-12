@@ -34,7 +34,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, apiPost, ApiError } from "@/lib/api"
 import { Textarea } from "@/components/ui/textarea"
@@ -1070,7 +1070,7 @@ export function AnlageSOSection() {
                             onClick={() => setExpenseModalOpen(false)}
                             data-testid="anlage-so-v2-expense-cancel"
                           >
-                            Abbrechen
+                            {L("Abbrechen")}
                           </Button>
                         </div>
                       </>

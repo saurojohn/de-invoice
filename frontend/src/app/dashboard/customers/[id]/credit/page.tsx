@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ErrorBanner } from "@/components/ui/error-banner"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 
 interface LedgerRow {
@@ -178,12 +178,12 @@ export default function CustomerCreditPage() {
     e.preventDefault()
     if (!companyId || !id) return
     if (!payoutBankId) {
-      setPayoutError("Bitte ein Bankkonto auswählen")
+      setPayoutError(L("Bitte ein Bankkonto auswählen"))
       return
     }
     const amount = parseFloat(payoutAmount.replace(",", "."))
     if (!Number.isFinite(amount) || amount <= 0) {
-      setPayoutError("Betrag muss eine positive Zahl sein")
+      setPayoutError(L("Betrag muss eine positive Zahl sein"))
       return
     }
     if (amount > balance) {
@@ -240,11 +240,11 @@ export default function CustomerCreditPage() {
     if (!companyId || !id) return
     const amount = parseFloat(adjustAmount.replace(",", "."))
     if (!Number.isFinite(amount) || amount === 0) {
-      setAdjustError("Betrag darf nicht 0 sein")
+      setAdjustError(L("Betrag darf nicht 0 sein"))
       return
     }
     if (!adjustDescription.trim()) {
-      setAdjustError("Beschreibung ist erforderlich")
+      setAdjustError(L("Beschreibung ist erforderlich"))
       return
     }
     setAdjustSubmitting(true)
@@ -432,7 +432,7 @@ export default function CustomerCreditPage() {
                       required
                     >
                       {bankAccounts.length === 0 ? (
-                        <option value="">— Bitte Bankkonto (1000/1200) einrichten —</option>
+                        <option value="">{L("— Bitte Bankkonto (1000/1200) einrichten —")}</option>
                       ) : (
                         bankAccounts.map((a) => (
                           <option key={a.id} value={a.id}>
@@ -506,7 +506,7 @@ export default function CustomerCreditPage() {
                       inputMode="decimal"
                       value={adjustAmount}
                       onChange={(e) => setAdjustAmount(e.target.value)}
-                      placeholder="z. B. 50.00 oder -20.00"
+                      placeholder={L("z. B. 50.00 oder -20.00")}
                       data-testid="credit-adjust-amount"
                       required
                     />
@@ -612,7 +612,7 @@ export default function CustomerCreditPage() {
                                   : "bg-amber-100 text-amber-800")
                               }
                             >
-                              {TYPE_LABEL[row.type] || row.type}
+                              {L(TYPE_LABEL[row.type] || row.type)}
                             </span>
                           </td>
                           <td className="py-1 px-2 text-gray-600 dark:text-gray-300">

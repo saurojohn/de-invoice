@@ -37,7 +37,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api"
 
 interface NoteTemplate {
@@ -105,7 +105,7 @@ export default function NoteTemplatesSettingsPage() {
       setTemplates(list || [])
     } catch (e) {
       setError(
-        e instanceof ApiError ? e.message : "Vorlagen konnten nicht geladen werden",
+        e instanceof ApiError ? e.message : L("Vorlagen konnten nicht geladen werden"),
       )
     } finally {
       setLoading(false)
@@ -167,7 +167,7 @@ export default function NoteTemplatesSettingsPage() {
       await load()
     } catch (e) {
       setError(
-        e instanceof ApiError ? e.message : "Vorlage konnte nicht gespeichert werden",
+        e instanceof ApiError ? e.message : L("Vorlage konnte nicht gespeichert werden"),
       )
     } finally {
       setCreatingBusy(false)
@@ -193,7 +193,7 @@ export default function NoteTemplatesSettingsPage() {
       await load()
     } catch (e) {
       setError(
-        e instanceof ApiError ? e.message : "Vorlage konnte nicht aktualisiert werden",
+        e instanceof ApiError ? e.message : L("Vorlage konnte nicht aktualisiert werden"),
       )
     } finally {
       setEditBusy(false)
@@ -210,7 +210,7 @@ export default function NoteTemplatesSettingsPage() {
       await load()
     } catch (e) {
       setError(
-        e instanceof ApiError ? e.message : "Vorlage konnte nicht gelöscht werden",
+        e instanceof ApiError ? e.message : L("Vorlage konnte nicht gelöscht werden"),
       )
     }
   }
@@ -218,7 +218,7 @@ export default function NoteTemplatesSettingsPage() {
   const handleResetDefaults = async () => {
     if (
       !confirm(
-        "Alle Vorlagen löschen und die 5 Standard-Vorlagen neu anlegen?",
+        L("Alle Vorlagen löschen und die 5 Standard-Vorlagen neu anlegen?"),
       )
     )
       return
@@ -232,7 +232,7 @@ export default function NoteTemplatesSettingsPage() {
       await load()
     } catch (e) {
       setError(
-        e instanceof ApiError ? e.message : "Standard-Vorlagen konnten nicht wiederhergestellt werden",
+        e instanceof ApiError ? e.message : L("Standard-Vorlagen konnten nicht wiederhergestellt werden"),
       )
     } finally {
       setResetting(false)

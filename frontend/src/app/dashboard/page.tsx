@@ -12,7 +12,7 @@ import { ReadOnlyToggle, ReadOnlyBanner } from "@/components/ReadOnlyBanner"
 import { RevenueChart } from "@/components/RevenueChart"
 import { UstvaZahllastChart } from "@/components/UstvaZahllastChart"
 import { ThemeToggle } from "@/components/ThemeToggle"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 import { signOut } from "@/lib/auth"
 
@@ -360,7 +360,7 @@ export default function DashboardPage() {
                 {fmtMoney(kpis?.ytd.revenue || 0)} €
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {kpis?.ytd.countInvoices || 0} Rechnungen · brutto, darin {fmtMoney(kpis?.ytd.ust || 0)} € USt
+                {kpis?.ytd.countInvoices || 0} {L("Rechnungen")} · {L("brutto, darin")} {fmtMoney(kpis?.ytd.ust || 0)} € {L("USt")}
               </div>
             </CardContent>
           </Card>
@@ -393,7 +393,7 @@ export default function DashboardPage() {
                 {fmtMoney(kpis?.ytd.net || 0)} €
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Umsatz ohne USt − Aufwand (netto)
+                {L("Umsatz ohne USt − Aufwand (netto)")}
               </div>
             </CardContent>
           </Card>
@@ -407,7 +407,7 @@ export default function DashboardPage() {
                 {fmtMoney(kpis?.openReceivables || 0)} €
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Unbezahlte Rechnungen
+                {L("Unbezahlte Rechnungen")}
               </div>
             </CardContent>
           </Card>
@@ -673,7 +673,7 @@ export default function DashboardPage() {
             the dashboard endpoint is slow / fails. */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Umsatz- und Aufwandsentwicklung (letzte 12 Monate)</CardTitle>
+            <CardTitle>{L("Umsatz- und Aufwandsentwicklung (letzte 12 Monate)")}</CardTitle>
           </CardHeader>
           <CardContent>
             <RevenueChart data={kpis?.byMonth || monthlyRevenue} height={240} />
@@ -849,7 +849,7 @@ export default function DashboardPage() {
                       // 1-based (1=Jan) but JS Date uses
                       // 0-based, hence the -1.
                       const monthDate = new Date(row.year, row.month - 1, 1)
-                      const monthLabel = monthDate.toLocaleDateString("de-DE", {
+                      const monthLabel = monthDate.toLocaleDateString(getDateLocale(), {
                         month: "short",
                         year: "numeric",
                       })

@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, downloadApiFile } from "@/lib/api"
 import { signOut } from "@/lib/auth"
@@ -117,7 +117,7 @@ export default function MahnhistoriePage() {
         setLoading(false)
       })
       .catch((err: any) => {
-        setError(err?.message || "Unbekannter Fehler")
+        setError(err?.message || L("Unbekannter Fehler"))
         setLoading(false)
       })
   }, [filter, router])
@@ -159,7 +159,7 @@ export default function MahnhistoriePage() {
     // NEXT_PUBLIC_API_URL the URL started with "undefined".
     downloadApiFile(`/api/v1/reminders/mahnungen/${row.id}/pdf?companyId=${companyId}`, {
       newTab: true,
-    }).catch((e: any) => toast.error(e?.message || "PDF konnte nicht geladen werden"))
+    }).catch((e: any) => toast.error(e?.message || L("PDF konnte nicht geladen werden")))
   }
 
   return (
@@ -269,8 +269,8 @@ export default function MahnhistoriePage() {
                   <thead>
                     <tr className="text-left border-b border-gray-200 dark:border-gray-700 text-xs uppercase text-gray-500">
                       <th className="py-2 pr-4">{t("mahnung.level")}</th>
-                      <th className="py-2 pr-4">Rechnung</th>
-                      <th className="py-2 pr-4">Kunde</th>
+                      <th className="py-2 pr-4">{L("Rechnung")}</th>
+                      <th className="py-2 pr-4">{L("Kunde")}</th>
                       {/* Tier 40: cost-center stamp. Hidden
                           when both columns are empty so the
                           table doesn't sprout dead weight;

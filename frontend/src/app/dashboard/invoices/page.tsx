@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 
@@ -214,15 +214,15 @@ function InvoicesPageInner() {
         const status = err?.status as number | undefined
         const raw = (err?.message || String(err) || '') as string
         if (status === 429 || /too many/i.test(raw)) {
-          setListError('Zu viele Anfragen. Bitte einen Moment warten und dann erneut versuchen.')
+          setListError(L("Zu viele Anfragen. Bitte einen Moment warten und dann erneut versuchen."))
         } else if (status === 401 || status === 403) {
-          setListError('Sitzung abgelaufen. Bitte neu anmelden.')
+          setListError(L("Sitzung abgelaufen. Bitte neu anmelden."))
         } else if (status === 404) {
-          setListError('Rechnungen konnten nicht geladen werden (404).')
+          setListError(L("Rechnungen konnten nicht geladen werden (404)."))
         } else if (status && status >= 500) {
           setListError(`Serverfehler (${status}). Bitte erneut versuchen.`)
         } else {
-          setListError(`Fehler beim Laden: ${raw || 'Unbekannter Fehler'}`)
+          setListError(`Fehler beim Laden: ${raw || L("Unbekannter Fehler")}`)
         }
       })
       .finally(() => {
@@ -550,7 +550,7 @@ function InvoicesPageInner() {
    */
   const bulkSendByFilter = async () => {
     if (!dateFrom && !dateTo) {
-      toast.warn("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
+      toast.warn(L("Bitte zuerst einen Zeitraum (Von / Bis) wählen."))
       return
     }
     const companyId = localStorage.getItem("companyId")
@@ -698,7 +698,7 @@ function InvoicesPageInner() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (!dateFrom && !dateTo) {
-      toast.warn("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
+      toast.warn(L("Bitte zuerst einen Zeitraum (Von / Bis) wählen."))
       return
     }
     const params = new URLSearchParams({ companyId })
@@ -740,7 +740,7 @@ function InvoicesPageInner() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     if (!dateFrom && !dateTo) {
-      toast.warn("Bitte zuerst einen Zeitraum (Von / Bis) wählen.")
+      toast.warn(L("Bitte zuerst einen Zeitraum (Von / Bis) wählen."))
       return
     }
     setBulkDownloading(true)
@@ -1142,7 +1142,7 @@ function InvoicesPageInner() {
             <CardContent className="text-center py-12">
               <p className="text-red-700 dark:text-red-300 font-medium mb-2">⚠ {listError}</p>
               <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
-                Bitte prüfe deine Internetverbindung oder versuche es in einem Moment erneut.
+                {L("Bitte prüfe deine Internetverbindung oder versuche es in einem Moment erneut.")}
               </p>
               <Button
                 onClick={() => {
@@ -1202,7 +1202,7 @@ function InvoicesPageInner() {
                       }}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 cursor-pointer"
-                      aria-label="Alle auswählen"
+                      aria-label={L("Alle auswählen")}
                     />
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.number")}</th>
@@ -1337,7 +1337,7 @@ function InvoicesPageInner() {
                     setBulkSendProgress(null)
                     setBulkSendError(null)
                   }}
-                  aria-label="Schließen"
+                  aria-label={L("Schließen")}
                   data-testid="bulk-send-close"
                 >
                   ✕
@@ -1501,7 +1501,7 @@ function InvoicesPageInner() {
                     setBulkMahnungProgress(null)
                     setBulkMahnungError(null)
                   }}
-                  aria-label="Schließen"
+                  aria-label={L("Schließen")}
                   data-testid="bulk-mahnung-close"
                 >
                   ✕
@@ -1665,7 +1665,7 @@ function InvoicesPageInner() {
                           <span>{r.error || "Bereits heute versendet"}</span>
                         )}
                         {r.status === "failed" && (
-                          <span>✗ {r.error || "Unbekannter Fehler"}</span>
+                          <span>✗ {r.error || L("Unbekannter Fehler")}</span>
                         )}
                       </div>
                     ))}
@@ -1691,7 +1691,7 @@ function InvoicesPageInner() {
 // — once useSearchParams hydrates, the real UI swaps in).
 export default function InvoicesPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-gray-500">Lädt…</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">{L("Lädt…")}</div>}>
       <InvoicesPageInner />
     </Suspense>
   )

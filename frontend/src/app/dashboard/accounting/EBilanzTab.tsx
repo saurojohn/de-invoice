@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { API_BASE, apiGet } from "@/lib/api"
 import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
@@ -175,7 +175,7 @@ export function EBilanzTab() {
       setData(d)
     } catch (e) {
       console.error("ebilanz load failed", e)
-      toastRef.current.error("Fehler beim Laden der E-Bilanz")
+      toastRef.current.error(L("Fehler beim Laden der E-Bilanz"))
     } finally {
       setLoading(false)
     }
@@ -305,7 +305,7 @@ export function EBilanzTab() {
                         key={section}
                         section={section}
                         rows={rows}
-                        title={SECTION_TITLE[section]}
+                        title={L(SECTION_TITLE[section])}
                       />
                     )
                   })}

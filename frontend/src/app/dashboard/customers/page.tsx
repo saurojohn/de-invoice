@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ExportCSVButton } from "@/components/ExportCSVButton"
 import { VatCheckPanel } from "@/components/VatCheckPanel"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
@@ -412,7 +412,7 @@ export default function CustomersPage() {
       console.error('Post-save refetch failed:', err)
     }
     setShowModal(false)
-    setSaveSuccess(editingCustomer ? "Änderungen gespeichert" : "Kunde angelegt")
+    setSaveSuccess(editingCustomer ? L("Änderungen gespeichert") : L("Kunde angelegt"))
     // Auto-dismiss the success message after 3s
     setTimeout(() => setSaveSuccess(null), 3000)
     setSaving(false)
@@ -615,7 +615,7 @@ export default function CustomersPage() {
       const text = await importFile.text()
       const rows = parseCsv(text)
       if (rows.length === 0) {
-        toast.warn("CSV enthält keine Datenzeilen (oder Spaltenüberschriften fehlen).")
+        toast.warn(L("CSV enthält keine Datenzeilen (oder Spaltenüberschriften fehlen)."))
         setImporting(false)
         return
       }
@@ -1033,7 +1033,7 @@ export default function CustomersPage() {
                         }`}
                         title={`${customer.invoiceCount || 0} ${t("customer.invoiceCountHint") || "Rechnungen insgesamt"}`}
                       >
-                        {customer.invoiceCount || 0} {(customer.invoiceCount || 0) === 1 ? "Rechnung" : "Rechnungen"}
+                        {customer.invoiceCount || 0} {(customer.invoiceCount || 0) === 1 ? L("Rechnung") : L("Rechnungen")}
                       </span>
                     </div>
                   </div>
@@ -1077,7 +1077,7 @@ export default function CustomersPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card className="w-full max-w-xl max-h-[90vh] overflow-y-auto">
             <CardHeader>
-              <CardTitle>📥 Kunden aus CSV importieren</CardTitle>
+              <CardTitle>{L("📥 Kunden aus CSV importieren")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-sm text-gray-600 dark:text-gray-300">
@@ -1261,7 +1261,7 @@ export default function CustomersPage() {
                   <Input
                     value={form.street}
                     onChange={(e) => setForm({ ...form, street: e.target.value })}
-                    placeholder="Musterstraße 123"
+                    placeholder={L("Musterstraße 123")}
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-4">

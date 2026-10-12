@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -455,7 +455,7 @@ function TemplateModal({
             <Input
               value={footerText}
               onChange={(e) => setFooterText(e.target.value)}
-              placeholder="Vielen Dank für Ihren Auftrag."
+              placeholder={L("Vielen Dank für Ihren Auftrag.")}
             />
           </div>
 

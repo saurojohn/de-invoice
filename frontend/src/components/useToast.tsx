@@ -29,6 +29,7 @@
  *   toast.success(t("customer.saved"))
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { L } from "@/components/useI18n"
 
 export type ToastKind = "success" | "error" | "info" | "warn"
 
@@ -243,7 +244,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
       </p>
       <button
         onClick={() => setLeaving(true)}
-        aria-label="Schließen"
+        aria-label={L("Schließen")}
         className="text-current/60 hover:text-current shrink-0"
       >
         ×

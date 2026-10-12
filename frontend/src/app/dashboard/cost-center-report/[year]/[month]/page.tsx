@@ -18,7 +18,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 
 interface CostCenterRow {
@@ -71,12 +71,12 @@ export default function CostCenterMonthlyPage() {
   useEffect(() => {
     if (!companyId) return
     if (!Number.isFinite(yearNum) || yearNum < 2000 || yearNum > 2100) {
-      setError("Ungültiges Jahr")
+      setError(L("Ungültiges Jahr"))
       setLoading(false)
       return
     }
     if (!Number.isFinite(monthNum) || monthNum < 1 || monthNum > 12) {
-      setError("Ungültiger Monat")
+      setError(L("Ungültiger Monat"))
       setLoading(false)
       return
     }
@@ -122,7 +122,7 @@ export default function CostCenterMonthlyPage() {
   if (!Number.isFinite(yearNum) || !Number.isFinite(monthNum)) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <p className="text-sm text-red-600">Ungültiger URL-Pfad.</p>
+        <p className="text-sm text-red-600">{L("Ungültiger URL-Pfad.")}</p>
       </div>
     )
   }

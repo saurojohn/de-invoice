@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
 
@@ -359,7 +359,7 @@ export function BwaTab() {
                     {/* Tier 93: Steuern (5000 + 5100) */}
                     <tr className="bg-gray-50/50 dark:bg-gray-800/50">
                       <td className="py-1"></td>
-                      <td className="py-1 text-xs">Steuern (5000+5100)</td>
+                      <td className="py-1 text-xs">{L("Steuern (5000+5100)")}</td>
                       <td className="py-1 text-right font-mono text-xs" data-testid="bwa-steuern-monat">
                         {fmt(data.totals.steuernMonat)}
                       </td>

@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPut } from "@/lib/api"
 import { signOut } from "@/lib/auth"
 
@@ -57,7 +57,7 @@ export default function MahnungSettingsPage() {
         setLoading(false)
       })
       .catch((err: any) => {
-        setError(err?.message || "Unbekannter Fehler")
+        setError(err?.message || L("Unbekannter Fehler"))
         setLoading(false)
       })
   }, [router])
@@ -84,7 +84,7 @@ export default function MahnungSettingsPage() {
       setTimeout(() => setSavedOk(false), 3000)
       setSaving(false)
     } catch (err: any) {
-      setError(err?.message || "Speichern fehlgeschlagen")
+      setError(err?.message || L("Speichern fehlgeschlagen"))
       setSaving(false)
     }
   }
@@ -194,7 +194,7 @@ export default function MahnungSettingsPage() {
                     data-testid="mahnung-verzugszins-input"
                   />
                   <span className="ml-2 text-xs text-gray-400">
-                    (BGB §288 Abs. 2: 9 % Standard für B2B)
+                    {L("(BGB §288 Abs. 2: 9 % Standard für B2B)")}
                   </span>
                 </div>
 

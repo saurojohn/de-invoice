@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiFetch, apiGetBlob } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
@@ -169,7 +169,7 @@ export default function VoucherDetailPage() {
       `/api/v1/accounting/vouchers/${params.id}?companyId=${companyId}`
     )
       .then((v) => setVoucher(v))
-      .catch((e: any) => setError(e?.message || "Fehler beim Laden"))
+      .catch((e: any) => setError(e?.message || L("Fehler beim Laden")))
       .finally(() => setLoading(false))
   }, [params.id, router])
 
@@ -229,7 +229,7 @@ export default function VoucherDetailPage() {
                     a.click()
                     setTimeout(() => URL.revokeObjectURL(url), 60000)
                   } catch (e: any) {
-                    toast.error(e?.message || "PDF konnte nicht geladen werden")
+                    toast.error(e?.message || L("PDF konnte nicht geladen werden"))
                   }
                 }}
               >
@@ -281,7 +281,7 @@ export default function VoucherDetailPage() {
                         `/dashboard/accounting/vouchers/${data.id}`,
                       )
                     } catch (e: any) {
-                      toast.error("Fehler: " + (e?.message || String(e)))
+                      toast.error(L("Fehler: ") + (e?.message || String(e)))
                     }
                   }}
                    className="bg-red-600 text-white hover:bg-red-700"
@@ -429,7 +429,7 @@ export default function VoucherDetailPage() {
                     )
                   }
                   className="border-red-300 dark:border-red-700 text-red-700 dark:text-red-300"
-                  title="Bereits storniert — Korrekturbeleg öffnen"
+                  title={L("Bereits storniert — Korrekturbeleg öffnen")}
                 >
                   ↪ Storno: {voucher.reversals[0].voucherNumber}
                 </Button>
@@ -833,7 +833,7 @@ export default function VoucherDetailPage() {
               type="text"
               value={correctReason}
               onChange={(e) => setCorrectReason(e.target.value)}
-              placeholder="z.B. Bank fee 1,20 € korrigiert auf 1,50 €"
+              placeholder={L("z.B. Bank fee 1,20 € korrigiert auf 1,50 €")}
               className="w-full border rounded px-3 py-2 text-sm mb-4 dark:bg-gray-700 dark:border-gray-600"
               data-testid="voucher-correct-reason"
             />
@@ -903,7 +903,7 @@ export default function VoucherDetailPage() {
                 onClick={() => setShowCorrectModal(false)}
                 disabled={correctSaving}
               >
-                Abbrechen
+                {L("Abbrechen")}
               </Button>
               <Button
                 data-testid="voucher-correct-submit"
@@ -951,7 +951,7 @@ export default function VoucherDetailPage() {
                     )
                   } catch (e: any) {
                     setCorrectError(
-                      "Fehler: " + (e?.message || String(e)),
+                      L("Fehler: ") + (e?.message || String(e)),
                     )
                     setCorrectSaving(false)
                   }

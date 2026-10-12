@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, ApiError } from "@/lib/api"
 import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
@@ -314,7 +314,7 @@ export function AnlageRSection() {
                     <div>DRV: <b>{fmt(data.rentenbezuege.drv)}</b></div>
                     <div>BAV: <b>{fmt(data.rentenbezuege.bav)}</b></div>
                     <div>Riester: <b>{fmt(data.rentenbezuege.riester)}</b></div>
-                    <div>Rürup: <b>{fmt(data.rentenbezuege.ruerup)}</b></div>
+                    <div>{L("Rürup:")} <b>{fmt(data.rentenbezuege.ruerup)}</b></div>
                     <div>Privat: <b>{fmt(data.rentenbezuege.privat)}</b></div>
                     <div>Sonstige: <b>{fmt(data.rentenbezuege.sonstige)}</b></div>
                   </div>

@@ -7,7 +7,7 @@ import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 import { substitute } from "@/lib/substitute"
@@ -332,7 +332,7 @@ export default function InvoiceDetailPage() {
   const submitPayment = async () => {
     if (!invoice) return
     if (!payForm.amount || !payForm.paymentDate || !payForm.paymentMethod) {
-      toast.warn("Betrag, Datum und Zahlungsweg sind erforderlich")
+      toast.warn(L("Betrag, Datum und Zahlungsweg sind erforderlich"))
       return
     }
     setPaySaving(true)
@@ -382,7 +382,7 @@ export default function InvoiceDetailPage() {
 
   const resolveNotice = async (noticeId: string, action: "book" | "dismiss") => {
     if (!invoice) return
-    if (action === "dismiss" && !confirm("Zahlungsmeldung verwerfen? Die Rechnung bleibt offen.")) return
+    if (action === "dismiss" && !confirm(L("Zahlungsmeldung verwerfen? Die Rechnung bleibt offen."))) return
     try {
       const companyId = localStorage.getItem("companyId")
       await apiPost(
@@ -403,7 +403,7 @@ export default function InvoiceDetailPage() {
 
   const deletePayment = async (paymentId: string) => {
     if (!invoice) return
-    if (!confirm("Zahlung wirklich löschen?")) return
+    if (!confirm(L("Zahlung wirklich löschen?"))) return
     try {
       const companyId = localStorage.getItem("companyId")
       await apiDelete(`/api/v1/invoices/${invoice.id}/payments/${paymentId}?companyId=${companyId}`)
@@ -456,7 +456,7 @@ export default function InvoiceDetailPage() {
   // here means someone else wrote this note.
   const deleteInternalNote = async (noteId: string) => {
     if (!invoice) return
-    if (!confirm("Diese interne Notiz wirklich löschen?")) return
+    if (!confirm(L("Diese interne Notiz wirklich löschen?"))) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setDeletingNoteId(noteId)
@@ -496,7 +496,7 @@ export default function InvoiceDetailPage() {
     // twice still triggers onChange.
     e.target.value = ""
     if (file.size > 10 * 1024 * 1024) {
-      setAttachmentError("Datei zu groß (max. 10MB).")
+      setAttachmentError(L("Datei zu groß (max. 10MB)."))
       return
     }
     setUploadingAttachment(true)
@@ -537,7 +537,7 @@ export default function InvoiceDetailPage() {
 
   const deleteInvoiceAttachment = async (attachmentId: string) => {
     if (!invoice) return
-    if (!confirm("Diesen Beleg wirklich löschen?")) return
+    if (!confirm(L("Diesen Beleg wirklich löschen?"))) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setDeletingAttachmentId(attachmentId)
@@ -2200,7 +2200,7 @@ export default function InvoiceDetailPage() {
               <div className="flex justify-between text-xl font-bold border-t pt-3"><span>{t("invoicePage.totalLabel")}</span><span className="text-blue-600 dark:text-blue-400">{money(parseFloat(invoice.total))}</span></div>
               <div className="flex justify-between text-sm pt-1"><span className="text-green-700 dark:text-green-300">{t("invoicePage.paidLabel")}</span><span className="text-green-700 dark:text-green-300">{money(totalPaid)}</span></div>
               <div className={`flex justify-between text-sm font-semibold ${outstanding > 0.01 ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-300"}`}>
-                <span>{outstanding > 0.01 ? "Offen:" : "Vollständig bezahlt ✓"}</span>
+                <span>{outstanding > 0.01 ? "Offen:" : L("Vollständig bezahlt ✓")}</span>
                 <span>{money(outstanding)}</span>
               </div>
             </CardContent>
@@ -2408,7 +2408,7 @@ export default function InvoiceDetailPage() {
                     onClick={() => setShowPayForm(!showPayForm)}
                     variant={showPayForm ? "outline" : "default"}
                   >
-                    {showPayForm ? "×" : "+ Zahlung erfassen"}
+                    {showPayForm ? "×" : L("+ Zahlung erfassen")}
                   </Button>
                 )}
             </div>
@@ -2487,7 +2487,7 @@ export default function InvoiceDetailPage() {
               <div className="mt-3 flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowPayForm(false)}>×</Button>
                 <Button size="sm" onClick={submitPayment} disabled={paySaving}>
-                  {paySaving ? "…" : "✓ Speichern"}
+                  {paySaving ? "…" : L("✓ Speichern")}
                 </Button>
               </div>
             </CardContent>
@@ -2782,7 +2782,7 @@ export default function InvoiceDetailPage() {
                                       })
                                     } catch (e: any) {
                                       toast.error(
-                                        e?.message || "Fehler beim Speichern",
+                                        e?.message || L("Fehler beim Speichern"),
                                       )
                                     }
                                   }}
@@ -2824,7 +2824,7 @@ export default function InvoiceDetailPage() {
                           setInstallmentPlan(updated)
                         } catch (e: any) {
                           toast.error(
-                            e?.message || "Fehler beim Stornieren",
+                            e?.message || L("Fehler beim Stornieren"),
                           )
                         }
                       }}
@@ -3054,7 +3054,7 @@ export default function InvoiceDetailPage() {
               <div className="text-sm">
                 <span className="font-semibold">
                   {portalLink.reused
-                    ? "Aktiver Zahlungslink:"
+                    ? L("Aktiver Zahlungslink:")
                     : "Zahlungslink erstellt:"}
                 </span>{" "}
                 <span className="text-gray-500">
@@ -3384,7 +3384,7 @@ export default function InvoiceDetailPage() {
                       Number(invoice.total).toFixed(2),
                   )
                   if (!totalAmount || totalAmount <= 0) {
-                    setPlanError("Betrag muss > 0 sein")
+                    setPlanError(L("Betrag muss > 0 sein"))
                     return
                   }
                   setPlanSaving(true)
@@ -3405,7 +3405,7 @@ export default function InvoiceDetailPage() {
                     setShowPlanModal(false)
                   } catch (e: any) {
                     setPlanError(
-                      e?.message || "Fehler beim Anlegen",
+                      e?.message || L("Fehler beim Anlegen"),
                     )
                   } finally {
                     setPlanSaving(false)
@@ -3622,7 +3622,7 @@ export default function InvoiceDetailPage() {
                     )
                   } catch (e: any) {
                     setCnError(
-                      e?.message || "Fehler beim Erstellen",
+                      e?.message || L("Fehler beim Erstellen"),
                     )
                   } finally {
                     setCnSaving(false)

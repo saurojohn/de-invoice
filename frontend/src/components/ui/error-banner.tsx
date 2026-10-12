@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { L } from "@/components/useI18n"
 
 // Tier 12 UX: dismissible error banner.
 // Replaces the bare `alert(...)` pattern
@@ -102,7 +103,7 @@ export function ErrorBanner({
       {onDismiss && (
         <button
           onClick={onDismiss}
-          aria-label="Schließen"
+          aria-label={L("Schließen")}
           className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
         >
           <CloseIcon className="h-4 w-4" />

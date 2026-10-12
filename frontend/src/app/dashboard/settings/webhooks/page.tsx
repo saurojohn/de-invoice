@@ -56,7 +56,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -393,7 +393,7 @@ export default function WebhooksPage() {
     e.preventDefault()
     if (!newName.trim() || !newUrl.trim() || newEvents.size === 0) {
       setCreateError(
-        "Name, URL und mindestens ein Ereignis sind erforderlich.",
+        L("Name, URL und mindestens ein Ereignis sind erforderlich."),
       )
       return
     }

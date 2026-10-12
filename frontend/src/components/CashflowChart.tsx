@@ -1,4 +1,5 @@
 "use client"
+import { L } from "@/components/useI18n"
 
 interface CashflowChartProps {
   data: Array<{
@@ -33,7 +34,7 @@ export function CashflowChart({ data, height = 220 }: CashflowChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center text-gray-400 text-sm" style={{ height }}>
-        Keine Daten
+        {L("Keine Daten")}
       </div>
     )
   }

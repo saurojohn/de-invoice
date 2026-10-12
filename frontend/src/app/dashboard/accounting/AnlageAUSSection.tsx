@@ -28,7 +28,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, ApiError } from "@/lib/api"
 import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
@@ -487,8 +487,8 @@ export function AnlageAUSSection() {
                       <th className="py-1 pr-2">Land</th>
                       <th className="py-1 pr-2">DBA</th>
                       <th className="py-1 pr-2 text-right">Brutto (€)</th>
-                      <th className="py-1 pr-2 text-right">Steuerpflichtig (€)</th>
-                      <th className="py-1 pr-2 text-right">Steuerfrei (€)</th>
+                      <th className="py-1 pr-2 text-right">{L("Steuerpflichtig (€)")}</th>
+                      <th className="py-1 pr-2 text-right">{L("Steuerfrei (€)")}</th>
                     </tr>
                   </thead>
                   <tbody>

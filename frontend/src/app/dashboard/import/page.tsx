@@ -31,7 +31,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiFetch, apiPost, ApiError } from "@/lib/api"
 import { parseCsv } from "@/lib/csv"
 
@@ -130,11 +130,11 @@ function BulkImportPageInner() {
       const text = await file.text()
       const parsed = parseCsv(text)
       if (parsed.headers.length === 0) {
-        setParseError("Die Datei enthält keine Kopfzeile.")
+        setParseError(L("Die Datei enthält keine Kopfzeile."))
         return
       }
       if (parsed.rows.length === 0) {
-        setParseError("Die Datei enthält keine Datenzeilen.")
+        setParseError(L("Die Datei enthält keine Datenzeilen."))
         return
       }
       setHeaders(parsed.headers)
@@ -256,7 +256,7 @@ function BulkImportPageInner() {
         {/* Step 1: entity picker */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>1. Datentyp wählen</CardTitle>
+            <CardTitle>{L("1. Datentyp wählen")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-3">
@@ -270,7 +270,7 @@ function BulkImportPageInner() {
                       : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                 >
-                  {ENTITIES[e].label}
+                  {L(ENTITIES[e].label)}
                 </button>
               ))}
             </div>
@@ -459,7 +459,7 @@ function BulkImportPageInner() {
                         <tr className="text-left text-gray-500 dark:text-gray-400">
                           <th className="py-2 px-3 font-medium">Zeile</th>
                           <th className="py-2 px-3 font-medium">Datensatz</th>
-                          <th className="py-2 px-3 font-medium">Fehler</th>
+                          <th className="py-2 px-3 font-medium">{L("Fehler")}</th>
                         </tr>
                       </thead>
                       <tbody>

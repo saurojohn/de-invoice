@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiDelete, apiFetch } from "@/lib/api"
 
@@ -267,7 +267,7 @@ export default function BankImportPage() {
         setCandidates(res.candidates || [])
       }
     } catch (err: any) {
-      toast.error(err?.message || "Bestätigen fehlgeschlagen")
+      toast.error(err?.message || L("Bestätigen fehlgeschlagen"))
     } finally {
       setBusyRecon(null)
     }
@@ -324,7 +324,7 @@ export default function BankImportPage() {
         setCandidates(res.candidates || [])
       }
     } catch (err: any) {
-      toast.error(err?.message || "Rückgängig fehlgeschlagen")
+      toast.error(err?.message || L("Rückgängig fehlgeschlagen"))
     } finally {
       setBusyRecon(null)
     }
@@ -559,7 +559,7 @@ export default function BankImportPage() {
       }
       await reload()
     } catch (err: any) {
-      toast.error(err?.message || "Fehler beim Löschen")
+      toast.error(err?.message || L("Fehler beim Löschen"))
     }
   }
 
@@ -1264,7 +1264,7 @@ export default function BankImportPage() {
               </div>
               <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
                 <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
-                  Eröffnung
+                  {L("Eröffnung")}
                 </div>
                 <div className="text-sm font-mono font-bold mt-1">
                   {pendingPreview.preview.openingBalance
@@ -1307,7 +1307,7 @@ export default function BankImportPage() {
                 <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0">
                   <tr>
                     <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Datum
+                      {L("Datum")}
                     </th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                       Gegenpartei
@@ -1316,7 +1316,7 @@ export default function BankImportPage() {
                       Zweck
                     </th>
                     <th className="text-right px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Betrag
+                      {L("Betrag")}
                     </th>
                   </tr>
                 </thead>

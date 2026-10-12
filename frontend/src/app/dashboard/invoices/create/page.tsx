@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
@@ -379,7 +379,7 @@ function CreateInvoicePageInner() {
         .catch((err) => {
           // 403 = not same day (or wrong permissions). Show the
           // error inline rather than silently redirecting.
-          const msg = err instanceof ApiError ? err.message : 'Rechnung konnte nicht geladen werden.'
+          const msg = err instanceof ApiError ? err.message : L("Rechnung konnte nicht geladen werden.")
           setLoadError(msg)
         })
     }
@@ -398,7 +398,7 @@ function CreateInvoicePageInner() {
           prefillFromInvoice(inv, { isClone: true })
         })
         .catch((err) => {
-          const msg = err instanceof ApiError ? err.message : 'Quell-Rechnung konnte nicht geladen werden.'
+          const msg = err instanceof ApiError ? err.message : L("Quell-Rechnung konnte nicht geladen werden.")
           setLoadError(msg)
         })
     }
@@ -2585,7 +2585,7 @@ function CreateInvoicePageInner() {
                       <Input
                         value={newProductModal.unit}
                         onChange={(e) => setNewProductModal({ ...newProductModal, unit: e.target.value })}
-                        placeholder="Stück/Stunde/Projekt"
+                        placeholder={L("Stück/Stunde/Projekt")}
                       />
                     </div>
                     <div>
@@ -2758,7 +2758,7 @@ function CreateInvoicePageInner() {
                     <Input
                       value={newCustomerModal.street}
                       onChange={(e) => setNewCustomerModal({ ...newCustomerModal, street: e.target.value })}
-                      placeholder="Musterstraße 123"
+                      placeholder={L("Musterstraße 123")}
                     />
                   </div>
                   {/* Postal code + city — 3-col grid, postal

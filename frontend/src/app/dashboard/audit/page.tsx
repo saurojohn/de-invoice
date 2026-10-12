@@ -40,7 +40,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet } from "@/lib/api"
 
@@ -1031,7 +1031,7 @@ export default function AuditPage() {
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
                     data-testid="audit-filter-q-clear"
-                    aria-label="Suche löschen"
+                    aria-label={L("Suche löschen")}
                   >
                     ✕
                   </button>

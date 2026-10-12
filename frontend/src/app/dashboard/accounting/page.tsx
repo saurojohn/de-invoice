@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiFetch } from "@/lib/api"
 import { EuerSection } from "./EuerSection"
@@ -489,7 +489,7 @@ export default function AccountingPage() {
     } catch (e: any) {
       console.error("voucher create failed", e)
       setCreateError(
-        e?.response?.data?.message || e?.message || "Fehler beim Anlegen",
+        e?.response?.data?.message || e?.message || L("Fehler beim Anlegen"),
       )
     } finally {
       setCreateSaving(false)
@@ -573,7 +573,7 @@ export default function AccountingPage() {
             <button
               onClick={() => router.push("/dashboard/accounting/ustva")}
               className="px-3 py-1 text-sm border border-blue-600 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-50 font-medium"
-              title="UStVA — Umsatzsteuervoranmeldung"
+              title={L("UStVA — Umsatzsteuervoranmeldung")}
             >
               UStVA
             </button>
@@ -875,7 +875,7 @@ export default function AccountingPage() {
                 </div>
                 <div className="col-span-3">
                   <label className="text-xs text-emerald-800 uppercase">
-                    Betrag €
+                    {L("Betrag €")}
                   </label>
                   <input
                     type="number"
@@ -968,7 +968,7 @@ export default function AccountingPage() {
                           setCreateError(null)
                         }
                       } catch (e: any) {
-                        toast.error("Fehler: " + (e?.message || String(e)))
+                        toast.error(L("Fehler: ") + (e?.message || String(e)))
                       }
                     }}
                     disabled={
@@ -1023,7 +1023,7 @@ export default function AccountingPage() {
                           }
                           className="w-full border rounded px-2 py-1 text-sm"
                         >
-                          <option value="">— Konto wählen —</option>
+                          <option value="">{L("— Konto wählen —")}</option>
                           {accounts.map((a) => (
                             <option key={a.id} value={a.id}>
                               {a.accountNumber} {a.name}
@@ -1151,7 +1151,7 @@ export default function AccountingPage() {
                 <tfoot className="bg-gray-50 dark:bg-gray-900 border-t-2 border-gray dark:border-gray-700-300 dark:border-gray-600">
                   <tr>
                     <td className="px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">
-                      Summe
+                      {L("Summe")}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-sm font-bold">
                       {formatCurrency(draftBalance.debit.toFixed(2))}

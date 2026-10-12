@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 
@@ -483,7 +483,7 @@ export default function RecurringInvoicesPage() {
       setTemplates(list || [])
       closeModal()
     } catch (e: any) {
-      toast.error(e?.message || "Fehler beim Speichern")
+      toast.error(e?.message || L("Fehler beim Speichern"))
     } finally {
       setSaving(false)
     }
@@ -1402,7 +1402,7 @@ export default function RecurringInvoicesPage() {
                   setGenerated(null)
                 }}
                 data-testid="recurring-generated-close"
-                aria-label="Schließen"
+                aria-label={L("Schließen")}
               >
                 ✕
               </button>

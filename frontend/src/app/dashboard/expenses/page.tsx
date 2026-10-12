@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiFetch, apiPost } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 import { EInvoiceDialog } from "@/components/EInvoiceDialog"
@@ -472,7 +472,7 @@ export default function ExpensesPage() {
                 } catch (err: any) {
                   setOcr({
                     step: "error",
-                    message: err?.message || "Unbekannter Fehler",
+                    message: err?.message || L("Unbekannter Fehler"),
                   })
                 } finally {
                   // Clear the file input so the
@@ -1126,7 +1126,7 @@ export default function ExpensesPage() {
                         } catch (err: any) {
                           setOcr({
                             step: "error",
-                            message: err?.message || "Unbekannter Fehler",
+                            message: err?.message || L("Unbekannter Fehler"),
                           })
                         }
                       }}

@@ -35,7 +35,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiFetch, ApiError } from "@/lib/api"
 
 type Tab =
@@ -861,7 +861,7 @@ export default function CustomerDetailPage() {
               <span className="ml-3 font-mono">USt-ID: {customer.vatId}</span>
             )}
             {customer.taxExempt && (
-              <span className="ml-3 text-orange-700">⚠ Steuerbefreit</span>
+              <span className="ml-3 text-orange-700">{L("⚠ Steuerbefreit")}</span>
             )}
           </p>
           {/* Tier 128: VIES USt-ID verify button + result badge.
@@ -1936,7 +1936,7 @@ export default function CustomerDetailPage() {
                               (row.amount > 0 ? "bg-blue-100 text-blue-800" : "bg-amber-100 text-amber-800")
                             }
                           >
-                            {TYPE_LABEL[row.type] || row.type}
+                            {L(TYPE_LABEL[row.type] || row.type)}
                           </span>
                         </td>
                         <td className="py-2 text-gray-600 dark:text-gray-300">
@@ -2305,7 +2305,7 @@ export default function CustomerDetailPage() {
               <button
                 className="text-gray-400 hover:text-gray-600 text-xl"
                 onClick={() => setEmailDetail(null)}
-                aria-label="Schließen"
+                aria-label={L("Schließen")}
                 data-testid="email-detail-close"
               >
                 ✕
@@ -2406,7 +2406,7 @@ export default function CustomerDetailPage() {
                   setAllocateError(null)
                 }}
                 data-testid="allocate-close"
-                aria-label="Schließen"
+                aria-label={L("Schließen")}
               >
                 ✕
               </button>
@@ -2451,7 +2451,7 @@ export default function CustomerDetailPage() {
                         data-testid="allocate-method"
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm"
                       >
-                        <option value="Überweisung">Überweisung</option>
+                        <option value="Überweisung">{L("Überweisung")}</option>
                         <option value="SEPA-Lastschrift">SEPA-Lastschrift</option>
                         <option value="Bargeld">Bargeld</option>
                         <option value="Verrechnung">Verrechnung</option>
@@ -2478,7 +2478,7 @@ export default function CustomerDetailPage() {
                       onClick={async () => {
                         const amount = parseFloat(allocateAmount)
                         if (!amount || amount <= 0) {
-                          setAllocateError("Betrag muss > 0 sein")
+                          setAllocateError(L("Betrag muss > 0 sein"))
                           return
                         }
                         setAllocateError(null)
@@ -2519,7 +2519,7 @@ export default function CustomerDetailPage() {
                   <table className="w-full text-xs mb-3">
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-700">
-                        <th className="text-left py-1">Rechnung</th>
+                        <th className="text-left py-1">{L("Rechnung")}</th>
                         <th className="text-right py-1">Offen</th>
                         <th className="text-right py-1">Anwendung</th>
                       </tr>
@@ -2706,7 +2706,7 @@ export default function CustomerDetailPage() {
                   setMergeDone(null)
                 }}
                 data-testid="merge-close"
-                aria-label="Schließen"
+                aria-label={L("Schließen")}
               >
                 ✕
               </button>
@@ -2734,7 +2734,7 @@ export default function CustomerDetailPage() {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm"
                     />
                     {mergeSearching && (
-                      <p className="text-xs text-gray-500 mt-1">Suche läuft…</p>
+                      <p className="text-xs text-gray-500 mt-1">{L("Suche läuft…")}</p>
                     )}
                     {mergeSearchResults.length > 0 && (
                       <div
@@ -3043,7 +3043,7 @@ export default function CustomerDetailPage() {
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-4 space-y-0.5">
               <p>
-                <strong>Empfänger:</strong> {portalLink.email}
+                <strong>{L("Empfänger:")}</strong> {portalLink.email}
               </p>
               <p>
                 <strong>{t("customer.portalLinkExpires") || "Gültig bis"}:</strong>{" "}

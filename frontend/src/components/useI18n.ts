@@ -30,6 +30,8 @@ import { useState, useEffect, useCallback } from "react"
 import deMessages from "../../messages/de.json"
 import enMessages from "../../messages/en.json"
 import zhMessages from "../../messages/zh.json"
+import enLiterals from "../../messages/literals/en.json"
+import zhLiterals from "../../messages/literals/zh.json"
 
 // We type the bag loosely here because the three locales are
 // not 1:1: e.g. en.json has an "accounting" top-level section
@@ -46,6 +48,38 @@ const messages: Record<string, any> = {
   zh: zhMessages,
 }
 
+// Tier 659 — the German texts that stand in the markup itself.
+//
+// About a hundred labels, headings, placeholders and hints were written into
+// the pages as German text, with no key: "Unbezahlte Rechnungen", "Keine
+// Daten verfügbar", "Schließen". In English and Chinese they stayed German.
+// L("…") keeps the German text where it is — it is its own key — and looks
+// it up in messages/literals/{en,zh}.json for the language of the page; a
+// text without an entry is shown in German. backend/e2e/391 fails when a
+// page gains a German text that is not wrapped, or a wrapped one that has no
+// translation.
+//
+// The language is known after the first effect of useI18n (the server
+// renders German, as every page does); a page that calls L() is rendered
+// again by its own useI18n().
+const literals: Record<string, Record<string, string>> = {
+  en: enLiterals as Record<string, string>,
+  zh: zhLiterals as Record<string, string>,
+}
+let activeLocale = "de"
+export function L(german: string): string {
+  if (activeLocale === "de") return german
+  return literals[activeLocale]?.[german] ?? german
+}
+
+/** Tier 659: "Mär 26" / "Mar 26" / "3月 26" for "2026-03", in the page's language. */
+export function monthShortLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split("-")
+  const tag = activeLocale === "en" ? "en-GB" : activeLocale === "zh" ? "zh-CN" : "de-DE"
+  const name = new Date(Date.UTC(Number(year), Number(month) - 1, 1)).toLocaleDateString(tag, { month: "short", timeZone: "UTC" })
+  return `${name} ${year.slice(2)}`
+}
+
 export function useI18n() {
   const [locale, setLocale] = useState("de")
   const [mounted, setMounted] = useState(false)
@@ -53,6 +87,7 @@ export function useI18n() {
   useEffect(() => {
     setMounted(true)
     const saved = localStorage.getItem("locale") || "de"
+    activeLocale = saved
     setLocale(saved)
     // The document says which language it is in — a screen reader picks its
     // voice by it, a browser its hyphenation and its offer to translate.

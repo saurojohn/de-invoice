@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 
 interface User {
@@ -147,7 +147,7 @@ export default function UsersPage() {
       )
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setInviteMsg(data.message || "Fehler beim Senden der Einladung")
+        setInviteMsg(data.message || L("Fehler beim Senden der Einladung"))
         return
       }
       setInviteMsg(t("users.invitationSent"))
@@ -214,7 +214,7 @@ export default function UsersPage() {
     )
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      toast.error(data.message || "Fehler beim Ändern der Rolle")
+      toast.error(data.message || L("Fehler beim Ändern der Rolle"))
       return
     }
     setActionMsg("✓ Rolle aktualisiert")
@@ -240,7 +240,7 @@ export default function UsersPage() {
     )
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      toast.error(data.message || "Fehler beim Ändern des Status")
+      toast.error(data.message || L("Fehler beim Ändern des Status"))
       return
     }
     setActionMsg(status === "inactive" ? "✓ Benutzer deaktiviert" : "✓ Benutzer aktiviert")

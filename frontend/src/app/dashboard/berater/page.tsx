@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
-import { useI18n } from "@/components/useI18n"
+import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { API_BASE, apiGet, apiFetch, ApiError } from "@/lib/api"
 
@@ -298,7 +298,7 @@ export default function BeraterPage() {
           <div className="flex gap-2 items-center">
             <LanguageSwitcher />
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
-              Zurück
+              {L("Zurück")}
             </Button>
           </div>
         </div>
@@ -369,7 +369,7 @@ export default function BeraterPage() {
                     >
                       {ENTITY_TYPE_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
-                          {o.label}
+                          {L(o.label)}
                         </option>
                       ))}
                     </select>
@@ -382,7 +382,7 @@ export default function BeraterPage() {
                       type="text"
                       value={formEntityId}
                       onChange={(e) => setFormEntityId(e.target.value)}
-                      placeholder="z. B. UUID der Rechnung"
+                      placeholder={L("z. B. UUID der Rechnung")}
                       className="border rounded px-3 py-2 w-full dark:bg-gray-800 dark:border-gray-700 font-mono text-sm"
                       data-testid="berater-entityId"
                     />
@@ -430,7 +430,7 @@ export default function BeraterPage() {
                         setFormFile(null)
                       }}
                     >
-                      Abbrechen
+                      {L("Abbrechen")}
                     </Button>
                   </div>
                 </div>
