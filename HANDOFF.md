@@ -2656,6 +2656,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 669 — a year field asks for whole years only
+
+Seen while changing Anlage SO's year field, then measured on all of them (a script that types „2024“ digit by digit into every year field of the accounting page): each of the nineteen forms asked the server for the years 2, 20 and 202 before 2024 — three refusals and three red messages „year ist ungültig“ per field. The same on the UStVA page, the ZM card, the home-office card, the assets page and the BWA, P&L and OSS tabs.
+
+`frontend/src/lib/year-field.ts` (`useYearField`): the field keeps what is being typed; the page's year changes when the text is a year between 2000 and 2100. A year left half-typed goes back to the loaded one when the field is left. Used by all 26 fields. Measured again: no refused request, no message.
+
+`year-field-tier669.spec.ts` (2 tests, both fail on the pages before). The 14 locally runnable test files of these pages: 25 passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 668 — Anlage SO: an import, or another year, does not take what was typed
 
 Left open by Tier 665. „Aus Ausgaben übernehmen“, the CSV import and a change of the year reloaded the form from the server; a row typed and not saved yet was gone. The form knows whether it holds something unsaved and saves it first — the import then adds to it. After „Speichern“ the block with the set-off of losses (gains, losses, carried forward) kept the figures from before the save until the page was loaded again; it is loaded with the rows now.

@@ -39,6 +39,7 @@ import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, apiPost, ApiError } from "@/lib/api"
 import { Textarea } from "@/components/ui/textarea"
 import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
+import { useYearField } from "@/lib/year-field"
 
 // Tier 664: crypto and other assets (one year), land (ten years); a security
 // bought since 2009 belongs on Anlage KAP and is not counted here
@@ -202,6 +203,16 @@ export function AnlageSOSection() {
   const persistRef = useRef<() => Promise<void>>(async () => {})
   tRef.current = t
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
+  const yearField = useYearField(year, (next) => {
+    // another year loads another list: what was typed into this one is
+    // saved first (Tier 668)
+    if (dirtyRef.current) {
+      persistRef.current().catch((err) =>
+        toastRef.current.error(err instanceof ApiError ? err.message : tRef.current("anlageSo.saveError")),
+      )
+    }
+    setYear(next)
+  })
   const [data, setData] = useState<AnlageSOResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<TransactionRow[]>([])
@@ -578,17 +589,7 @@ export function AnlageSOSection() {
               type="number"
               min={2000}
               max={2100}
-              value={year}
-              onChange={(e) => {
-                // another year loads another list: what was typed into
-                // this one is saved first
-                if (dirtyRef.current) {
-                  persistRef.current().catch((err) =>
-                    toastRef.current.error(err instanceof ApiError ? err.message : tRef.current("anlageSo.saveError")),
-                  )
-                }
-                setYear(Number(e.target.value))
-              }}
+              {...yearField}
               className="w-24"
               data-testid="anlage-so-year-input"
             />

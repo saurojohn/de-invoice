@@ -32,6 +32,7 @@ import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, ApiError } from "@/lib/api"
 import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
+import { useYearField } from "@/lib/year-field"
 
 type AusIncomeType =
   | "dividend"
@@ -141,6 +142,7 @@ export function AnlageAUSSection() {
   const tRef = useRef(t)
   tRef.current = t
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
+  const yearField = useYearField(year, setYear)
   const [data, setData] = useState<AnlageAUSResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<EntryRow[]>([])
@@ -262,8 +264,7 @@ export function AnlageAUSSection() {
               type="number"
               min={2000}
               max={2100}
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
+              {...yearField}
               className="w-24"
               data-testid="anlage-aus-year-input"
             />

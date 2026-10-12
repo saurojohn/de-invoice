@@ -11,6 +11,7 @@ import ZmCard from "./ZmCard"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut } from "@/lib/api"
+import { useYearField } from "@/lib/year-field"
 
 interface UstvaData {
   companyId: string
@@ -139,6 +140,7 @@ function UstvaPageInner() {
   const currentYear = new Date().getFullYear()
 
   const [year, setYear] = useState(currentYear)
+  const yearField = useYearField(year, setYear)
   const [period, setPeriod] = useState<PeriodMode>("year")
   const [data, setData] = useState<UstvaData | null>(null)
   const [filings, setFilings] = useState<UstvaFiling[]>([])
@@ -584,8 +586,7 @@ function UstvaPageInner() {
                 </label>
                 <input
                   type="number"
-                  value={year}
-                  onChange={(e) => setYear(parseInt(e.target.value, 10))}
+                  {...yearField}
                   min="2010"
                   max="2100"
                   className="w-full px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"

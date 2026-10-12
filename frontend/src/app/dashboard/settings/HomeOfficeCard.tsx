@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { apiDelete, apiGet, apiPut } from "@/lib/api"
+import { useYearField } from "@/lib/year-field"
 
 interface HomeOffice {
   method: "tagespauschale" | "jahrespauschale"
@@ -24,6 +25,7 @@ const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", curren
 export default function HomeOfficeCard() {
   const { t } = useI18n()
   const [year, setYear] = useState(new Date().getFullYear())
+  const yearField = useYearField(year, setYear)
   const [saved, setSaved] = useState<HomeOffice | null>(null)
   const [method, setMethod] = useState<HomeOffice["method"]>("tagespauschale")
   const [days, setDays] = useState("")
@@ -91,9 +93,8 @@ export default function HomeOfficeCard() {
             <input
               type="number"
               className="border rounded px-2 py-1 w-24 bg-white dark:bg-gray-800"
-              value={year}
+              {...yearField}
               min={2023}
-              onChange={(e) => setYear(Number(e.target.value))}
               data-testid="home-office-year"
             />
           </label>

@@ -7,6 +7,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
 import { FormLabel, FormNote } from "@/lib/tax-form-text"
+import { useYearField } from "@/lib/year-field"
 
 interface AnlageSLine {
   kennziffer: string
@@ -50,6 +51,7 @@ export function AnlageSSection() {
   const tRef = useRef(t)
   tRef.current = t
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
+  const yearField = useYearField(year, setYear)
   const [data, setData] = useState<AnlageSResult | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -111,8 +113,7 @@ export function AnlageSSection() {
                 type="number"
                 min={2000}
                 max={2100}
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value) || new Date().getFullYear() - 1)}
+                {...yearField}
                 className="border rounded px-3 py-2 w-32 dark:bg-gray-800 dark:border-gray-700"
                 data-testid="anlage-s-year"
               />

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
+import { useYearField } from "@/lib/year-field"
 
 interface BwaLine {
   bucket: string
@@ -94,6 +95,7 @@ export function BwaTab() {
   tRef.current = t
   const now = new Date()
   const [year, setYear] = useState<number>(now.getFullYear())
+  const yearField = useYearField(year, setYear)
   const [month, setMonth] = useState<number>(now.getMonth() + 1)
   const [data, setData] = useState<BwaResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -225,8 +227,7 @@ export function BwaTab() {
                 type="number"
                 min={2000}
                 max={2100}
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value) || now.getFullYear())}
+                {...yearField}
                 className="border rounded px-3 py-2 w-32 dark:bg-gray-800 dark:border-gray-700"
                 data-testid="bwa-year"
               />

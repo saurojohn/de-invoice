@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
+import { useYearField } from "@/lib/year-field"
 
 interface OssLine {
   country: string
@@ -99,6 +100,7 @@ export function OssTab() {
   const tRef = useRef(t)
   tRef.current = t
   const [year, setYear] = useState<number>(new Date().getFullYear())
+  const yearField = useYearField(year, setYear)
   const [quarter, setQuarter] = useState<number>(currentQuarter())
   const [data, setData] = useState<OssResult | null>(null)
   const [loading, setLoading] = useState(false)
@@ -176,8 +178,7 @@ export function OssTab() {
                 type="number"
                 min={2000}
                 max={2100}
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value) || new Date().getFullYear())}
+                {...yearField}
                 className="border rounded px-3 py-2 w-32 dark:bg-gray-800 dark:border-gray-700"
                 data-testid="oss-year"
               />

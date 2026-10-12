@@ -7,6 +7,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPut, ApiError } from "@/lib/api"
 import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
+import { useYearField } from "@/lib/year-field"
 
 interface AnlageKindLine {
   kennziffer: string
@@ -74,6 +75,7 @@ export function AnlageKindSection() {
   const tRef = useRef(t)
   tRef.current = t
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
+  const yearField = useYearField(year, setYear)
   const [data, setData] = useState<AnlageKindResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [showKinderEditor, setShowKinderEditor] = useState(false)
@@ -229,10 +231,7 @@ export function AnlageKindSection() {
                 type="number"
                 min={2000}
                 max={2100}
-                value={year}
-                onChange={(e) =>
-                  setYear(Number(e.target.value) || new Date().getFullYear() - 1)
-                }
+                {...yearField}
                 className="border rounded px-3 py-2 w-32 dark:bg-gray-800 dark:border-gray-700"
                 data-testid="anlage-kind-year"
               />

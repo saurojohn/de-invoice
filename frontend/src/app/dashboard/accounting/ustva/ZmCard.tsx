@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { apiFetch, apiGet } from "@/lib/api"
+import { useYearField } from "@/lib/year-field"
 
 interface Zm {
   periodLabel: string
@@ -27,6 +28,7 @@ export default function ZmCard() {
   const { t } = useI18n()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
+  const yearField = useYearField(year, setYear)
   const [quarter, setQuarter] = useState(Math.floor(now.getMonth() / 3) + 1)
   const [zm, setZm] = useState<Zm | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -70,8 +72,7 @@ export default function ZmCard() {
             <input
               type="number"
               className="border rounded px-2 py-1 w-24 bg-white dark:bg-gray-800"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
+              {...yearField}
               data-testid="zm-year"
             />
           </label>
