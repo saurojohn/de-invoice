@@ -80,7 +80,7 @@ test("1 500 € of interest: 500 € taxable alone, nothing together — and the
   // together: the joint allowance covers it
   const together = page.getByTestId("anlage-kap-zusammen")
   await expect(together).not.toBeChecked()
-  const saved = page.waitForResponse((r) => r.url().includes("/accounting/anlage-kap/settings") && r.request().method() === "PUT" && r.ok())
+  const saved = page.waitForResponse((r) => r.url().includes("/accounting/zusammenveranlagung") && r.request().method() === "PUT" && r.ok())
   await together.check()
   await saved
   await expect(taxable).toContainText("0,00")

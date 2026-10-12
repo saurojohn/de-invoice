@@ -87,16 +87,16 @@ kap 2024
 assert_eq "matched to an invoice: in the business's books, not on Anlage KAP (was counted)" "$(field "(d['totals']['einnahmenTotal'], d['totals']['zuVersteuern'], d['counts']['leftOutBooked'])")" "(630, 0, 1)"
 
 note "=== 4. spouses assessed together ==="
-AS PUT "/api/v1/accounting/anlage-kap/settings?companyId=$C" '{"zusammenveranlagung":true}'
+AS PUT "/api/v1/accounting/zusammenveranlagung?companyId=$C" '{"zusammenveranlagung":true}'
 assert_eq "the choice is saved (there was nothing to choose it with)" "$STATUS|$(field "d['zusammenveranlagung']")" "200|True"
 SQL "DELETE FROM \"BankReconciliation\" WHERE id = '$TAG-r'" >/dev/null
 kap 2024
 assert_eq "2 630 € of income, the joint allowance of 2 000 €: 630 € taxable (1 630 alone)" \
   "$(field "(d['sparerPauschbetrag']['voll'], d['sparerPauschbetrag']['angesetzt'], d['totals']['zuVersteuern'], d['abgeltungssteuer']['expectedSteuer'])")" "(2000, 2000, 630, 157.5)"
 kap 2022; assert_eq "2022 together: 1 602 €" "$(field "d['sparerPauschbetrag']['voll']")" "1602"
-AS PUT "/api/v1/accounting/anlage-kap/settings?companyId=$C" '{"zusammenveranlagung":"ja"}'
+AS PUT "/api/v1/accounting/zusammenveranlagung?companyId=$C" '{"zusammenveranlagung":"ja"}'
 assert_eq "something that is neither yes nor no is refused" "$STATUS" "400"
-AS PUT "/api/v1/accounting/anlage-kap/settings?companyId=$C" '{"zusammenveranlagung":false}'
+AS PUT "/api/v1/accounting/zusammenveranlagung?companyId=$C" '{"zusammenveranlagung":false}'
 kap 2024; assert_eq "and back: 1 000 €" "$(field "(d['sparerPauschbetrag']['voll'], d['totals']['zuVersteuern'])")" "(1000, 1630)"
 
 note "=== 5. what the form says of itself ==="

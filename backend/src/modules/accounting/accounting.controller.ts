@@ -10,7 +10,7 @@ import {
   AnlageKindSettingsDto,
   AnlageSoSettingsDto,
   AnlageAusSettingsDto,
-  GewstSettingsDto, AnlageKapSettingsDto,
+  GewstSettingsDto, ZusammenveranlagungDto,
 } from './dto/tax-settings.dto';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
@@ -702,15 +702,16 @@ export class AccountingController {
     return this.anlageKAP.compute(companyId, year)
   }
 
-  // Tier 670: whether the Sparer-Pauschbetrag is the spouses' joint one.
+  // Tier 670/672: spouses assessed together — the Sparer-Pauschbetrag of
+  // Anlage KAP is their joint one, the Freibeträge of Anlage Kind double.
   // (`settings.sparerPauschbetrag`, which the service read before, was
   // written by no page and no route.)
   @Require('accounting.update')
-  @Put('anlage-kap/settings')
+  @Put('zusammenveranlagung')
   @UseGuards(HeaderAuthGuard)
-  async updateAnlageKapSettings(
+  async updateZusammenveranlagung(
     @Query('companyId') companyId: string,
-    @Body() body: AnlageKapSettingsDto,
+    @Body() body: ZusammenveranlagungDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
@@ -718,7 +719,7 @@ export class AccountingController {
     const settings = ((company as any).settings ?? {}) as Record<string, any>
     await this.prisma.company.update({
       where: { id: companyId },
-      data: { settings: { ...settings, anlageKAPZusammenveranlagung: body.zusammenveranlagung } } as any,
+      data: { settings: { ...settings, zusammenveranlagung: body.zusammenveranlagung } } as any,
     })
     return { ok: true, zusammenveranlagung: body.zusammenveranlagung }
   }

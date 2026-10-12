@@ -99,7 +99,7 @@ export function AnlageKAPSection() {
       const companyId =
         typeof window !== "undefined" ? localStorage.getItem("companyId") : null
       if (!companyId) return
-      await apiPut(`/api/v1/accounting/anlage-kap/settings?companyId=${companyId}`, { zusammenveranlagung })
+      await apiPut(`/api/v1/accounting/zusammenveranlagung?companyId=${companyId}`, { zusammenveranlagung })
       await load(year)
     } catch (e: any) {
       setTogether(!zusammenveranlagung)

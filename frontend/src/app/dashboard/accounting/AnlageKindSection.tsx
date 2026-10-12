@@ -24,6 +24,9 @@ interface AnlageKindResult {
     name: string
     birthDate: string
     kindergeldEligible: boolean
+    // Tier 672: the months of the year in which the child counts, or why not
+    monate?: number
+    grund?: "geburtsdatum" | "keinAnspruch" | "nochNichtGeboren" | "ueber25" | "volljaehrigOhneNachweis" | null
   }>
   einnahmen: AnlageKindLine[]
   ausgaben: AnlageKindLine[]
@@ -31,8 +34,9 @@ interface AnlageKindResult {
     anzahlKinder: number
     kindergeldTotal: number
     freibetragTotal: number
-    net: number
+    kindermonate?: number
   }
+  saetze?: { stand: number; zusammenveranlagung: boolean }
   counts: {
     hasKinder: boolean
   }
@@ -82,6 +86,8 @@ export function AnlageKindSection() {
   const [kinderDraft, setKinderDraft] = useState<KindDraft[]>([])
   const [savingKinder, setSavingKinder] = useState(false)
 
+  // spouses assessed together: the Freibeträge double (the same choice as on Anlage KAP)
+  const [together, setTogether] = useState(false)
   const load = useCallback(async (y: number) => {
     setLoading(true)
     try {
@@ -94,6 +100,7 @@ export function AnlageKindSection() {
         `/api/v1/accounting/anlage-kind?${params}`,
       )
       setData(result)
+      setTogether(result.saetze?.zusammenveranlagung === true)
       // Pre-fill the editor with current saved children
       setKinderDraft(
         result.kinder.map((k) => ({
@@ -170,6 +177,31 @@ export function AnlageKindSection() {
       minimumFractionDigits: 2,
     }).format(n)
 
+  // Tier 672: for how many months a child counts, or why it does not
+  const childLine = (k: AnlageKindResult["kinder"][number]): string => {
+    if (k.grund === "geburtsdatum") return tRef.current("anlageKind.grund.geburtsdatum")
+    if (k.grund === "keinAnspruch") return tRef.current("anlageKind.grund.keinAnspruch")
+    if (k.grund === "nochNichtGeboren") return tRef.current("anlageKind.grund.nochNichtGeboren")
+    if (k.grund === "ueber25") return tRef.current("anlageKind.grund.ueber25")
+    const months = tRef.current("anlageKind.monate").replace("{n}", String(k.monate ?? 12))
+    return k.grund === "volljaehrigOhneNachweis" ? `${months} — ${tRef.current("anlageKind.grund.volljaehrig")}` : months
+  }
+
+  const saveTogether = async (zusammenveranlagung: boolean) => {
+    setTogether(zusammenveranlagung)
+    try {
+      const companyId =
+        typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      if (!companyId) return
+      await apiPut(`/api/v1/accounting/zusammenveranlagung?companyId=${companyId}`, { zusammenveranlagung })
+      await load(year)
+    } catch (e: any) {
+      setTogether(!zusammenveranlagung)
+      const msg = e instanceof ApiError ? e.message : tRef.current("common.saveError")
+      toastRef.current.error(msg)
+    }
+  }
+
   const [pdfUrl, setPdfUrl] = useState<string>("#")
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -236,6 +268,16 @@ export function AnlageKindSection() {
                 data-testid="anlage-kind-year"
               />
             </div>
+            <label className="flex items-center gap-2 text-sm pb-2">
+              <input
+                type="checkbox"
+                checked={together}
+                disabled={!data || loading}
+                onChange={(e) => saveTogether(e.target.checked)}
+                data-testid="anlage-kind-zusammen"
+              />
+              {tRef.current("anlageKind.zusammenveranlagung")}
+            </label>
             <Button
               onClick={() => load(year)}
               disabled={loading}
@@ -280,16 +322,15 @@ export function AnlageKindSection() {
                   data-testid="anlage-kind-kinder-summary"
                 >
                   <div className="font-semibold mb-1 text-blue-800 dark:text-blue-200">
-                    Kinder im Haushalt {data.year} ({data.totals.anzahlKinder})
+                    {tRef.current("anlageKind.kinderOfYear").replace("{year}", String(data.year)).replace("{n}", String(data.totals.anzahlKinder))}
                   </div>
                   <div className="text-blue-700 dark:text-blue-300 grid grid-cols-2 md:grid-cols-3 gap-2">
                     {data.kinder.map((k, i) => (
-                      <div key={i}>
+                      <div key={i} data-testid="anlage-kind-child" data-monate={k.monate ?? ""} data-grund={k.grund || ""}>
                         {k.name}
-                        {k.birthDate ? ` (geb. ${k.birthDate})` : ""}
-                        {!k.kindergeldEligible && (
-                          <span className="ml-1 text-amber-600"> [kein Kindergeld]</span>
-                        )}
+                        {k.birthDate ? ` (${new Date(`${k.birthDate}T00:00:00`).toLocaleDateString("de-DE")})` : ""}
+                        {" — "}
+                        <span className={(k.monate ?? 0) === 0 ? "text-amber-600" : ""}>{childLine(k)}</span>
                       </div>
                     ))}
                   </div>
@@ -338,11 +379,14 @@ export function AnlageKindSection() {
                 className="mt-4 p-3 rounded text-center text-sm font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                 data-testid="anlage-kind-summary"
               >
-                {tRef.current("anlageKind.summary")}: {data.totals.anzahlKinder}{" "}
-                {data.totals.anzahlKinder === 1 ? "Kind" : "Kinder"} · Kindergeld{" "}
-                {fmt(data.totals.kindergeldTotal)} · Kinderfreibetrag{" "}
-                {fmt(data.totals.freibetragTotal)} · Net (FB - KG){" "}
-                {fmt(data.totals.net)}
+                {tRef.current("anlageKind.summary")}:{" "}
+                {tRef.current("anlageKind.summaryLine")
+                  .replace("{n}", String(data.totals.anzahlKinder))
+                  .replace("{kindergeld}", fmt(data.totals.kindergeldTotal))
+                  .replace("{freibetrag}", fmt(data.totals.freibetragTotal))}
+                <div className="mt-1 text-xs font-normal" data-testid="anlage-kind-guenstiger">
+                  {tRef.current("anlageKind.guenstiger")}
+                </div>
               </div>
 
               <div

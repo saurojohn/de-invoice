@@ -2656,6 +2656,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 672 — Anlage Kind read against §§ 31, 32, 66 EStG
+
+Read from gesetze-im-internet.de on 12.10.2026, then measured with four children (nine years old; born in August; 35 years old; one marked as not entitled):
+
+- **A month's Kindergeld was the year's.** § 66: „beträgt monatlich für jedes Kind …“. The form multiplied 250 € by the number of children: 1 000 € where 4 250 € are due. Now the month's amount of the year (259 € in 2026, 255 € in 2025, 250 € in 2023/24, 219/219/225/250 € by rank in 2021/22) for every month in which a child counts.
+- **The Freibetrag** was 6 612 € (both parents, 2024) plus 1 320 € (one parent, the amount up to 2020) — for every year. § 32 Abs. 6: 3 414 € and 1 464 € for each parent (2026), doubled for spouses assessed together, a twelfth less for each month. A table of the years 2021 to 2026; a year outside it takes the nearest and the form says which.
+- **Every child in the list counted in full.** § 32 Abs. 3 and 4: from the month of birth, while not yet 18 at the beginning of the month; of age only under conditions and not beyond 25. The flag „kindergeldEligible“ was stored and never read. Each child now shows its months or the reason it does not count; a child of age that is entered as entitled counts, marked „Nachweis erforderlich“; one without a date of birth does not.
+- **„Net (FB − KG)“** subtracted a payment from a deduction from income. § 31: the tax office takes whichever is better, not both — the form says that and computes no such figure.
+- The choice „Zusammenveranlagung“ of Tier 670 is one setting now (`settings.zusammenveranlagung`, `PUT /accounting/zusammenveranlagung`), on both forms.
+
+Spec `399-tier672-anlage-kind-nach-dem-gesetz.sh` (30 assertions, 28 fail on the code before); spec 130 follows; `anlage-kind-tier672.spec.ts`; `anlage-kind.spec.ts` (CI only) read „Kinderfreibetrag“ in the summary; 13 texts added to both tax-form dictionaries (440 entries). Not modelled, and said: the transfer of Freibeträge between parents, disabled children over 25, the Entlastungsbetrag für Alleinerziehende, the Kinderbonus of 2021/22.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 671 — Anlage N read against §§ 2, 9, 9a EStG
 
 Read from gesetze-im-internet.de on 12.10.2026, then measured:
@@ -2672,7 +2684,7 @@ Spec `398-tier671-anlage-n-nach-dem-gesetz.sh` (23 assertions, 20 fail on the co
 
 Read from gesetze-im-internet.de on 12.10.2026, then measured with a company that has interest credits of 2022 and 2024, debit interest, a customer's payment and a foreign dividend:
 
-- **Sparer-Pauschbetrag (§ 20 Abs. 9):** 1 000 € for every year — it is 801 € (1 602 € together) up to 2022 — and shown in full against 300 € of income, though it may never exceed the income. „Zusammenveranlagung“ stood in the label with nothing to choose it: `settings.sparerPauschbetrag`, which the service read, was written by no page and no route. Now `sparerPauschbetragFor(year, together)`, applied up to the income; `PUT /accounting/anlage-kap/settings {zusammenveranlagung}` and a checkbox on the page.
+- **Sparer-Pauschbetrag (§ 20 Abs. 9):** 1 000 € for every year — it is 801 € (1 602 € together) up to 2022 — and shown in full against 300 € of income, though it may never exceed the income. „Zusammenveranlagung“ stood in the label with nothing to choose it: `settings.sparerPauschbetrag`, which the service read, was written by no page and no route. Now `sparerPauschbetragFor(year, together)`, applied up to the income; `PUT /accounting/zusammenveranlagung` (renamed in Tier 672, which uses it too) and a checkbox on the page.
 - **What counted as interest:** „Zins“ anywhere in the purpose. A customer's payment „Rechnung INV-12 inkl. Verzugszinsen“ of 1 190 € was capital income with tax computed on it; „Mietzins“ would have been too. Whole words now (Zinsen, Habenzinsen, Zinsgutschrift …; Dividende, Ausschüttung, Kupon).
 - **§ 20 Abs. 8:** capital income of a business is business income, not capital income — and the accounts imported here are mostly the business's. The form cannot know which account is private; it leaves out every credit that is booked or matched to an invoice (`counts.leftOutBooked`, shown), and says in its subtitle and closing text that only private accounts' income belongs on Anlage KAP.
 - **Net, not gross:** a credit is what is left after the tax the bank withheld. The block „Erwartete Abgeltungssteuer“ is now „Abgeltungsteuer + Soli, wenn die Bank nichts einbehalten hat“, with the reason.
@@ -9301,7 +9313,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**
     - **Foreign currency (Tier 652):** invoices are converted at the ECB reference rate of the invoice's day. § 16 Abs. 6 UStG names the monthly average rates the BMF publishes; the daily rate needs the tax office's consent. Daily rate (as built), or the monthly average entered by hand on each invoice — or should the program fetch the monthly average?
-    - **The annexes of a person's return (Tiers 655–656, 664, 670–671):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage KAP (Tier 670) and Anlage N (Tier 671) followed. Anlage Kind, AUS and V were not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
+    - **The annexes of a person's return (Tiers 655–656, 664, 670–672):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage KAP (Tier 670), Anlage N (Tier 671) and Anlage Kind (Tier 672) followed. Anlage AUS and V were not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
     - **OSS:** (whether the company takes part is a setting since Tier 649.) Still for the Steuerberater: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.

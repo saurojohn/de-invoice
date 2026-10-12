@@ -326,7 +326,7 @@ export class AnlageKAPService {
       select: { settings: true },
     })
     const settings = (company?.settings as any) || {}
-    const zusammenveranlagung = settings.anlageKAPZusammenveranlagung === true
+    const zusammenveranlagung = settings.zusammenveranlagung === true
     const voll = sparerPauschbetragFor(year, zusammenveranlagung)
     const sparerPauschbetrag = Math.min(voll, Math.max(0, round2(einnahmenTotal)))
     const eur = (n: number): string => new Intl.NumberFormat('de-DE').format(n)

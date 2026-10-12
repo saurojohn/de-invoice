@@ -77,7 +77,7 @@ test.describe("Anlage Kind — /dashboard/accounting", () => {
     ).toBeVisible({ timeout: 5_000 })
   })
 
-  test("Summary block shows Kindergeld + Kinderfreibetrag amounts", async ({ page }) => {
+  test("Summary block shows Kindergeld + Freibeträge amounts", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/accounting")
     await expect(
@@ -90,7 +90,8 @@ test.describe("Anlage Kind — /dashboard/accounting", () => {
       .getByTestId("anlage-kind-summary")
       .textContent()) || ""
     expect(text).toMatch(/Kindergeld/)
-    expect(text).toMatch(/Kinderfreibetrag/)
+    // Tier 672: the two Freibeträge of § 32 Abs. 6 together
+    expect(text).toMatch(/Freibeträge/)
     expect(text).toMatch(/€/)
   })
 

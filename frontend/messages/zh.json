@@ -2975,7 +2975,7 @@
   },
   "anlageKind": {
     "title": "Anlage Kind 附件（预览）",
-    "subtitle": "子女免税额 + 儿童津贴（§ 32 / § 33 / § 33a EStG）— 适用于有子女的家庭。儿童津贴 250 EUR/孩（1-3），最多 4+ 孩 1,000 EUR（2024 标准）。子女免税额 7,932 EUR/孩（6,612 EUR 物质最低生活 + 1,320 EUR 抚养/教育需求）。税务局会按（儿童津贴）与（子女免税额 × 税率）中最有利的 — 您的税务师会审核。请在下方输入您的子女（来自儿童津贴通知 / 工资税证明）。提交前请税务师审核。",
+    "subtitle": "子女、子女金和免税额（§§ 31、32、66 EStG）。子女金是按月的金额；免税额按每位父母、每年计算，并只计子女被计入的月份。税务局取两者中更有利的一个 — 不是两者都给。",
     "year": "财年",
     "recompute": "计算",
     "downloadPdf": "下载 PDF",
@@ -2990,12 +2990,24 @@
     "fields": {
       "name": "姓名",
       "birthDate": "出生日期",
-      "kindergeldEligible": "儿童津贴资格"
+      "kindergeldEligible": "有资格（成年：§ 32 第 4 款 EStG）"
     },
-    "fieldHint": "从您的儿童津贴通知 / 工资税证明输入子女。出生日期 ISO 格式（YYYY-MM-DD）。",
-    "betragHint": "儿童津贴 250 EUR/孩（1-3），最多 4+ 孩 1,000 EUR。子女免税额 7,932 EUR/孩（6,612 EUR 物质最低生活 + 1,320 EUR 抚养/教育需求）。",
+    "fieldHint": "请填写子女及其出生日期。对成年子女，“有资格”表示：正在接受教育或满足 § 32 第 4 款 EStG 的其他条件。",
+    "betragHint": "当年的金额写在各行里。子女自出生当月起计入，直到月初尚未满 18 岁的那个月；之后只有满足 § 32 第 4 款 EStG 的条件才计入，最长到 25 岁。",
     "savedOk": "子女已保存。",
-    "generatedAt": "生成时间"
+    "generatedAt": "生成时间",
+    "zusammenveranlagung": "夫妻合并申报（父母双方的免税额）",
+    "kinderOfYear": "{year} 年子女 — 计入：{n}",
+    "summaryLine": "计入 {n} 名子女 · 全年子女金 {kindergeld} · 免税额 {freibetrag}",
+    "guenstiger": "子女金和免税额不会同时给予：税务局取更有利的一个（§ 31 EStG）。",
+    "monate": "{n} 个月",
+    "grund": {
+      "geburtsdatum": "未计入：缺少出生日期",
+      "keinAnspruch": "未计入：登记为无资格",
+      "nochNichtGeboren": "未计入：当年尚未出生",
+      "ueber25": "未计入：已满 25 岁",
+      "volljaehrig": "已成年，需提供 § 32 第 4 款 EStG 的证明"
+    }
   },
   "bilanz": {
     "title": "资产负债表（预览）",

@@ -5,43 +5,96 @@ import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 
 /**
- * Tier 104: Anlage Kind — Freibetrag für Kinder
- * + Kindergeld (§ 32 / § 33 / § 33a EStG).
+ * Anlage Kind — the children of a year, what Kindergeld they are entitled
+ * to and the Freibeträge of § 32 Abs. 6 EStG.
  *
- * The German tax filing for children. The 7th
- * Anlage form (after S / V / KAP / G / N / R).
- * Covers:
- *   - Kinderfreibetrag (§ 32 EStG): 6,612 EUR
- *     sächliches Existenzminimum + 1,320 EUR
- *     Betreuungs-/Erziehungs-/Ausbildungsbedarf
- *     = 7,932 EUR pro Kind (2024)
- *   - Kindergeld (§ 66 EStG): 250 EUR/Kind
- *     (1-3), 250 EUR/4. Kind = total 1,000 EUR
- *     (for 4+ Kinder, 2024)
- *   - Schulbescheinigung for over-18 children
- *     in Berufsausbildung (§ 32 Abs. 4 EStG)
- *   - Behinderung Pauschbetrag for disabled
- *     children (§ 33b EStG)
+ * Tier 672 — read against §§ 31, 32, 66 EStG (gesetze-im-internet.de,
+ * 12.10.2026):
+ *   § 66 Abs. 1    Kindergeld is a MONTHLY amount — 259 € a child in 2026
+ *                  (255 € in 2025, 250 € in 2023/24; 219/219/225/250 € by
+ *                  the child's rank in 2021/22).
+ *   § 32 Abs. 6    Kinderfreibetrag 3 414 € and 1 464 € for care, upbringing
+ *                  or training — for EACH parent and year; doubled for
+ *                  spouses assessed together; one twelfth less for every
+ *                  month in which the child is not counted.
+ *   § 32 Abs. 3    A child counts from the month of its birth and in every
+ *                  month at whose beginning it is not yet 18;
+ *   § 32 Abs. 4    after that only under conditions (in training …), and
+ *                  not beyond 25.
+ *   § 31 Satz 4    The Freibeträge are not granted on top of the Kindergeld:
+ *                  the tax office takes whichever is better.
  *
- * v1: each child is { name, birthDate (ISO),
- * kindergeldEligible (default true) }. The
- * service counts them + applies the standard
- * Freibetrag + Kindergeld per year. The actual
- * BMF rates change year to year; v1 uses 2024
- * rates as default. v2: per-year rate table.
+ * Before: the monthly 250 € was the year's Kindergeld (3 000 € were 250 €);
+ * the Freibetrag was 6 612 € (two parents, 2024) plus 1 320 € (one parent,
+ * the amount up to 2020) for every year; every child in the list counted —
+ * a 35-year-old, a child born in August for twelve months, one marked as
+ * not entitled — and „Net (FB − KG)“ subtracted a monthly payment from a
+ * deduction from income.
  *
- * v1 data model: Company.settings.kinder[year]
- * = [{ name, birthDate, kindergeldEligible }, ...]
- *
- * The opt-in flag `Company.settings.anlageKind
- * === true` gates whether the report is generated.
- * v1 also auto-detects Kinder in the year
- * (length of array > 0).
+ * Data: Company.settings.kinder[year] = [{ name, birthDate,
+ * kindergeldEligible }]. For a child of age the flag says that the
+ * conditions of § 32 Abs. 4 are met.
  */
+
+/** Per parent and year (§ 32 Abs. 6 Satz 1), and Kindergeld a month by the child's rank (§ 66 Abs. 1). */
+interface KindSaetze { kinderfreibetrag: number; bea: number; kindergeld: [number, number, number, number] }
+const SAETZE: Record<number, KindSaetze> = {
+  2021: { kinderfreibetrag: 2730, bea: 1464, kindergeld: [219, 219, 225, 250] },
+  2022: { kinderfreibetrag: 2810, bea: 1464, kindergeld: [219, 219, 225, 250] },
+  2023: { kinderfreibetrag: 3012, bea: 1464, kindergeld: [250, 250, 250, 250] },
+  2024: { kinderfreibetrag: 3306, bea: 1464, kindergeld: [250, 250, 250, 250] },
+  2025: { kinderfreibetrag: 3336, bea: 1464, kindergeld: [255, 255, 255, 255] },
+  2026: { kinderfreibetrag: 3414, bea: 1464, kindergeld: [259, 259, 259, 259] },
+}
+const ERSTES_JAHR = 2021
+const LETZTES_JAHR = 2026
+
+/** The amounts of a year; `stand` is the year they are of (the nearest one stored). */
+export function kindSaetzeFor(year: number): KindSaetze & { stand: number } {
+  const stand = Math.min(LETZTES_JAHR, Math.max(ERSTES_JAHR, year))
+  return { ...SAETZE[stand], stand }
+}
+
+export type KindGrund = 'geburtsdatum' | 'keinAnspruch' | 'nochNichtGeboren' | 'ueber25' | 'volljaehrigOhneNachweis' | null
+
+/**
+ * The months of `year` in which a child is counted (1…12), § 32 Abs. 3 and 4.
+ * A birthday on the first of a month completes the year of life the day
+ * before (§ 187 Abs. 2 BGB) — that month no longer counts.
+ */
+export function kindMonate(
+  birthDate: string,
+  year: number,
+  berechtigt: boolean,
+): { monate: number[]; grund: KindGrund } {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate || '')) return { monate: [], grund: 'geburtsdatum' }
+  if (!berechtigt) return { monate: [], grund: 'keinAnspruch' }
+  const [by, bm, bd] = birthDate.split('-').map(Number)
+  const completed = (age: number, month: number): boolean => {
+    // the day the child turns `age`, against the first of the month
+    const birthday = (by + age) * 10000 + bm * 100 + bd
+    return birthday <= year * 10000 + month * 100 + 1
+  }
+  const monate: number[] = []
+  let sawAdultMonth = false
+  for (let m = 1; m <= 12; m++) {
+    if (year * 100 + m < by * 100 + bm) continue // not born yet
+    if (completed(25, m)) continue
+    if (completed(18, m)) sawAdultMonth = true
+    monate.push(m)
+  }
+  if (monate.length === 0) return { monate, grund: year * 100 + 12 < by * 100 + bm ? 'nochNichtGeboren' : 'ueber25' }
+  return { monate, grund: sawAdultMonth ? 'volljaehrigOhneNachweis' : null }
+}
+
 export interface Kind {
   name: string
   birthDate: string // ISO date (YYYY-MM-DD)
   kindergeldEligible: boolean
+  /** the months of the year in which the child is counted */
+  monate: number
+  /** why it is not counted, or for how long: see KindGrund */
+  grund: KindGrund
 }
 
 export interface AnlageKindLine {
@@ -59,11 +112,16 @@ export interface AnlageKindResult {
   einnahmen: AnlageKindLine[]
   ausgaben: AnlageKindLine[]
   totals: {
+    /** the children counted in at least one month */
     anzahlKinder: number
-    kindergeldTotal: number // 250 EUR × Kinder
-    freibetragTotal: number // 7,932 EUR × Kinder
-    net: number // freibetragTotal - kindergeldTotal (or just the more-favorable of the two)
+    /** the Kindergeld of the year: the monthly amount for every month counted */
+    kindergeldTotal: number
+    /** the Freibeträge of § 32 Abs. 6, by months, for one parent or both */
+    freibetragTotal: number
+    kindermonate: number
   }
+  /** the amounts used, the year they are of, and whether doubled for spouses assessed together */
+  saetze: { stand: number; kinderfreibetrag: number; bea: number; kindergeld: number[]; zusammenveranlagung: boolean }
   counts: {
     hasKinder: boolean
   }
@@ -71,68 +129,29 @@ export interface AnlageKindResult {
   disclaimer: string
 }
 
-// Tier 104: Anlage Kind Einnahmen Kennziffern 100-180.
-// The actual Anlage Kind positions are Kz 6600+
-// (Hauptvordruck) — for v1 we use 100+ as internal
-// namespace + same labels as the BMF.
-const EINNAHMEN_LINES: Array<{
-  kz: string
-  label: string
-  perChild: number
-}> = [
-  {
-    kz: '6600',
-    label: 'Kindergeld (§ 66 EStG) — 250 EUR pro Kind (1-3), max 1.000 EUR für 4+ Kinder (Stand 2024)',
-    perChild: 250,
-  },
-]
-
-// Tier 104: Anlage Kind Freibetrag / Ausgaben.
-// Kz 6610-6630 cover Freibeträge. v1 computes
-// the sächliches Existenzminimum + BEAfA in
-// 1 line (Berater ergänzt the actual breakdown
-// from the BMF table for the year).
-const AUSGABEN_LINES: Array<{
-  kz: string
-  label: string
-  perChild: number
-  note?: string
-}> = [
-  {
-    kz: '6610',
-    label: 'Kinderfreibetrag sächliches Existenzminimum (§ 32 Abs. 6 EStG) — 6.612 EUR pro Kind (Stand 2024)',
-    perChild: 6612,
-  },
-  {
-    kz: '6620',
-    label: 'Kinderfreibetrag Betreuungs-, Erziehungs-, Ausbildungsbedarf (§ 32 Abs. 6 EStG) — 1.320 EUR pro Kind (Stand 2024)',
-    perChild: 1320,
-  },
+// The lines. 6600+ are this preview's own numbers.
+const AUSGABEN_PLACEHOLDERS: Array<{ kz: string; label: string; note: string }> = [
   {
     kz: '6630',
-    label: 'Schulbescheinigung für volljährige Kinder in Berufsausbildung (§ 32 Abs. 4 EStG)',
-    perChild: 0,
-    note: 'Keine automatische Erkennung. Der Berater ergänzt aus der Schulbescheinigung der Familienkasse.',
+    label: 'Volljährige Kinder in Berufsausbildung (§ 32 Abs. 4 EStG) — Nachweis',
+    note: 'Wird nicht geprüft. Ein volljähriges Kind zählt hier, wenn es als berechtigt eingetragen ist; der Berater ergänzt den Nachweis (Schul-, Ausbildungs- oder Studienbescheinigung).',
   },
   {
     kz: '6640',
-    label: 'Behinderung-Pauschbetrag für behinderte Kinder (§ 33b EStG)',
-    perChild: 0,
-    note: 'Keine automatische Erkennung. Der Berater ergänzt aus dem Behindertenausweis (GdB ≥ 50).',
+    label: 'Behinderten-Pauschbetrag des Kindes (§ 33b EStG)',
+    note: 'Wird nicht berechnet. Der Berater ergänzt ihn aus dem Feststellungsbescheid (ab einem Grad der Behinderung von 20, § 33b Abs. 3 EStG).',
   },
 ]
 
-// Standard Kindergeld (2024): 250 EUR pro Kind
-// (1-3), 250 EUR/4. Kind (= 1.000 EUR total for 4+).
-// v1: simple per-child rate (ignores 4+ cap).
-// v2: BMF table per year.
-// Tier 356: both are declared and never read. Same shape as the Vorsteuer
-// accumulators in ustja.service.ts (Tier 355) — tax figures that look like
-// they were meant to reach the form. Whether Anlage Kind must show
-// Kindergeld / Freibetrag per child is a Steuerberater question, so these
-// are kept rather than deleted.
-const _KINDERGELD_PER_KIND_2024 = 250
-const _FREIBETRAG_PER_KIND_2024 = 6612 + 1320 // 7,932 EUR total
+/** A child's line of the PDF: for how many months it counts, or why not. */
+function kindZeile(k: Kind): string {
+  if (k.grund === 'geburtsdatum') return 'nicht berücksichtigt: Geburtsdatum fehlt'
+  if (k.grund === 'keinAnspruch') return 'nicht berücksichtigt: als nicht berechtigt eingetragen'
+  if (k.grund === 'nochNichtGeboren') return 'nicht berücksichtigt: in diesem Jahr noch nicht geboren'
+  if (k.grund === 'ueber25') return 'nicht berücksichtigt: das 25. Lebensjahr vollendet'
+  const monate = `${k.monate} ${k.monate === 1 ? 'Monat' : 'Monate'}`
+  return k.grund === 'volljaehrigOhneNachweis' ? `${monate} (volljährig — Nachweis nach § 32 Abs. 4 EStG erforderlich)` : monate
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -166,49 +185,85 @@ export class AnlageKindService {
     })
     const settings = (company?.settings as any) || {}
 
-    // Kinder list: per-year array inside
-    // Company.settings.kinder
+    // § 32 Abs. 6 Satz 2: doubled for spouses assessed together (the same
+    // choice as on Anlage KAP)
+    const zusammenveranlagung = settings.zusammenveranlagung === true
+    const faktor = zusammenveranlagung ? 2 : 1
+    const saetze = kindSaetzeFor(year)
+
+    // The children of the year, each with the months in which it counts
     const kinderAll = (settings.kinder as any) || {}
     const raw = kinderAll[year] || []
-    const kinder: Kind[] = Array.isArray(raw)
-      ? raw
-        .filter((k: any) => k && typeof k === 'object')
-        .map((k: any) => ({
-          name: String(k.name || '').trim() || 'Kind',
-          birthDate: typeof k.birthDate === 'string' ? k.birthDate : '',
-          kindergeldEligible:
-            k.kindergeldEligible !== false, // default true
-        }))
-      : []
+    const listed = (Array.isArray(raw) ? raw : [])
+      .filter((k: any) => k && typeof k === 'object')
+      .map((k: any) => {
+        const birthDate = typeof k.birthDate === 'string' ? k.birthDate : ''
+        const kindergeldEligible = k.kindergeldEligible !== false // default true
+        const { monate, grund } = kindMonate(birthDate, year, kindergeldEligible)
+        return { name: String(k.name || '').trim() || 'Kind', birthDate, kindergeldEligible, months: monate, grund }
+      })
+    const kinder: Kind[] = listed.map(({ months, ...k }) => ({ ...k, monate: months.length }))
     const hasKinder = kinder.length > 0
-    const anzahlKinder = kinder.length
+    const counted = listed.filter((k) => k.months.length > 0)
+    const anzahlKinder = counted.length
+    const kindermonate = counted.reduce((sum, k) => sum + k.months.length, 0)
 
-    // Einnahmen: Kindergeld pro Kind
-    const einnahmen: AnlageKindLine[] = EINNAHMEN_LINES.map((d) => ({
-      kennziffer: d.kz,
-      label: d.label,
-      amount: round2(d.perChild * anzahlKinder),
-      source: 'computed',
-    }))
-    const kindergeldTotal = einnahmen.reduce((s, l) => s + l.amount, 0)
+    // § 66: a month's Kindergeld for every child counted in it — the amount by
+    // the child's rank among them, the eldest first (it differed up to 2022)
+    const byAge = [...counted].sort((x, y) => x.birthDate.localeCompare(y.birthDate))
+    let kindergeldTotal = 0
+    for (let m = 1; m <= 12; m++) {
+      byAge.filter((k) => k.months.includes(m)).forEach((_k, rank) => {
+        kindergeldTotal += saetze.kindergeld[Math.min(rank, 3)]
+      })
+    }
+    kindergeldTotal = round2(kindergeldTotal)
 
-    // Ausgaben: Freibetrag pro Kind
-    const ausgaben: AnlageKindLine[] = AUSGABEN_LINES.map((d) => ({
-      kennziffer: d.kz,
-      label: d.label,
-      amount: round2(d.perChild * anzahlKinder),
-      source: d.perChild === 0 ? 'placeholder' : 'computed',
-      note: d.note,
-    }))
-    const freibetragTotal = ausgaben.reduce((s, l) => s + l.amount, 0)
+    const eur = (n: number): string => new Intl.NumberFormat('de-DE').format(n)
+    // said once, on the first line: it holds for the Freibeträge too
+    const standNote = saetze.stand !== year ? ` Hinterlegt sind die Beträge von ${saetze.stand} (Kindergeld und Freibeträge); für ${year} gelten andere.` : ''
+    const sameForAll = new Set(saetze.kindergeld).size === 1
+    const einnahmen: AnlageKindLine[] = [
+      {
+        kennziffer: '6600',
+        label: sameForAll
+          ? `Kindergeld (§ 66 EStG): ${eur(saetze.kindergeld[0])} EUR je Kind und Monat`
+          : `Kindergeld (§ 66 EStG): ${eur(saetze.kindergeld[0])} EUR je Monat für das erste und zweite Kind, ${eur(saetze.kindergeld[2])} EUR für das dritte, ${eur(saetze.kindergeld[3])} EUR ab dem vierten`,
+        amount: kindergeldTotal,
+        source: 'computed',
+        note: `Anspruch für ${kindermonate} Kindermonate.${standNote}`,
+      },
+    ]
 
-    // Net: Freibetrag minus Kindergeld. The actual
-    // Einkommensteuer uses the MORE FAVORABLE of
-    // (Kindergeld) vs (Kinderfreibetrag × Steuersatz).
-    // v1: just show both side-by-side. The Berater
-    // decides which is more favorable in the
-    // Festsetzung.
-    const net = round2(freibetragTotal - kindergeldTotal)
+    // § 32 Abs. 6: per parent and year, by twelfths
+    const zwoelftel = kindermonate / 12
+    const elternNote = zusammenveranlagung
+      ? 'Für zusammen veranlagte Eltern verdoppelt (§ 32 Abs. 6 Satz 2 EStG); je Monat, in dem das Kind nicht berücksichtigt wird, ein Zwölftel weniger.'
+      : 'Betrag eines Elternteils — bei Zusammenveranlagung verdoppelt er sich; je Monat, in dem das Kind nicht berücksichtigt wird, ein Zwölftel weniger.'
+    const ausgaben: AnlageKindLine[] = [
+      {
+        kennziffer: '6610',
+        label: `Kinderfreibetrag für das sächliche Existenzminimum (§ 32 Abs. 6 EStG): ${eur(saetze.kinderfreibetrag)} EUR je Elternteil und Jahr`,
+        amount: round2(saetze.kinderfreibetrag * faktor * zwoelftel),
+        source: 'computed',
+        note: elternNote,
+      },
+      {
+        kennziffer: '6620',
+        label: `Freibetrag für den Betreuungs- und Erziehungs- oder Ausbildungsbedarf (§ 32 Abs. 6 EStG): ${eur(saetze.bea)} EUR je Elternteil und Jahr`,
+        amount: round2(saetze.bea * faktor * zwoelftel),
+        source: 'computed',
+        note: elternNote,
+      },
+      ...AUSGABEN_PLACEHOLDERS.map((d) => ({
+        kennziffer: d.kz,
+        label: d.label,
+        amount: 0,
+        source: 'placeholder' as const,
+        note: d.note,
+      })),
+    ]
+    const freibetragTotal = round2(ausgaben.reduce((sum, l) => sum + l.amount, 0))
 
     return {
       year,
@@ -218,28 +273,33 @@ export class AnlageKindService {
       ausgaben,
       totals: {
         anzahlKinder,
-        kindergeldTotal: round2(kindergeldTotal),
-        freibetragTotal: round2(freibetragTotal),
-        net,
+        kindergeldTotal,
+        freibetragTotal,
+        kindermonate,
+      },
+      saetze: {
+        stand: saetze.stand,
+        kinderfreibetrag: saetze.kinderfreibetrag,
+        bea: saetze.bea,
+        kindergeld: saetze.kindergeld,
+        zusammenveranlagung,
       },
       counts: {
         hasKinder,
       },
       generatedAt: new Date().toISOString(),
       disclaimer:
-        'Diese Vorschau wurde automatisch aus Ihrer Kinder-Liste ' +
-        '(erfasst unter Buchhaltung, Anlage Kind) + den Standard-Kindergeld- und ' +
-        'Kinderfreibetrag-Sätzen 2024 generiert. Kindergeld: 250 EUR pro ' +
-        'Kind (1-3), max 1.000 EUR für 4+ Kinder. Kinderfreibetrag: ' +
-        '7.932 EUR pro Kind (6.612 EUR sächliches Existenzminimum + 1.320 ' +
-        'EUR BEAfA). Im Einkommensteuer-Bescheid wird das MEISTGÜNSTIGE ' +
-        'aus (Kindergeld) vs (Kinderfreibetrag × Steuersatz) angewendet — ' +
-        'der Steuerberater prüft das. Die BMF-Sätze ändern sich jährlich ' +
-        '(i.d.R. alle 2 Jahre); hier sind die Sätze von 2024 hinterlegt. ' +
-        'Für Kinder über 18 in ' +
-        'Berufsausbildung: Schulbescheinigung manuell eintragen ' +
-        '(Kz 6630). Für behinderte Kinder: Pauschbetrag manuell ' +
-        'eintragen (Kz 6640, je nach GdB).',
+        'Diese Vorschau wurde aus Ihrer Kinder-Liste (erfasst unter Buchhaltung, Anlage Kind) erstellt. ' +
+        'Ein Kind zählt ab dem Monat seiner Geburt und in jedem Monat, zu dessen Beginn es noch nicht 18 ist ' +
+        '(§ 32 Abs. 3 EStG); ein volljähriges Kind nur unter den Voraussetzungen des § 32 Abs. 4 EStG — hier, ' +
+        'wenn es als berechtigt eingetragen ist — und längstens bis 25. ' +
+        'Das Kindergeld ist der monatliche Betrag für jeden dieser Monate (§ 66 EStG). ' +
+        'Die Freibeträge des § 32 Abs. 6 EStG gelten je Elternteil und Jahr und werden für zusammen veranlagte ' +
+        'Eltern verdoppelt. Sie werden nicht zusätzlich zum Kindergeld gewährt: das Finanzamt setzt an, was ' +
+        'günstiger ist, und rechnet den Kindergeldanspruch dann der Steuer hinzu (§ 31 Satz 4 EStG) — ' +
+        'der Steuerberater prüft das. ' +
+        'Nicht berücksichtigt: die Übertragung von Freibeträgen zwischen den Elternteilen, Kinder mit Behinderung ' +
+        'über 25, der Entlastungsbetrag für Alleinerziehende, Einmalzahlungen zum Kindergeld (Kinderbonus).',
     }
   }
 
@@ -271,7 +331,7 @@ export class AnlageKindService {
       .fontSize(10)
       .font('Helvetica')
       .text(
-        `Freibetrag für Kinder + Kindergeld (§ 32 / § 33 / § 33a EStG) — ${company?.name || companyId}`,
+        `Kinder, Kindergeld und Freibeträge (§§ 31, 32, 66 EStG) — ${company?.name || companyId}`,
       )
       .moveDown(1)
 
@@ -280,7 +340,7 @@ export class AnlageKindService {
       doc.moveDown(0.3)
       doc.fontSize(9).font('Helvetica')
       for (const k of data.kinder) {
-        doc.text(`• ${k.name}${k.birthDate ? ` (geb. ${k.birthDate})` : ''}${!k.kindergeldEligible ? ' [kein Kindergeld]' : ''}`)
+        doc.text(`• ${k.name}${k.birthDate ? ` (geb. ${k.birthDate.slice(8, 10)}.${k.birthDate.slice(5, 7)}.${k.birthDate.slice(0, 4)})` : ''} — ${kindZeile(k)}`)
       }
       doc.moveDown(1)
     } else {
@@ -308,7 +368,7 @@ export class AnlageKindService {
     doc.moveDown(0.8)
 
     // Ausgaben / Freibetrag
-    doc.fontSize(12).font('Helvetica-Bold').text('Kinderfreibetrag (§ 32 EStG)')
+    doc.fontSize(12).font('Helvetica-Bold').text('Freibeträge für Kinder (§ 32 Abs. 6 EStG)')
     doc.moveDown(0.3)
     this.renderTable(
       doc,
@@ -321,8 +381,12 @@ export class AnlageKindService {
     // Summary
     doc.fontSize(13).font('Helvetica-Bold')
     doc.text(
-      `Anzahl Kinder: ${data.totals.anzahlKinder}  |  Kindergeld: ${this.fmtEur(data.totals.kindergeldTotal)} €  |  Kinderfreibetrag: ${this.fmtEur(data.totals.freibetragTotal)} €`,
+      `Berücksichtigte Kinder: ${data.totals.anzahlKinder}  |  Kindergeld: ${this.fmtEur(data.totals.kindergeldTotal)} €  |  Freibeträge: ${this.fmtEur(data.totals.freibetragTotal)} €`,
     )
+    doc
+      .fontSize(9)
+      .font('Helvetica')
+      .text('Das Finanzamt setzt an, was günstiger ist — das Kindergeld oder die Freibeträge (§ 31 EStG), nicht beides.')
     doc.moveDown(1)
 
     // Disclaimer

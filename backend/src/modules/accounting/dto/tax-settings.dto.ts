@@ -227,9 +227,10 @@ export class AnlageAusSettingsDto extends YearDto {
   entries!: AnlageAusEntryDto[]
 }
 
-// Tier 670: spouses assessed together share a Sparer-Pauschbetrag of twice
-// the amount (§ 20 Abs. 9 Satz 2 EStG)
-export class AnlageKapSettingsDto {
+// Tier 670/672: spouses assessed together share a Sparer-Pauschbetrag of twice
+// the amount (§ 20 Abs. 9 Satz 2 EStG), and their Freibeträge for a child
+// double (§ 32 Abs. 6 Satz 2 EStG)
+export class ZusammenveranlagungDto {
   @StrictBoolean() @IsBoolean({ message: 'zusammenveranlagung muss true oder false sein' })
   zusammenveranlagung!: boolean
 }

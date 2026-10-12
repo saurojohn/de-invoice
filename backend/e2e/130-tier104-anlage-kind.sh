@@ -91,41 +91,25 @@ NAMES=$(python3 -c "import json,sys; print(','.join(k['name'] for k in json.load
 assert_eq "kinder names" "$NAMES" "Max,Lisa"
 rm -f "$TMP"
 
-# ===== 5. Math identities: Kindergeld 2*250=500, FB 2*7932=15864, net = 15364 =====
+# ===== 5. The amounts of 2026 (Tier 672 — §§ 32 Abs. 6, 66 EStG) =====
+# Two children under 18 the whole year: Kindergeld 2 x 12 x 259 EUR; the
+# Freibetraege per parent 2 x (3 414 + 1 464) EUR, doubled for spouses
+# assessed together. (Before: 2 x 250 EUR "Kindergeld" for the year, 2 x
+# 7 932 EUR, and a "net" of the two.)
 echo
-note "=== 5. Math identities: standard rates (2024) ==="
+note "=== 5. The amounts of 2026 ==="
 api_get "/api/v1/accounting/anlage-kind?companyId=$COMPANY_ID&year=2026"
 TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
 
 MATH=$(python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-kg = d['totals']['kindergeldTotal']
-fb = d['totals']['freibetragTotal']
-net = d['totals']['net']
-expected_kg = 2 * 250
-expected_fb = 2 * (6612 + 1320)
-expected_net = expected_fb - expected_kg
-print(f'{abs(kg - expected_kg) < 0.01}|{abs(fb - expected_fb) < 0.01}|{abs(net - expected_net) < 0.01}|{kg}|{fb}|{net}|{expected_kg}|{expected_fb}|{expected_net}')
+f = 2 if d['saetze']['zusammenveranlagung'] else 1
+line = lambda kz: next(l for l in d['einnahmen'] + d['ausgaben'] if l['kennziffer'] == kz)['amount']
+print(d['totals']['kindergeldTotal'] == 2 * 12 * 259, d['totals']['freibetragTotal'] == f * 2 * (3414 + 1464),
+      (line('6600'), line('6610') // f, line('6620') // f), d['totals']['kindermonate'], 'net' in d['totals'])
 " < "$TMP")
-assert_eq "Kindergeld 2*250 == 500" "$(echo "$MATH" | cut -d'|' -f1)" "True"
-assert_eq "Kinderfreibetrag 2*7932 == 15864" "$(echo "$MATH" | cut -d'|' -f2)" "True"
-assert_eq "net = FB - KG" "$(echo "$MATH" | cut -d'|' -f3)" "True"
-pass "KG=$(echo "$MATH" | cut -d'|' -f4), FB=$(echo "$MATH" | cut -d'|' -f5), net=$(echo "$MATH" | cut -d'|' -f6)"
-rm -f "$TMP"
-
-# ===== 6. Kz 6600/6610/6620 amounts scale per child =====
-echo
-note "=== 6. Kz 6600/6610/6620 amounts per child ==="
-api_get "/api/v1/accounting/anlage-kind?companyId=$COMPANY_ID&year=2026"
-TMP=$(mktemp); printf '%s' "$BODY" > "$TMP"
-
-K6600=$(python3 -c "import json,sys; print(next(l for l in json.load(sys.stdin)['einnahmen'] if l['kennziffer']=='6600')['amount'])" < "$TMP")
-K6610=$(python3 -c "import json,sys; print(next(l for l in json.load(sys.stdin)['ausgaben'] if l['kennziffer']=='6610')['amount'])" < "$TMP")
-K6620=$(python3 -c "import json,sys; print(next(l for l in json.load(sys.stdin)['ausgaben'] if l['kennziffer']=='6620')['amount'])" < "$TMP")
-assert_eq "Kz 6600 == 2*250 = 500" "$K6600" "500"
-assert_eq "Kz 6610 == 2*6612 = 13224" "$K6610" "13224"
-assert_eq "Kz 6620 == 2*1320 = 2640" "$K6620" "2640"
+assert_eq "Kindergeld 6 216, Freibetraege per parent 6 828 + 2 928, 24 child-months, no 'net'" "$MATH" "True True (6216, 6828, 2928) 24 False"
 rm -f "$TMP"
 
 # ===== 7. /anlage-kind.pdf returns valid PDF =====
@@ -247,14 +231,14 @@ DISCLAIMER_LEN=$(python3 -c "import json,sys; print(len(json.load(sys.stdin)['di
 test "$DISCLAIMER_LEN" -gt 200 && pass "disclaimer length=$DISCLAIMER_LEN" || fail "disclaimer too short ($DISCLAIMER_LEN)"
 
 # Disclaimer mentions Kinderfreibetrag + Kindergeld
-HAS_FB=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('Kinderfreibetrag' in d['disclaimer'])" < "$TMP")
-assert_eq "disclaimer mentions Kinderfreibetrag" "$HAS_FB" "True"
+HAS_FB=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('§ 32 Abs. 6 EStG' in d['disclaimer'])" < "$TMP")
+assert_eq "disclaimer names the Freibeträge of § 32 Abs. 6" "$HAS_FB" "True"
 
 HAS_KG=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('Kindergeld' in d['disclaimer'])" < "$TMP")
 assert_eq "disclaimer mentions Kindergeld" "$HAS_KG" "True"
 
-HAS_BEAF=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('BEAfA' in d['disclaimer'])" < "$TMP")
-assert_eq "disclaimer mentions BEAfA" "$HAS_BEAF" "True"
+HAS_BEAF=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('§ 31 Satz 4 EStG' in d['disclaimer'])" < "$TMP")
+assert_eq "disclaimer: not both (§ 31)" "$HAS_BEAF" "True"
 rm -f "$TMP"
 
 # ===== 13. PATCH /feature-flags with anlageKind = true persists =====
