@@ -2656,6 +2656,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 663 — a test that failed because httpbin.org was down
+
+CI run 38253383946 (Tier 658) was red: backend 389 passed / 1 skipped, Playwright 1053 passed and **2 failed** — both in `webhook-last-success-tier199.spec.ts`, which creates a webhook to `https://httpbin.org/status/200` and expects the delivery to succeed. httpbin.org did not answer (checked from here at the same time: no answer in 15 s; httpbingo.org and postman-echo.com answered 200). Nothing of Tier 658 is involved.
+
+The target of a webhook has to be a public address — the SSRF guard refuses local ones, rightly — so the test cannot bring its own server. It tries three echo services now and takes the first that takes the delivery; if none does, the two tests that need a successful delivery are skipped with the reason. Four other spec files name httpbin.org as a valid address without depending on its answer; they passed in that run.
+
+Cannot be run on this machine (it addresses :3001); checked by the compiler and the linter, and by the next CI run.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 662 — the customer portal: what is open, per currency; a payment is in its invoice's currency
 
 Tier 653 had left the portal's own amounts unlooked-at, and Tier 658 had seen that a payment on a USD invoice is stored as „EUR“. Looked at:
