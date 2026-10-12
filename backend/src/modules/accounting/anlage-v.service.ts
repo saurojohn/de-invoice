@@ -64,6 +64,7 @@ export interface AnlageVLine {
   kennziffer: string
   label: string
   amount: number
+  note?: string
 }
 
 export interface AnlageVResult {
@@ -85,6 +86,8 @@ export interface AnlageVResult {
     unbezahlt: { invoices: number; expenses: number }
     afaBookings: number
     buildingAssets: number
+    /** Tier 673: expenses that are a loan's repayment — left out, no Werbungskosten */
+    tilgung: { count: number; amount: number }
   }
   afaSource: 'booked' | 'computed' | 'nicht_gebucht'
   generatedAt: string
@@ -104,12 +107,12 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any) => b
   },
   {
     kz: '8120',
-    label: 'Mieteinnahmen nach § 19 UStG (Kleinunternehmer)',
+    label: 'Mieteinnahmen ohne Umsatzsteuer (steuerfrei nach § 4 Nr. 12 UStG oder Kleinunternehmer, § 19 UStG)',
     matcher: (inv) => Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0,
   },
   {
     kz: '8135',
-    label: 'Steuerfreie Vermietungseinnahmen (igL / Ausfuhr)',
+    label: 'Mieteinnahmen, bei denen der Mieter die Umsatzsteuer schuldet (§ 13b UStG)',
     matcher: (inv) => inv.reverseCharge === true,
   },
   {
@@ -134,6 +137,19 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any) => b
 // over. A landlord tagging an expense as
 // "Schuldzinsen" gets it in the right bucket
 // here AND in Anlage S / EÜR.
+// Tier 673 — measured with a landlord's usual categories: „Darlehenstilgung“
+// (9 000 €) counted as Schuldzinsen, and „Hausverwaltung“, „Hausmeister“ and
+// „Gebäudereinigung“ as building insurance, because that line took whatever
+// began with „Haus“ or „Gebäude“ and stood before the others.
+//
+// The repayment of a loan is no Werbungskosten at all — only its interest
+// is (§ 9 Abs. 1 Satz 3 Nr. 1 EStG). An expense whose category names a
+// repayment, or a loan without naming interest, is left out and reported.
+export const isLoanRepayment = (category: string | null | undefined): boolean => {
+  const c = String(category || '')
+  return /tilgung/i.test(c) || (/^(Darlehen|Kredit|Hypothek)/i.test(c) && !/zins/i.test(c))
+}
+
 const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => boolean }> = [
   {
     kz: '8600',
@@ -148,7 +164,7 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
   {
     kz: '8620',
     label: 'Schuldzinsen (Darlehen für Mietobjekte)',
-    matcher: (exp) => /^(Schuldzins|Zins|Darlehen)/i.test(exp.category || ''),
+    matcher: (exp) => /^(Schuldzins|Darlehenszins|Kreditzins|Hypothekenzins|Zins|Finanzierungskosten)/i.test(exp.category || ''),
   },
   {
     kz: '8630',
@@ -158,22 +174,26 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
   {
     kz: '8640',
     label: 'Gebäudeversicherung (Wohngebäude-, Haftpflicht-, Glasversicherung)',
-    matcher: (exp) => /^(Gebäude|Haus|Wohngebäude|Haftpflicht)/i.test(exp.category || ''),
+    // Tier 673: an insurance — not everything that begins with „Haus“ or „Gebäude“
+    matcher: (exp) => /versicherung/i.test(exp.category || '') || /^(Haftpflicht|Glasbruch)/i.test(exp.category || ''),
   },
   {
     kz: '8650',
     label: 'Hausverwaltung, Mieterverein, Makler',
-    matcher: (exp) => /^(Hausverwaltung|Mieterverein|Makler)/i.test(exp.category || ''),
+    matcher: (exp) => /^(Hausverwaltung|Verwaltung|Verwalter|WEG-Verwalt|Mieterverein|Makler)/i.test(exp.category || ''),
   },
   {
     kz: '8660',
-    label: 'Reparaturen / Instandhaltung (keine Herstellungs-/Erhaltungsaufwand)',
-    matcher: (exp) => /^(Reparatur|Instandhaltung|Wartung)/i.test(exp.category || ''),
+    label: 'Reparaturen / Instandhaltung (Erhaltungsaufwand — kein Herstellungsaufwand)',
+    matcher: (exp) => /^(Reparatur|Instandhaltung|Instandsetzung|Wartung|Erhaltungsaufwand)/i.test(exp.category || ''),
   },
   {
     kz: '8670',
-    label: 'Nebenkosten (Müllabfuhr, Schornsteinfeger, Treppenhausreinigung)',
-    matcher: (exp) => /^(Nebenkosten|Müll|Schornstein|Treppenhaus|Aufzug)/i.test(exp.category || ''),
+    label: 'Nebenkosten (Müllabfuhr, Schornsteinfeger, Hausmeister, Reinigung)',
+    matcher: (exp) =>
+      /^(Nebenkosten|Betriebskosten|Müll|Schornstein|Treppenhaus|Aufzug|Hausmeister|Gebäudereinigung|Reinigung|Straßenreinigung|Winterdienst|Gartenpflege|Wasser|Abwasser|Allgemeinstrom|Heizung)/i.test(
+        exp.category || '',
+      ),
   },
   {
     // Tier 483: the input tax paid and the VAT paid to the Finanzamt.
@@ -293,7 +313,14 @@ export class AnlageVService {
 
     const werbungskostenBuckets = new Map<string, number>()
     for (const def of EXPENSE_LINES) werbungskostenBuckets.set(def.kz, 0)
+    let tilgungCount = 0
+    let tilgungSum = 0
     for (const exp of expenses) {
+      if (isLoanRepayment(exp.category)) {
+        tilgungCount++
+        tilgungSum += expenseCost(exp, kleinunternehmer)
+        continue
+      }
       const matched = EXPENSE_LINES.find((d) => d.matcher(exp))
       const kz = matched?.kz || '8690'
       // Tier 483: gross for a Kleinunternehmer (expense-cost.ts), as EÜR / Anlage S.
@@ -340,6 +367,11 @@ export class AnlageVService {
         kennziffer: d.kz,
         label: d.label,
         amount: round2(werbungskostenBuckets.get(d.kz) || 0),
+        ...(d.kz === '8620' && tilgungCount > 0
+          ? {
+              note: `${tilgungCount} Ausgabe(n) für Darlehen oder Tilgung (${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(tilgungSum)} EUR) sind nicht angesetzt — die Tilgung ist keine Werbungskosten. Den Zinsanteil als „Schuldzinsen“ erfassen.`,
+            }
+          : {}),
       }
     })
 
@@ -363,6 +395,7 @@ export class AnlageVService {
         expenses: expenses.length,
         unbezahlt: { invoices: unpaidInvoices, expenses: unpaidExpenses },
         afaBookings: bookedAfa.length,
+        tilgung: { count: tilgungCount, amount: round2(tilgungSum) },
         buildingAssets: buildingAssets.length,
       },
       // 8600 is "gebucht" if a booking exists,
@@ -534,7 +567,13 @@ export class AnlageVService {
       doc.fontSize(10)
       doc.text(l.kennziffer, colKz, y)
       doc.text(l.label, colKz + 35, y, { width: 280 })
+      // a label of two lines: the next row starts below it, not below the amount
+      const belowLabel = doc.y
       doc.text(this.fmtEur(l.amount), colAmount, y, { width: 145, align: 'right' })
+      doc.y = Math.max(belowLabel, doc.y)
+      if (l.note) {
+        doc.fontSize(8).fillColor('#666').text(`Hinweis: ${l.note}`, colKz + 35, doc.y, { width: 425 }).fillColor('#000')
+      }
       doc.moveDown(0.3)
     }
 

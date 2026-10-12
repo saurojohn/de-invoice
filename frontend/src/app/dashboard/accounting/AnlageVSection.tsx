@@ -14,6 +14,7 @@ interface AnlageVLine {
   kennziffer: string
   label: string
   amount: number
+  note?: string
 }
 
 interface AnlageVResult {
@@ -219,7 +220,14 @@ export function AnlageVSection() {
                       {data.werbungskosten.map((l) => (
                         <tr key={l.kennziffer} className="border-b" data-testid={`anlage-v-exp-${l.kennziffer}`}>
                           <td className="py-1 font-mono">{l.kennziffer}</td>
-                          <td className="py-1 text-xs"><FormLabel text={l.label} /></td>
+                          <td className="py-1 text-xs">
+                            <FormLabel text={l.label} />
+                            {l.note && (
+                              <div className="mt-0.5 text-[10px] text-amber-700 dark:text-amber-400" data-testid={`anlage-v-note-${l.kennziffer}`}>
+                                <FormNote text={l.note} />
+                              </div>
+                            )}
+                          </td>
                           <td className={`py-1 text-right font-mono ${l.amount === 0 && l.kennziffer === '8600' ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                             {fmt(l.amount)}
                           </td>

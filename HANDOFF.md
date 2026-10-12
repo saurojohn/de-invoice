@@ -2656,6 +2656,19 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 673 — Anlage V: a loan's repayment is no Werbungskosten, and each expense in its line
+
+Anlage V sorts the expenses by their category. Measured with a landlord's usual ones: „Darlehenstilgung“ (9 000 €) stood under Schuldzinsen — the repayment of a loan is no expense at all, only its interest is (§ 9 Abs. 1 Satz 3 Nr. 1 EStG) — and „Hausverwaltung“, „Hausmeister“ and „Gebäudereinigung“ stood under building **insurance**, whose line took whatever began with „Haus“ or „Gebäude“ and came first. 15 830 € of Werbungskosten where 6 830 € are.
+
+- An expense whose category names a repayment, or a loan without naming interest („Darlehen Rate Mai“), is left out and reported: `counts.tilgung`, a note on the line of the Schuldzinsen, on the page and in the PDF.
+- Insurance is what is called one; administration, caretaker, cleaning and the other running costs go to their lines.
+- Labels: rent without VAT was „nach § 19 UStG (Kleinunternehmer)“ — a flat's rent is exempt by § 4 Nr. 12 UStG; „igL / Ausfuhr“ for rent under reverse charge; repairs „keine Herstellungs-/Erhaltungsaufwand“ — they are Erhaltungsaufwand.
+- The PDF's rows: a label of two lines was overwritten by the next row.
+
+Spec `400-tier673-anlage-v-tilgung-und-zeilen.sh` (14 assertions, 11 fail on the code before); `anlage-v-tier673.spec.ts`; five texts added to both tax-form dictionaries (445 entries). Spec 118 fails here as before (one of the specs that pass in CI only).
+
+Seen and next: the assets module depreciates an asset of the type „Grundstück“ like any other — land does not wear out. And the EÜR counts every paid expense, a loan's repayment entered as one too.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 672 — Anlage Kind read against §§ 31, 32, 66 EStG
 
 Read from gesetze-im-internet.de on 12.10.2026, then measured with four children (nine years old; born in August; 35 years old; one marked as not entitled):
@@ -9313,7 +9326,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**
     - **Foreign currency (Tier 652):** invoices are converted at the ECB reference rate of the invoice's day. § 16 Abs. 6 UStG names the monthly average rates the BMF publishes; the daily rate needs the tax office's consent. Daily rate (as built), or the monthly average entered by hand on each invoice — or should the program fetch the monthly average?
-    - **The annexes of a person's return (Tiers 655–656, 664, 670–672):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage KAP (Tier 670), Anlage N (Tier 671) and Anlage Kind (Tier 672) followed. Anlage AUS and V were not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
+    - **The annexes of a person's return (Tiers 655–656, 664, 670–673):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage KAP (Tier 670), Anlage N (Tier 671), Anlage Kind (Tier 672) and the sorting of Anlage V (Tier 673) followed. Anlage AUS was not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
     - **OSS:** (whether the company takes part is a setting since Tier 649.) Still for the Steuerberater: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.
