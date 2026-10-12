@@ -319,7 +319,8 @@ const KURZUNGEN_LINES: Array<{
   },
   {
     kz: '5200',
-    label: 'Kürzung Grundstückserträge 1,2% des Einheitswerts (§ 9 Nr. 1 GewStG)',
+    // up to 2024; from 2025 the line is the Grundsteuer itself (compute(), Tier 679)
+    label: 'Kürzung Grundstückserträge 1,2% des Einheitswerts (§ 9 Nr. 1 GewStG, bis 2024)',
     note: 'Grundstücks-Kürzung — in de-invoice nicht erfasst (kein Einheitswert). Berater ergänzt aus Einheitswertbescheid.',
   },
   {
@@ -497,6 +498,8 @@ export class AnlageGService {
     const addCost = (kz: string, cost: number) =>
       betriebsausgabenBuckets.set(kz, (betriebsausgabenBuckets.get(kz) || 0) - cost)
     const finanzierung: FinanzierungsAnteile = { zinsen: 0, mieteImmobil: 0, leasingMobil: 0 }
+    // Tier 679: the Grundsteuer counted as a Betriebsausgabe (§ 9 Nr. 1 GewStG, from 2025)
+    let grundsteuer = 0
     for (const exp of expenses) {
       // Tier 438: a cost, shown negative; the first matching line wins and
       // 2890 takes the rest (it used to take one expense per category).
@@ -508,6 +511,7 @@ export class AnlageGService {
       if (/^(Schuldzins|Zins)/i.test(cat)) finanzierung.zinsen += cost
       else if (/^(Miete|Pacht)/i.test(cat)) finanzierung.mieteImmobil += cost
       else if (/^Leasing/i.test(cat)) finanzierung.leasingMobil += cost
+      if (/^Grundsteuer/i.test(cat)) grundsteuer += cost
     }
     addCost('2500', (await bookedAfaCost(this.prisma, companyId, year)).amount)
     // Tier 440: book value of assets sold or scrapped (disposals.ts).
@@ -570,6 +574,21 @@ export class AnlageGService {
       }
     })
     const kurzungen: AnlageGLine[] = KURZUNGEN_LINES.map((d) => {
+      // Tier 679 — § 9 Nr. 1 Satz 1 GewStG. Up to 2024 the reduction was 1,2 %
+      // of the property's Einheitswert, which is not known here. From the
+      // Erhebungszeitraum 2025 it is "die im Erhebungszeitraum als
+      // Betriebsausgabe erfasste Grundsteuer" — the expenses of that
+      // category, as they stand in the profit. The line said „1,2% des
+      // Einheitswerts“ for every year and was always 0.
+      if (d.kz === '5200' && year >= 2025) {
+        return {
+          kennziffer: d.kz,
+          label: 'Kürzung um die als Betriebsausgabe erfasste Grundsteuer für Grundbesitz des Betriebsvermögens (§ 9 Nr. 1 Satz 1 GewStG)',
+          amount: round2(grundsteuer),
+          source: 'computed',
+          note: 'Die Ausgaben der Kategorie „Grundsteuer“, soweit sie im Gewinn enthalten sind. Nicht für Grundbesitz, der von der Grundsteuer befreit ist; die erweiterte Kürzung für Grundstücksunternehmen (Satz 2) ergänzt der Berater.',
+        }
+      }
       const amount = d.matcher ? round2(d.matcher(betriebsausgaben, finanzierung)) : 0
       return {
         kennziffer: d.kz,

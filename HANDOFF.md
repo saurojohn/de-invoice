@@ -2656,6 +2656,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 679 — trade tax: from 2025 the reduction for property is the Grundsteuer in the profit
+
+Read with Tier 678. § 8 Nr. 1 GewStG holds as built (200 000 €, the fractions). § 9 Nr. 1 Satz 1 did not: the line read „Kürzung Grundstückserträge 1,2% des Einheitswerts“ for every year and was a placeholder. From the Erhebungszeitraum 2025 the reduction is „die im Erhebungszeitraum als Betriebsausgabe erfasste Grundsteuer“ — a figure that is in the books. For 2025 and later the line is computed from the expenses of the category „Grundsteuer“ as they stand in the profit; up to 2024 it stays a placeholder and says until when the old rule held. Anlage G and the trade-tax form (which takes its Gewerbeertrag from it) follow.
+
+Spec `404-tier679-gewst-kuerzung-grundsteuer.sh` (7 assertions, 5 fail on the code before); three texts in both tax-form dictionaries (455 entries). Not modelled, and said: property exempt from Grundsteuer, the extended reduction of Satz 2.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 678 — KSt 1: the loss deduction's limit of the year
 
 After the annexes of a person's return, the form of the owner's own legal form was read once more. Rates and method hold (15 % KSt, 5,5 % Soli on it without a threshold, the Gewerbeertrag rounded down to full 100 €, no Freibetrag, no § 35 EStG). One note did not: a loss carried forward was „bis 1.000.000 EUR + 60 %“ for every year — § 10d Abs. 2 EStG says 70 % for the assessment periods 2024 to 2027 (§ 52 Abs. 18b), 60 % before and after. `verlustProzent(year)`; the line is a placeholder for the adviser, so no figure changed. Four assertions added to spec 128 (all fail on the code before); one text in both tax-form dictionaries (452 entries).
