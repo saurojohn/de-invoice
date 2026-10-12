@@ -2656,6 +2656,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 668 — Anlage SO: an import, or another year, does not take what was typed
+
+Left open by Tier 665. „Aus Ausgaben übernehmen“, the CSV import and a change of the year reloaded the form from the server; a row typed and not saved yet was gone. The form knows whether it holds something unsaved and saves it first — the import then adds to it. After „Speichern“ the block with the set-off of losses (gains, losses, carried forward) kept the figures from before the save until the page was loaded again; it is loaded with the rows now.
+
+`anlage-so-unsaved-tier668.spec.ts` (2 tests; the first fails on the page before: one row instead of two).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 667 — a second test that waited on httpbin.org; and which reads write
 
 CI run 38258071990 (Tiers 659–663) was green with **1 flaky**: `admin-activity-log-tier202.spec.ts`, test 3. It fires a test delivery to httpbin.org and waited 5 s for it to reach a terminal status; the delivery itself gives up after 10 s, so with that service slow the row was still „pending“ — failed twice, passed on the third try. Tier 663 had said of the other files naming httpbin.org that none depends on its answer; this one depends on its answering *in time*. It waits 20 s now (as `webhook-dead-letter-tier198` does, for the reason written there); a timeout's „failed“ is as good as a success for what the test is about. The two remaining files with a fixed sleep (`webhook-deliveries-csv-tier203`, `webhook-event-type-filter-tier201`) only need the delivery's row to exist. Cannot be run here (it addresses :3001).
@@ -2685,7 +2691,7 @@ Found while giving the form's rows a column that says what each counts as. Measu
 
 `anlage-so-rules.ts` holds the cleaning of a stored row, the split and the PDF line for both services and the save (three copies before). Spec `395-tier665-anlage-so-nichts-verschwindet-nichts-erfunden.sh` (43 assertions, 38 fail on the code before); `anlage-so-rows-tier665.spec.ts` (2 tests); specs 138 and 394 follow (138 expected three sales from three expenses).
 
-Left: a CSV or expense import reloads the form, and what was typed and not saved is gone. (`GET /anlage-so/v2` writing as it computes: Tier 666.)
+(Left then: an import reloading the form over what was typed — Tier 668; `GET /anlage-so/v2` writing as it computes — Tier 666.)
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 664 — Anlage SO: the kinds of asset and their holding periods
 

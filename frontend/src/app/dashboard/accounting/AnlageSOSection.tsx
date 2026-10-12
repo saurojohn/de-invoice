@@ -196,6 +196,10 @@ export function AnlageSOSection() {
   const toastRef = useRef(toast)
   toastRef.current = toast
   const tRef = useRef(t)
+  // Tier 668: what was typed and not saved yet. An import reloads the form
+  // from the server — it saves the form first, so nothing typed is lost.
+  const dirtyRef = useRef(false)
+  const persistRef = useRef<() => Promise<void>>(async () => {})
   tRef.current = t
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
   const [data, setData] = useState<AnlageSOResult | null>(null)
@@ -241,6 +245,7 @@ export function AnlageSOSection() {
       setRows(rowsFromTransactions(result.rows ?? result.transactions))
       setWiederkehrendeBezuege(String(result.wiederkehrendeBezuege || ""))
       setWerbungskosten(String(result.werbungskosten || ""))
+      dirtyRef.current = false
     } catch (e: any) {
       const msg =
         e instanceof ApiError ? e.message : tRef.current("anlageSo.loadError")
@@ -368,6 +373,7 @@ export function AnlageSOSection() {
       const companyId =
         typeof window !== "undefined" ? localStorage.getItem("companyId") : null
       if (!companyId) return
+      if (dirtyRef.current) await persistRef.current()
       const result = await apiPost<{
         importedCount: number
         skippedCount: number
@@ -421,6 +427,7 @@ export function AnlageSOSection() {
           )
           return
         }
+        if (dirtyRef.current) await persistRef.current()
         const result = await apiPost<{
           importedCount: number
           skippedCount: number
@@ -463,6 +470,7 @@ export function AnlageSOSection() {
   }, [year])
 
   const updateRow = (rowId: string, patch: Partial<TransactionRow>) => {
+    dirtyRef.current = true
     setRows((prev) =>
       prev.map((r) =>
         r.rowId === rowId ? { ...r, ...patch, status: undefined, problem: undefined } : r,
@@ -471,46 +479,58 @@ export function AnlageSOSection() {
   }
 
   const addRow = () => {
+    dirtyRef.current = true
     setRows((prev) => [...prev, emptyRow()])
   }
 
   const removeRow = (rowId: string) => {
+    dirtyRef.current = true
     setRows((prev) => prev.filter((r) => r.rowId !== rowId))
   }
+
+  // the form as it stands, to the server
+  const persist = async () => {
+    const companyId =
+      typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+    if (!companyId) return
+    // Filter out fully-empty rows
+    const transactions = rows
+      .filter(
+        (r) =>
+          r.description || r.acquisitionDate || r.saleDate ||
+          r.acquisitionCost || r.salePrice,
+      )
+      .map((r) => ({
+        type: r.type,
+        description: r.description,
+        acquisitionDate: r.acquisitionDate,
+        acquisitionCost: Number(r.acquisitionCost) || 0,
+        saleDate: r.saleDate,
+        salePrice: Number(r.salePrice) || 0,
+        ...(r.metadata?.importedFromExpenseId ? { metadata: r.metadata } : {}),
+      }))
+    await apiPut(
+      `/api/v1/accounting/anlage-so/settings?companyId=${companyId}`,
+      {
+        year,
+        transactions,
+        wiederkehrendeBezuege: Number(wiederkehrendeBezuege) || 0,
+        werbungskosten: Number(werbungskosten) || 0,
+      },
+    )
+    dirtyRef.current = false
+  }
+  persistRef.current = persist
 
   const save = async () => {
     setSaving(true)
     try {
-      const companyId =
-        typeof window !== "undefined" ? localStorage.getItem("companyId") : null
-      if (!companyId) return
-      // Filter out fully-empty rows
-      const transactions = rows
-        .filter(
-          (r) =>
-            r.description || r.acquisitionDate || r.saleDate ||
-            r.acquisitionCost || r.salePrice,
-        )
-        .map((r) => ({
-          type: r.type,
-          description: r.description,
-          acquisitionDate: r.acquisitionDate,
-          acquisitionCost: Number(r.acquisitionCost) || 0,
-          saleDate: r.saleDate,
-          salePrice: Number(r.salePrice) || 0,
-          ...(r.metadata?.importedFromExpenseId ? { metadata: r.metadata } : {}),
-        }))
-      await apiPut(
-        `/api/v1/accounting/anlage-so/settings?companyId=${companyId}`,
-        {
-          year,
-          transactions,
-          wiederkehrendeBezuege: Number(wiederkehrendeBezuege) || 0,
-          werbungskosten: Number(werbungskosten) || 0,
-        },
-      )
+      await persist()
       toastRef.current.success(tRef.current("anlageSo.savedOk"))
       await load(year)
+      // the set-off of losses and what is carried forward follow the rows
+      // (it kept the figures from before the save)
+      await loadV2(year)
     } catch (e: any) {
       const msg =
         e instanceof ApiError ? e.message : tRef.current("anlageSo.saveError")
@@ -559,7 +579,16 @@ export function AnlageSOSection() {
               min={2000}
               max={2100}
               value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
+              onChange={(e) => {
+                // another year loads another list: what was typed into
+                // this one is saved first
+                if (dirtyRef.current) {
+                  persistRef.current().catch((err) =>
+                    toastRef.current.error(err instanceof ApiError ? err.message : tRef.current("anlageSo.saveError")),
+                  )
+                }
+                setYear(Number(e.target.value))
+              }}
               className="w-24"
               data-testid="anlage-so-year-input"
             />
@@ -751,7 +780,10 @@ export function AnlageSOSection() {
                   type="number"
                   step="0.01"
                   value={wiederkehrendeBezuege}
-                  onChange={(e) => setWiederkehrendeBezuege(e.target.value)}
+                  onChange={(e) => {
+                    dirtyRef.current = true
+                    setWiederkehrendeBezuege(e.target.value)
+                  }}
                   data-testid="anlage-so-bezuege-input"
                 />
               </div>
@@ -764,7 +796,10 @@ export function AnlageSOSection() {
                   type="number"
                   step="0.01"
                   value={werbungskosten}
-                  onChange={(e) => setWerbungskosten(e.target.value)}
+                  onChange={(e) => {
+                    dirtyRef.current = true
+                    setWerbungskosten(e.target.value)
+                  }}
                   data-testid="anlage-so-werbungskosten-input"
                 />
               </div>
