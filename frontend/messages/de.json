@@ -3426,17 +3426,17 @@
   },
   "anlageSo": {
     "title": "Anlage SO (Sonstige Einkünfte)",
-    "subtitle": "Sonstige Einkünfte (§ 22 EStG) — private Veräußerungsgeschäfte (Krypto / Gold / Aktien innerhalb der Spekulationsfrist) + wiederkehrende Bezüge (private Pensionen, Unterhaltsleistungen). Freigrenze für Veräußerungsgewinne: unter 1.000 EUR im Jahr steuerfrei (bis 2023: 600 EUR), ab der Grenze voll steuerpflichtig (§ 23 Abs. 3 Satz 5 EStG).",
+    "subtitle": "Sonstige Einkünfte (§ 22 EStG) — private Veräußerungsgeschäfte (Kryptowerte, Gold und andere Wirtschaftsgüter innerhalb eines Jahres, Grundstücke innerhalb von zehn Jahren; Aktien seit 2009 gehören in die Anlage KAP) + wiederkehrende Bezüge (private Pensionen, Unterhaltsleistungen). Freigrenze für Veräußerungsgewinne: unter 1.000 EUR im Jahr steuerfrei (bis 2023: 600 EUR), ab der Grenze voll steuerpflichtig (§ 23 Abs. 3 Satz 5 EStG).",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
     "transactions": "Private Veräußerungsgeschäfte (§ 23 EStG)",
-    "transactionsHint": "Jede Veräußerung innerhalb der Spekulationsfrist (1 Jahr Wertpapiere / 10 Jahre Sonstige) ist einkommensteuerpflichtig. Verkäufe außerhalb der Frist sind steuerfrei.",
+    "transactionsHint": "Steuerpflichtig ist eine Veräußerung innerhalb der Frist: ein Jahr bei Kryptowerten und anderen Wirtschaftsgütern, zehn Jahre bei Grundstücken (§ 23 Abs. 1 EStG). Danach ist sie steuerfrei. Wertpapiere, die seit 2009 angeschafft wurden, gehören in die Anlage KAP und werden hier nicht angesetzt.",
     "addTransaction": "Veräußerung hinzufügen",
     "removeTransaction": "Entfernen",
     "type": "Art",
-    "wertpapier": "Wertpapier (1 Jahr Frist)",
-    "sonstige": "Sonstige WG (10 Jahre Frist)",
+    "wertpapier": "Wertpapier (seit 2009: Anlage KAP, hier nicht angesetzt)",
+    "sonstige": "Anderes Wirtschaftsgut — Gold, Kunst … (Frist 1 Jahr)",
     "description": "Bezeichnung",
     "acquisitionDate": "Anschaffungsdatum",
     "acquisitionCost": "Anschaffungskosten (€)",
@@ -3489,7 +3489,9 @@
       "lossCarryforwardApplied": "Freigrenze angewendet (Gesamtgewinn unter der Grenze)",
       "lossCarryforwardNotApplied": "Freigrenze überschritten",
       "lossCarryforwardKz99": "Kz 99 (Verlustvortrag) im BMF-Vordruck"
-    }
+    },
+    "krypto": "Kryptowert (Frist 1 Jahr)",
+    "grundstueck": "Grundstück / Immobilie (Frist 10 Jahre)"
   },
   "anlageAus": {
     "title": "Anlage AUS (Ausländische Einkünfte)",

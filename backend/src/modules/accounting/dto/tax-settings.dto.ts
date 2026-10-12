@@ -154,8 +154,10 @@ export class AnlageKindSettingsDto extends YearDto {
 }
 
 export class AnlageSoTransactionDto {
-  @IsOptional() @IsIn(['wertpapier', 'sonstige'])
-  type?: 'wertpapier' | 'sonstige'
+  // Tier 664: the kinds of § 23 Abs. 1 — crypto and other assets (one year),
+  // land (ten years); a security bought since 2009 belongs on Anlage KAP
+  @IsOptional() @IsIn(['wertpapier', 'sonstige', 'krypto', 'grundstueck'])
+  type?: 'wertpapier' | 'sonstige' | 'krypto' | 'grundstueck'
 
   @IsOptional() @IsString() @MaxLength(500)
   description?: string

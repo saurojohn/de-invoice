@@ -40,6 +40,10 @@ import { apiGet, apiPut, apiPost, ApiError } from "@/lib/api"
 import { Textarea } from "@/components/ui/textarea"
 import { FormLabel, FormNote, formTextNow } from "@/lib/tax-form-text"
 
+// Tier 664: crypto and other assets (one year), land (ten years); a security
+// bought since 2009 belongs on Anlage KAP and is not counted here
+type VgKind = "wertpapier" | "sonstige" | "krypto" | "grundstueck"
+
 interface AnlageSOLine {
   kennziffer: string
   label: string
@@ -80,7 +84,7 @@ interface AnlageSOResult {
 }
 
 interface VgTransaction {
-  type: "wertpapier" | "sonstige"
+  type: VgKind
   description: string
   acquisitionDate: string
   acquisitionCost: number
@@ -137,7 +141,7 @@ interface ImportableExpense {
 interface TransactionRow {
   // local row id for React key (server doesn't require id)
   rowId: string
-  type: "wertpapier" | "sonstige"
+  type: VgKind
   description: string
   acquisitionDate: string
   acquisitionCost: string // string for input
@@ -148,7 +152,7 @@ interface TransactionRow {
 function emptyRow(): TransactionRow {
   return {
     rowId: `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    type: "wertpapier",
+    type: "krypto",
     description: "",
     acquisitionDate: "",
     acquisitionCost: "",
@@ -602,17 +606,16 @@ export function AnlageSOSection() {
                               value={r.type}
                               onChange={(e) =>
                                 updateRow(r.rowId, {
-                                  type: e.target.value as "wertpapier" | "sonstige",
+                                  type: e.target.value as VgKind,
                                 })
                               }
                               className="border rounded px-1 py-0.5 bg-white dark:bg-gray-800"
                             >
-                              <option value="wertpapier">
-                                {t("anlageSo.wertpapier")}
-                              </option>
-                              <option value="sonstige">
-                                {t("anlageSo.sonstige")}
-                              </option>
+                              {/* Tier 664: the kinds of § 23 Abs. 1 EStG */}
+                              <option value="krypto">{t("anlageSo.krypto")}</option>
+                              <option value="sonstige">{t("anlageSo.sonstige")}</option>
+                              <option value="grundstueck">{t("anlageSo.grundstueck")}</option>
+                              <option value="wertpapier">{t("anlageSo.wertpapier")}</option>
                             </select>
                           </td>
                           <td className="py-1 pr-2">
@@ -926,7 +929,7 @@ export function AnlageSOSection() {
                             <td className="py-1 pr-2 font-mono">
                               {p.rowIndex}
                             </td>
-                            <td className="py-1 pr-2">{p.transaction.type}</td>
+                            <td className="py-1 pr-2">{t(`anlageSo.${p.transaction.type}`)}</td>
                             <td className="py-1 pr-2">
                               {p.transaction.description}
                             </td>

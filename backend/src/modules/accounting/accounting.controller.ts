@@ -1274,8 +1274,8 @@ export class AccountingController {
     const transactions = body.transactions
       .filter((t) => t && typeof t === 'object')
       .map((t) => {
-        const type: 'wertpapier' | 'sonstige' =
-          t.type === 'wertpapier' ? 'wertpapier' : 'sonstige'
+        // Tier 664: the four kinds are kept as entered (a fifth is "sonstige")
+        const type = (['wertpapier', 'krypto', 'grundstueck'] as const).find((k) => k === t.type) ?? 'sonstige'
         return {
           type,
           description: String(t.description || '').trim(),

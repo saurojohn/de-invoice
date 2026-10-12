@@ -3426,17 +3426,17 @@
   },
   "anlageSo": {
     "title": "Anlage SO（其他收入）",
-    "subtitle": "其他收入 (§ 22 EStG) — 私人 Veräußerungsgeschäfte（加密货币 / 黄金 / 股票在 Spekulationsfrist 内）+ 经常性收入（私人养老金、抚养费）。Veräußerungsgewinne 的免税限额：全年合计低于 1,000 EUR 免税（2023 年及以前为 600 EUR），达到限额则全额应税 (§ 23 Abs. 3 Satz 5 EStG)。",
+    "subtitle": "其他收入 (§ 22 EStG) — 私人 Veräußerungsgeschäfte（加密资产、黄金等其他资产一年内出售，不动产十年内出售；2009 年起购入的股票属于 Anlage KAP）+ 经常性收入（私人养老金、抚养费）。Veräußerungsgewinne 的免税限额：全年合计低于 1,000 EUR 免税（2023 年及以前为 600 EUR），达到限额则全额应税 (§ 23 Abs. 3 Satz 5 EStG)。",
     "year": "财年",
     "recompute": "重算",
     "downloadPdf": "下载 PDF",
     "transactions": "私人 Veräußerungsgeschäfte (§ 23 EStG)",
-    "transactionsHint": "Spekulationsfrist 内的每笔出售（证券 1 年 / 其他资产 10 年）都需要缴个税。Frist 外的出售免税。",
+    "transactionsHint": "期限内的出售需缴税：加密资产和其他资产为一年，不动产为十年（§ 23 Abs. 1 EStG）。超过期限则免税。2009 年起购入的有价证券属于 Anlage KAP，此处不计。",
     "addTransaction": "添加交易",
     "removeTransaction": "删除",
     "type": "类型",
-    "wertpapier": "证券（1 年 Frist）",
-    "sonstige": "其他资产（10 年 Frist）",
+    "wertpapier": "有价证券（2009 年起购入：属 Anlage KAP，此处不计）",
+    "sonstige": "其他资产 — 黄金、艺术品…（期限 1 年）",
     "description": "说明",
     "acquisitionDate": "购入日期",
     "acquisitionCost": "购入成本 (€)",
@@ -3489,7 +3489,9 @@
       "lossCarryforwardApplied": "已适用免税限额（合计收益低于限额）",
       "lossCarryforwardNotApplied": "超过免税额",
       "lossCarryforwardKz99": "BMF 表格中 Kz 99（亏损结转）"
-    }
+    },
+    "krypto": "加密资产（期限 1 年）",
+    "grundstueck": "土地 / 不动产（期限 10 年）"
   },
   "anlageAus": {
     "title": "Anlage AUS（境外收入）",

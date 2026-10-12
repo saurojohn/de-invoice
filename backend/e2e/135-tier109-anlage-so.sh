@@ -59,7 +59,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
     \"year\": $YEAR,
     \"transactions\": [
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"BTC 0.1\",
         \"acquisitionDate\": \"$((YEAR-1))-06-01\",
         \"acquisitionCost\": 5000,
@@ -83,8 +83,9 @@ api_get "/api/v1/accounting/anlage-so?companyId=$COMPANY_ID&year=$YEAR"
 assert_status "200" "GET /anlage-so after save"
 TX_COUNT=$(json_field "$BODY" "vg.count")
 assert_eq "vg.count = 1" "$TX_COUNT" "1"
-WP_COUNT=$(json_field "$BODY" "vg.countWertpapier")
-assert_eq "vg.countWertpapier = 1" "$WP_COUNT" "1"
+# Tier 664: crypto is a kind of its own (it was filed as a security)
+WP_COUNT=$(json_field "$BODY" "vg.countKrypto")
+assert_eq "vg.countKrypto = 1" "$WP_COUNT" "1"
 IN_FRIST=$(json_field "$BODY" "vg.inSpekulationsfrist")
 assert_eq "in Spekulationsfrist = 1" "$IN_FRIST" "1"
 TOTAL_GAIN=$(json_field "$BODY" "vg.totalGain")
@@ -133,7 +134,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
     \"year\": $YEAR,
     \"transactions\": [
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"Aktien ABC\",
         \"acquisitionDate\": \"$((YEAR-1))-09-01\",
         \"acquisitionCost\": 2000,
@@ -205,7 +206,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
     \"year\": $YEAR,
     \"transactions\": [
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"Small gain\",
         \"acquisitionDate\": \"$((YEAR-1))-01-01\",
         \"acquisitionCost\": 1000,
@@ -231,7 +232,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
     \"year\": $YEAR,
     \"transactions\": [
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"Tiny gain\",
         \"acquisitionDate\": \"$YEAR-01-01\",
         \"acquisitionCost\": 1000,
@@ -254,7 +255,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
     \"year\": $YEAR,
     \"transactions\": [
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"Roundtrip test\",
         \"acquisitionDate\": \"$((YEAR-1))-03-01\",
         \"acquisitionCost\": 10000,

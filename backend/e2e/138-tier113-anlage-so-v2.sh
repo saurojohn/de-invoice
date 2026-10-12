@@ -117,7 +117,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
     \"year\": $YEAR,
     \"transactions\": [
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"AAPL 10 shares\",
         \"acquisitionDate\": \"$((YEAR-1))-04-01\",
         \"acquisitionCost\": 1000,
@@ -125,7 +125,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
         \"salePrice\": 1500
       },
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"MSFT 5 shares\",
         \"acquisitionDate\": \"$((YEAR-1))-08-01\",
         \"acquisitionCost\": 2000,
@@ -133,7 +133,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
         \"salePrice\": 2500
       },
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"TSLA 20 shares\",
         \"acquisitionDate\": \"$((YEAR-1))-09-01\",
         \"acquisitionCost\": 5000,
@@ -141,7 +141,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
         \"salePrice\": 3000
       },
       {
-        \"type\": \"wertpapier\",
+        \"type\": \"krypto\",
         \"description\": \"NVDA 8 shares\",
         \"acquisitionDate\": \"$((YEAR-1))-12-01\",
         \"acquisitionCost\": 3000,
@@ -175,9 +175,9 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
-      { \"type\": \"wertpapier\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-09-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-07-01\", \"salePrice\": 2000 },
-      { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 1500, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 2500 },
-      { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-11-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-09-01\", \"salePrice\": 500 }
+      { \"type\": \"krypto\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-09-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-07-01\", \"salePrice\": 2000 },
+      { \"type\": \"krypto\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 1500, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 2500 },
+      { \"type\": \"krypto\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-11-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-09-01\", \"salePrice\": 500 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0
@@ -203,9 +203,9 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
-      { \"type\": \"wertpapier\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-08-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-06-01\", \"salePrice\": 2000 },
-      { \"type\": \"wertpapier\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-09-01\", \"acquisitionCost\": 500, \"saleDate\": \"$YEAR-07-01\", \"salePrice\": 1500 },
-      { \"type\": \"wertpapier\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 1100 }
+      { \"type\": \"krypto\", \"description\": \"G1\", \"acquisitionDate\": \"$((YEAR-1))-08-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-06-01\", \"salePrice\": 2000 },
+      { \"type\": \"krypto\", \"description\": \"G2\", \"acquisitionDate\": \"$((YEAR-1))-09-01\", \"acquisitionCost\": 500, \"saleDate\": \"$YEAR-07-01\", \"salePrice\": 1500 },
+      { \"type\": \"krypto\", \"description\": \"L1\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 2000, \"saleDate\": \"$YEAR-08-01\", \"salePrice\": 1100 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0
@@ -227,8 +227,8 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
-      { \"type\": \"wertpapier\", \"description\": \"Tiny gain\", \"acquisitionDate\": \"$((YEAR-1))-09-15\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-05-01\", \"salePrice\": 1100 },
-      { \"type\": \"wertpapier\", \"description\": \"Big loss\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 5000, \"saleDate\": \"$YEAR-06-01\", \"salePrice\": 4000 }
+      { \"type\": \"krypto\", \"description\": \"Tiny gain\", \"acquisitionDate\": \"$((YEAR-1))-09-15\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-05-01\", \"salePrice\": 1100 },
+      { \"type\": \"krypto\", \"description\": \"Big loss\", \"acquisitionDate\": \"$((YEAR-1))-10-01\", \"acquisitionCost\": 5000, \"saleDate\": \"$YEAR-06-01\", \"salePrice\": 4000 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0
@@ -268,7 +268,7 @@ api_put "/api/v1/accounting/anlage-so/settings?companyId=$COMPANY_ID" \
   "{
     \"year\": $YEAR,
     \"transactions\": [
-      { \"type\": \"wertpapier\", \"description\": \"Small gain\", \"acquisitionDate\": \"$((YEAR-1))-12-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-02-01\", \"salePrice\": 1200 }
+      { \"type\": \"krypto\", \"description\": \"Small gain\", \"acquisitionDate\": \"$((YEAR-1))-12-01\", \"acquisitionCost\": 1000, \"saleDate\": \"$YEAR-02-01\", \"salePrice\": 1200 }
     ],
     \"wiederkehrendeBezuege\": 0,
     \"werbungskosten\": 0

@@ -1,4 +1,4 @@
-import { afterFreigrenze, freigrenzeFor } from './anlage-so-rules'
+import { freigrenzeFor, fristYears as fristOf, kindOf, looksLikeCrypto, statusOf, vgSummary, VgKind, VG_KINDS } from './anlage-so-rules'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -16,30 +16,28 @@ import PDFDocument from 'pdfkit'
  *        German date format dd.mm.yyyy + German
  *        decimal with comma. Detects `type` from
  *        the description when the column is empty
- *        (BTC/ETH/... = "sonstige", AAPL/MSFT/... =
+ *        (BTC/ETH/... = "krypto", AAPL/MSFT/... =
  *        "wertpapier", else "sonstige"). Returns
  *        either a preview (previewOnly=true) or
  *        persists the parsed rows into
  *        Company.settings.anlageSO[year].transactions.
  *
- *   2. Full loss-verrechnung per § 23 Abs. 3
- *      Satz 3-5 EStG (BMF 2024):
+ *   2. The year's result by the rules of § 23 EStG
+ *      (anlage-so-rules.ts, `vgSummary`): each sale by
+ *      the period of its kind (land ten years, other
+ *      assets one; securities bought since 2009 are
+ *      capital income and not counted), the year's
+ *      losses set off against its gains, less the loss
+ *      carried forward from the year before:
  *
- *      inFristGain     = Σ max(0, salePrice - cost)
- *                        for sales within Frist
- *      inFristLoss     = Σ max(0, cost - salePrice)
- *                        for sales within Frist
+ *      inFristGain / inFristLoss  of the sales within
+ *                                 their period
  *      priorYearLoss   = settings.anlageSOLossCarryforward[year-1] || 0
  *      totalTaxableGain = max(0, inFristGain - inFristLoss - priorYearLoss)
  *      carryforward     = max(0, inFristLoss + priorYearLoss - inFristGain)
- *                        // next year's Lossvortrag
- *      freigrenzeApplied = totalTaxableGain <= 600
- *      vgTotal = 0 if freigrenzeApplied else totalTaxableGain
- *
- *      The 600-EUR Freigrenze is APPLIED AFTER loss
- *      offset — v1's "all-or-nothing" identity holds
- *      (taxableGain ≤ 600 → vgTotal = 0), just with a
- *      different "taxableGain" base.
+ *      vgTotal = 0 while totalTaxableGain is below the
+ *                Freigrenze of the year (1 000 EUR from
+ *                2024, 600 EUR before), else all of it
  *
  *   3. Auto-import from bank-transaction Expense
  *      rows. Reuses the `Expense.category` field
@@ -79,7 +77,7 @@ import PDFDocument from 'pdfkit'
  */
 
 export interface VgTransaction {
-  type: 'wertpapier' | 'sonstige'
+  type: VgKind // Tier 664: krypto | sonstige | grundstueck | wertpapier
   description: string
   acquisitionDate: string // ISO date YYYY-MM-DD
   acquisitionCost: number
@@ -103,10 +101,6 @@ export interface CsvImportResult {
 }
 
 // Tier 656: the limit depends on the year — anlage-so-rules.ts
-const SPEKULATIONSFRIST_YEARS: Record<string, number> = {
-  wertpapier: 1,
-  sonstige: 10,
-}
 
 // Heuristics for type auto-detection when the CSV
 // `type` column is empty. Crypto ticker symbols are
@@ -221,15 +215,17 @@ function parseDeDecimal(s: string): number | null {
  * crypto exchanges always tag rows with BTC/ETH
  * which we recognise above).
  */
-function detectType(description: string, explicit?: string): 'wertpapier' | 'sonstige' {
-  if (explicit === 'wertpapier' || explicit === 'sonstige') return explicit
+function detectType(description: string, explicit?: string): VgKind {
+  // Tier 664: four kinds; crypto is its own (it was filed as a security to
+  // get the one-year period), and what is neither a known security nor
+  // crypto is an "other asset" — one year, not ten.
+  if (VG_KINDS.includes(explicit as VgKind)) return explicit as VgKind
+  if (looksLikeCrypto(description)) return 'krypto'
   const tokens = (description || '').toUpperCase().match(/[A-Z0-9]{1,6}/g) || []
   for (const t of tokens) {
-    if (CRYPTO_TICKERS.has(t)) return 'wertpapier'
+    if (CRYPTO_TICKERS.has(t)) return 'krypto'
     if (SECURITY_TICKERS.has(t)) return 'wertpapier'
   }
-  // No recognised ticker — assume sonstige (10-year
-  // Frist, conservative).
   return 'sonstige'
 }
 
@@ -264,10 +260,7 @@ function parseCsvRow(
     warnings.push(`row ${rowIndex}: salePrice ungültig (${raw.saleprice})`)
   }
 
-  const type: 'wertpapier' | 'sonstige' =
-    explicitType === 'wertpapier' || explicitType === 'sonstige'
-      ? (explicitType as 'wertpapier' | 'sonstige')
-      : detectType(description)
+  const type: VgKind = detectType(description, explicitType)
 
   const ok = !!acqDate && !!saleDate && acqCost !== null && salePrice !== null
 
@@ -327,8 +320,7 @@ export class AnlageSOV2Service {
     const transactions: VgTransaction[] = rawTx
       .filter((t) => t && typeof t === 'object')
       .map((t: any) => {
-        const type: 'wertpapier' | 'sonstige' =
-          t.type === 'wertpapier' ? 'wertpapier' : 'sonstige'
+        const type = kindOf({ type: t.type, description: t.description }) // Tier 664
         return {
           type,
           description: String(t.description || '').trim(),
@@ -367,40 +359,18 @@ export class AnlageSOV2Service {
     const wiederkehrendeBezuege = Number(yearData.wiederkehrendeBezuege) || 0
     const werbungskosten = Number(yearData.werbungskosten) || 0
 
-    // v2: per-transaction gain + classify (in-Frist vs
-    // out-of-Frist, gain vs loss).
-    let inFristGain = 0
-    let inFristLoss = 0
-    let inFristCount = 0
-    let outOfFristCount = 0
-    let _inFristLossUsed = 0 // Tier 356: never read; the "remaining loss" stat it names is not emitted. Kept as evidence of intent. // for the "remaining loss" stat
-    for (const t of transactions) {
-      const gain = t.salePrice - t.acquisitionCost
-      const fristYears = SPEKULATIONSFRIST_YEARS[t.type] ?? 10
-      const held = yearsBetween(t.acquisitionDate, t.saleDate)
-      if (held < fristYears) {
-        inFristCount++
-        if (gain > 0) inFristGain += gain
-        else inFristLoss += -gain // positive magnitude
-      } else {
-        outOfFristCount++
-      }
-    }
-
-    // v2: totalTaxableGain = inFristGain - inFristLoss - priorYearLoss
-    const totalTaxableGain = Math.max(
-      0,
-      inFristGain - inFristLoss - priorYearLoss,
-    )
-    // carryforward = what's left of the loss when
-    // gains don't cover it (v2 writes this to
-    // Company.settings.anlageSOLossCarryforward[year]).
-    const carryforward = Math.max(
-      0,
-      inFristLoss + priorYearLoss - inFristGain,
-    )
+    // Tier 664: by the rules of § 23 (anlage-so-rules.ts) — each sale by its
+    // kind's period, securities bought since 2009 left to Anlage KAP, the
+    // year's losses and a loss carried forward set off, then the Freigrenze.
+    const sum = vgSummary(transactions, year, priorYearLoss)
+    const inFristGain = sum.gain
+    const inFristLoss = sum.loss
+    const inFristCount = sum.countTaxable
+    const outOfFristCount = sum.countFree
+    const totalTaxableGain = sum.net
+    const carryforward = sum.carryforward
     // Tier 656: less than the limit of the year (was: ≤ 600 for every year)
-    const freigrenzeApplied = afterFreigrenze(totalTaxableGain, year) === 0
+    const freigrenzeApplied = sum.taxable === 0
     const vgTotal = freigrenzeApplied ? 0 : totalTaxableGain
 
     // v2: persist the carryforward for next year (if
@@ -443,52 +413,34 @@ export class AnlageSOV2Service {
       {
         kennziffer: '32',
         label:
-          'Veräußerung von Wertpapieren (§ 23 Abs. 1 Nr. 2 EStG) — 1-Jahres-Spekulationsfrist',
-        amount: round2(
-          transactions
-            .filter(
-              (t) =>
-                t.type === 'wertpapier' &&
-                yearsBetween(t.acquisitionDate, t.saleDate) <
-                  (SPEKULATIONSFRIST_YEARS.wertpapier ?? 1),
-            )
-            .reduce((s, t) => s + Math.max(t.salePrice - t.acquisitionCost, 0), 0),
-        ),
+          'Wertpapiere, vor 2009 angeschafft (§ 23 Abs. 1 Nr. 2 EStG a. F.) — seit 2009 angeschaffte gehören in die Anlage KAP',
+        amount: sum.gainByKind.wertpapier,
         source: 'computed',
+        ...(sum.countKap > 0
+          ? { note: `${sum.countKap} Geschäft(e) mit seit 2009 angeschafften Wertpapieren sind hier nicht angesetzt — ihr Ergebnis (${this.fmtEur(sum.gainKap)} €) ist Kapitalertrag (§ 20 Abs. 2 EStG, Anlage KAP), unabhängig von der Haltedauer.` }
+          : {}),
       },
       {
         kennziffer: '34',
         label:
-          'Veräußerung von Kryptowährungen / Token (§ 23 Abs. 1 Nr. 2 EStG) — 1-Jahres-Spekulationsfrist (BMF 2024)',
-        amount: round2(
-          transactions
-            .filter(
-              (t) =>
-                t.type === 'wertpapier' &&
-                yearsBetween(t.acquisitionDate, t.saleDate) <
-                  (SPEKULATIONSFRIST_YEARS.wertpapier ?? 1),
-            )
-            .reduce((s, t) => s + Math.max(t.salePrice - t.acquisitionCost, 0), 0),
-        ),
+          'Veräußerung von Kryptowerten / Token (§ 23 Abs. 1 Nr. 2 EStG) — Frist ein Jahr',
+        amount: sum.gainByKind.krypto,
         source: 'computed',
-        note:
-          'Kryptowährungen werden vom BMF wie sonstige WG behandelt, fallen aber unter die 1-Jahres-Frist (§ 23 Abs. 1 Nr. 2 EStG analog).',
       },
       {
         kennziffer: '41',
         label:
-          'Veräußerung von sonstigen Wirtschaftsgütern (§ 23 Abs. 1 Nr. 1 EStG) — 10-Jahres-Spekulationsfrist',
-        amount: round2(
-          transactions
-            .filter(
-              (t) =>
-                t.type === 'sonstige' &&
-                yearsBetween(t.acquisitionDate, t.saleDate) <
-                  (SPEKULATIONSFRIST_YEARS.sonstige ?? 10),
-            )
-            .reduce((s, t) => s + Math.max(t.salePrice - t.acquisitionCost, 0), 0),
-        ),
+          'Veräußerung anderer Wirtschaftsgüter (§ 23 Abs. 1 Nr. 2 EStG) — Gold, Kunst, Schmuck, Uhren, Antiquitäten etc., Frist ein Jahr',
+        amount: sum.gainByKind.sonstige,
         source: 'computed',
+      },
+      {
+        kennziffer: '43',
+        label:
+          'Veräußerung von Grundstücken / Immobilien im Privatvermögen (§ 23 Abs. 1 Nr. 1 EStG) — Frist zehn Jahre',
+        amount: sum.gainByKind.grundstueck,
+        source: 'computed',
+        note: 'Ausgenommen ist das selbst bewohnte Haus (§ 23 Abs. 1 Nr. 1 Satz 3 EStG) — der Berater prüft das.',
       },
       {
         kennziffer: '20',
@@ -545,8 +497,12 @@ export class AnlageSOV2Service {
       werbungskosten,
       vg: {
         count: transactions.length,
-        countWertpapier: transactions.filter((t) => t.type === 'wertpapier').length,
-        countSonstige: transactions.filter((t) => t.type === 'sonstige').length,
+        countWertpapier: sum.countByKind.wertpapier,
+        countSonstige: sum.countByKind.sonstige,
+        countKrypto: sum.countByKind.krypto,
+        countGrundstueck: sum.countByKind.grundstueck,
+        countKap: sum.countKap,
+        gainKap: sum.gainKap,
         inFristCount,
         outOfFristCount,
         inFristGain: round2(inFristGain),
@@ -583,14 +539,11 @@ export class AnlageSOV2Service {
         'in das Folgejahr übernommen. Die Freigrenze (§ 23 ' +
         'Abs. 3 Satz 5 EStG) wird NACH Verlustverrechnung ' +
         'angewendet: unter 1.000 EUR (bis 2023: 600 EUR) steuerfrei, ab der Grenze in voller Höhe steuerpflichtig. ' +
-        'Spekulationsfrist: 1 Jahr für Wertpapiere (§ 23 Abs. 1 ' +
-        'Nr. 2 EStG, inkl. Kryptowährungen), 10 Jahre für ' +
-        'sonstige Wirtschaftsgüter (§ 23 Abs. 1 Nr. 1 EStG). ' +
-        'Achtung, noch nicht dem Gesetz entsprechend: diese Vorschau kennt nur die Arten „Wertpapier“ (Frist 1 Jahr) ' +
-        'und „Sonstige“ (Frist 10 Jahre). Nach § 23 Abs. 1 EStG gilt die Zehnjahresfrist nur für Grundstücke (Nr. 1), ' +
-        'für andere Wirtschaftsgüter — Gold, Kunst, Kryptowerte — ein Jahr (Nr. 2); Wertpapiere, die seit 2009 ' +
-        'angeschafft wurden, gehören gar nicht hierher, sondern in die Anlage KAP (§ 20 Abs. 2 EStG). ' +
-        'Der Berater prüft jedes Geschäft. ' +
+        'Grundstücke sind zehn Jahre nach der Anschaffung steuerverstrickt (§ 23 Abs. 1 Nr. 1 EStG), ' +
+        'andere Wirtschaftsgüter — Gold, Kunst, Kryptowerte — ein Jahr (Nr. 2). Wertpapiere, die seit 2009 ' +
+        'angeschafft wurden, gehören nicht hierher: ihr Ergebnis ist Kapitalertrag (§ 20 Abs. 2 EStG, Anlage KAP) ' +
+        'und wird hier nicht angesetzt. Nicht berücksichtigt: das selbst bewohnte Haus und die auf zehn Jahre ' +
+        'verlängerte Frist für Wirtschaftsgüter, die als Einkunftsquelle genutzt wurden — der Berater prüft das. ' +
         'Die Geschäfte lassen sich als CSV-Datei einlesen (Buchhaltung, Anlage SO).',
     }
   }
@@ -884,8 +837,7 @@ export class AnlageSOV2Service {
         skippedCount++
         continue
       }
-      const type: 'wertpapier' | 'sonstige' =
-        e.category === 'brokerage' ? 'wertpapier' : 'sonstige'
+      const type: VgKind = e.category === 'brokerage' ? 'wertpapier' : 'krypto' // Tier 664
       // For crypto (sonstige, 10-Jahr Frist), set
       // acquisitionDate = saleDate - 1 month so
       // the row is *within* Frist (the year is the
@@ -1057,10 +1009,12 @@ export class AnlageSOV2Service {
       for (const t of data.transactions) {
         const gain = t.salePrice - t.acquisitionCost
         const held = yearsBetween(t.acquisitionDate, t.saleDate)
-        const fristYears = SPEKULATIONSFRIST_YEARS[t.type] ?? 10
-        const inFrist = held < fristYears
+        const status = statusOf(t)
+        const fristYears = fristOf(t.type)
+        const inFrist = status === 'steuerpflichtig'
+        const KIND: Record<string, string> = { wertpapier: 'Wertpapier', krypto: 'Kryptowert', sonstige: 'Sonstiges', grundstueck: 'Grundstück' }
         doc.text(
-          `• [${t.type === 'wertpapier' ? 'Wertpapier' : 'Sonstige'}] ` +
+          `• [${KIND[t.type] || t.type}] ` +
             `${t.description || '(ohne Beschreibung)'} — ` +
             `Anschaffung ${t.acquisitionDate} (${this.fmtEur(t.acquisitionCost)} €) → ` +
             `Verkauf ${t.saleDate} (${this.fmtEur(t.salePrice)} €) = ` +

@@ -2656,6 +2656,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 664 — Anlage SO: the kinds of asset and their holding periods
+
+Tier 656 had corrected the limit and left a warning on the form that its kinds and periods were wrong. Read against § 23 Abs. 1 EStG (gesetze-im-internet.de) and rebuilt:
+
+- **Before:** two kinds. „Wertpapier“ with a period of one year — but securities bought since 2009 are not a private sale at all (§ 20 Abs. 2 EStG, capital income, Anlage KAP), and the form told people to file crypto under it. „Sonstige“ with a period of **ten** years, which is the period of land; for gold, art or crypto it is one year (Nr. 2). Gold sold after two years was taxed. The page and its PDF added the gains of the year and left its losses out (the adviser's package set them off — the two showed different amounts for the same year).
+- **Now** (`anlage-so-rules.ts`, one module for the page, the PDF and the adviser's package): four kinds — crypto and other assets (one year), land (ten years), securities (bought before 2009: the old rule; since 2009: shown, not counted, with a note on line 32 that names the amount and Anlage KAP). The day the period ends still counts („nicht mehr als“). The year's losses are set off against its gains, then the loss carried forward, then the Freigrenze. A row from before that says „wertpapier“ and names a crypto asset is read as crypto; nothing stored is rewritten.
+- `PUT /accounting/anlage-so/settings` normalised every kind it did not know to „sonstige“ — it knows the four now. The CSV import and the import from expenses file crypto as crypto.
+- Not done, and said on the form: the home one lives in (Nr. 1 Satz 3), the period of ten years for an asset used as a source of income, a loss carried **back**.
+
+Spec `394-tier664-anlage-so-arten-und-fristen.sh` (29 assertions, 12 of the first 12 fail on the code before — the rules did not exist); specs 135 and 138 enter crypto as crypto. Seven texts added to both tax-form dictionaries (415 entries). `frontend/e2e/anlage-so.spec.ts` cannot be run here (it addresses :3001); it looks at test ids that did not change.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 663 — a test that failed because httpbin.org was down
 
 CI run 38253383946 (Tier 658) was red: backend 389 passed / 1 skipped, Playwright 1053 passed and **2 failed** — both in `webhook-last-success-tier199.spec.ts`, which creates a webhook to `https://httpbin.org/status/200` and expects the delivery to succeed. httpbin.org did not answer (checked from here at the same time: no answer in 15 s; httpbingo.org and postman-echo.com answered 200). Nothing of Tier 658 is involved.
@@ -9222,7 +9233,7 @@ frontend's build arg, and the frontend image refuses to build without it.
 
 25. **For the Steuerberater and the owner, from the reconciliations of 10.10.2026 (Tiers 638–641).**
     - **Foreign currency (Tier 652):** invoices are converted at the ECB reference rate of the invoice's day. § 16 Abs. 6 UStG names the monthly average rates the BMF publishes; the daily rate needs the tax office's consent. Daily rate (as built), or the monthly average entered by hand on each invoice — or should the program fetch the monthly average?
-    - **The annexes of a person's return (Tiers 655–656):** Anlage R and the limit of Anlage SO were corrected against the statute. Anlage SO's kinds of asset and holding periods are still wrong (it says so itself) and need a new data model; Anlage N, Kind, AUS, KAP and V were not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
+    - **The annexes of a person's return (Tiers 655–656, 664):** Anlage R and Anlage SO (limit: Tier 656; kinds of asset, holding periods, losses: Tier 664) were corrected against the statute. Anlage SO leaves out the home one lives in, the ten-year period for assets used as a source of income and a loss carry-back, and says so. Anlage N, Kind, AUS, KAP and V were not read against the law line by line. For a GmbH none of them is filed. Rebuild them properly — or take them out of the product until someone needs them?
     - **OSS:** (whether the company takes part is a setting since Tier 649.) Still for the Steuerberater: is the net of OSS sales to be shown in a Kennzahl of the UStVA? It is in none now.
     - **Dunning:** interest is charged on what is open today for the whole time since the due date; a part paid late bears none. Less than § 288 BGB allows, never more — intended?
     - **Dunning fees:** the defaults are 5 € / 5 € / 10 € from the first reminder on (Tier 164). Whether a fee may be charged for the reminder that itself puts the customer in default is the owner's to decide with a lawyer.

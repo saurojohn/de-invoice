@@ -3426,17 +3426,17 @@
   },
   "anlageSo": {
     "title": "Anlage SO (Other Income)",
-    "subtitle": "Other income (§ 22 EStG) — private Veräußerungsgeschäfte (crypto / gold / stocks within the Spekulationsfrist) + wiederkehrende Bezüge (private pensions, maintenance). Freigrenze for Veräußerungsgewinne: tax-free below €1,000 a year (€600 up to 2023), taxable in full from the limit on (§ 23 Abs. 3 sentence 5 EStG).",
+    "subtitle": "Other income (§ 22 EStG) — private Veräußerungsgeschäfte (crypto assets, gold and other assets within one year, real estate within ten years; shares bought since 2009 belong on Anlage KAP) + wiederkehrende Bezüge (private pensions, maintenance). Freigrenze for Veräußerungsgewinne: tax-free below €1,000 a year (€600 up to 2023), taxable in full from the limit on (§ 23 Abs. 3 sentence 5 EStG).",
     "year": "Fiscal year",
     "recompute": "Recompute",
     "downloadPdf": "Download PDF",
     "transactions": "Private Veräußerungsgeschäfte (§ 23 EStG)",
-    "transactionsHint": "Each sale within the Spekulationsfrist (1 year for securities / 10 years for other assets) is income-tax-liable. Sales outside the Frist are tax-free.",
+    "transactionsHint": "A sale is taxable within its period: one year for crypto assets and other assets, ten years for real estate (§ 23 Abs. 1 EStG). After that it is tax-free. Securities bought since 2009 belong on Anlage KAP and are not counted here.",
     "addTransaction": "Add transaction",
     "removeTransaction": "Remove",
     "type": "Type",
-    "wertpapier": "Securities (1 year Frist)",
-    "sonstige": "Other WG (10 years Frist)",
+    "wertpapier": "Security (since 2009: Anlage KAP, not counted here)",
+    "sonstige": "Other asset — gold, art … (period 1 year)",
     "description": "Description",
     "acquisitionDate": "Acquisition date",
     "acquisitionCost": "Acquisition cost (€)",
@@ -3489,7 +3489,9 @@
       "lossCarryforwardApplied": "Freigrenze applied (total gain below the limit)",
       "lossCarryforwardNotApplied": "Freigrenze exceeded",
       "lossCarryforwardKz99": "Kz 99 (loss carryforward) in BMF form"
-    }
+    },
+    "krypto": "Crypto asset (period 1 year)",
+    "grundstueck": "Land / real estate (period 10 years)"
   },
   "anlageAus": {
     "title": "Anlage AUS (Foreign Income)",
