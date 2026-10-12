@@ -89,8 +89,9 @@ export class CostCenterController {
     // dashboard-v2 but no YTD shortcut (we need monthly
     // resolution in the JS step).
     const [invRows, expRows] = await Promise.all([
-      this.prisma.invoice.groupBy({
-        by: ['costCenter'],
+      // Tier 658: the invoices themselves, folded below in euros — the GROUP
+      // BY summed `total`, the amount in each invoice's own currency.
+      this.prisma.invoice.findMany({
         where: {
           companyId,
           issueDate: { gte: yearStart, lt: yearEnd },
@@ -98,8 +99,19 @@ export class CostCenterController {
           status: { in: ISSUED_STATUSES },
           type: { in: SALES_TYPES },
         },
-        _sum: { total: true, totalVat: true },
-        _count: { _all: true },
+        select: { costCenter: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
+      }).then((rows) => {
+        const by = new Map<string | null, { total: number; totalVat: number; n: number }>()
+        for (const r of rows) {
+          const v = by.get(r.costCenter) ?? { total: 0, totalVat: 0, n: 0 }
+          v.total += Number(r.eurTotal ?? r.total ?? 0); v.totalVat += Number(r.eurTotalVat ?? r.totalVat ?? 0); v.n++
+          by.set(r.costCenter, v)
+        }
+        return [...by.entries()].map(([costCenter, v]) => ({
+          costCenter,
+          _sum: { total: Math.round(v.total * 100) / 100, totalVat: Math.round(v.totalVat * 100) / 100 },
+          _count: { _all: v.n },
+        }))
       }),
       this.prisma.expense.groupBy({
         by: ['costCenter'],
@@ -137,6 +149,8 @@ export class CostCenterController {
         select: {
           costCenter: true,
           total: true,
+          eurTotal: true,
+          eurTotalVat: true,
           issueDate: true,
         },
       }),
@@ -215,7 +229,7 @@ export class CostCenterController {
       // Tier 245: Decimal累加 — preserve 4-decimal precision
       // on per-month cost-center totals.
       row.monthly[m] = new Prisma.Decimal(row.monthly[m])
-        .plus(new Prisma.Decimal(inv.total ?? 0))
+        .plus(new Prisma.Decimal(inv.eurTotal ?? inv.total ?? 0).toDecimalPlaces(2))
         .toNumber()
     }
     for (const exp of expMonth) {
@@ -338,6 +352,8 @@ export class CostCenterController {
         select: {
           costCenter: true,
           total: true,
+          eurTotal: true,
+          eurTotalVat: true,
           totalVat: true,
         },
       }),
@@ -391,10 +407,10 @@ export class CostCenterController {
       const r = getRow(labelFor(inv.costCenter))
       // Tier 245: Decimal累加 (revenue / ust sums)
       r.revenue = new Prisma.Decimal(r.revenue)
-        .plus(new Prisma.Decimal(inv.total ?? 0))
+        .plus(new Prisma.Decimal(inv.eurTotal ?? inv.total ?? 0).toDecimalPlaces(2))
         .toNumber()
       r.ust = new Prisma.Decimal(r.ust)
-        .plus(new Prisma.Decimal(inv.totalVat ?? 0))
+        .plus(new Prisma.Decimal(inv.eurTotalVat ?? inv.totalVat ?? 0).toDecimalPlaces(2))
         .toNumber()
       r.invoiceCount += 1
     }
@@ -547,6 +563,8 @@ export class CostCenterController {
           issueDate: true,
           dueDate: true,
           total: true,
+          eurTotal: true,
+          eurTotalVat: true,
           totalVat: true,
           currency: true,
           customerName: true,
@@ -929,7 +947,7 @@ export class CostCenterController {
           status: { in: ISSUED_STATUSES },
           type: { in: SALES_TYPES },
         },
-        select: { costCenter: true, total: true, issueDate: true },
+        select: { costCenter: true, total: true, eurTotal: true, issueDate: true },
       }),
       this.prisma.expense.findMany({
         where: {
@@ -996,7 +1014,7 @@ export class CostCenterController {
       const r = getRow(labelFor(inv.costCenter), inv.costCenter)
       // Tier 245: Decimal累加 (per-month actual)
       r.actual[m] = new Prisma.Decimal(r.actual[m])
-        .plus(new Prisma.Decimal(inv.total ?? 0))
+        .plus(new Prisma.Decimal(inv.eurTotal ?? inv.total ?? 0).toDecimalPlaces(2))
         .toNumber()
     }
     for (const exp of expMonth) {

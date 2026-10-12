@@ -31,6 +31,7 @@ import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 
 import { Auth, Require } from '../../auth/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { invoiceEurFactor } from '../invoice/tax-breakdown';
 import { AgingService } from './aging.service';
 import { ISSUED_STATUSES, SALES_TYPES, CLAIM_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
 
@@ -87,7 +88,8 @@ export class DashboardController {
           status: { in: ISSUED_STATUSES },
           type: { in: SALES_TYPES },
         },
-        select: { issueDate: true, total: true, totalVat: true },
+        // Tier 658: with the euros the invoice was booked at
+        select: { issueDate: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
       }),
       this.prisma.expense.findMany({
         where: { companyId, invoiceDate: { gte: spanStart, lte: todayEnd }, ...NOT_AFA_BOOKING },
@@ -99,7 +101,10 @@ export class DashboardController {
       let total = 0, vat = 0, count = 0
       for (const r of invRows) {
         if (r.issueDate < start || r.issueDate > end) continue
-        total += cents(r.total); vat += cents(r.totalVat); count++
+        // Tier 658: in euros — 11 900 USD and 1 190 EUR were shown as 13 090 € of
+        // revenue (they are 12 157,74 €). A row from before the EUR amounts
+        // were stored is an EUR invoice.
+        total += cents(r.eurTotal ?? r.total); vat += cents(r.eurTotalVat ?? r.totalVat); count++
       }
       return { revenue: total / 100, ust: vat / 100, count }
     }
@@ -119,12 +124,13 @@ export class DashboardController {
     // so a part-paid invoice was shown as fully open.
     const openRecvInvoices = await this.prisma.invoice.findMany({
       where: { companyId, status: { in: ['sent', 'overdue'] }, type: { in: CLAIM_TYPES } },
-      select: { total: true, payments: { select: { amount: true } } },
+      select: { total: true, eurTotal: true, payments: { select: { amount: true } } },
     })
     const openReceivables = openRecvInvoices.reduce((s, inv) => {
       const paid = inv.payments.reduce((p, x) => p + Number(x.amount ?? 0), 0)
-      const open = Number(inv.total) - paid
-      return open > 0 ? s + open : s
+      // Tier 658: what is open, in euros at the invoice's rate
+      const open = Math.round((Number(inv.total) - paid) * invoiceEurFactor({ ...inv, totalVat: 0 }) * 100) / 100
+      return open > 0 ? Math.round((s + open) * 100) / 100 : s
     }, 0)
     const ytdInv = aggregateInvoices(yearStart, todayEnd)
     const ytdExp = aggregateExpenses(yearStart, todayEnd)
@@ -225,21 +231,18 @@ export class DashboardController {
 
     // Run the four expensive queries in parallel.
     // Each is bounded by the underlying SQL — no N+1.
-    const [kpis, aging, topCustomers, recent, invByCc, expByCc] =
+    const [kpis, aging, ytdInvoices, recent, expByCc] =
       await Promise.all([
         // Reuse the legacy aggregator via a private call
         // (avoid HTTP self-fetch latency + auth loops).
         this.getDashboardKpis(companyId),
         this.agingService.generate(companyId),
-        // Top 5 customers by YTD revenue. Single SQL —
-        // GROUP BY customer, ORDER BY sum DESC, LIMIT 5.
-        this.prisma.invoice.groupBy({
-          by: ['customerId'],
+        // Tier 658: the year's invoices, added up below in euros. Two GROUP BYs
+        // summed `total` — the amount in the invoice's own currency — so a
+        // customer invoiced in USD led the list with dollars counted as euros.
+        this.prisma.invoice.findMany({
           where: { companyId, issueDate: { gte: yearStart }, status: { in: ISSUED_STATUSES }, type: { in: SALES_TYPES } },
-          _sum: { total: true },
-          _count: { _all: true },
-          orderBy: { _sum: { total: 'desc' } },
-          take: 5,
+          select: { customerId: true, costCenter: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
         }),
         // Last 5 invoices. Sorted by createdAt desc —
         // matches the activity feed ordering.
@@ -250,22 +253,6 @@ export class DashboardController {
           include: {
             customer: { select: { name: true, customerNumber: true } },
           },
-        }),
-        // Tier 38: cost-center breakdown on invoices YTD.
-        // Group by costCenter (a string column); null buckets
-        // become "Nicht zugewiesen" in the pie chart legend.
-        // We sum total + totalVat separately so the breakdown
-        // matches what gets exported to DATEV columns 12/13.
-        this.prisma.invoice.groupBy({
-          by: ['costCenter'],
-          where: {
-            companyId,
-            issueDate: { gte: yearStart },
-            status: { in: ISSUED_STATUSES },
-            type: { in: SALES_TYPES },
-          },
-          _sum: { total: true, totalVat: true },
-          _count: { _all: true },
         }),
         // Same idea on the Expense side (Eingangsrechnungen).
         // We only count "booked" expenses — drafts and blocked
@@ -287,6 +274,28 @@ export class DashboardController {
     // Two roundtrips total (groupBy + this one). Most
     // companies have < 50 customers so a single
     // findMany is fine.
+    // Top 5 customers by YTD revenue, and the invoices by cost centre — in
+    // the shape the two GROUP BYs had.
+    const byCustomer = new Map<string, { total: number; count: number }>()
+    const byCc = new Map<string | null, { total: number; totalVat: number; count: number }>()
+    for (const inv of ytdInvoices) {
+      const total = Number(inv.eurTotal ?? inv.total ?? 0)
+      const vat = Number(inv.eurTotalVat ?? inv.totalVat ?? 0)
+      const c = byCustomer.get(inv.customerId) ?? { total: 0, count: 0 }
+      c.total += total; c.count++; byCustomer.set(inv.customerId, c)
+      const k = byCc.get(inv.costCenter) ?? { total: 0, totalVat: 0, count: 0 }
+      k.total += total; k.totalVat += vat; k.count++; byCc.set(inv.costCenter, k)
+    }
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const topCustomers = [...byCustomer.entries()]
+      .map(([customerId, v]) => ({ customerId, _sum: { total: r2(v.total) }, _count: { _all: v.count } }))
+      .sort((a, b) => b._sum.total - a._sum.total)
+      .slice(0, 5)
+    const invByCc = [...byCc.entries()].map(([costCenter, v]) => ({
+      costCenter,
+      _sum: { total: r2(v.total), totalVat: r2(v.totalVat) },
+      _count: { _all: v.count },
+    }))
     const customerIds = topCustomers.map((r) => r.customerId)
     const customers = customerIds.length
       ? await this.prisma.customer.findMany({

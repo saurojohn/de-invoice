@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
-import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
+import { invoiceTaxBreakdown, invoiceEurFactor } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
+
+// Tier 658: an invoice's amounts in euros (the amounts stored when it was
+// written; a row from before they were stored is an EUR invoice).
+const r2 = (n: number): number => Math.round(n * 100) / 100
+const eurTotalOf = (inv: { total: unknown; eurTotal?: unknown }): number => Number(inv.eurTotal ?? inv.total ?? 0)
+const eurVatOf = (inv: { totalVat: unknown; eurTotalVat?: unknown }): number => Number(inv.eurTotalVat ?? inv.totalVat ?? 0)
 
 export interface SalesReportParams {
   companyId: string;
@@ -105,14 +111,17 @@ export class ReportsService {
     // Calculate total sales
     // Tier 411: net after the invoice discount (was subtotal, before it). The
     // rest of this report stays in the invoice currency, and so does this.
-    const totalSales = invoices.reduce(
-      (sum, inv) => sum + Number(inv.total) - Number(inv.totalVat),
+    // Tier 658: every sum of this report in euros, at the rate each invoice
+    // was booked at. They added `total` — the amount in the invoice's own
+    // currency: 11 900 USD and 1 190 EUR were 13 090 "€" of sales.
+    const totalSales = r2(invoices.reduce(
+      (sum, inv) => sum + eurTotalOf(inv) - eurVatOf(inv),
       0,
-    );
-    const totalVat = invoices.reduce(
-      (sum, inv) => sum + Number(inv.totalVat),
+    ));
+    const totalVat = r2(invoices.reduce(
+      (sum, inv) => sum + eurVatOf(inv),
       0,
-    );
+    ));
 
     // Group by customer
     const customerMap = new Map<
@@ -122,13 +131,13 @@ export class ReportsService {
     for (const inv of invoices) {
       const existing = customerMap.get(inv.customerId);
       if (existing) {
-        existing.totalAmount += Number(inv.total);
+        existing.totalAmount = r2(existing.totalAmount + eurTotalOf(inv));
         existing.invoiceCount += 1;
       } else {
         customerMap.set(inv.customerId, {
           customerId: inv.customerId,
           customerName: inv.customer.name,
-          totalAmount: Number(inv.total),
+          totalAmount: eurTotalOf(inv),
           invoiceCount: 1,
         });
       }
@@ -146,12 +155,12 @@ export class ReportsService {
       const monthKey = new Date(inv.issueDate).toISOString().slice(0, 7); // YYYY-MM
       const existing = monthMap.get(monthKey);
       if (existing) {
-        existing.totalAmount += Number(inv.total);
+        existing.totalAmount = r2(existing.totalAmount + eurTotalOf(inv));
         existing.invoiceCount += 1;
       } else {
         monthMap.set(monthKey, {
           month: monthKey,
-          totalAmount: Number(inv.total),
+          totalAmount: eurTotalOf(inv),
           invoiceCount: 1,
         });
       }
@@ -167,35 +176,12 @@ export class ReportsService {
       const yearStart = new Date(year, 0, 1);
       const yearEnd = new Date(year, 11, 31);
 
-      const yearInvoices = await this.prisma.invoice.aggregate({
-        where: {
-          companyId,
-          issueDate: { gte: yearStart, lte: yearEnd },
-          status: { in: ['paid', 'sent', 'overdue'] },
-        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
-        },
-        _sum: { total: true },
-        _count: true,
-      });
-
-      const totalAmount = Number(yearInvoices._sum.total || 0);
+      const totalAmount = await this.eurSalesBetween(companyId, yearStart, yearEnd);
 
       // Calculate growth compared to previous year
       let growthPercent: number | null = null;
       if (year > startYear) {
-        const prevYearInvoices = await this.prisma.invoice.aggregate({
-          where: {
-            companyId,
-            issueDate: {
-              gte: new Date(year - 1, 0, 1),
-              lte: new Date(year - 1, 11, 31),
-            },
-            status: { in: ['paid', 'sent', 'overdue'] },
-        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
-          },
-          _sum: { total: true },
-        });
-        const prevTotal = Number(prevYearInvoices._sum.total || 0);
+        const prevTotal = await this.eurSalesBetween(companyId, new Date(year - 1, 0, 1), new Date(year - 1, 11, 31));
         if (prevTotal > 0) {
           growthPercent = ((totalAmount - prevTotal) / prevTotal) * 100;
         }
@@ -211,6 +197,20 @@ export class ReportsService {
       byMonth,
       yearOverYear,
     };
+  }
+
+  /** Tier 658: the gross sales of a period in euros. */
+  private async eurSalesBetween(companyId: string, from: Date, to: Date): Promise<number> {
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        issueDate: { gte: from, lte: to },
+        status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: SALES_TYPES }, // Tier 424: not a Proforma
+      },
+      select: { total: true, eurTotal: true },
+    });
+    return r2(rows.reduce((sum, inv) => sum + eurTotalOf(inv), 0));
   }
 
   async getVatReport(params: VatReportParams): Promise<VatReportResult> {
@@ -253,7 +253,10 @@ export class ReportsService {
 
     for (const inv of invoices) {
       // Tier 409: per rate, after the invoice discount (see tax-breakdown.ts).
-      for (const bucket of invoiceTaxBreakdown(inv).byRate) {
+      // Tier 658: the buckets are in the invoice's currency
+      const f = invoiceEurFactor(inv);
+      for (const raw of invoiceTaxBreakdown(inv).byRate) {
+        const bucket = { rate: raw.rate, net: raw.net * f, vat: raw.vat * f };
         const rate = bucket.rate;
         const existing = rateMap.get(rate);
         if (existing) {
@@ -273,11 +276,14 @@ export class ReportsService {
       }
     }
 
-    const byRate = Array.from(rateMap.values()).sort((a, b) => b.vatRate - a.vatRate);
+    const byRate = Array.from(rateMap.values())
+      .map((r) => ({ ...r, netAmount: r2(r.netAmount), vatAmount: r2(r.vatAmount), grossAmount: r2(r.netAmount) + r2(r.vatAmount) }))
+      .map((r) => ({ ...r, grossAmount: r2(r.grossAmount) }))
+      .sort((a, b) => b.vatRate - a.vatRate);
 
-    const totalNet = byRate.reduce((sum, r) => sum + r.netAmount, 0);
-    const totalVat = byRate.reduce((sum, r) => sum + r.vatAmount, 0);
-    const totalGross = byRate.reduce((sum, r) => sum + r.grossAmount, 0);
+    const totalNet = r2(byRate.reduce((sum, r) => sum + r.netAmount, 0));
+    const totalVat = r2(byRate.reduce((sum, r) => sum + r.vatAmount, 0));
+    const totalGross = r2(byRate.reduce((sum, r) => sum + r.grossAmount, 0));
 
     return {
       byRate,
@@ -324,8 +330,11 @@ export class ReportsService {
     const sums = new Map<string, { total: Prisma.Decimal; paid: Prisma.Decimal; pending: Prisma.Decimal; overdue: Prisma.Decimal }>();
 
     for (const inv of invoices) {
-      const total = new Prisma.Decimal(inv.total ?? 0);
-      const received = inv.payments.reduce((sum, p) => sum.plus(new Prisma.Decimal(p.amount ?? 0)), zero);
+      // Tier 658: in euros at the invoice's rate — what was invoiced, what of
+      // it is paid and what is open
+      const f = new Prisma.Decimal(invoiceEurFactor(inv));
+      const total = new Prisma.Decimal(inv.total ?? 0).times(f);
+      const received = inv.payments.reduce((sum, p) => sum.plus(new Prisma.Decimal(p.amount ?? 0)), zero).times(f);
       // what is still owed: nothing on a paid invoice, else the rest
       const open = inv.status === 'paid' ? zero : total.minus(received);
       if (!customerMap.has(inv.customerId)) {

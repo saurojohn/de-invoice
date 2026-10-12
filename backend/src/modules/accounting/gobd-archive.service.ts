@@ -247,7 +247,7 @@ export class GobdArchiveService {
   async getSummary(companyId: string, year: number): Promise<GobdArchiveSummary> {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
-    const [invoices, expenses, auditCount, totalRev, totalExp, totalVat, totalVs] =
+    const [invoices, expenses, auditCount, totalRev, totalExp, _totalVat, totalVs] =
       await Promise.all([
         this.prisma.invoice.findMany({
           where: {
@@ -285,6 +285,28 @@ export class GobdArchiveService {
           },
           // Tier 411: net revenue = total − totalVat (after the discount).
           _sum: { total: true, totalVat: true },
+        }).then(async (sum) => {
+          // Tier 658: in euros. An invoice in another currency was added by its
+          // own amount; the difference between that and its euros is taken off
+          // here (rows without EUR amounts are EUR invoices and add nothing).
+          const fx = await this.prisma.invoice.findMany({
+            where: {
+              companyId,
+              issueDate: { gte: yearStart, lte: yearEnd },
+              status: { in: ['paid', 'sent', 'overdue'] },
+              type: { in: SALES_TYPES },
+              NOT: { currency: 'EUR' },
+              eurTotal: { not: null },
+            },
+            select: { total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
+          })
+          let total = Number(sum._sum.total || 0)
+          let totalVat = Number(sum._sum.totalVat || 0)
+          for (const r of fx) {
+            total += Number(r.eurTotal) - Number(r.total)
+            totalVat += Number(r.eurTotalVat ?? r.totalVat) - Number(r.totalVat)
+          }
+          return { _sum: { total, totalVat } }
         }),
         this.prisma.expense.aggregate({
           where: {
@@ -318,7 +340,8 @@ export class GobdArchiveService {
     const totalRevenueNet =
       Number(totalRev._sum.total || 0) - Number(totalRev._sum.totalVat || 0)
     const totalExpenseNet = Number(totalExp._sum.netAmount || 0)
-    const totalVatVal = Number(totalVat._sum.totalVat || 0)
+    // (the same sum as in totalRev — one source for the VAT, in euros)
+    const totalVatVal = Number(totalRev._sum.totalVat || 0)
     const totalVsVal = Number(totalVs._sum.vatAmount || 0)
 
     const summary: GobdArchiveSummary = {

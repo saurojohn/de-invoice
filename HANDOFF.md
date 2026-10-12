@@ -2656,6 +2656,27 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 658 — the dashboard, the sales reports, the cost centres and the archive's summary are in euros
+
+Tier 653 had left this as „not walked through“. Walked through, with one invoice over 11 900 USD (10 967,74 € at the test rate) and one over 1 190 €, half of the first paid: every one of them added `Invoice.total`, the amount in the invoice's own currency.
+
+| | was | by hand |
+| --- | --- | --- |
+| dashboard: revenue / VAT / net of the year | 13 090 / 2 090 / 11 000 | 12 157,74 / 1 941,15 / 10 216,59 |
+| dashboard: open receivables | 7 140 | 6 673,87 |
+| `/reports/sales`: net, and gross by customer / month / year | 11 000, 13 090 | 10 216,59, 12 157,74 |
+| `/reports/vat` | 11 000 / 2 090 | 10 216,59 / 1 941,15 |
+| `/reports/customers`: invoiced / paid / open | 13 090 / 5 950 / 7 140 | 12 157,74 / 5 483,87 / 6 673,87 |
+| cost centres (year, month, budget), GoBD archive summary | the same | the same |
+
+They use the EUR amounts stored on the invoice now (a row from before those were stored is an EUR invoice). Three `GROUP BY … SUM(total)` became a fold over the rows — a database sum over `eurTotal` would drop the rows where it is NULL. What is open is converted at the invoice's rate, so that invoiced = paid + open holds; the euros that actually arrived for a payment are the exchange difference's business (Tier 540). The list of a cost centre's single invoices keeps each amount in its own currency and says which.
+
+Seen and not changed: a payment on a USD invoice is stored with `currency: "EUR"` (the column's default; nothing reads it); `/reports/dashboard-v2` takes „the year“ from the server's clock, not the German day.
+
+Spec `390-tier658-auswertungen-in-euro.sh` (19 assertions, 15 fail on the code before), the last of them the UStVA's Kz 81 — the same base and tax as the reports now show.
+
+**After a restart of this machine** (12.10.2026): Docker Desktop does not start by itself, `/private/tmp` is emptied — the assistant's scratch harness with it. `tmp-ci-pg` (the throwaway test database, port 55460) survives and is started with `docker start tmp-ci-pg`; the owner's `de-invoice-postgres` was left stopped, as found.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 657 — the tax previews in the language of the interface
 
 §9 item 24 („the accounting page — about 730 German words in the other languages“), done („都做“, 10.10.2026). Counted again with the page in Chinese: **1 228** German words, **1 163 of them from the backend** — the previews' line labels, the notes on lines and the closing texts are written in German by the services. 65 were the interface's own.
