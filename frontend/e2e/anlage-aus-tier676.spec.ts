@@ -55,7 +55,11 @@ test("a GmbH: interest is credited, a dividend is § 8b only with the holding ti
   // the holding is 10 % or more: § 8b — 5 % taxable, and the interest as before
   const holding = editor.getByTestId("anlage-aus-beteiligung")
   await expect(holding).toHaveCount(1)
+  // the page's loads have to be over: in development the section loads twice,
+  // and the second answer would put the stored rows back over the tick
+  await page.waitForLoadState("networkidle")
   await holding.check()
+  await expect(holding).toBeChecked()
   const saved = page.waitForResponse((r) => r.url().includes("/accounting/anlage-aus/settings") && r.request().method() === "PUT" && r.ok())
   await page.getByTestId("anlage-aus-save").click()
   await saved
