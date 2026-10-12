@@ -119,6 +119,14 @@ export interface KSt1Result {
 // only auto-applies the standard KSt + GewSt.
 // The Berater adds the company-
 // specific adjustments.
+/**
+ * Tier 678 — § 10d Abs. 2 EStG (through § 8 Abs. 1 KStG): a loss carried
+ * forward is deductible without limit up to 1 000 000 €, beyond that up to
+ * 70 % of the rest in the assessment periods 2024 to 2027 (§ 52 Abs. 18b
+ * EStG), 60 % before and after. The note said 60 % for every year.
+ */
+export const verlustProzent = (year: number): number => (year >= 2024 && year <= 2027 ? 70 : 60)
+
 const KORREKTUREN_LINES: Array<{
   kz: string
   label: string
@@ -142,7 +150,8 @@ const KORREKTUREN_LINES: Array<{
   {
     kz: '50',
     label: 'Verlustabzug (§ 8 Abs. 1 KStG) — Kürzung',
-    note: 'Nicht ausgeglichene Verluste (Vj. + Vor-Vj.) sind bis 1.000.000 EUR + 60% des übersteigenden ZvE abzugsfähig (Mindestbesteuerung). Vom Berater aus dem Verlustvortragsbescheid zu ergänzen.',
+    // the percentage of the year is put in by compute() — VERLUST_PROZENT
+    note: 'Vorgetragene Verluste sind bis 1.000.000 EUR unbeschränkt und darüber bis zu {prozent} % des übersteigenden Gesamtbetrags der Einkünfte abziehbar (Mindestbesteuerung, § 10d Abs. 2 EStG). Vom Berater aus dem Verlustfeststellungsbescheid zu ergänzen.',
   },
   {
     kz: '60',
@@ -284,7 +293,7 @@ export class KSt1Service {
           label: d.label,
           amount: 0,
           source: 'placeholder',
-          note: d.note,
+          note: d.note?.replace('{prozent}', String(verlustProzent(year))),
         })
 
     // ZvE = Jahresüberschuss + Σ Korrekturen (Tier 485: Kz 80 computed, the

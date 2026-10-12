@@ -205,4 +205,21 @@ HAS_HEBESATZ=$(python3 -c "import json,sys; d=json.load(sys.stdin); print('Hebes
 assert_eq "disclaimer mentions Hebesatz" "$HAS_HEBESATZ" "True"
 rm -f "$TMP"
 
+
+# ===== Tier 678: the loss deduction's limit of the year (§ 10d Abs. 2 EStG) =====
+# 1 000 000 EUR without limit, beyond that 70 % in the assessment periods
+# 2024 to 2027 (§ 52 Abs. 18b EStG), 60 % before and after. The note said
+# 60 % for every year.
+echo
+note "=== Tier 678: Verlustabzug — 70 % from 2024 to 2027, 60 % otherwise ==="
+for pair in 2023:60 2024:70 2027:70 2028:60; do
+  y=${pair%%:*}; pct=${pair##*:}
+  api_get "/api/v1/accounting/kst1?companyId=$COMPANY_ID&year=$y"
+  NOTE=$(echo "$BODY" | python3 -c "import json,sys; d=json.load(sys.stdin); print([l.get('note','') for l in d['corrections'] if l['kennziffer']=='50'][0])" 2>/dev/null)
+  case "$NOTE" in
+    *"bis zu $pct % des übersteigenden"*) pass "$y: $pct %" ;;
+    *) fail "$y: the note does not name $pct % — $NOTE" ;;
+  esac
+done
+
 summary

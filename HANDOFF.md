@@ -2656,6 +2656,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 678 — KSt 1: the loss deduction's limit of the year
+
+After the annexes of a person's return, the form of the owner's own legal form was read once more. Rates and method hold (15 % KSt, 5,5 % Soli on it without a threshold, the Gewerbeertrag rounded down to full 100 €, no Freibetrag, no § 35 EStG). One note did not: a loss carried forward was „bis 1.000.000 EUR + 60 %“ for every year — § 10d Abs. 2 EStG says 70 % for the assessment periods 2024 to 2027 (§ 52 Abs. 18b), 60 % before and after. `verlustProzent(year)`; the line is a placeholder for the adviser, so no figure changed. Four assertions added to spec 128 (all fail on the code before); one text in both tax-form dictionaries (452 entries).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 677 — the repayment of a loan is no expense
 
 Left open by Tier 673, then measured: an expense with the category „Darlehenstilgung“ (9 000 €) stood as a Betriebsausgabe in the EÜR, in Anlage S and in Anlage G, and it went with every other expense into the P&L reports, the cost-centre report and the DATEV export. Only a loan's interest is a cost (§ 4 Abs. 4, § 9 Abs. 1 Satz 3 Nr. 1 EStG).

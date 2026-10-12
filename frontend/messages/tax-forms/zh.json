@@ -413,6 +413,7 @@
  "Vom Rentner manuell einzutragen — abzugsfähig ab # % des Rentenbezugs (zumutbare Belastung).": "由领取人手工填写 — 超过养老金 {1} % 的部分可扣除（合理负担）。",
  "Vom Rentner manuell einzutragen — abzugsfähig als außergewöhnliche Belastung.": "由领取人手工填写 — 作为特殊负担扣除。",
  "Vom Rentner manuell einzutragen.": "由领取人手工填写。",
+ "Vorgetragene Verluste sind bis # EUR unbeschränkt und darüber bis zu # % des übersteigenden Gesamtbetrags der Einkünfte abziehbar (Mindestbesteuerung, § #d Abs. # EStG). Vom Berater aus dem Verlustfeststellungsbescheid zu ergänzen.": "结转的亏损在 {1} EUR 以内可无限额扣除，超出部分最多扣除剩余收入总额的 {2} %（最低征税，§ {3}d 第 {4} 款 EStG）。由税务师根据亏损确认通知补充。",
  "Vorratsbestand wird in de-invoice nicht erfasst.": "de-invoice 不记录存货。",
  "Vorsorgeaufwand — Basis-Rente / Rürup (Altersvorsorge, nicht Riester)": "养老保障支出 — 基础养老金 / Rürup（养老储蓄，非 Riester）",
  "Vorsteuerbeträge aus Leistungen im Sinne des § #b": "§ {1}b 所指服务的进项税",
