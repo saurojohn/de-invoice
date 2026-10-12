@@ -62,6 +62,7 @@ export function AnlageKAPSection() {
   tRef.current = t
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1)
   const yearField = useYearField(year, setYear)
+  const [together, setTogether] = useState(false)
   const [data, setData] = useState<AnlageKAPResult | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -77,6 +78,7 @@ export function AnlageKAPSection() {
         `/api/v1/accounting/anlage-kap?${params}`,
       )
       setData(result)
+      setTogether(result.sparerPauschbetrag?.zusammenveranlagung === true)
     } catch (e: any) {
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
       toastRef.current.error(msg)
@@ -91,6 +93,8 @@ export function AnlageKAPSection() {
 
   // Tier 670: spouses assessed together share twice the Sparer-Pauschbetrag
   const saveTogether = async (zusammenveranlagung: boolean) => {
+    // the box shows the choice at once; the figures follow when it is saved
+    setTogether(zusammenveranlagung)
     try {
       const companyId =
         typeof window !== "undefined" ? localStorage.getItem("companyId") : null
@@ -98,6 +102,7 @@ export function AnlageKAPSection() {
       await apiPut(`/api/v1/accounting/anlage-kap/settings?companyId=${companyId}`, { zusammenveranlagung })
       await load(year)
     } catch (e: any) {
+      setTogether(!zusammenveranlagung)
       const msg = e instanceof ApiError ? e.message : tRef.current("common.saveError")
       toastRef.current.error(msg)
     }
@@ -151,7 +156,7 @@ export function AnlageKAPSection() {
             <label className="flex items-center gap-2 text-sm pb-2">
               <input
                 type="checkbox"
-                checked={data?.sparerPauschbetrag?.zusammenveranlagung === true}
+                checked={together}
                 disabled={!data || loading}
                 onChange={(e) => saveTogether(e.target.checked)}
                 data-testid="anlage-kap-zusammen"

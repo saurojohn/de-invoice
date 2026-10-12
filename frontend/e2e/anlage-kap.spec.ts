@@ -124,7 +124,10 @@ test.describe("Anlage KAP — /dashboard/accounting", () => {
     expect(text).toMatch(/5\.5%/)
   })
 
-  test("Sparer-Pauschbetrag (7300) is 1000 EUR by default", async ({ page }) => {
+  // Tier 670: the row names the allowance of the year (1.000 EUR from 2023,
+  // 801 EUR before); its amount is what is applied — never more than the
+  // capital income, so 0,00 for a company without any.
+  test("Sparer-Pauschbetrag (7300) names the allowance of the year", async ({ page }) => {
     await injectAuth(page)
     await page.goto("/dashboard/accounting")
     await expect(
@@ -133,8 +136,7 @@ test.describe("Anlage KAP — /dashboard/accounting", () => {
     const row = page.getByTestId("anlage-kap-abz-7300")
     await expect(row).toBeVisible({ timeout: 10_000 })
     const text = (await row.textContent()) || ""
-    // The row should mention 1000 EUR
-    expect(text).toMatch(/1\.000,?00/)
+    expect(text).toMatch(/(1\.000|801) EUR, bei Zusammenveranlagung (2\.000|1\.602) EUR/)
   })
 
   test("PDF link uses full backend URL", async ({ page }) => {
