@@ -2656,6 +2656,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 674 — land is not depreciated
+
+Seen in Tier 673. An asset of the type „Grundstück“ could not be saved without a useful life and was depreciated over it like a machine: a plot of 100 000 € over 600 months, 2 000 € of AfA a year — in the asset list, in „AfA buchen“ (an expense in the EÜR and the P&L, off the balance sheet's book value) and in Anlage V's line for the building. „Grund und Boden“ does not wear out (§ 6 Abs. 1 Nr. 2 EStG; § 253 Abs. 3 HGB).
+
+Land has a useful life of 0: when it is saved (a value entered is dropped; a building still needs one; an asset changed from land to something else needs one), and in the computation whatever is stored (`afa.ts`, `isLand`) — so a row from before is not depreciated either. The page's own copy of the computation follows; the form disables the field for land and says why, and that the building on it is an asset of its own.
+
+Spec `401-tier674-grund-und-boden-ohne-afa.sh` (21 assertions, 16 fail on the code before); `assets-land-tier674.spec.ts`. Specs 109, 113, 115, 116, 118 fail here as before (the shared company's assets of earlier runs; they pass in CI).
+
+Not changed: land and building bought together have to be entered as two assets — the form says so, it does not split a purchase price.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 673 — Anlage V: a loan's repayment is no Werbungskosten, and each expense in its line
 
 Anlage V sorts the expenses by their category. Measured with a landlord's usual ones: „Darlehenstilgung“ (9 000 €) stood under Schuldzinsen — the repayment of a loan is no expense at all, only its interest is (§ 9 Abs. 1 Satz 3 Nr. 1 EStG) — and „Hausverwaltung“, „Hausmeister“ and „Gebäudereinigung“ stood under building **insurance**, whose line took whatever began with „Haus“ or „Gebäude“ and came first. 15 830 € of Werbungskosten where 6 830 € are.
@@ -2667,7 +2677,7 @@ Anlage V sorts the expenses by their category. Measured with a landlord's usual 
 
 Spec `400-tier673-anlage-v-tilgung-und-zeilen.sh` (14 assertions, 11 fail on the code before); `anlage-v-tier673.spec.ts`; five texts added to both tax-form dictionaries (445 entries). Spec 118 fails here as before (one of the specs that pass in CI only).
 
-Seen and next: the assets module depreciates an asset of the type „Grundstück“ like any other — land does not wear out. And the EÜR counts every paid expense, a loan's repayment entered as one too.
+Seen: the assets module depreciated an asset of the type „Grundstück“ like any other (Tier 674). And the EÜR counts every paid expense, a loan's repayment entered as one too — open.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 672 — Anlage Kind read against §§ 31, 32, 66 EStG
 

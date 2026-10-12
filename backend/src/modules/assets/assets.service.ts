@@ -7,7 +7,7 @@ import {
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
-import { computeAfaSummary } from './afa'
+import { computeAfaSummary, isLand } from './afa'
 import { assertNotFuture } from '../../common/business-date'
 import { assertBooksOpen } from '../reports/filed-period'
 
@@ -206,7 +206,8 @@ export class AssetsService {
         bezeichnung: dto.bezeichnung,
         anschaffungsDatum: dto.anschaffungsDatum,
         anschaffungsKosten: dto.anschaffungsKosten,
-        nutzungsdauerMonate: dto.nutzungsdauerMonate,
+        // Tier 674: land has no useful life
+        nutzungsdauerMonate: isLand(dto.type) ? 0 : dto.nutzungsdauerMonate,
         restwert: dto.restwert ?? 0,
         afaMethode: dto.afaMethode ?? 'linear',
         bilanzKonto: dto.bilanzKonto ?? DEFAULT_BILANZ_KONTO[dto.type as AssetType] ?? null,
@@ -228,7 +229,11 @@ export class AssetsService {
     if (dto.anschaffungsKosten !== undefined && dto.anschaffungsKosten <= 0) {
       throw new BadRequestException('Anschaffungskosten müssen > 0 sein')
     }
-    if (dto.nutzungsdauerMonate !== undefined && dto.nutzungsdauerMonate <= 0) {
+    // Tier 674: land has no useful life; everything else needs one — also an
+    // asset that was land and is given another type
+    const landAfter = isLand(dto.type ?? existing.type)
+    const lifeAfter = dto.nutzungsdauerMonate ?? existing.nutzungsdauerMonate
+    if (!landAfter && lifeAfter <= 0) {
       throw new BadRequestException('Nutzungsdauer muss > 0 Monate sein')
     }
     assertNotFuture(dto.anschaffungsDatum, 'Das Anschaffungsdatum')
@@ -243,9 +248,9 @@ export class AssetsService {
         ...(dto.anschaffungsKosten !== undefined && {
           anschaffungsKosten: dto.anschaffungsKosten,
         }),
-        ...(dto.nutzungsdauerMonate !== undefined && {
-          nutzungsdauerMonate: dto.nutzungsdauerMonate,
-        }),
+        ...(landAfter
+          ? { nutzungsdauerMonate: 0 }
+          : dto.nutzungsdauerMonate !== undefined && { nutzungsdauerMonate: dto.nutzungsdauerMonate }),
         ...(dto.restwert !== undefined && { restwert: dto.restwert }),
         ...(dto.afaMethode !== undefined && { afaMethode: dto.afaMethode }),
         ...(dto.bilanzKonto !== undefined && { bilanzKonto: dto.bilanzKonto }),
@@ -267,7 +272,7 @@ export class AssetsService {
     if (dto.anschaffungsKosten == null || dto.anschaffungsKosten <= 0) {
       throw new BadRequestException('Anschaffungskosten müssen > 0 sein')
     }
-    if (!dto.nutzungsdauerMonate || dto.nutzungsdauerMonate <= 0) {
+    if (!isLand(dto.type) && (!dto.nutzungsdauerMonate || dto.nutzungsdauerMonate <= 0)) {
       throw new BadRequestException('Nutzungsdauer muss > 0 Monate sein')
     }
     if (dto.restwert != null && dto.restwert < 0) {

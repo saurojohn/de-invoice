@@ -108,6 +108,7 @@
  "Name ist erforderlich": "A name is required",
  "Name, URL und mindestens ein Ereignis sind erforderlich.": "A name, a URL and at least one event are required.",
  "Netto-Summe": "Net total",
+ "Nutzungsdauer muss > 0 Monate sein": "The useful life must be more than 0 months",
  "Offener Betrag": "Open amount",
  "Offener Betrag (wie openAmount)": "Open amount (same as openAmount)",
  "PDF konnte nicht geladen werden": "The PDF could not be loaded",

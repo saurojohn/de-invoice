@@ -108,6 +108,7 @@
  "Name ist erforderlich": "必须填写名称",
  "Name, URL und mindestens ein Ereignis sind erforderlich.": "必须填写名称、URL，并至少选择一个事件。",
  "Netto-Summe": "净额合计",
+ "Nutzungsdauer muss > 0 Monate sein": "使用年限必须大于 0 个月",
  "Offener Betrag": "未付金额",
  "Offener Betrag (wie openAmount)": "未付金额（同 openAmount）",
  "PDF konnte nicht geladen werden": "无法加载 PDF",

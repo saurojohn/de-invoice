@@ -17,10 +17,21 @@
  * out the correction that stops January of the year being counted twice, so
  * in an asset's final year it charged one month less than the asset register
  * and the balance sheet did. This module is the only one now.
+ *
+ * Tier 674 — land does not wear out: no AfA on „Grund und Boden“ (§ 6 Abs. 1
+ * Nr. 2 EStG names it among the assets that are not depreciable; § 253
+ * Abs. 3 HGB depreciates only what is of limited use). An asset of the type
+ * „Grundstueck“ had to be given a useful life and was depreciated over it:
+ * a plot of 100 000 € over 600 months lost 2 000 € a year, and „AfA buchen“
+ * booked that as an expense. Its useful life is 0 here and when it is saved.
  */
+export const isLand = (type: string | null | undefined): boolean => type === 'Grundstueck'
+
 
 export interface AfaAsset {
   id?: string
+  /** the asset's type — land is not depreciated */
+  type?: string | null
   anschaffungsKosten: any
   restwert: any
   nutzungsdauerMonate: number
@@ -54,7 +65,7 @@ export function afaMonths(from: Date, to: Date): number {
 export function computeAfaSummary(asset: AfaAsset, snapshot: Date): AfaSummary {
   const ak = Number(asset.anschaffungsKosten)
   const restwert = Number(asset.restwert)
-  const nd = asset.nutzungsdauerMonate
+  const nd = isLand(asset.type) ? 0 : asset.nutzungsdauerMonate
   const depreciable = Math.max(0, ak - restwert)
   const monthlyAfA = nd > 0 ? depreciable / nd : 0
 

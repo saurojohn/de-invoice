@@ -282,6 +282,7 @@ export class AnlageVService {
       },
       select: {
         id: true,
+        type: true, // Tier 674: the land of a rented property is not depreciated
         anschaffungsKosten: true,
         restwert: true,
         nutzungsdauerMonate: true,
@@ -532,6 +533,7 @@ export class AnlageVService {
    */
   private computeAfaForYear(
     asset: {
+      type?: string | null
       anschaffungsKosten: any
       restwert: any
       nutzungsdauerMonate: number

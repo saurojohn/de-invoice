@@ -86,6 +86,8 @@ function fmtDate(s: string) {
  * AssetsService.computeAfA.
  */
 function computeAssetAfA(asset: {
+  // Tier 674: land is not depreciated (as backend/src/modules/assets/afa.ts)
+  type?: string
   anschaffungsKosten: number
   restwert: number
   nutzungsdauerMonate: number
@@ -94,7 +96,7 @@ function computeAssetAfA(asset: {
 }, snapshot: Date) {
   const ak = asset.anschaffungsKosten
   const restwert = asset.restwert
-  const nd = asset.nutzungsdauerMonate
+  const nd = asset.type === "Grundstueck" ? 0 : asset.nutzungsdauerMonate
   const depreciable = Math.max(0, ak - restwert)
   const monthlyAfA = nd > 0 ? depreciable / nd : 0
   const effectiveEnd = asset.verkauftAm && asset.verkauftAm <= snapshot ? asset.verkauftAm : snapshot
@@ -225,6 +227,7 @@ export default function AssetsPage() {
       const nd = a.nutzungsdauerMonate
       const afa = computeAssetAfA(
         {
+          type: a.type,
           anschaffungsKosten: ak,
           restwert,
           nutzungsdauerMonate: nd,
@@ -254,9 +257,11 @@ export default function AssetsPage() {
       setCreateError(L("Anschaffungskosten müssen > 0 sein"))
       return
     }
-    const nd = parseInt(draft.nutzungsdauerMonate, 10)
-    if (!nd || nd <= 0) {
-      setCreateError("Nutzungsdauer muss > 0 Monate sein")
+    // Tier 674: land has no useful life — it is not depreciated
+    const land = draft.type === "Grundstueck"
+    const nd = land ? 0 : parseInt(draft.nutzungsdauerMonate, 10)
+    if (!land && (!nd || nd <= 0)) {
+      setCreateError(L("Nutzungsdauer muss > 0 Monate sein"))
       return
     }
     setCreateSaving(true)
@@ -641,7 +646,7 @@ export default function AssetsPage() {
                             {fmtEur(Number(a.anschaffungsKosten))}
                           </td>
                           <td className="py-2 px-2 text-right font-mono text-xs">
-                            {a.nutzungsdauerMonate}
+                            {a.type === "Grundstueck" ? "—" : a.nutzungsdauerMonate}
                           </td>
                           <td className="py-2 px-2 text-right font-mono text-xs">
                             {fmtEur(s.accumulatedAfA)}
@@ -778,12 +783,18 @@ export default function AssetsPage() {
                 </label>
                 <input
                   type="number"
-                  value={draft.nutzungsdauerMonate}
+                  value={draft.type === "Grundstueck" ? "" : draft.nutzungsdauerMonate}
+                  disabled={draft.type === "Grundstueck"}
                   onChange={(e) => setDraft({ ...draft, nutzungsdauerMonate: e.target.value })}
-                  className="w-full border rounded px-2 py-1 text-sm text-right font-mono mt-1"
-                  placeholder="z.B. 60"
+                  className="w-full border rounded px-2 py-1 text-sm text-right font-mono mt-1 disabled:bg-gray-100 dark:disabled:bg-gray-700"
+                  placeholder={draft.type === "Grundstueck" ? "—" : "z.B. 60"}
                   data-testid="assets-draft-nd"
                 />
+                {draft.type === "Grundstueck" && (
+                  <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400" data-testid="assets-draft-land-hint">
+                    {t("assets.landNoAfa")}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">

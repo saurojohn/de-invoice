@@ -3135,7 +3135,8 @@
     "stornoAfaOk": "已取消 {count} 个 AfA 簿记, 合计: {total}",
     "stornoAfaConfirmTitle": "确认取消 AfA 簿记?",
     "stornoAfaConfirmHint": "将删除 {year} 年度所有 {count} 笔已簿记的 AfA 费用 (合计: {total})。操作将在审计日志中记录。",
-    "stornoAfaConfirmFootnote": "提示: 取消后, 簿记可以按年或按月模式重新执行。审计日志记录将永久保留。"
+    "stornoAfaConfirmFootnote": "提示: 取消后, 簿记可以按年或按月模式重新执行。审计日志记录将永久保留。",
+    "landNoAfa": "土地不会损耗，不计提折旧（§ 6 第 1 款 Nr. 2 EStG）。其上的建筑物请作为单独的资产登记。"
   },
   "anhang": {
     "title": "财务报表附注",
