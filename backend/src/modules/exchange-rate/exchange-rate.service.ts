@@ -75,7 +75,10 @@ const ECB_URL =
   process.env.ECB_API_URL ||
   'https://data-api.ecb.europa.eu/service/data/EXR/D.' +
     SUPPORTED_CURRENCIES.join('+') +
-    '.EUR.SP00.A?format=csvdata'
+    // Tier 661: the last few days only. Without it the answer is every rate
+    // since 1999 — 10,7 MB to keep one day of it (12 s without compression,
+    // more than this request's own timeout).
+    '.EUR.SP00.A?format=csvdata&lastNObservations=5'
 
 // Tier 652: one currency, the days up to a date — for the rate of an
 // invoice's own day. ECB_API_BASE replaces the address (a mirror, a test).

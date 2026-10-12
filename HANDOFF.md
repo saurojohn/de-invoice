@@ -2656,6 +2656,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 661 — the nightly exchange rates: the last days, not every rate since 1999
+
+Noted under Tier 652. The nightly request (and „Jetzt aktualisieren“) asked the ECB for the whole series of seven currencies — 10,7 MB, to keep its last day; 12,6 s without compression, more than the request's own 10 s timeout. `lastNObservations=5`: 7,9 kB, tried against the real service on 12.10.2026 (735 ms, rates of 09.10.). An assertion in spec 386 holds it.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 660 — the invoice says when it is due
 
 Noted under Tier 653 („an invoice … prints ‚Zahlbar binnen 14 Tagen‘ next to that other date's reminders“) as a quirk of the API. It is not: the PDF's payment line was the template's sentence on **every** invoice.

@@ -201,6 +201,11 @@ assert_eq "a rate by hand needs no ECB" "$(P man)" "95.5@manual"
 [[ "$(P down)" == "ERR 503"* ]] && pass "the ECB down and no rate of the day cached: 503, not 1 : 1" || fail "ECB down: $(P down)"
 assert_eq "EUR is 1" "$(P eur)" "1@eur"
 
+# Tier 661: the nightly request asks for the last few days, not for every
+# rate since 1999 (10,7 MB, read on 10.10.2026; 7,9 kB with the limit).
+grep -q "EUR.SP00.A?format=csvdata&lastNObservations=5'" "$SCRIPT_DIR/../src/modules/exchange-rate/exchange-rate.service.ts" \
+  && pass "the nightly request is limited to the last observations" || fail "the nightly request fetches the whole history"
+
 note "=== 7. the migration ==="
 grep -q 'ADD COLUMN "exchangeRateSource" TEXT' "$SCRIPT_DIR"/../prisma/migrations/*_invoice_exchange_rate_source/migration.sql \
   && pass "a migration adds Invoice.exchangeRateSource" || fail "no migration for exchangeRateSource"
