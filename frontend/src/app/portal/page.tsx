@@ -56,6 +56,8 @@ interface PortalInvoice {
 interface PortalSummary {
   totalOpen: number
   totalOverdue: number
+  // Tier 662: the three sums once per currency (EUR first)
+  byCurrency?: Array<{ currency: string; totalOpen: number; totalOverdue: number; totalPaid: number }>
   totalPaid: number
   currency: string
   invoiceCount: number
@@ -369,7 +371,10 @@ function PortalPageInner() {
               {t("portal.openBalance") || "Offener Saldo"}
             </p>
             <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-gray-100">
-              {fmtEur(summary.totalOpen, summary.currency)}
+              {/* Tier 662: once per currency */}
+              {(summary.byCurrency?.length ? summary.byCurrency : [summary]).map((c) => (
+                <span key={c.currency} className="block" data-testid={`portal-open-${c.currency}`}>{fmtEur(c.totalOpen, c.currency)}</span>
+              ))}
             </p>
             <p className="text-xs text-gray-400 mt-1">
               {summary.invoiceCount} {t("portal.invoices") || "Rechnungen"}
@@ -380,7 +385,9 @@ function PortalPageInner() {
               {t("portal.overdue") || "Überfällig"}
             </p>
             <p className={`text-2xl font-bold mt-1 ${summary.totalOverdue > 0 ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-gray-100"}`}>
-              {fmtEur(summary.totalOverdue, summary.currency)}
+              {(summary.byCurrency?.length ? summary.byCurrency : [summary]).map((c) => (
+                <span key={c.currency} className="block" data-testid={`portal-overdue-${c.currency}`}>{fmtEur(c.totalOverdue, c.currency)}</span>
+              ))}
             </p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -388,7 +395,9 @@ function PortalPageInner() {
               {t("portal.paidYTD") || "Bezahlt (Gesamt)"}
             </p>
             <p className="text-2xl font-bold mt-1 text-emerald-700 dark:text-emerald-400">
-              {fmtEur(summary.totalPaid, summary.currency)}
+              {(summary.byCurrency?.length ? summary.byCurrency : [summary]).map((c) => (
+                <span key={c.currency} className="block" data-testid={`portal-paid-${c.currency}`}>{fmtEur(c.totalPaid, c.currency)}</span>
+              ))}
             </p>
           </div>
         </div>

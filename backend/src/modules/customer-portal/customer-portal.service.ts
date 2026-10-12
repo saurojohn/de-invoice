@@ -57,7 +57,7 @@
  *     nightly job — not in this tier).
  */
 import { daysOverdue as daysOverdueOf } from '../reminder/days-overdue';
-import { NON_FISCAL_TYPES } from '../invoice/document-scope';
+import { NON_FISCAL_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { withCheckedVatId } from '../../common/vat-id';
 import { emailChanges, emailOfAnotherCustomer } from '../customer/customer-email';
 import { advanceDeductionFor } from '../invoice/advance';
@@ -84,6 +84,10 @@ import { generateInvoicePDF } from '../../invoices/invoice-pdf.service';
 import { MailService } from '../mail/mail.service';
 import { recordPaymentNotice } from '../invoice/payment-notice'
 
+/** Tier 662: an invoice's total less what was paid or credited on it. */
+const openOf = (inv: { total: unknown; payments: Array<{ amount: unknown }> }): number =>
+  Math.max(0, Math.round((Number(inv.total) - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)) * 100) / 100)
+
 const SESSION_TTL_DAYS = 30;
 const RATE_LIMIT_WINDOW_MIN = 5;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -94,6 +98,8 @@ export interface PortalInvoiceRow {
   issueDate: string;
   dueDate: string;
   total: string;
+  /** Tier 662: the total less what was paid or credited */
+  openAmount: string;
   currency: string;
   status: string;
   type: string;
@@ -126,6 +132,9 @@ export interface PortalCustomerSummary {
     totalPaid: number;
     currency: string;
     invoiceCount: number;
+    /** Tier 662: the three sums once per currency (EUR first); the fields
+     *  above are the first of them. */
+    byCurrency: Array<{ currency: string; totalOpen: number; totalOverdue: number; totalPaid: number }>;
   };
   session: {
     expiresAt: string;
@@ -329,6 +338,7 @@ export class CustomerPortalService {
         currency: true,
         status: true,
         type: true,
+        payments: { select: { amount: true, paymentMethod: true } },
         paymentNotices: {
           where: { status: 'open' },
           orderBy: { reportedAt: 'desc' },
@@ -367,7 +377,8 @@ export class CustomerPortalService {
         issueDate: inv.issueDate.toISOString(),
         dueDate: inv.dueDate ? inv.dueDate.toISOString() : '',
         total: inv.total.toString(),
-        currency: inv.currency,
+        openAmount: openOf(inv).toString(),
+        currency: String(inv.currency || 'EUR').toUpperCase(),
         status: inv.status,
         type: inv.type,
         daysOverdue,
@@ -380,25 +391,31 @@ export class CustomerPortalService {
       }
     })
 
-    const summary = {
-      totalOpen: 0,
-      totalOverdue: 0,
-      totalPaid: 0,
-      currency: invoices[0]?.currency || 'EUR',
-      invoiceCount: invoices.length,
-    }
-    for (const inv of invoices) {
-      const amount = Number(inv.total)
-      if (inv.status === 'paid') summary.totalPaid += amount
-      else {
-        summary.totalOpen += amount
-        if (inv.daysOverdue > 0) summary.totalOverdue += amount
-      }
-    }
-    // Round to 2dp
-    summary.totalOpen = Math.round(summary.totalOpen * 100) / 100
-    summary.totalOverdue = Math.round(summary.totalOverdue * 100) / 100
-    summary.totalPaid = Math.round(summary.totalPaid * 100) / 100
+    // Tier 662: what is open — the total less payments and credits — once per
+    // currency. The three tiles added the TOTALS of the invoices that were
+    // not marked paid (2 380 € "open" on an invoice of which 2 000 € were
+    // paid), counted a credit note as a negative invoice on top of the credit
+    // it had already booked on its invoice, and added every currency under
+    // the currency of the newest invoice.
+    const sums = new Map<string, { currency: string; totalOpen: number; totalOverdue: number; totalPaid: number }>()
+    rawInvoices.forEach((raw, i) => {
+      if (raw.type === 'CN') return
+      const row = invoices[i]
+      const cur = sums.get(row.currency) ?? { currency: row.currency, totalOpen: 0, totalOverdue: 0, totalPaid: 0 }
+      const open = raw.status === 'paid' || raw.status === 'cancelled' ? 0 : Number(row.openAmount)
+      cur.totalOpen += open
+      if (row.daysOverdue > 0) cur.totalOverdue += open
+      cur.totalPaid += raw.payments
+        .filter((p) => !NON_CASH_PAYMENT_METHODS.includes(p.paymentMethod as any))
+        .reduce((sum, p) => sum + Number(p.amount ?? 0), 0)
+      sums.set(row.currency, cur)
+    })
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    const byCurrency = [...sums.values()]
+      .map((c) => ({ currency: c.currency, totalOpen: r2(c.totalOpen), totalOverdue: r2(c.totalOverdue), totalPaid: r2(c.totalPaid) }))
+      .sort((x, y) => (x.currency === 'EUR' ? -1 : y.currency === 'EUR' ? 1 : x.currency.localeCompare(y.currency)))
+    const first = byCurrency[0] ?? { currency: 'EUR', totalOpen: 0, totalOverdue: 0, totalPaid: 0 }
+    const summary = { ...first, invoiceCount: invoices.length, byCurrency }
 
     return {
       customer: {

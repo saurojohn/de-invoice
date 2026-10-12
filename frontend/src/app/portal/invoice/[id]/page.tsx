@@ -378,7 +378,7 @@ function PortalInvoiceDetailInner() {
                     <td className="px-4 py-2">{fmtDate(p.paymentDate)}</td>
                     <td className="px-4 py-2">{p.paymentMethod}</td>
                     <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{p.reference || "—"}</td>
-                    <td className="px-4 py-2 text-right font-mono font-medium">{fmtEur(Number(p.amount), p.currency)}</td>
+                    <td className="px-4 py-2 text-right font-mono font-medium">{fmtEur(Number(p.amount), inv.currency)}</td>
                   </tr>
                 ))}
               </tbody>

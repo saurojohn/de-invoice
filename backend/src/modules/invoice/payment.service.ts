@@ -235,6 +235,10 @@ export class PaymentService {
         reference: data.reference,
         notes: data.notes,
         receiptNumber: data.receiptNumber,
+        // Tier 662: a payment is in the currency of its invoice. The column's
+        // default stood on every row — the customer portal showed the payments
+        // on a USD invoice in euros.
+        currency: String(invoice.currency || 'EUR').toUpperCase(),
         // Tier 540: only for an invoice in a foreign currency — for a EUR
         // invoice the amount is the EUR amount.
         eurAmount: eurAmount ?? null,
@@ -505,6 +509,7 @@ export class PaymentService {
     return this.prisma.payment.create({
       data: {
         invoiceId: proformaId,
+        currency: String((pi as any).currency || 'EUR').toUpperCase(), // Tier 662
         amount: -Math.round(data.amount * 100) / 100,
         paymentDate: new Date(data.paymentDate),
         paymentMethod: data.paymentMethod,

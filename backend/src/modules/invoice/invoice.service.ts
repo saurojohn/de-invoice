@@ -1879,7 +1879,7 @@ export class InvoiceService {
    */
   private async settleIssuedCreditNote(
     cn: { id: string; invoiceNumber: string; total: unknown },
-    original: { id: string; customerId: string; invoiceNumber: string; total: unknown; status: string; payments: Array<{ amount: unknown }> },
+    original: { id: string; customerId: string; invoiceNumber: string; total: unknown; status: string; currency?: string | null; payments: Array<{ amount: unknown }> },
     companyId: string,
   ) {
     const paid = original.payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
@@ -1889,6 +1889,7 @@ export class InvoiceService {
     await this.prisma.payment.create({
       data: {
         invoiceId: original.id,
+        currency: String(original.currency || 'EUR').toUpperCase(), // Tier 662
         amount: synthetic,
         paymentDate: businessTodayDate(),
         paymentMethod: 'Gutschrift',
@@ -2228,6 +2229,7 @@ export class InvoiceService {
       await tx.payment.create({
         data: {
           invoiceId: original.id,
+          currency: String(original.currency || 'EUR').toUpperCase(), // Tier 662
           amount: syntheticPayment,
           paymentDate: now,
           paymentMethod: 'Gutschrift',

@@ -2656,6 +2656,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 662 — the customer portal: what is open, per currency; a payment is in its invoice's currency
+
+Tier 653 had left the portal's own amounts unlooked-at, and Tier 658 had seen that a payment on a USD invoice is stored as „EUR“. Looked at:
+
+- **The three tiles** („Offener Saldo“, „Überfällig“, „Bezahlt“) added the **totals** of the invoices not marked paid: an invoice of 2 380 € of which 2 000 € were paid stood there with 2 380 € open — to the customer. A credit note counted as a negative invoice on top of the credit it had already booked on its invoice. And every currency was added under the currency of the newest invoice (15 280 „USD“ for 380 € + 1 000 € + 5 950 USD open). `summary.byCurrency` now: per currency what is open (total less payments and credits), what of it is overdue, and what was paid in money; the old fields are the first currency's. Each invoice row carries `openAmount`.
+- **`Payment.currency`** was the column's default on every row; the portal's list of payments formats by it, so the payments on a USD invoice were shown in euros. The four places that write a payment set the invoice's currency; the page formats by the invoice's currency (rows from before carry „EUR“).
+
+Spec `393-tier662-kundenportal-offen-je-waehrung.sh` (12 assertions, 6 fail on the code before). Spec 148 fails here since the restart of 12.10. for a reason of its own (it reads the login link from `/tmp/backend.log`, which the rebuilt local harness does not write) — it is one of the specs that pass in CI only.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 661 — the nightly exchange rates: the last days, not every rate since 1999
 
 Noted under Tier 652. The nightly request (and „Jetzt aktualisieren“) asked the ECB for the whole series of seven currencies — 10,7 MB, to keep its last day; 12,6 s without compression, more than the request's own 10 s timeout. `lastNObservations=5`: 7,9 kB, tried against the real service on 12.10.2026 (735 ms, rates of 09.10.). An assertion in spec 386 holds it.
