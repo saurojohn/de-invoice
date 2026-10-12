@@ -2656,6 +2656,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 680 — CI run 38285101244 red: two tests, both the suite's own assumptions
+
+Tiers 671–674: backend 400 passed / 1 skipped, Playwright 1065 passed and **3 failed** — none of them the product.
+
+- `audit-hash-chain-tier196.spec.ts`, tests 2 and 3, took „the newest signed row“ of the **whole** audit table and verified it as the suite's company. That is this company's row only as long as no test file before it (alphabetically) writes for another company. `assets-land-tier674.spec.ts` — new, and sorted right before it — registers a company and creates an asset; the verification of a foreign row is refused (400), rightly. The queries take the newest row of the suite's company.
+- `year-field-tier669.spec.ts` (Tier 669) required that after typing a year only that year was asked for. On the CI machine an answer to the page's first load (last year) still arrived after the test had begun to listen. It asserts what the tier is about: no half-typed year is asked for, and the typed one is.
+
+Cannot be run here in the first case (it addresses :3001); the second passes locally as before.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 679 — trade tax: from 2025 the reduction for property is the Grundsteuer in the profit
 
 Read with Tier 678. § 8 Nr. 1 GewStG holds as built (200 000 €, the fractions). § 9 Nr. 1 Satz 1 did not: the line read „Kürzung Grundstückserträge 1,2% des Einheitswerts“ for every year and was a placeholder. From the Erhebungszeitraum 2025 the reduction is „die im Erhebungszeitraum als Betriebsausgabe erfasste Grundsteuer“ — a figure that is in the books. For 2025 and later the line is computed from the expenses of the category „Grundsteuer“ as they stand in the profit; up to 2024 it stays a placeholder and says until when the old rule held. Anlage G and the trade-tax form (which takes its Gewerbeertrag from it) follow.

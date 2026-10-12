@@ -144,8 +144,12 @@ test.describe("Tier 196 — Audit hash chain", () => {
     // Tier 368: order by `seq`, not createdAt. createdAt is rounded to whole
     // seconds, so among same-second rows "most recent" was whatever the UUID
     // sort happened to return.
+    // Tier 680: of THIS company. The newest row of the whole table was taken,
+    // which is this company's only as long as no test before this file writes
+    // for another one — assets-land-tier674 does, and the verification of a
+    // foreign row is refused (400; CI run 38285101244).
     const idOut = psql(
-      `SELECT id FROM "AuditLog" WHERE "hash" IS NOT NULL ORDER BY seq DESC LIMIT 1;`,
+      `SELECT id FROM "AuditLog" WHERE "hash" IS NOT NULL AND "companyId" = '${tokens!.companyId}' ORDER BY seq DESC LIMIT 1;`,
     )
     const id = idOut.split("\n")[0].trim()
     expect(id.length, "expected a row with a hash to exist").toBeGreaterThan(0)
@@ -202,7 +206,7 @@ test.describe("Tier 196 — Audit hash chain", () => {
     // MIDDLE row, which is exactly what the old comment said it wanted to
     // avoid: tampering a middle row also breaks the following rows' pointers.
     const id = psql(
-      `SELECT id FROM "AuditLog" WHERE "hash" IS NOT NULL ORDER BY seq DESC LIMIT 1;`,
+      `SELECT id FROM "AuditLog" WHERE "hash" IS NOT NULL AND "companyId" = '${tokens!.companyId}' ORDER BY seq DESC LIMIT 1;`,
     ).split("\n")[0].trim()
     // Sanity: single-row verify should pass
     // before tampering.
