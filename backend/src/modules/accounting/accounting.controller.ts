@@ -75,6 +75,7 @@ import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Require } from '../../auth/roles.decorator';
 import { cleanRow as cleanSoRow } from './anlage-so-rules';
+import { AnlageSOV2Service } from './anlage-so-v2.service';
 
 @Controller('accounting')
 export class AccountingController {
@@ -108,6 +109,8 @@ export class AccountingController {
     // for private Veräußerungsgeschäfte and
     // wiederkehrende Bezüge.
     private anlageSo: AnlageSOService,
+    // Tier 666: stores the loss carried forward when the rows are saved
+    private anlageSoV2: AnlageSOV2Service,
     // Tier 110: Anlage AUS (Ausländische
     // Einkünfte, § 34d EStG) — 9th Anlage
     // form. Freistellung vs Anrechnung per
@@ -1295,6 +1298,7 @@ export class AccountingController {
       where: { id: companyId },
       data: { settings: next } as any,
     })
+    await this.anlageSoV2.storeCarryforward(companyId, body.year)
 
     return {
       ok: true,

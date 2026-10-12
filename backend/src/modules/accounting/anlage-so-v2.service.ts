@@ -144,6 +144,22 @@ const SECURITY_CATEGORY = ['wertpapier', 'brokerage', 'depot', 'aktie']
 const isCryptoCategory = (category: string | null): boolean =>
   CRYPTO_CATEGORY.some((w) => String(category || '').toLowerCase().startsWith(w))
 
+const hasRows = (anlageSoAll: Record<string, any>, year: number): boolean =>
+  Array.isArray(anlageSoAll?.[year]?.transactions) && anlageSoAll[year].transactions.length > 0
+
+/**
+ * The loss carried into a year: what the latest year before it has stored.
+ * A year without rows carries on what came before it; a year that has rows
+ * and nothing stored carries nothing.
+ */
+function lossCarriedInto(map: Record<string, unknown>, anlageSoAll: Record<string, any>, year: number): number {
+  for (let y = year - 1; y >= 2000; y--) {
+    if (map?.[y] !== undefined && map[y] !== null) return Math.max(0, Number(map[y]) || 0)
+    if (hasRows(anlageSoAll, y)) return 0
+  }
+  return 0
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
@@ -316,7 +332,7 @@ export class AnlageSOV2Service {
     const anlageSoAll = (settings.anlageSO as any) || {}
     const yearData = anlageSoAll[year] || {}
     const carryforwardMap = (settings.anlageSOLossCarryforward as any) || {}
-    const priorYearLoss = Number(carryforwardMap[year - 1]) || 0
+    const priorYearLoss = lossCarriedInto(carryforwardMap, anlageSoAll, year)
 
     // Tier 665: every stored row comes back (`rows`); the sales of the year
     // that are complete are counted (`transactions`)
@@ -339,27 +355,9 @@ export class AnlageSOV2Service {
     const freigrenzeApplied = sum.taxable === 0
     const vgTotal = freigrenzeApplied ? 0 : totalTaxableGain
 
-    // v2: persist the carryforward for next year (if
-    // > 0). Skip on 0 — no need to store "no carry".
-    // We always recompute from the canonical in-Frist
-    // gain/loss pair, not from the stored value (the
-    // stored value is for the *next* year's view).
-    if (carryforward > 0 || carryforwardMap[year] !== undefined) {
-      const nextCarry = { ...carryforwardMap }
-      if (carryforward > 0) {
-        nextCarry[year] = round2(carryforward)
-      } else {
-        delete nextCarry[year]
-      }
-      await this.prisma.company.update({
-        where: { id: companyId },
-        data: {
-          settings: { ...settings, anlageSOLossCarryforward: nextCarry },
-        } as any,
-      })
-      // Reflect locally for the response below.
-      Object.assign(carryforwardMap, { [year]: nextCarry[year] ?? undefined })
-    }
+    // Tier 666: nothing is written here. The loss carried forward is stored
+    // when the rows change (`storeCarryforward`) — reading the form wrote
+    // the company's whole settings back on every call.
 
     // The BMF Kz lines — same as v1, but the v2
     // Kz 20 (Freigrenze) is always 600 when there's
@@ -532,27 +530,62 @@ export class AnlageSOV2Service {
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
+    // Tier 666: as the form computes it — the stored value was only there
+    // once the year had been looked at
+    const { vg } = await this.compute(companyId, year)
+    return {
+      year,
+      companyId,
+      priorYearLoss: vg.priorYearLoss,
+      currentYearLoss: vg.carryforward,
+      carryforward: vg.carryforward,
+    }
+  }
+
+  /**
+   * Stores the loss carried forward of `fromYear` and of every later year
+   * that has rows (a year's loss changes what the following years carry).
+   * Called when rows are saved or imported.
+   *
+   * Tier 666. Before, GET /anlage-so/v2 did this as it computed: every look
+   * at the form — the adviser's read-only one too — rewrote the company's
+   * whole settings from the copy it had read (a setting saved in between
+   * was gone) and put a line into the audit log. Here one key is replaced,
+   * in one statement, and only when it changes.
+   *
+   * The map holds an entry for every year that has rows (0 too); a year
+   * without rows has none and carries what came before (`lossCarriedInto`).
+   */
+  async storeCarryforward(companyId: string, fromYear: number): Promise<void> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { settings: true },
     })
-    if (!company) throw new NotFoundException('Firma nicht gefunden')
+    if (!company) return
     const settings = (company.settings as any) || {}
-    const carryforwardMap = (settings.anlageSOLossCarryforward as any) || {}
-    const priorYearLoss = Number(carryforwardMap[year - 1]) || 0
-    const currentYearLoss = Number(carryforwardMap[year]) || 0
-    // The "carryforward" for year N is what was stored
-    // at the end of year N (the value that will be
-    // picked up as `priorYearLoss` in N+1). It equals
-    // currentYearLoss when this lookup is run AFTER
-    // the year's compute().
-    return {
-      year,
-      companyId,
-      priorYearLoss: round2(priorYearLoss),
-      currentYearLoss: round2(currentYearLoss),
-      carryforward: round2(currentYearLoss),
+    const all = (settings.anlageSO as Record<string, any>) || {}
+    const before = (settings.anlageSOLossCarryforward as Record<string, unknown>) || {}
+    const map: Record<string, unknown> = { ...before }
+    // up to the last year that has rows — or an entry: one left from the
+    // time when looking at an empty year stored what it carried
+    const years = [...Object.keys(all), ...Object.keys(map)]
+      .map(Number)
+      .filter((y) => Number.isInteger(y) && y >= fromYear && y <= 2100)
+    const last = Math.max(fromYear, ...years)
+    let carried = lossCarriedInto(map, all, fromYear)
+    for (let y = fromYear; y <= last; y++) {
+      if (!hasRows(all, y)) {
+        delete map[y]
+        continue
+      }
+      carried = vgSummary(splitRows(all[y].transactions, y).counted, y, carried).carryforward
+      map[y] = carried
     }
+    if (JSON.stringify(map) === JSON.stringify(before)) return
+    await this.prisma.$executeRaw`
+      UPDATE "Company"
+         SET settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{anlageSOLossCarryforward}', ${JSON.stringify(map)}::jsonb)
+       WHERE id = ${companyId}`
   }
 
   /**
@@ -741,6 +774,7 @@ export class AnlageSOV2Service {
       where: { id: companyId },
       data: { settings: { ...settings, anlageSO: anlageSoAll } } as any,
     })
+    await this.storeCarryforward(companyId, year)
     return {
       importedCount: replace ? newTransactions.length : newTransactions.length - skippedCount,
       skippedCount,
@@ -848,6 +882,7 @@ export class AnlageSOV2Service {
       where: { id: companyId },
       data: { settings: { ...settings, anlageSO: anlageSoAll } } as any,
     })
+    await this.storeCarryforward(companyId, year)
     return {
       importedCount: newTransactions.length,
       skippedCount,

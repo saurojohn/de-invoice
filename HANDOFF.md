@@ -2656,6 +2656,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 666 — Anlage SO: reading the form writes nothing
+
+`GET /accounting/anlage-so/v2` stored the loss carried forward as it computed. Measured on a company with a loss in the year: every call updated the company's row and added a line to the audit log — every time the accounting page was opened, for the adviser's package, and in read-only mode too. It wrote the **whole** `settings` back from the copy read at its start: a setting saved in between was gone.
+
+And since the value was stored by looking, it was only right for years somebody had opened, in order: a loss of 2025 reached 2027 only if 2026 had been opened first; a correction of 2025 reached 2026 when 2026 was next opened; a loss deleted from 2025 was still set off in 2026 (the spec shows 4 000 € of a loss that no longer existed).
+
+Now: `storeCarryforward(companyId, fromYear)` runs when rows are saved or imported, for that year and every later one that has rows — one key, one statement (`jsonb_set`), only when it changes. The map holds an entry for each year with rows (0 too); a year without rows has none and carries on what came before (`lossCarriedInto`), so a year nobody opened still carries. `compute()` writes nothing; `GET /loss-carryforward` answers what the form computes.
+
+Spec `396-tier666-anlage-so-lesen-schreibt-nicht.sh` (23 assertions, 12 fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 665 — Anlage SO: what is entered stays, nothing is counted that is not known, nothing is invented
 
 Found while giving the form's rows a column that says what each counts as. Measured on a fresh company with five rows:
@@ -2669,7 +2679,7 @@ Found while giving the form's rows a column that says what each counts as. Measu
 
 `anlage-so-rules.ts` holds the cleaning of a stored row, the split and the PDF line for both services and the save (three copies before). Spec `395-tier665-anlage-so-nichts-verschwindet-nichts-erfunden.sh` (43 assertions, 38 fail on the code before); `anlage-so-rows-tier665.spec.ts` (2 tests); specs 138 and 394 follow (138 expected three sales from three expenses).
 
-Left: a CSV or expense import reloads the form, and what was typed and not saved is gone. `GET /anlage-so/v2` writes the loss carried forward into the settings as it computes (a read that writes).
+Left: a CSV or expense import reloads the form, and what was typed and not saved is gone. (`GET /anlage-so/v2` writing as it computes: Tier 666.)
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 664 — Anlage SO: the kinds of asset and their holding periods
 
