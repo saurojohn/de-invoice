@@ -1346,7 +1346,8 @@
     "updated": "Vorlage aktualisiert",
     "deleted": "Vorlage gelöscht",
     "deleteError": "Vorlage konnte nicht gelöscht werden.",
-    "confirmDelete": "Vorlage wirklich löschen?"
+    "confirmDelete": "Vorlage wirklich löschen?",
+    "paymentTermsHint": "{dueDate} wird durch das Fälligkeitsdatum der Rechnung ersetzt, {days} durch ihr Zahlungsziel in Tagen. Nennt der Text kein Fälligkeitsdatum, folgt „Fällig am …“. Auf einer Gutschrift steht die Zeile nicht."
   },
   "journal": {
     "title": "Buchungsjournal",

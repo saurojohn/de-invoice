@@ -922,9 +922,17 @@ export async function generateInvoicePDF(
       doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
         .text(`Dieses Angebot ist gültig bis ${formatDate((invoice as any).dueDate)}.`, leftMargin, footerY - 42, { lineBreak: false })
     }
-    if (renderConfig?.paymentTermsText && !noPayment) {
+    // Tier 660: the payment line says when THIS invoice is due. It was the
+    // template's sentence — "Zahlbar binnen 14 Tagen ohne Abzug." — on every
+    // invoice: a customer with 30 days' terms got an invoice due on 11.11.
+    // that said 14 days, the due date itself stood nowhere on the page, and
+    // with Skonto a second line named another date. A credit note asked to
+    // be paid.
+    const hasSkonto = (invoice as any).skontoPercent != null && (invoice as any).skontoDays != null
+    const paymentLine = noPayment ? null : paymentTermsLine(invoice, renderConfig?.paymentTermsText, docType, hasSkonto)
+    if (paymentLine) {
       doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
-        .text(renderConfig.paymentTermsText, leftMargin, footerY - 42, { lineBreak: false })
+        .text(paymentLine, leftMargin, footerY - 42, { lineBreak: false })
     }
 
     // Tier 52/54: Skonto line — the standard German
@@ -964,7 +972,7 @@ export async function generateInvoicePDF(
         .text(
           skontoText,
           leftMargin,
-          renderConfig?.paymentTermsText ? footerY - 28 : footerY - 42,
+          paymentLine ? footerY - 28 : footerY - 42,
           { lineBreak: false },
         )
     }
@@ -1169,6 +1177,48 @@ export function formatMoney(val: number, currency?: string | null): string {
   const amount = val.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const code = String(currency || "EUR").toUpperCase()
   return code === "EUR" ? "€\u00A0" + amount : amount + "\u00A0" + code
+}
+
+/**
+ * Tier 660 — the sentence that says when an invoice is to be paid.
+ *
+ *   an invoice            "Zahlbar bis zum 11.11.2026 ohne Abzug."  (its own due date)
+ *   due on its own date   "Zahlbar sofort ohne Abzug."
+ *   with Skonto           nothing — the Skonto line names both dates
+ *   order confirmation    "Zahlbar binnen 30 Tagen nach Rechnungsdatum ohne Abzug."
+ *   credit note           nothing
+ *
+ * A text of the company's own (the template's "Zahlungsbedingungen") is kept:
+ * {dueDate} and {days} in it are filled in, and where it names no due date,
+ * "Fällig am …" follows it. The stock sentence every template was created
+ * with ("Zahlbar binnen 14 Tagen ohne Abzug.") counts as none.
+ */
+export function paymentTermsLine(
+  invoice: { type?: string | null; issueDate?: any; dueDate?: any },
+  templateText: string | null | undefined,
+  docType: string,
+  hasSkonto: boolean,
+): string | null {
+  if (docType === "CN" || invoice.type === "CN") return null
+  const custom = (templateText || "").trim()
+  // (the presets' sentence — the old one with its 14 days, the new one with
+  // its {dueDate} — is the program's, not the company's)
+  const preset = /^Zahlbar (?:(?:binnen|innerhalb von) \d+ Tagen|bis zum \{dueDate\}) ohne Abzug\.?$/
+  const own = custom && !preset.test(custom) ? custom : ""
+  const due = invoice.dueDate ? new Date(invoice.dueDate) : null
+  const issue = invoice.issueDate ? new Date(invoice.issueDate) : null
+  const days = due && issue ? Math.round((due.getTime() - issue.getTime()) / 86_400_000) : null
+  const fill = (t: string) => t.replace(/\{dueDate\}/g, due ? formatDate(due) : "").replace(/\{days\}/g, days != null ? String(Math.max(days, 0)) : "")
+  if (docType === "OC") {
+    // the period starts with the invoice — a term, not a date
+    if (own) return fill(own)
+    if (days == null) return null
+    return days > 0 ? `Zahlbar binnen ${days} Tagen nach Rechnungsdatum ohne Abzug.` : "Zahlbar sofort nach Rechnungserhalt ohne Abzug."
+  }
+  if (!due) return own ? fill(own) : null
+  if (own) return /\{dueDate\}/.test(own) || hasSkonto ? fill(own) : `${fill(own)} Fällig am ${formatDate(due)}.`
+  if (hasSkonto) return null
+  return days != null && days <= 0 ? "Zahlbar sofort ohne Abzug." : `Zahlbar bis zum ${formatDate(due)} ohne Abzug.`
 }
 
 // Tier 653: "Umsatzsteuer in Euro: € 1.695,52 · Gesamtbetrag in Euro:

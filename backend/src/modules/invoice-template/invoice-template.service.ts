@@ -56,7 +56,7 @@ const DEFAULT_CONFIG: Required<TemplateConfig> = {
   layoutDensity: 'comfortable',
   showLogo: true,
   footerText: 'Vielen Dank für Ihren Auftrag.',
-  paymentTermsText: 'Zahlbar binnen 14 Tagen ohne Abzug.',
+  paymentTermsText: 'Zahlbar bis zum {dueDate} ohne Abzug.', // Tier 660: the invoice's own due date
   showAbsenderzeile: true,
   reverseChargeNote:
     'Steuerschuldnerschaft des Leistungsempfängers (§13b UStG).',
@@ -91,7 +91,7 @@ export const BUILTIN_TEMPLATES: Record<
     layoutDensity: 'comfortable',
     showLogo: true,
     footerText: 'Vielen Dank für Ihren Auftrag.',
-    paymentTermsText: 'Zahlbar binnen 14 Tagen ohne Abzug.',
+    paymentTermsText: 'Zahlbar bis zum {dueDate} ohne Abzug.', // Tier 660: the invoice's own due date
     showAbsenderzeile: true,
   },
   simplified: {
@@ -102,7 +102,7 @@ export const BUILTIN_TEMPLATES: Record<
     layoutDensity: 'comfortable',
     showLogo: false,
     footerText: '',
-    paymentTermsText: 'Zahlbar binnen 14 Tagen ohne Abzug.',
+    paymentTermsText: 'Zahlbar bis zum {dueDate} ohne Abzug.', // Tier 660: the invoice's own due date
     showAbsenderzeile: true,
   },
   compact: {
@@ -113,7 +113,7 @@ export const BUILTIN_TEMPLATES: Record<
     layoutDensity: 'compact',
     showLogo: true,
     footerText: '',
-    paymentTermsText: 'Zahlbar binnen 14 Tagen ohne Abzug.',
+    paymentTermsText: 'Zahlbar bis zum {dueDate} ohne Abzug.', // Tier 660: the invoice's own due date
     showAbsenderzeile: true,
   },
 }

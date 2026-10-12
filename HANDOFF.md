@@ -2656,6 +2656,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 660 — the invoice says when it is due
+
+Noted under Tier 653 („an invoice … prints ‚Zahlbar binnen 14 Tagen‘ next to that other date's reminders“) as a quirk of the API. It is not: the PDF's payment line was the template's sentence on **every** invoice.
+
+- A customer with 30 days' payment terms: the invoice is due on the 30th day — the date the reminders and the interest go by — and the PDF said „Zahlbar binnen 14 Tagen ohne Abzug.“ The due date itself stood nowhere on the page.
+- With Skonto, two lines: „Zahlbar binnen 14 Tagen ohne Abzug.“ and „Zahlbar bis 22.10. mit 2% Skonto, bis 11.11. ohne Abzug.“
+- A credit note asked to be paid within 14 days.
+
+`paymentTermsLine()` in `invoice-pdf.service.ts`: „Zahlbar bis zum 11.11.2026 ohne Abzug.“ from the invoice's own due date; „Zahlbar sofort ohne Abzug.“ when it is due on its own day; nothing next to a Skonto line (which names both dates) and nothing on a credit note; an order confirmation states the term („binnen 30 Tagen nach Rechnungsdatum“). A text of the company's own in the template is kept — `{dueDate}` and `{days}` in it are filled in, and where it names no date, „Fällig am …“ follows. The sentence the presets came with counts as none; new presets say „Zahlbar bis zum {dueDate} ohne Abzug.“ and the editor explains the two tokens.
+
+Spec `392-tier660-zahlbar-bis-zum-faelligkeitsdatum.sh` (21 assertions, 16 fail on the code before): twelve cases of the sentence, and the PDFs of an invoice with 30 days, one with Skonto and a credit note. The literals check of Tier 659 leaves a line marked `i18n-ok:` alone (German text of the German document).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 659 — the German texts written into the pages follow the language of the interface
 
 §9 item 24 („`/dashboard/v2`, the activity page's action names and parts of the import page untranslated“). Looked for everywhere instead of on three pages: every page was walked in Chinese and the source was scanned.

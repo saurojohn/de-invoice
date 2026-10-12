@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/useToast"
 
+// Tier 660: the sentence a new template prints on the (German) invoice
+const PRESET_PAYMENT_TERMS = "Zahlbar bis zum {dueDate} ohne Abzug." // i18n-ok: text of the German document
+
 interface TemplateConfig {
   primaryColor?: string
   accentColor?: string
@@ -311,7 +314,7 @@ function TemplateModal({
     template?.configJson.footerText || "",
   )
   const [paymentTermsText, setPaymentTermsText] = useState(
-    template?.configJson.paymentTermsText || "Zahlbar binnen 14 Tagen ohne Abzug.",
+    template?.configJson.paymentTermsText || PRESET_PAYMENT_TERMS,
   )
   const [isDefault, setIsDefault] = useState(template?.isDefault || false)
 
@@ -466,8 +469,11 @@ function TemplateModal({
             <Input
               value={paymentTermsText}
               onChange={(e) => setPaymentTermsText(e.target.value)}
-              placeholder="Zahlbar binnen 14 Tagen ohne Abzug."
+              placeholder={PRESET_PAYMENT_TERMS}
+              data-testid="template-payment-terms"
             />
+            {/* Tier 660 */}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("invoiceTemplates.paymentTermsHint")}</p>
           </div>
 
           <div className="flex items-center gap-2">

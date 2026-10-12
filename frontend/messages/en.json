@@ -1346,7 +1346,8 @@
     "updated": "Template updated",
     "deleted": "Template deleted",
     "deleteError": "Could not delete template.",
-    "confirmDelete": "Delete this template?"
+    "confirmDelete": "Delete this template?",
+    "paymentTermsHint": "{dueDate} is replaced by the invoice's due date, {days} by its payment term in days. If the text names no due date, \"Fällig am …\" follows it. A credit note does not carry the line."
   },
   "journal": {
     "title": "General Journal",

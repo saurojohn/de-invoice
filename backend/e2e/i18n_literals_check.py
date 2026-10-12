@@ -12,6 +12,9 @@ Prints one line:  <markup> <code> <used> <untranslated> <en> <zh> <keydiff>
   used          texts passed to L("…")
   untranslated  of those, without an entry in both dictionaries (must be 0)
 then the offending lines, prefixed MARKUP / CODE / MISSING.
+
+A line that carries the comment  i18n-ok: <why>  is left alone — for German
+text that is German on purpose (a sentence printed on the German invoice).
 """
 import collections, glob, io, json, re, sys
 
@@ -34,12 +37,14 @@ for p in files:
     src = io.open(p, encoding='utf-8').read()
     if p.endswith(('useI18n.ts', 'tax-form-text.tsx')): continue
     for m in USED.finditer(src): used.add(json.loads(m.group(1)))
+    exempt = {i for i, line in enumerate(src.split('\n'), 1) if 'i18n-ok:' in line}
     if p.endswith('.tsx'):
         prev = ''
         for i, line in enumerate(src.split('\n'), 1):
             t = line.strip()
             if not t: continue
             if t.startswith(('//', '*', '/*', '{/*')): prev = '//'; continue
+            if i in exempt: prev = t; continue
             # a text node on a line of its own
             if prev.endswith(('>', '}')) and not prev.endswith(('=>', '={')) and LINE.fullmatch(t) and DE.search(t) and not t.endswith((',', '(', '&&', '||', '?', ':')):
                 markup.append('%s:%d %s' % (rel(p), i, t[:90]))
@@ -60,6 +65,7 @@ for p in files:
         if re.search(r"\)\s*\|\|\s*$", before) or re.search(r"(?:\bt|tRef\.current)\(\s*[\"'][\w.]+[\"']\s*,\s*$", before): continue
         if re.search(r"(?:console\.\w+\(|new Error\(|className=|data-testid=|testid=|\bkey=|\.startsWith\(|\.includes\(|\.test\(|===\s*|!==\s*|\bcase\s+|\blang=|text=|\bde:\s*|\blabel:\s*|href=|\.replace\(|\.split\(|indexOf\()\s*$", before): continue
         if re.search(r"(?:FormNote|FormLabel)\s+text=\{?\s*$", before): continue
+        if s.count('\n', 0, m.start()) + 1 in exempt: continue
         code.append('%s:%d %s' % (rel(p), s.count('\n', 0, m.start()) + 1, ' '.join(v.split())[:90]))
 
 en = json.load(io.open(fe + '/messages/literals/en.json', encoding='utf-8'))
