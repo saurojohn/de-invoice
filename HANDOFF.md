@@ -9,18 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–680 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–681 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 680.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 681.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 38289331929 / commit `1ecdd32`, Tier 680; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
-  - Backend e2e: **403 passed / 0 failed / 1 skipped** of 404 specs — 100
-    two-digit + 304 three-digit; Playwright: **1069 passed, 0 failed, 0 flaky** (Tiers 658–680 added 390 the reports in euros, 391 German texts written
+- **Test counts (last green CI, run 38302072029 / commit `57f12b5`, Tier 681; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
+  - Backend e2e: **404 passed / 0 failed / 1 skipped** of 405 specs — 100
+    two-digit + 305 three-digit; Playwright: **1069 passed, 0 failed, 0 flaky** (Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
     into the pages, 392 „zahlbar bis zum“, 393 the customer portal per currency, 394–396 Anlage SO (kinds
     and periods; rows that stay; reading writes nothing), 397 Anlage KAP, 398 Anlage N, 399 Anlage Kind,
     400 Anlage V's lines, 401 land without AfA, 402 Anlage AUS, 403 a loan's repayment is no expense,
