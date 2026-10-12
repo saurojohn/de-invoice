@@ -26,6 +26,7 @@ import type { UpdateExpenseDto } from './dto/expense.dto'
 import { assertNotFuture } from '../../common/business-date'
 import { assertExpenseAmounts } from './amounts'
 import { checkTaxLines } from './tax-lines'
+import { isLoanRepayment, LOAN_REPAYMENT_MESSAGE } from '../accounting/expense-cost'
 
 const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
 const sameDecimal = (a: unknown, b: number) => round(Number(a), 4) === round(b, 4)
@@ -61,6 +62,8 @@ export async function updateExpense(
     }
     set('supplierId', supplierId, supplierId !== exp.supplierId)
   }
+  // Tier 677: a loan's repayment is no expense (expense-cost.ts)
+  if (data.category !== undefined && isLoanRepayment(data.category)) throw new BadRequestException(LOAN_REPAYMENT_MESSAGE)
   if (data.category !== undefined) set('category', orNull(data.category), orNull(data.category) !== exp.category)
   // Tier 503
   if (data.giftRecipient !== undefined) set('giftRecipient', orNull(data.giftRecipient), orNull(data.giftRecipient) !== exp.giftRecipient)

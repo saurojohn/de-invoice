@@ -16,12 +16,44 @@ type Num = { toString(): string } | number | null | undefined
 export interface CostExpense {
   netAmount?: Num
   grossAmount?: Num
+  category?: string | null
 }
 
-export function expenseCost(e: CostExpense, kleinunternehmer: boolean): number {
+/**
+ * Tier 677 — the repayment of a loan is no expense. Only the interest is a
+ * cost (§ 4 Abs. 4, § 9 Abs. 1 Satz 3 Nr. 1 EStG); paying a loan back moves
+ * money, it does not use any up.
+ *
+ * Entered as an expense with the category „Darlehenstilgung“, 9 000 € stood
+ * in the EÜR, in Anlage S and Anlage G as a Betriebsausgabe (Tier 673 found
+ * it in Anlage V). Such an expense is refused when it is entered
+ * (expense.service.ts) — and, for a row that is there already, costs nothing
+ * in any form that asks here.
+ *
+ * A repayment: the category names one („…tilgung…“), or names a loan
+ * without naming its interest or its fees („Darlehen“, „Darlehen Rate Mai“,
+ * „Kreditrate“, „Hypothek“) — not „Kreditkartengebühr“, not „Darlehenszinsen“.
+ */
+export function isLoanRepayment(category: string | null | undefined): boolean {
+  const c = String(category || '').trim()
+  if (!c || /zins|gebühr|kosten|provision|versicherung/i.test(c)) return false
+  if (/tilgung/i.test(c)) return true
+  return /^(Darlehen|Hypothek)/i.test(c) || /^Kredit(rate|rückzahlung)?(\s|$)/i.test(c)
+}
+
+export const LOAN_REPAYMENT_MESSAGE =
+  'Die Tilgung eines Darlehens ist keine Ausgabe und keine Eingangsrechnung — sie mindert den Gewinn nicht. ' +
+  'Erfassen Sie nur die Zinsen, mit der Kategorie „Schuldzinsen“.'
+
+/** What the expense's amount is, whatever it is for. */
+export function rawExpenseCost(e: CostExpense, kleinunternehmer: boolean): number {
   const v = kleinunternehmer ? e.grossAmount : e.netAmount ?? e.grossAmount
   const n = Number(v ?? 0)
   return Number.isFinite(n) ? n : 0
+}
+
+export function expenseCost(e: CostExpense, kleinunternehmer: boolean): number {
+  return isLoanRepayment(e.category) ? 0 : rawExpenseCost(e, kleinunternehmer)
 }
 
 /**

@@ -3,7 +3,8 @@
  * administration is no insurance.
  *
  * Before: „Darlehenstilgung“ stood under Schuldzinsen and „Hausverwaltung“
- * under Gebäudeversicherung.
+ * under Gebäudeversicherung. (Tier 677: a repayment is refused when it is
+ * entered; the note on the form is for rows from before — spec 400.)
  */
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test"
 
@@ -25,20 +26,21 @@ test("interest, repayment, administration: each where it belongs", async ({ page
     headers: H,
     data: { name: `${tag} Bank`, address: { street: "a", city: "b", postalCode: "1", country: "DE" } },
   })).json()
-  const expense = async (n: number, category: string, gross: number) => {
-    const r = await request.post(`${API}/api/v1/expenses?${q}`, {
+  const expense = (n: number, category: string, gross: number) =>
+    request.post(`${API}/api/v1/expenses?${q}`, {
       headers: H,
       data: {
         supplierId: sup.id, invoiceNumber: `V-${n}`, description: category, invoiceDate: `${Y}-05-10`, paidAt: `${Y}-05-12`, category,
         netAmount: gross, vatRate: 0, vatAmount: 0, grossAmount: gross, confirmDuplicate: true,
       },
     })
-    expect(r.status(), category).toBe(201)
-  }
-  await expense(1, "Schuldzinsen", 2400)
-  await expense(2, "Darlehenstilgung", 9000)
-  await expense(3, "Hausverwaltung", 1200)
-  await expense(4, "Wohngebäudeversicherung", 450)
+  expect((await expense(1, "Schuldzinsen", 2400)).status()).toBe(201)
+  // Tier 677: the repayment is not taken as an expense at all
+  const refused = await expense(2, "Darlehenstilgung", 9000)
+  expect(refused.status()).toBe(400)
+  expect((await refused.json()).message).toContain("Die Tilgung eines Darlehens ist keine Ausgabe")
+  expect((await expense(3, "Hausverwaltung", 1200)).status()).toBe(201)
+  expect((await expense(4, "Wohngebäudeversicherung", 450)).status()).toBe(201)
 
   await page.context().clearCookies()
   await page.context().addCookies([
@@ -58,7 +60,7 @@ test("interest, repayment, administration: each where it belongs", async ({ page
   const interest = page.getByTestId("anlage-v-exp-8620")
   await expect(interest).toBeVisible({ timeout: 120_000 })
   await expect(interest).toContainText("2.400,00")
-  await expect(page.getByTestId("anlage-v-note-8620")).toContainText("1 Ausgabe(n) für Darlehen oder Tilgung (9.000,00 EUR) sind nicht angesetzt")
+  await expect(page.getByTestId("anlage-v-note-8620")).toHaveCount(0)
   await expect(page.getByTestId("anlage-v-exp-8640")).toContainText("450,00")
   await expect(page.getByTestId("anlage-v-exp-8650")).toContainText("1.200,00")
 })

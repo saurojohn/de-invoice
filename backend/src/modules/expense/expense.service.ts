@@ -25,6 +25,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { assertNotFuture } from '../../common/business-date';
 import { assertExpenseAmounts, expenseAmountsError } from './amounts';
 import { checkTaxLines } from './tax-lines';
+import { isLoanRepayment, LOAN_REPAYMENT_MESSAGE } from '../accounting/expense-cost';
 
 @Injectable()
 export class ExpenseService {
@@ -131,6 +132,8 @@ export class ExpenseService {
   private async createChecked(companyId: string, data: any) {
     if (!data.description) throw new BadRequestException('Beschreibung ist erforderlich');
     if (!data.invoiceDate) throw new BadRequestException('Rechnungsdatum ist erforderlich');
+    // Tier 677: a loan's repayment is no expense (expense-cost.ts)
+    if (isLoanRepayment(data.category)) throw new BadRequestException(LOAN_REPAYMENT_MESSAGE);
     assertNotFuture(data.invoiceDate, 'Das Rechnungsdatum') // Tier 515
     assertNotFuture(data.paidAt, 'Das Zahldatum')
     if (data.supplierId) {
@@ -344,6 +347,11 @@ export class ExpenseService {
         const filed = await filedPeriodOf(this.prisma, companyId, invoiceDate)
         if (filed) {
           result.errors.push({ row: rowNum, error: filedPeriodMessage(filed, 'das Erfassen einer Eingangsrechnung'), description })
+          continue
+        }
+        // Tier 677: a loan's repayment is no expense — reported, not imported.
+        if (isLoanRepayment(row.category)) {
+          result.errors.push({ row: rowNum, error: LOAN_REPAYMENT_MESSAGE, description })
           continue
         }
         // Tier 523: amounts that do not belong together — reported, not imported.

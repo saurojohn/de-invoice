@@ -39,10 +39,17 @@ exp() { # category gross
   AS POST "/api/v1/expenses?companyId=$C" "{\"supplierId\":\"$SUP\",\"invoiceNumber\":\"V-$N\",\"description\":\"$1\",\"invoiceDate\":\"$Y-05-10\",\"paidAt\":\"$Y-05-12\",\"category\":\"$1\",\"netAmount\":$2,\"vatRate\":0,\"vatAmount\":0,\"grossAmount\":$2,\"confirmDuplicate\":true}"
   [[ "$STATUS" == "201" ]] || fail "expense $1 → $STATUS"
 }
+# a repayment as it lies in the database from before — since Tier 677 the API
+# refuses to take one (spec 403)
+SQL() { docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -At -c "$1"; }
+old() { # category gross
+  N=$((N + 1))
+  SQL "INSERT INTO \"Expense\" (id, \"companyId\", \"invoiceNumber\", description, \"invoiceDate\", \"paidAt\", \"netAmount\", \"vatRate\", \"vatAmount\", \"grossAmount\", category, \"isIntraEU\", \"isReverseCharge\", status, \"createdAt\", \"updatedAt\") VALUES (gen_random_uuid(), '$C', 'V-$N', '$1', '$Y-05-10', '$Y-05-12', $2, 0, 0, $2, '$1', false, false, 'booked', NOW(), NOW())" >/dev/null
+}
 exp Hausverwaltung 1200; exp Hausmeister 600; exp Gebäudereinigung 300; exp Wohngebäudeversicherung 450
-exp Darlehenstilgung 9000; exp Schuldzinsen 2400; exp Grundsteuer 380; exp "Reparatur Dach" 1500
-exp "Darlehen Rate Mai" 700; exp Darlehenszinsen 150; exp Haftpflicht 90; exp "Porto" 20
-pass "fixture: twelve expenses"
+old Darlehenstilgung 9000; exp Schuldzinsen 2400; exp Grundsteuer 380; exp "Reparatur Dach" 1500
+old "Darlehen Rate Mai" 700; exp Darlehenszinsen 150; exp Haftpflicht 90; exp "Porto" 20
+assert_eq "fixture: twelve expenses" "$(SQL "SELECT count(*) FROM \"Expense\" WHERE \"companyId\" = '$C'")" "12"
 
 note "=== 1. each expense in its line ==="
 AS GET "/api/v1/accounting/anlage-v?companyId=$C&year=$Y"

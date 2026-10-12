@@ -5,7 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
-import { expenseCost } from './expense-cost'
+import { expenseCost, isLoanRepayment, rawExpenseCost } from './expense-cost'
 import { computeAfaSummary } from '../assets/afa'
 
 /**
@@ -143,12 +143,9 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any) => b
 // began with „Haus“ or „Gebäude“ and stood before the others.
 //
 // The repayment of a loan is no Werbungskosten at all — only its interest
-// is (§ 9 Abs. 1 Satz 3 Nr. 1 EStG). An expense whose category names a
-// repayment, or a loan without naming interest, is left out and reported.
-export const isLoanRepayment = (category: string | null | undefined): boolean => {
-  const c = String(category || '')
-  return /tilgung/i.test(c) || (/^(Darlehen|Kredit|Hypothek)/i.test(c) && !/zins/i.test(c))
-}
+// is (§ 9 Abs. 1 Satz 3 Nr. 1 EStG). Such an expense is left out and
+// reported (`isLoanRepayment`, expense-cost.ts; since Tier 677 it is refused
+// when it is entered, so this is about rows from before).
 
 const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => boolean }> = [
   {
@@ -319,7 +316,7 @@ export class AnlageVService {
     for (const exp of expenses) {
       if (isLoanRepayment(exp.category)) {
         tilgungCount++
-        tilgungSum += expenseCost(exp, kleinunternehmer)
+        tilgungSum += rawExpenseCost(exp, kleinunternehmer)
         continue
       }
       const matched = EXPENSE_LINES.find((d) => d.matcher(exp))

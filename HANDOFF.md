@@ -2656,6 +2656,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 677 — the repayment of a loan is no expense
+
+Left open by Tier 673, then measured: an expense with the category „Darlehenstilgung“ (9 000 €) stood as a Betriebsausgabe in the EÜR, in Anlage S and in Anlage G, and it went with every other expense into the P&L reports, the cost-centre report and the DATEV export. Only a loan's interest is a cost (§ 4 Abs. 4, § 9 Abs. 1 Satz 3 Nr. 1 EStG).
+
+Twelve places read expenses, each with its own query. So the repayment is stopped where it comes in: creating, editing and importing an expense whose category names a repayment — or a loan without naming its interest or fees — is refused, with the reason and what to enter instead (the interest, as „Schuldzinsen“). For a row that is there already `expenseCost` returns 0 (EÜR, Anlage S / G / V, GuV, BWA, KSt 1); Anlage V goes on reporting it.
+
+`isLoanRepayment` (now in `expense-cost.ts`) was too wide in Tier 673: „Kreditkartengebühr“ began with „Kredit“ and named no interest. It asks for a repayment or a loan as such now; the spec lists what is one and what is not.
+
+Spec `403-tier677-tilgung-ist-keine-ausgabe.sh` (14 assertions, 11 fail on the code before); spec 400 and `anlage-v-tier673.spec.ts` enter the repayment the only way left — in the database, or not at all. The 30 specs that create expenses pass.
+
+Not done: the reports that sum expenses themselves (P&L tab, dashboard, cost centres, DATEV) still count a repayment that lies in the database from before; none can come in any more.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 676 — Anlage AUS: a treaty does not mean exemption, § 8b KStG does not hang on a treaty
 
 Read against § 34c EStG and § 8b KStG (gesetze-im-internet.de, 12.10.2026) and measured for a person and a GmbH with the same five entries:
@@ -2696,7 +2708,7 @@ Anlage V sorts the expenses by their category. Measured with a landlord's usual 
 
 Spec `400-tier673-anlage-v-tilgung-und-zeilen.sh` (14 assertions, 11 fail on the code before); `anlage-v-tier673.spec.ts`; five texts added to both tax-form dictionaries (445 entries). Spec 118 fails here as before (one of the specs that pass in CI only).
 
-Seen: the assets module depreciated an asset of the type „Grundstück“ like any other (Tier 674). And the EÜR counts every paid expense, a loan's repayment entered as one too — open.
+Seen: the assets module depreciated an asset of the type „Grundstück“ like any other (Tier 674). And the EÜR counted every paid expense, a loan's repayment entered as one too (Tier 677).
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 672 — Anlage Kind read against §§ 31, 32, 66 EStG
 
