@@ -111,12 +111,14 @@ test.describe("Tier 195 — Admin: cron manual run", () => {
       /^\d{4}-\d{2}-\d{2}T/,
     )
     expect(runBody.note).toContain("fire-and-forget")
-    // Poll the GET endpoint for up to 10s to see
-    // the new lastRunAt land. The webhook-retry
-    // worker is a fast cron, but the record()
-    // call is async on the scheduler's promise.
+    // Poll the GET endpoint for the new lastRunAt. It is recorded when the
+    // run ENDS, and the retry worker sends what is due first — each delivery
+    // with its own limit of 10 s.
+    // Tier 675: 60 s, not 10. With the echo service slow (CI run 38281048674,
+    // 12.10.2026: the same afternoon as Tiers 663 and 667) the run was still
+    // delivering after 10 s — lastRunAt null, passed on the retry, "1 flaky".
     let afterLastRun: string | null = null
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 120; i++) {
       const after = await request.get(
         "http://localhost:3001/api/v1/admin/cron-health",
         {

@@ -2656,6 +2656,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 675 — the third test that waited on a slow webhook target
+
+CI run 38281048674 (Tiers 668–670b): backend 396 passed / 1 skipped, Playwright 1063 passed and **1 flaky** — `admin-ops-tier195.spec.ts`, test 1. It runs the webhook retry worker by hand and polled 10 s for its `lastRunAt`; that is recorded when the run ends, and the worker first sends what is due, each delivery with its own 10 s limit. With the echo service slow the run was still delivering. It polls 60 s now. Cannot be run here (it addresses :3001, and needs the installation's operator).
+
+Three tests in one afternoon (Tiers 663, 667, 675) failed or flaked on the same cause: tests whose webhooks go to a public echo service. A target of the suite's own is not possible while the SSRF guard — rightly — refuses local addresses; a switch that lets the test environment name one would be a hole to keep closed. Left as it is, with waits that outlast the delivery's limit.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 674 — land is not depreciated
 
 Seen in Tier 673. An asset of the type „Grundstück“ could not be saved without a useful life and was depreciated over it like a machine: a plot of 100 000 € over 600 months, 2 000 € of AfA a year — in the asset list, in „AfA buchen“ (an expense in the EÜR and the P&L, off the balance sheet's book value) and in Anlage V's line for the building. „Grund und Boden“ does not wear out (§ 6 Abs. 1 Nr. 2 EStG; § 253 Abs. 3 HGB).
