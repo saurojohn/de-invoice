@@ -27,6 +27,7 @@
  * Split out of reports.controller.ts (Tier 173).
  * URL paths preserved.
  */
+import { ensureIssuedCopies } from '../invoice/invoice-document';
 import { businessDayIso } from '../../common/business-date'
 import { queryDate } from '../../common/query';
 import {
@@ -281,6 +282,9 @@ export class DatevExportController {
     });
 
     // Collect the PDFs that go alongside the CSV.
+    // Tier 684: an issued invoice without a stored copy (never downloaded)
+    // was silently not in the bundle — the copy is made now.
+    await ensureIssuedCopies(this.prisma, companyId, { gte: startDate, lte: endDate });
     const belegbilder = await collectBelegbilder(this.prisma, companyId, startDate, endDate);
 
     // Build the index.json (so the Berater can audit
@@ -523,6 +527,7 @@ export class DatevExportController {
         openingBalances: monthIdx === 0 ? openingBalances : [],
       })
       // 3) Belegbilder for this month.
+      await ensureIssuedCopies(this.prisma, companyId, { gte: monthStart, lte: monthEnd }); // Tier 684
       const belegbilder = await collectBelegbilder(
         this.prisma,
         companyId,

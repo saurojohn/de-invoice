@@ -27,7 +27,7 @@ import {
   validateXRechnungWithKoSIT,
   KoSITValidatorUnavailableError,
 } from '../../invoices/kosIT-validator.service';
-import { renderInvoiceDocument } from './invoice-document';
+import { keepIssuedCopy, renderInvoiceDocument } from './invoice-document';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
@@ -324,7 +324,9 @@ export class InvoiceController {
           // director nor the texts of the template (a Kleinunternehmer's
           // § 19 note among them), nor the advance a final invoice deducts.
           // (Tier 610: a quote / delivery note is a plain PDF.)
-          const { buffer } = await renderInvoiceDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
+          const doc = await renderInvoiceDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
+          await keepIssuedCopy(this.prisma, invoice, doc) // Tier 684
+          const buffer = doc.buffer
           const ext = 'pdf'
           let name = invoice.invoiceNumber || id
           // Disambiguate by appending -2, -3, ... if needed
@@ -724,33 +726,13 @@ export class InvoiceController {
       // the visual PDF is the same as the plain-PDF render.
       // Tier 683: built by renderInvoiceDocument, as for every other outlet
       // (template texts, full letterhead, the advance a final invoice deducts).
-      const { buffer: pdfBuffer } = await renderInvoiceDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
+      const doc = await renderInvoiceDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
+      const pdfBuffer = doc.buffer
 
-      // Auto-save PDF to local storage. The path is the
-      // visual PDF (same content whether ZUGFeRD or plain)
-      // so the existing storage layer doesn't need a new
-      // column. The ZUGFeRD XML is embedded INTO the saved
-      // PDF — reopening it shows the XML attachment, so
-      // downstream re-downloads are still E-Invoice compliant.
       // Tier 497: the stored copy is the archive's "as issued" document
-      // (GoBD archive / export, DATEV bundle) — a draft's is not stored.
-      if (!invoice.pdfPath && invoice.status !== 'draft') {
-        try {
-          const savedFile = await this.storageService.saveInvoicePdf(
-            pdfBuffer,
-            invoice.invoiceNumber,
-            companyId,
-          );
-          // Update invoice with PDF path
-          await this.prisma.invoice.update({
-            where: { id: id },
-            data: { pdfPath: savedFile.path },
-          });
-        } catch (saveError) {
-          console.error('Failed to save PDF to storage:', saveError);
-          // Continue anyway - PDF is still being served
-        }
-      }
+      // (GoBD export, DATEV bundle) — a draft's is not stored. Tier 684: it
+      // is the e-invoice, never the plain variant somebody asked for first.
+      await keepIssuedCopy(this.prisma, invoice, doc)
 
       // Filename hints at the format so a Steuerberater
       // dragging the file into their archive can see at
@@ -1019,7 +1001,9 @@ export class InvoiceController {
 
       // Tier 683: was rendered without the template (its texts, the § 19 note)
       // and without the advance a final invoice deducts.
-      const { buffer: pdfBuffer } = await renderInvoiceDocument(this.prisma, invoice, company);
+      const doc = await renderInvoiceDocument(this.prisma, invoice, company);
+      await keepIssuedCopy(this.prisma, invoice, doc); // Tier 684
+      const pdfBuffer = doc.buffer;
 
       res.set({
         'Content-Type': 'application/pdf',
@@ -1610,11 +1594,14 @@ export class InvoiceController {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')
     }
-    return this.invoiceService.createCreditNote(
+    const creditNote = await this.invoiceService.createCreditNote(
       id,
       companyId,
       body || {},
     )
+    // Tier 684: a credit note is created issued — its copy is made now
+    if (creditNote?.id) await this.invoiceService.keepCopy(creditNote.id, companyId)
+    return creditNote
   }
 
   // Tier 430: payments the customer reported (portal / payment link). They

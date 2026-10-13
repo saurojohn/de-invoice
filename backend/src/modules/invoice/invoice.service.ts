@@ -29,6 +29,7 @@ import { ModuleRef } from '@nestjs/core';
 import { igLVatIdProblem } from './ust-behandlung-detector';
 import { businessDayIso, businessToday, businessTodayDate, businessTodayIso, dayStart } from '../../common/business-date'
 import { CLAIM_TYPES, DOCUMENT_NAMES, NON_FISCAL_STATUSES, NON_FISCAL_TRANSITIONS, NON_FISCAL_TYPES, isNonFiscal } from './document-scope';
+import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from './invoice-document';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 import { servicePeriodOf } from './service-period';
@@ -1431,7 +1432,30 @@ export class InvoiceService {
 
   async updateStatus(id: string, companyId: string, status: string) {
     // Tier 534: one at a time per invoice
-    return withKeyLock(`invoice:${id}`, () => this.updateStatusLocked(id, companyId, status));
+    const result = await withKeyLock(`invoice:${id}`, () => this.updateStatusLocked(id, companyId, status));
+    await this.keepCopy(id, companyId);
+    return result;
+  }
+
+  /**
+   * Tier 684: the copy of an invoice is made when it is issued — the document
+   * as issued, with the master data of that day. (It was made by the first
+   * download; an invoice that went out another way, or not through the
+   * program at all, had none.) Does nothing for a draft, a quote / order
+   * confirmation / delivery note, or an invoice that has its copy; never
+   * fails the step it follows.
+   */
+  async keepCopy(id: string, companyId: string): Promise<void> {
+    try {
+      const invoice = await this.prisma.invoice.findFirst({
+        where: { id, companyId, pdfPath: null, status: { not: 'draft' }, type: { notIn: NON_FISCAL_TYPES } },
+        include: { ...INVOICE_DOCUMENT_INCLUDE, company: true },
+      });
+      if (!invoice) return;
+      await keepIssuedCopy(this.prisma, invoice, await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true }));
+    } catch (err) {
+      console.error(`Rechnung ${id}: die Kopie ließ sich nicht erzeugen:`, err);
+    }
   }
 
   /** Tier 610 / 614: quote: draft → offered → accepted | declined; delivery note: draft → delivered; order confirmation: draft → confirmed; all → cancelled. */

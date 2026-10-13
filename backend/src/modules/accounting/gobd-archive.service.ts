@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { renderInvoiceDocument } from '../invoice/invoice-document'
+import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from '../invoice/invoice-document'
 import { Response } from 'express'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
@@ -382,7 +382,7 @@ export class GobdArchiveService {
         type: { notIn: NON_FISCAL_TYPES }, // Tier 610
       },
       // Tier 473: payments for a final invoice's prepaid amount (BT-113)
-      include: { items: true, customer: true, referenceInvoice: true, payments: true },
+      include: INVOICE_DOCUMENT_INCLUDE, // Tier 684: as every outlet reads it (the product's SKU was missing here)
       orderBy: { issueDate: 'asc' },
     })
     const result = []
@@ -399,7 +399,9 @@ export class GobdArchiveService {
           pdfBuffer = (await this.storage.getFile(inv.pdfPath))?.buffer ?? null
         }
         if (!pdfBuffer) {
-          pdfBuffer = (await renderInvoiceDocument(this.prisma, inv, company)).buffer
+          const doc = await renderInvoiceDocument(this.prisma, inv, company)
+          await keepIssuedCopy(this.prisma, inv, doc) // Tier 684: the next export hands over this one
+          pdfBuffer = doc.buffer
         }
         result.push({
           id: inv.id,

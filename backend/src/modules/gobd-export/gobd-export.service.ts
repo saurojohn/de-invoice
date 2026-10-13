@@ -1,3 +1,4 @@
+import { ensureIssuedCopies } from '../invoice/invoice-document'
 import { businessTodayIso } from '../../common/business-date'
 import { NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
@@ -227,6 +228,9 @@ export class GobdExportService {
     // two queries instead of one UNION to keep the
     // Prisma types simple; the year filter is the
     // dominant index hit either way.
+    // Tier 684: an issued invoice that was never downloaded had no stored
+    // copy — the export held its meta.json and no document. Made now.
+    await ensureIssuedCopies(this.prisma, opts.companyId, { gte: yearStart, lt: yearEnd })
     const invoices = await this.prisma.invoice.findMany({
       where: {
         companyId: opts.companyId,

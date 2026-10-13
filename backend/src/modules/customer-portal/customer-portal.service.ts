@@ -60,7 +60,7 @@ import { daysOverdue as daysOverdueOf } from '../reminder/days-overdue';
 import { NON_FISCAL_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { withCheckedVatId } from '../../common/vat-id';
 import { emailChanges, emailOfAnotherCustomer } from '../customer/customer-email';
-import { renderInvoiceDocument } from '../invoice/invoice-document';
+import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from '../invoice/invoice-document';
 import {
   BadRequestException,
   Injectable,
@@ -529,18 +529,16 @@ export class CustomerPortalService {
         status: { not: 'draft' }, // Tier 496
         type: { notIn: NON_FISCAL_TYPES }, // Tier 612: the portal is about invoices
       },
-      include: {
-        items: true,
-        customer: true,
-        company: true,
-      },
+      include: { ...INVOICE_DOCUMENT_INCLUDE, company: true }, // Tier 684: with a credit note's invoice
     })
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden')
     }
     // Tier 683: the document the customer was sent — the e-invoice, with the
     // full letterhead and the template's texts (was a plain PDF without them).
-    return (await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true })).buffer
+    const doc = await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true })
+    await keepIssuedCopy(this.prisma, invoice, doc) // Tier 684: the customer has it now
+    return doc.buffer
   }
 
   /**

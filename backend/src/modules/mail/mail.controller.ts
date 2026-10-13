@@ -1,5 +1,5 @@
 import { queryDate, queryInt } from '../../common/query';
-import { renderInvoiceDocument } from '../invoice/invoice-document';
+import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from '../invoice/invoice-document';
 import {
   Controller,
   Get,
@@ -298,15 +298,9 @@ export class MailController {
 
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: original.invoiceId, companyId },
-      include: {
-        customer: true,
-        company: true,
-        // Items are required by the PDF generator
-        // (it iterates them for the line-item table).
-        // Product snapshot is used for SKU fallback.
-        items: { include: { product: { select: { sku: true, name: true } } } },
-        payments: true,
-      },
+      // Tier 684: with the invoice a credit note corrects — it was missing
+      // here, so a credit note sent again did not name it
+      include: { ...INVOICE_DOCUMENT_INCLUDE, company: true },
     })
     if (!invoice) {
       throw new BadRequestException('Rechnung nicht gefunden')
@@ -316,7 +310,8 @@ export class MailController {
     // The document again, as it is now (Tier 683: as the first e-mail builds
     // it — this was a plain PDF from six company fields, without the
     // template).
-    const { buffer: pdfBuffer } = await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true })
+    const doc = await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true })
+    const pdfBuffer = doc.buffer
 
     // Recipient / subject / body — override > original
     const to = (body?.to || original.recipientEmail || '').trim()
@@ -342,6 +337,7 @@ export class MailController {
         },
       ],
     })
+    await keepIssuedCopy(this.prisma, invoice, doc) // Tier 684
 
     // New EmailSend row — preserves the audit trail (both
     // the original and the resend are recoverable).

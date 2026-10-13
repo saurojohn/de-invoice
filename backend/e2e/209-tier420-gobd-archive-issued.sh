@@ -35,8 +35,8 @@ CANC=$(mk Storniert 300); status "$CANC" sent; status "$CANC" cancelled
 pass "fixture: sent 1000 + sent 200, a 500 draft, a cancelled 300"
 
 WORK=$(mktemp -d)
-# Issue the first one: its first PDF download is stored as the issued document.
-curl -sS -o "$WORK/issued.pdf" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/invoices/$SENT/pdf?companyId=$C&sign=false"
+# Tier 684: the copy of an invoice is made when it is issued (it was made by
+# the first download — which this spec did here, for the first invoice only).
 # … then the company moves.
 AS PUT "/api/v1/companies/$C?companyId=$C" '{"address":{"street":"Neustraße 9","city":"Hamburg","postalCode":"20095","country":"DE"}}'
 
@@ -66,13 +66,20 @@ ISSUED_NO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "s
 NEVER_NO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select \"invoiceNumber\" from \"Invoice\" where id='$NEVER'")
 A_ISSUED="$WORK/Invoices/$ISSUED_NO.pdf"
 A_NEVER="$WORK/Invoices/$NEVER_NO.pdf"
-assert_eq "the downloaded invoice is archived byte for byte as issued" \
-  "$(shasum -a 256 < "$A_ISSUED" | cut -d' ' -f1)" "$(shasum -a 256 < "$WORK/issued.pdf" | cut -d' ' -f1)"
+# Tier 684: one kept copy, handed over everywhere — the archive's file is the
+# DATEV bundle's Beleg, byte for byte. (Was: "the downloaded invoice is
+# archived byte for byte" — true only for an invoice somebody had downloaded.)
+curl -sS -o "$WORK/datev.zip" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/reports/datev-export-bundle?companyId=$C&startDate=2026-08-01&endDate=2026-08-31"
+(cd "$WORK" && unzip -o -q datev.zip "Belegbilder/$ISSUED_NO.pdf" 2>/dev/null)
+assert_eq "the archived invoice is the kept copy: byte for byte the DATEV bundle's Beleg" \
+  "$(shasum -a 256 < "$A_ISSUED" | cut -d' ' -f1)" "$(shasum -a 256 < "$WORK/Belegbilder/$ISSUED_NO.pdf" 2>/dev/null | cut -d' ' -f1)"
 PDFTXT "$A_ISSUED" | grep -q "Altstraße" && pass "…with the address it was issued with (Altstraße)" || fail "issued address missing"
 T=$(PDFTXT "$A_NEVER")
-grep -q "DE123456789" <<<"$T" && pass "a never-downloaded invoice is rendered with the USt-IdNr. (was missing)" || fail "USt-IdNr. missing"
+grep -q "DE123456789" <<<"$T" && pass "a never-downloaded invoice has the USt-IdNr. (was missing)" || fail "USt-IdNr. missing"
 grep -q "DE89370400440532013000" <<<"$T" && pass "…and the IBAN (was missing)" || fail "IBAN missing"
-grep -q "Neustraße" <<<"$T" && pass "…and the company's current address" || fail "address missing"
+# Tier 684: was "…and the company's current address" — it was rendered at
+# archive time, after the move. It is the invoice as issued now.
+grep -q "Altstraße" <<<"$T" && ! grep -q "Neustraße" <<<"$T" && pass "…and the address it was issued with, not the one the company moved to" || fail "the never-downloaded invoice does not carry the address of its issue"
 
 rm -rf "$WORK"
 summary; exit $?

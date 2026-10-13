@@ -38,7 +38,7 @@
  *   - PDF render failure → propagates (caller wraps in
  *     try/catch and records a RecurringRun error).
  */
-import { renderInvoiceDocument } from './invoice-document';
+import { keepIssuedCopy, renderInvoiceDocument } from './invoice-document';
 import {
   BadRequestException,
   Injectable,
@@ -214,7 +214,8 @@ export class InvoiceEmailService {
     // entry, no managing director) and, unless the invoice named a template of
     // its own, without the template's texts: a Kleinunternehmer's e-mailed
     // invoice had no § 19 UStG note.
-    const { buffer: pdfBuffer, eInvoice } = await renderInvoiceDocument(this.prisma, invoice, company, { lenient: true });
+    const doc = await renderInvoiceDocument(this.prisma, invoice, company, { lenient: true });
+    const { buffer: pdfBuffer, eInvoice } = doc;
 
     // CC
     const ccList: string[] = [];
@@ -259,6 +260,9 @@ export class InvoiceEmailService {
     });
 
     // (Tier 495: a draft was issued above, before the PDF was rendered.)
+    // Tier 684: what went to the customer is the copy that is kept — it was
+    // kept only if somebody also downloaded the invoice.
+    await keepIssuedCopy(this.prisma, invoice, doc);
 
     // Record email send
     const smtpConfigured = await this.mailService.isConfiguredFor(companyId);

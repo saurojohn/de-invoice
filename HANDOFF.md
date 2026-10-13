@@ -9,18 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–682 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–684 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 682.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 683.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 38366024910 / commit `84b1bca`, Tier 682b; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
-  - Backend e2e: **405 passed / 0 failed / 1 skipped** of 406 specs — 100
-    two-digit + 306 three-digit; Playwright: **1069 passed, 0 failed, 0 flaky** (Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
+- **Test counts (last green CI, run 38454485194 / commit `714c090`, Tier 683; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
+  - Backend e2e: **406 passed / 0 failed / 1 skipped** of 407 specs — 100
+    two-digit + 307 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
     into the pages, 392 „zahlbar bis zum“, 393 the customer portal per currency, 394–396 Anlage SO (kinds
     and periods; rows that stay; reading writes nothing), 397 Anlage KAP, 398 Anlage N, 399 Anlage Kind,
     400 Anlage V's lines, 401 land without AfA, 402 Anlage AUS, 403 a loan's repayment is no expense,
@@ -369,7 +369,7 @@ Operational scripts:
   three-digit; `dryrun-tier247-validate.sh` is manual). Seed driver
   `backend/e2e/ci-seed.sh` = 640 lines. `run-all.sh` has a per-spec
   `SPEC_TIMEOUT` watchdog and a `QUARANTINE` list (empty) — see §8, Tier 361.
-- **Playwright:** 242 spec files in `frontend/e2e/`;
+- **Playwright:** 243 spec files in `frontend/e2e/`;
   config `frontend/playwright.config.ts` = 129 lines.
   **No root-level `playwright.config.ts`** — only the frontend copy.
 - All bash scripts use `set -uo pipefail`. 46 historical scripts
@@ -2661,6 +2661,20 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 684 — the copy of an invoice is made when it is issued
+
+Found while reading Tier 683's outlets. The stored PDF (`Invoice.pdfPath`) is what the DATEV bundle and the GoBD export hand over as the invoice "as issued" (Tier 420, 497). It was written in one place: the first download.
+
+- **Measured:** three issued invoices — one sent to the customer by e-mail, one downloaded, one only issued. `pdfPath` was set on the downloaded one alone. The DATEV bundle (`collectBelegbilder` asks for `pdfPath: { not: null }`) held one Beleg, without a word about the other two; the GoBD export held one PDF and two bare `meta.json`. The invoice the customer actually has was not kept (§ 14b UStG: a copy of every invoice issued). And the GoBD archive rendered a never-downloaded invoice at archive time — with the address the company had moved to since (spec 209 had written that down as expected).
+- **Now the copy is made when the invoice is issued:** `InvoiceService.updateStatus` calls `keepCopy(id, companyId)` after the transition (outside the per-invoice lock's work, after the advance settlement of Tier 472); the credit-note route does the same — a credit note is created issued. One rendering, about 60 ms. It never fails the step it follows.
+- **And by every way out, for an invoice that still has none** (its copy was dropped by a same-day edit, Tier 497 — or it was issued before this tier): `keepIssuedCopy(prisma, invoice, doc)` in download, `…/zugferd`, bulk ZIP, e-mail (after it was sent), resend, customer portal, GoBD archive. `ensureIssuedCopies(prisma, companyId, period)` makes the missing ones before the DATEV bundle (both routes) and the GoBD export collect. Never a draft's, and only where there is none (`UPDATE … WHERE "pdfPath" IS NULL`: two requests at once keep one). The path is written with `$executeRaw`, past the audit extension: through the client every issued invoice got a second „invoice.updated“ row in the audit log for a field that is no change of the invoice (spec 195 caught it; the first download used to write such a row too).
+- **The copy is the e-invoice.** The first download with `?format=pdf` stored the plain variant as "the issued invoice"; `renderInvoiceDocument` marks that rendering `canonical: false` and it is not kept.
+- **A credit note's XML named no invoice** when sent again or read in the portal: those two loaded the document without `referenceInvoice`, so BG-3 (preceding invoice) was missing from the XML that Tier 683 put into them (the page showed the number). All loaders use `INVOICE_DOCUMENT_INCLUDE` now; the archive's query had no product SKU either.
+
+**Left as it is, to be decided by the owner if it matters:** a download renders the invoice again from today's master data — after the company changed its address or bank account, an old invoice downloaded again shows the new one, while the kept copy (and so the exports and the archive) holds the original. Serving an issued invoice from its copy would settle that; it would also freeze template and logo changes for issued invoices, and several specs rely on re-rendering.
+
+Spec `408-tier684-die-kopie-der-ausgestellten-rechnung.sh` (23 checks, with the mailbox of spec 407). The whole backend suite was run locally for this one (issuing is in nearly every spec): nothing failed beyond the specs that fail on this machine for their own reasons. Spec 209 changed with the behaviour: the archive's file is byte for byte the DATEV bundle's Beleg (was: byte for byte the first download), and a never-downloaded invoice carries the address of its issue (was: "the company's current address").
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 683 — one invoice, one document on every way out; the customer gets the e-invoice
 
