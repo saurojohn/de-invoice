@@ -791,7 +791,7 @@ function UstvaPageInner() {
                       </tr>
                       <tr>
                         <td className="py-2">{L("Übrige nicht steuerbare Umsätze (Kz 45)")}</td>
-                        <td className="py-2 text-right font-medium">{formatCurrency(data.nonTaxableOther ?? 0)}</td>
+                        <td className="py-2 text-right font-medium" data-testid="ustva-kz45">{formatCurrency((data.nonTaxableOther ?? 0) + (data.ossSales?.net ?? 0))}</td>
                       </tr>
                     </tbody>
                   </table>

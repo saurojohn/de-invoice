@@ -3,7 +3,9 @@
  *
  * § 4 Abs. 5 Nr. 1 EStG: gifts to people who are not employees are a
  * Betriebsausgabe only if all gifts to that recipient in the year cost no
- * more than 50 € (net; gross for a business without input-tax deduction).
+ * more than 50 € — 35 € in the years up to 2023 (Tier 682; the limit was
+ * raised for business years from 2024 on) — net; gross for a business
+ * without input-tax deduction.
  * Above it, every gift to the recipient is non-deductible — and so is its
  * input tax (§ 15 Abs. 1a UStG). The recipient's name has to be recorded
  * (§ 4 Abs. 7 EStG); without it only a Streuartikel (≤ 10 €) passes.
@@ -16,6 +18,8 @@
 import { expenseCost } from './expense-cost'
 
 export const GIFT_LIMIT = 50
+/** § 4 Abs. 5 Satz 1 Nr. 1 EStG: 50 € from 2024, 35 € before. */
+export const giftLimitFor = (year: number): number => (year >= 2024 ? GIFT_LIMIT : 35)
 export const STREUARTIKEL_LIMIT = 10
 
 export function isGeschenk(e: { category?: string | null }): boolean {
@@ -47,9 +51,9 @@ export function nonDeductibleGifts(gifts: GiftRow[], kleinunternehmer: boolean):
     const key = `${new Date(g.invoiceDate).getFullYear()}|${who}`
     byRecipient.set(key, [...(byRecipient.get(key) ?? []), g])
   }
-  for (const list of byRecipient.values()) {
+  for (const [key, list] of byRecipient) {
     const total = list.reduce((s, g) => s + expenseCost(g as any, kleinunternehmer), 0)
-    if (total > GIFT_LIMIT + 1e-9) for (const g of list) out.add(g.id)
+    if (total > giftLimitFor(Number(key.split('|')[0])) + 1e-9) for (const g of list) out.add(g.id)
   }
   return out
 }

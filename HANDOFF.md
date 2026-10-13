@@ -2662,6 +2662,28 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 682 — the open questions, reviewed the way an adviser would
+
+The owner, 13.10.2026, on the checklist for the tax adviser: „你用税务师角度来审核就可以了“ — review it from the adviser's point of view yourself. Done against the statutes (gesetze-im-internet.de) and the tax administration's instructions; `docs/steuerberater-pruefliste.md` now holds the assessment of each question instead of the question. It is not a licensed adviser's opinion and says so.
+
+**Decided and changed:**
+
+- **OSS sales in the UStVA.** Not taxable here (the place of supply is in the other member state) and taxable if made here: Kennzahl 45, in the annual return 205 — the base only (ELSTER's help text for Kz 45; the practice guides agree). They stood in no Kennzahl. `ust-kennzahlen.ts` adds `ossSales.net`; the notes say where the base is and that the tax is not in the return.
+- **OSS in another currency — found on the way.** § 16 Abs. 6 Satz 4 UStG: the ECB's rate of the last day of the quarter (Satz 5: the next day's, if none was fixed). `oss.service.ts` added foreign amounts to euros as they stood: 1 085 USD were 1 085 € of Swedish turnover. Converted now (`quarterEndRate`); in the running quarter at the invoice's own rate, marked provisional; `waehrungen` in the answer, shown on the tab. A correction of an earlier quarter takes that quarter's rate.
+- **Taxes on income entered as expenses.** KSt and Soli (§ 10 Nr. 2 KStG), GewSt (§ 4 Abs. 5b EStG), ESt (§ 12 Nr. 3 EStG) are no Betriebsausgaben. Measured on a GmbH: 5 000 € of Gewerbesteuer and 6 000 € of Körperschaftsteuer as expenses lowered the Jahresüberschuss and the income to be taxed by 11 000 €, nothing added back — and the GuV carries the year's taxes as position 14 already. Refused when entered, edited or imported, with the rule and where prepayments go (KSt 1, Gewerbesteuer); a row from before costs nothing (`notAnExpense` in `expense-cost.ts`, with the loan repayment of Tier 677). Not meant: VAT, wage tax, car tax, Grundsteuer, the adviser's fee.
+- **Gifts:** the limit of § 4 Abs. 5 Satz 1 Nr. 1 EStG is 50 € from 2024 and was 35 € before; 50 € applied to every year (`giftLimitFor`).
+- **The fee for the first reminder.** Default 0 € (was 5 €). A reminder's cost is damage caused by the default; the reminder that only puts the customer in default is not. Tier 164 had justified 5 € with „the post-2023 reform of § 288 BGB (BGBl. I 2022 Nr. 51)“ that „lets the creditor charge a Mahngebühr for the FIRST Mahnung too“ — read on 13.10.2026: § 288 knows no Mahngebühr, and there is no such reform. 5 € and 10 € for the two later levels stay; all three can be set.
+
+**Decided, nothing to change:**
+
+- **Foreign currency for VAT (§ 16 Abs. 6):** the monthly average of the BMF is the rule, the daily rate needs the tax office's permission. The program uses the daily ECB rate and records it — lawful with the permission. The document has the application's text; the hint at the rate field names the rule. Rebuilding on monthly averages only if the tax office refuses.
+- **Interest on arrears:** on what is open today, none on a part paid late — less than § 288 BGB allows, and without VAT (damages). Fine.
+- **ELSTER:** nothing is transmitted, and nothing promises it (Tier 681).
+
+**Cannot be decided here:** the bank file readers against a real statement — the dev database holds none.
+
+Spec `406-tier682-pruefung-wie-ein-steuerberater.sh` (23 assertions, 17 fail on the code before). `mahnung-fees-preview-tier164.spec.ts` (CI only) expects 0 / 5 / 10.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 681 — the owner's open items of §9, done on 12.10.2026; no page promises an ELSTER upload
 
 The owner answered the status report of 12.10.2026 with „都做“ for §9 items 3, 5, 6 and „what needs outside confirmation“, and „同意“ for the dev database.

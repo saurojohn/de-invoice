@@ -1319,7 +1319,7 @@
     "cloneTitle": "Als neuen Entwurf kopieren",
     "exchangeRate": "Umrechnungskurs",
     "exchangeRatePlaceholder": "leer = EZB-Referenzkurs des Rechnungsdatums",
-    "exchangeRateHint": "Leer lassen: Es gilt der EZB-Referenzkurs vom Rechnungsdatum. Wer nach § 16 Abs. 6 UStG mit dem Monatsdurchschnittskurs des BMF umrechnet, trägt ihn hier ein."
+    "exchangeRateHint": "Leer lassen: Es gilt der EZB-Referenzkurs vom Rechnungsdatum (Tageskurs). Für die Umsatzsteuer nennt § 16 Abs. 6 UStG den Monatsdurchschnittskurs des BMF; der Tageskurs braucht die Gestattung des Finanzamts. Ohne Gestattung den Monatsdurchschnittskurs hier eintragen."
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",
@@ -1664,7 +1664,7 @@
     "ossVerfahren": "OSS-Verfahren (§ 18j UStG)",
     "ossVerfahrenNo": "Nicht angemeldet",
     "ossVerfahrenYes": "Angemeldet — Verkäufe an EU-Verbraucher über das OSS",
-    "ossVerfahrenHelp": "Angemeldet: Jeder steuerpflichtige Verkauf an einen Verbraucher in einem anderen EU-Staat wird dort versteuert und steht in der OSS-Meldung, nicht in der Umsatzsteuer-Voranmeldung. Nicht angemeldet: Ein solcher Verkauf zu 19 % oder 7 % ist deutsche Umsatzsteuer (bis 10 000 € im Jahr, § 3c Abs. 4 UStG).",
+    "ossVerfahrenHelp": "Angemeldet: Jeder steuerpflichtige Verkauf an einen Verbraucher in einem anderen EU-Staat wird dort versteuert; die Steuer steht in der OSS-Meldung, in der Umsatzsteuer-Voranmeldung nur der Nettobetrag (Kz 45). Nicht angemeldet: Ein solcher Verkauf zu 19 % oder 7 % ist deutsche Umsatzsteuer (bis 10 000 € im Jahr, § 3c Abs. 4 UStG).",
     "title": "Einstellungen",
     "companyLogo": "Firmenlogo",
     "companyInfo": "Firmeninformationen",
@@ -2139,7 +2139,7 @@
     "youAreAdmin": "Sie sind der einzige Administrator"
   },
   "ustva": {
-    "ossNote": "Nicht in dieser Voranmeldung: Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz — netto {net}, Steuer {vat}. Diese Steuer wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG), siehe Berichte → OSS.",
+    "ossNote": "Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz: netto {net} — in Kz 45 enthalten, nur als Bemessungsgrundlage. Ihre Steuer ({vat}) steht nicht in dieser Voranmeldung; sie wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG), siehe Berichte → OSS.",
     "title": "UStVA — Umsatzsteuervoranmeldung",
     "subtitle": "Finanzamt-Anmeldung (UStVA 2026) — Voranmeldungszeitraum wählen",
     "period": "Voranmeldungszeitraum",
@@ -2496,7 +2496,7 @@
     "showOnlyCancelled": "Nur stornierte",
     "showAll": "Alle anzeigen",
     "settings": "Mahngebühren & Zinsen",
-    "feesSubtitle": "Verzugszins und Mahngebühren pro Stufe (§288 BGB)",
+    "feesSubtitle": "Verzugszins (§ 288 BGB) und Mahngebühren je Stufe. Für die Zahlungserinnerung ist keine Gebühr voreingestellt: die Kosten der Mahnung, die den Verzug erst begründet, können nicht verlangt werden.",
     "verzugszinsPct": "Verzugszinssatz (%)",
     "firstStage": "Stufe 1: Zahlungserinnerung",
     "secondStage": "Stufe 2: 1. Mahnung",
@@ -2766,7 +2766,10 @@
     "excludedSameCountry": "Inländische B2C (UStVA)",
     "excludedNonEU": "Nicht-EU (Ausfuhr)",
     "excludedDraft": "Entwürfe",
-    "eligible": "Im Bericht enthalten"
+    "eligible": "Im Bericht enthalten",
+    "ossRates": "Umsätze in fremder Währung: umgerechnet zum EZB-Kurs des letzten Tags des Quartals (§ 16 Abs. 6 Satz 4 UStG).",
+    "ossRateLine": "{currency}: 1 EUR = {rate} (Kurs vom {date}), {n} Rechnung(en)",
+    "ossRateProvisional": "{currency}: vorläufig zum Kurs der Rechnung — der Kurs des Quartalsendes steht noch nicht fest. {n} Rechnung(en)"
   },
   "berater": {
     "title": "Berater-Dokumente",

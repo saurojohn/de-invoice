@@ -1319,7 +1319,7 @@
     "cloneTitle": "Duplicate as new draft",
     "exchangeRate": "Exchange rate",
     "exchangeRatePlaceholder": "empty = ECB reference rate of the invoice date",
-    "exchangeRateHint": "Leave empty for the ECB reference rate of the invoice date. If you convert at the monthly average rate published by the BMF (§ 16 Abs. 6 UStG), enter it here."
+    "exchangeRateHint": "Leave empty: the ECB reference rate of the invoice date applies (daily rate). For VAT, § 16 para. 6 UStG names the monthly average rate of the BMF; the daily rate needs the tax office's permission. Without that permission, enter the monthly average rate here."
   },
   "invoiceTemplates": {
     "title": "Invoice templates",
@@ -1664,7 +1664,7 @@
     "ossVerfahren": "OSS scheme (§ 18j UStG)",
     "ossVerfahrenNo": "Not registered",
     "ossVerfahrenYes": "Registered — sales to EU consumers through the OSS",
-    "ossVerfahrenHelp": "Registered: every taxed sale to a consumer in another EU state is taxed there and appears in the OSS return, not in the German VAT return. Not registered: such a sale at 19 % or 7 % is German VAT (up to 10,000 € a year, § 3c para. 4 UStG).",
+    "ossVerfahrenHelp": "Registered: every taxed sale to a consumer in another EU state is taxed there; the tax appears in the OSS return, and the German VAT return shows the net amount only (Kz 45). Not registered: such a sale at 19 % or 7 % is German VAT (up to 10,000 € a year, § 3c para. 4 UStG).",
     "title": "Settings",
     "companyLogo": "Company Logo",
     "companyInfo": "Company Information",
@@ -2139,7 +2139,7 @@
     "youAreAdmin": "You are the only administrator"
   },
   "ustva": {
-    "ossNote": "Not in this return: sales to consumers in other EU states at the rate of those states — net {net}, tax {vat}. That tax is declared through the OSS scheme at the BZSt (§ 18j UStG), see Reports → OSS.",
+    "ossNote": "Sales to consumers in other EU states at the rate of those states: net {net} — included in Kz 45, as a base only. Their tax ({vat}) is not in this return; it is declared through the OSS scheme at the BZSt (§ 18j UStG), see Reports → OSS.",
     "title": "UStVA — VAT Advance Return",
     "subtitle": "Tax office filing (UStVA 2026) — select period",
     "period": "Filing period",
@@ -2496,7 +2496,7 @@
     "showOnlyCancelled": "Cancelled only",
     "showAll": "Show all",
     "settings": "Dunning fees & interest",
-    "feesSubtitle": "Late-interest rate + fee per stage (§288 BGB)",
+    "feesSubtitle": "Default interest (§ 288 BGB) and reminder fees per level. No fee is preset for the payment reminder: the cost of the reminder that first puts the customer in default cannot be claimed.",
     "verzugszinsPct": "Late interest rate (%)",
     "firstStage": "Level 1: Payment reminder",
     "secondStage": "Level 2: 1st dunning notice",
@@ -2766,7 +2766,10 @@
     "excludedSameCountry": "Domestic B2C (regular VAT)",
     "excludedNonEU": "Non-EU (export)",
     "excludedDraft": "Drafts",
-    "eligible": "Included in report"
+    "eligible": "Included in report",
+    "ossRates": "Sales in another currency: converted at the ECB rate of the last day of the quarter (§ 16 para. 6 sentence 4 UStG).",
+    "ossRateLine": "{currency}: 1 EUR = {rate} (rate of {date}), {n} invoice(s)",
+    "ossRateProvisional": "{currency}: provisional, at the invoice's rate — the rate of the quarter's end is not fixed yet. {n} invoice(s)"
   },
   "berater": {
     "title": "Berater Documents",

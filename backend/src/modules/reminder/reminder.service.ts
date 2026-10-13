@@ -863,23 +863,27 @@ Mit freundlichen Grüßen,
    * changes (most companies stick with the BGB defaults) and the JSON
    * keeps the schema clean.
    *
-   * Default values per §288 BGB (Tier 164 update):
-   *   - verzugszinsPct: 9.0 % per annum over Basiszinssatz for B2B
-   *   - mahngebuehr first:  5.00 €  (1. Mahnung / Zahlungserinnerung — friendly but billable)
-   *   - mahngebuehr second: 5.00 €  (1. Mahnung)
-   *   - mahngebuehr final:  10.00 € (3. Mahnung / Mahnbescheid — the heavier one)
+   * Defaults:
+   *   - verzugszinsPct: 9 points over the Basiszinssatz (§ 288 Abs. 2 BGB;
+   *     a consumer owes at most 5, Abs. 1 — applied in computeFees)
+   *   - mahngebuehr first:  0 €   the Zahlungserinnerung
+   *   - mahngebuehr second: 5 €   the 1. Mahnung
+   *   - mahngebuehr final:  10 €  the Letzte Mahnung
    *
    * The Verzugszins is computed as:
    *   principal × (pct / 100) × (days / 365)
    * rounded to two decimals on the Mahnung row and the PDF.
    *
-   * Tier 164 history: the previous defaults (0/2.50/5.00) were
-   * the pre-2023 § 288 BGB values. The post-2023 reform
-   * (BGBl. I 2022 Nr. 51) lets the creditor charge a Mahngebühr
-   * for the FIRST Mahnung too, and most Berater charge
-   * 5-10 € per level. We default to 5/5/10 as a sensible
-   * middle ground; companies with their own scale
-   * override via `mahnungConfig` in bankInfo.
+   * Tier 682: no fee by default on the first reminder. A reminder's cost is
+   * damage caused by the default (§§ 280 Abs. 2, 286 BGB) — the reminder
+   * that only puts the customer in default is not caused by it and cannot be
+   * charged. Tier 164 had raised the default to 5 € for "the post-2023
+   * reform of § 288 BGB (BGBl. I 2022 Nr. 51)" that "lets the creditor
+   * charge a Mahngebühr for the FIRST Mahnung too": there is no such
+   * reform, and § 288 knows no Mahngebühr at all (read 13.10.2026) — only
+   * interest and, against a business, the flat 40 € of Abs. 5. A company
+   * whose terms put the customer in default without a reminder can set a
+   * fee for the first level in its settings.
    */
   async getFeeConfig(companyId: string) {
     const company = await this.prisma.company.findUnique({
@@ -891,11 +895,8 @@ Mit freundlichen Grüßen,
       // Tier 421: the surcharge over the Basiszinssatz (§ 288 Abs. 2 BGB).
       verzugszinsPct: typeof cfg.verzugszinsPct === 'number' ? cfg.verzugszinsPct : 9.0,
       mahngebuehr: {
-        // Tier 164: defaults changed from 0/2.50/5.00
-        // to 5.00/5.00/10.00 per the post-2023 § 288
-        // BGB practice. A company can still override
-        // by setting bankInfo.mahnungConfig.mahngebuehr.
-        first: typeof cfg.mahngebuehr?.first === 'number' ? cfg.mahngebuehr.first : 5.0,
+        // Tier 682: nothing for the reminder that puts the customer in default
+        first: typeof cfg.mahngebuehr?.first === 'number' ? cfg.mahngebuehr.first : 0,
         second: typeof cfg.mahngebuehr?.second === 'number' ? cfg.mahngebuehr.second : 5.0,
         final: typeof cfg.mahngebuehr?.final === 'number' ? cfg.mahngebuehr.final : 10.0,
       },

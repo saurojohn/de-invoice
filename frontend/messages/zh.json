@@ -1319,7 +1319,7 @@
     "cloneTitle": "复制为新草稿",
     "exchangeRate": "汇率",
     "exchangeRatePlaceholder": "留空 = 发票日期当天的欧洲央行参考汇率",
-    "exchangeRateHint": "留空则使用发票日期当天的欧洲央行参考汇率。若按 § 16 Abs. 6 UStG 采用 BMF 公布的月平均汇率换算，请在此填写。"
+    "exchangeRateHint": "留空：采用开票日的欧洲央行参考汇率（日汇率）。增值税方面，§ 16 Abs. 6 UStG 规定用 BMF 公布的月平均汇率；用日汇率须经税务局许可。没有许可时，请在此填入月平均汇率。"
   },
   "invoiceTemplates": {
     "title": "发票模板",
@@ -1664,7 +1664,7 @@
     "ossVerfahren": "OSS 程序（§ 18j UStG）",
     "ossVerfahrenNo": "未登记",
     "ossVerfahrenYes": "已登记——对欧盟消费者的销售通过 OSS 申报",
-    "ossVerfahrenHelp": "已登记：卖给其他欧盟国家消费者的每一笔应税销售都在对方国家纳税，列入 OSS 申报，不进入德国增值税预申报。未登记：按 19 % 或 7 % 开出的此类销售属于德国增值税（每年不超过 10 000 欧元，§ 3c Abs. 4 UStG）。",
+    "ossVerfahrenHelp": "已登记：卖给其他欧盟国家消费者的每一笔应税销售都在对方国家纳税；税额列入 OSS 申报，德国增值税预申报里只填净额（Kz 45）。未登记：按 19 % 或 7 % 开出的此类销售属于德国增值税（每年不超过 10 000 欧元，§ 3c Abs. 4 UStG）。",
     "title": "设置",
     "companyLogo": "公司徽标",
     "companyInfo": "公司信息",
@@ -2139,7 +2139,7 @@
     "youAreAdmin": "您是唯一的管理员"
   },
   "ustva": {
-    "ossNote": "不在本期申报内：按目的国税率开给其他欧盟国家消费者的销售额——净额 {net}，税额 {vat}。该税款通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",
+    "ossNote": "按目的国税率开给其他欧盟国家消费者的销售额：净额 {net} — 已计入 Kz 45，仅作为计税基础。其税额（{vat}）不在本期申报内，通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",
     "title": "UStVA — 增值税预申报",
     "subtitle": "税务局申报 (UStVA 2026) — 选择申报期",
     "period": "申报期",
@@ -2496,7 +2496,7 @@
     "showOnlyCancelled": "仅已撤销",
     "showAll": "全部",
     "settings": "催收费与利息",
-    "feesSubtitle": "逾期利率 + 各阶段催收费用 (§288 BGB)",
+    "feesSubtitle": "逾期利息（§ 288 BGB）和各级催款费。付款提醒这一级默认不收费：使客户陷入迟延的那一次催告，其费用不能向客户收取。",
     "verzugszinsPct": "逾期利率 (%)",
     "firstStage": "第 1 级：付款提醒",
     "secondStage": "第 2 级：第一次催款",
@@ -2766,7 +2766,10 @@
     "excludedSameCountry": "境内 B2C（常规增值税）",
     "excludedNonEU": "非欧盟（出口）",
     "excludedDraft": "草稿",
-    "eligible": "已纳入报告"
+    "eligible": "已纳入报告",
+    "ossRates": "外币销售额：按季度最后一天的欧洲央行汇率折算（§ 16 Abs. 6 第 4 句 UStG）。",
+    "ossRateLine": "{currency}：1 EUR = {rate}（{date} 的汇率），{n} 张发票",
+    "ossRateProvisional": "{currency}：暂按发票自身的汇率 — 季度末的汇率尚未确定。{n} 张发票"
   },
   "berater": {
     "title": "税务师文档",

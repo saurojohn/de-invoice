@@ -44,6 +44,8 @@ interface OssResult {
     vatDue?: number
   }
   corrections?: Array<{ country: string; countryName: string; year: number; quarter: number; netAmount: number; vatAmount: number }>
+  // Tier 682: the rates the sales in another currency were converted at
+  waehrungen?: Array<{ currency: string; rate: number | null; rateDate: string | null; vorlaeufig: boolean; invoiceCount: number }>
   counts: {
     eligible: number
     excludedB2B: number
@@ -330,6 +332,23 @@ export function OssTab() {
           )}
 
           {/* Tier 641: credit notes of this quarter for sales of an earlier one */}
+          {data.waehrungen && data.waehrungen.length > 0 && (
+            <div className="p-3 rounded border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300" data-testid="oss-rates">
+              <div className="font-medium mb-1">{tRef.current("oss.ossRates")}</div>
+              {data.waehrungen.map((w) => (
+                <div key={w.currency} className={w.vorlaeufig ? "text-amber-700 dark:text-amber-400" : ""} data-testid="oss-rate-line">
+                  {w.vorlaeufig
+                    ? tRef.current("oss.ossRateProvisional").replace("{currency}", w.currency).replace("{n}", String(w.invoiceCount))
+                    : tRef.current("oss.ossRateLine")
+                        .replace("{currency}", w.currency)
+                        .replace("{rate}", `${String(w.rate).replace(".", ",")} ${w.currency}`)
+                        .replace("{date}", w.rateDate ? new Date(`${w.rateDate}T00:00:00`).toLocaleDateString("de-DE") : "")
+                        .replace("{n}", String(w.invoiceCount))}
+                </div>
+              ))}
+            </div>
+          )}
+
           {data.corrections && data.corrections.length > 0 && (
             <Card>
               <CardHeader>

@@ -3,6 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { normaliseCountry } from '../invoice/ust-behandlung-detector'
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown'
 import { consumerAbroad, isGermanRate } from './oss-scope'
+import { ExchangeRateService } from '../exchange-rate/exchange-rate.service'
+import { invoiceEurFactor } from '../invoice/tax-breakdown'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -139,6 +141,13 @@ export interface OssResult {
     vatDue: number
   }
   /**
+   * Tier 682 — § 16 Abs. 6 Satz 4 UStG: sales in another currency are
+   * converted at the ECB's rate of the last day of the quarter (the next
+   * day's, if none was fixed then). `vorlaeufig`: the quarter has not ended,
+   * or the ECB quotes no rate — the invoice's own rate is used until then.
+   */
+  waehrungen: Array<{ currency: string; rate: number | null; rateDate: string | null; vorlaeufig: boolean; invoiceCount: number }>
+  /**
    * Tier 641: credit notes of this quarter for sales of an earlier one. The
    * OSS return states them apart, per member state and period corrected; a
    * credit note for a sale of the same quarter is in that sale's line.
@@ -183,7 +192,26 @@ interface CountryItem {
 
 @Injectable()
 export class OssService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private rates: ExchangeRateService) {}
+
+  /**
+   * The ECB's rate of the last day of a quarter; if none was fixed on that
+   * day, the one of the next day on which one was (§ 16 Abs. 6 Satz 5 UStG).
+   * null: not published yet, or the ECB does not quote the currency.
+   */
+  private async quarterEndRate(currency: string, lastDay: Date, today: string) {
+    const day = lastDay.toISOString().slice(0, 10)
+    const onDay = await this.rates.ecbRateOn(currency, lastDay)
+    if (!onDay) return null
+    if (onDay.date === day) return onDay
+    for (let i = 1; i <= 10; i++) {
+      const next = new Date(lastDay.getTime() + i * 86_400_000)
+      if (next.toISOString().slice(0, 10) > today) return null
+      const r = await this.rates.ecbRateOn(currency, next)
+      if (r && r.date > day) return r
+    }
+    return null
+  }
 
   async compute(
     companyId: string,
@@ -213,6 +241,30 @@ export class OssService {
     const inOss = company?.ossVerfahren === true
     const homeCountryRaw = (company?.address as any)?.country || 'DE'
     const homeCountry = normaliseCountry(homeCountryRaw) || 'DE'
+
+    // Tier 682 — § 16 Abs. 6 Satz 4 UStG: a sale in another currency is
+    // converted at the ECB's rate of the last day of its quarter. The report
+    // added krona and złoty to euros as they stood (a sale of 10 000 SEK was
+    // 10 000 € of Swedish turnover). Until the quarter is over — or where the
+    // ECB quotes no rate — the invoice's own rate stands in, and the report
+    // says so.
+    const today = new Date().toISOString().slice(0, 10)
+    const fx = new Map<string, { currency: string; quarterEnd: string; rate: number | null; rateDate: string | null; ids: Set<string> }>()
+    const eurFactor = async (inv: any, y: number, qu: number): Promise<number> => {
+      const currency = String(inv.currency || 'EUR').toUpperCase()
+      if (currency === 'EUR') return 1
+      const lastDay = new Date(Date.UTC(y, qu * 3, 0))
+      const quarterEnd = lastDay.toISOString().slice(0, 10)
+      const key = `${currency}|${quarterEnd}`
+      let e = fx.get(key)
+      if (!e) {
+        const found = quarterEnd < today ? await this.quarterEndRate(currency, lastDay, today) : null
+        e = { currency, quarterEnd, rate: found ? Number(found.rate) : null, rateDate: found?.date ?? null, ids: new Set() }
+        fx.set(key, e)
+      }
+      e.ids.add(inv.id)
+      return e.rate && e.rate > 0 ? 1 / e.rate : invoiceEurFactor(inv)
+    }
 
     // Pull all in-period invoices with their items
     // and the customer's country / VAT ID. We
@@ -317,13 +369,14 @@ export class OssService {
         countryInvoiceIds.set(country, ids)
       }
       ids.add(inv.id)
+      const f = await eurFactor(inv, year, quarter)
       for (const bucket of own) {
         items.push({
           invoiceId: inv.id,
           vatRate: bucket.rate,
-          net: bucket.net,
-          vat: bucket.vat,
-          gross: bucket.net + bucket.vat,
+          net: bucket.net * f,
+          vat: bucket.vat * f,
+          gross: (bucket.net + bucket.vat) * f,
         })
       }
     }
@@ -352,6 +405,10 @@ export class OssService {
       const ref = cn.referenceInvoice
       if (!country || !ref) continue
       const sameQuarter = ref.issueDate >= start && ref.issueDate <= end
+      // a correction of an earlier quarter at that quarter's rate
+      const f = sameQuarter
+        ? await eurFactor(cn, year, quarter)
+        : await eurFactor(cn, ref.issueDate.getUTCFullYear(), Math.floor(ref.issueDate.getUTCMonth() / 3) + 1)
       for (const bucket of invoiceTaxBreakdown(cn).byRate) {
         if (!inOss && bucket.rate > 0 && isGermanRate(bucket.rate, ref.issueDate)) continue
         if (sameQuarter) {
@@ -361,14 +418,14 @@ export class OssService {
             countryItems.set(country, items)
           }
           // under the sale's id: the line's count stays the number of sales
-          items.push({ invoiceId: ref.id, vatRate: bucket.rate, net: bucket.net, vat: bucket.vat, gross: bucket.net + bucket.vat })
+          items.push({ invoiceId: ref.id, vatRate: bucket.rate, net: bucket.net * f, vat: bucket.vat * f, gross: (bucket.net + bucket.vat) * f })
         } else {
           const y = ref.issueDate.getUTCFullYear()
           const qu = Math.floor(ref.issueDate.getUTCMonth() / 3) + 1
           const key = `${country}|${y}|${qu}`
           const c = corrections.get(key) ?? { country, year: y, quarter: qu, net: 0, vat: 0 }
-          c.net += bucket.net
-          c.vat += bucket.vat
+          c.net += bucket.net * f
+          c.vat += bucket.vat * f
           corrections.set(key, c)
         }
       }
@@ -490,6 +547,10 @@ export class OssService {
         vatDue: round2(round2(totalVat) + correctionsVat),
       },
       corrections: correctionList,
+      waehrungen: [...fx.values()]
+        .filter((e) => e.quarterEnd === new Date(Date.UTC(year, quarter * 3, 0)).toISOString().slice(0, 10))
+        .map((e) => ({ currency: e.currency, rate: e.rate, rateDate: e.rateDate, vorlaeufig: e.rate === null, invoiceCount: e.ids.size }))
+        .sort((a, b) => a.currency.localeCompare(b.currency)),
       counts: {
         eligible: totalInvoices,
         excludedB2B,

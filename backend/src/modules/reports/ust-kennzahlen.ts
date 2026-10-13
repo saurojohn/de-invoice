@@ -74,7 +74,9 @@ export function ustvaKennzahlen(d: UstvaData): KzEntry[] {
     { kz: '85', label: 'Steuer zu Kz 84', value: d.reverseChargeOther.vat, kind: 'tax' },
     { kz: '60', label: 'Steuerpflichtige Umsätze, für die der Leistungsempfänger die Steuer nach § 13b Abs. 5 schuldet', value: d.reverseChargeSales, kind: 'base' },
     { kz: '21', label: 'Nicht steuerbare sonstige Leistungen gemäß § 18b Satz 1 Nr. 2', value: d.euServicesSales, kind: 'base' },
-    { kz: '45', label: 'Übrige nicht steuerbare Umsätze (Leistungsort nicht im Inland)', value: d.nonTaxableOther, kind: 'base' },
+    // Tier 682: with the sales declared through the OSS scheme — not taxable here, their place of supply is in
+    // the other member state, and taxable if they were made here. The base only; their tax is in the OSS return.
+    { kz: '45', label: 'Übrige nicht steuerbare Umsätze (Leistungsort nicht im Inland)', value: r2(d.nonTaxableOther + (d.ossSales?.net ?? 0)), kind: 'base' },
     { kz: '66', label: 'Vorsteuerbeträge aus Rechnungen von anderen Unternehmern', value: b.vstInvoices, kind: 'tax' },
     { kz: '61', label: 'Vorsteuerbeträge aus dem innergemeinschaftlichen Erwerb von Gegenständen', value: d.vorsteuer.fromIgE, kind: 'tax' },
     { kz: '67', label: 'Vorsteuerbeträge aus Leistungen im Sinne des § 13b', value: d.vorsteuer.fromReverseCharge, kind: 'tax' },
@@ -105,7 +107,7 @@ export function ustjaKennzahlen(d: UstvaData): KzEntry[] {
     { kz: '878', label: 'Steuer zu Kz 877', value: d.reverseChargeOther.vat, kind: 'tax' },
     { kz: '209', label: 'Steuerpflichtige Umsätze, für die der Leistungsempfänger die Steuer nach § 13b Abs. 5 schuldet', value: d.reverseChargeSales, kind: 'base' },
     { kz: '721', label: 'Nicht steuerbare sonstige Leistungen gemäß § 18b Satz 1 Nr. 2', value: d.euServicesSales, kind: 'base' },
-    { kz: '205', label: 'Übrige nicht steuerbare Umsätze (Leistungsort nicht im Inland)', value: d.nonTaxableOther, kind: 'base' },
+    { kz: '205', label: 'Übrige nicht steuerbare Umsätze (Leistungsort nicht im Inland)', value: r2(d.nonTaxableOther + (d.ossSales?.net ?? 0)), kind: 'base' }, // Tier 682, as Kz 45
     { kz: '320', label: 'Vorsteuerbeträge aus Rechnungen von anderen Unternehmern', value: b.vstInvoices, kind: 'tax' },
     { kz: '761', label: 'Vorsteuerbeträge aus innergemeinschaftlichen Erwerben von Gegenständen', value: d.vorsteuer.fromIgE, kind: 'tax' },
     { kz: '467', label: 'Vorsteuerbeträge aus Leistungen im Sinne des § 13b', value: d.vorsteuer.fromReverseCharge, kind: 'tax' },

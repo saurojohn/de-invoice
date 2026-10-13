@@ -1,86 +1,163 @@
-# Prüfliste für den Steuerberater
+# Prüfung der Steuerformulare und offenen Fragen
 
-Stand 12.10.2026. Die Steuerformulare der Anwendung sind Vorschauen: sie
-rechnen aus den erfassten Daten und sagen auf jedem Formular, was sie nicht
-abbilden. Diese Liste nennt, was ein Steuerberater einmal ansehen sollte,
-bevor die Zahlen verwendet werden — zuerst die Fragen, die eine Entscheidung
-brauchen, dann die Annahmen je Formular.
+Stand 13.10.2026. Auf Wunsch des Inhabers wurden die offenen Fragen so
+geprüft, wie ein Steuerberater sie ansehen würde: am Gesetzestext
+(gesetze-im-internet.de) und an den Anleitungen der Finanzverwaltung. Das
+Ergebnis steht unten, mit dem, was daraufhin im Programm geändert wurde.
 
-Unterlagen dazu: Buchhaltung › „Berater-Paket“ erzeugt für ein Jahr ein ZIP
-mit allen Formularen als PDF und einer Übersicht (MANIFEST).
+Diese Prüfung ersetzt keine Beratung durch einen zugelassenen Steuerberater
+und keine Auskunft des Finanzamts. Wo sie an eine Grenze stößt, steht das
+dabei.
 
-## A. Fragen, die eine Entscheidung brauchen
+Unterlagen: Buchhaltung › „Berater-Paket“ erzeugt für ein Jahr ein ZIP mit
+allen Formularen als PDF und einer Übersicht (MANIFEST).
 
-1. **Fremdwährung — Umrechnungskurs (§ 16 Abs. 6 UStG).** Rechnungen in
-   fremder Währung werden mit dem EZB-Referenzkurs des Rechnungstags
-   umgerechnet. Das Gesetz nennt die monatlichen Durchschnittskurse des BMF;
-   der Tageskurs braucht die Gestattung des Finanzamts. Soll diese Gestattung
-   beantragt werden — oder soll die Anwendung auf Monatsdurchschnittskurse
-   umgestellt werden?
-2. **OSS-Umsätze in der UStVA.** Nimmt das Unternehmen am OSS-Verfahren teil,
-   erscheinen die dort gemeldeten Umsätze in keiner Kennzahl der UStVA.
-   Richtig so, oder sind sie in einer Kennzahl nachrichtlich anzugeben?
-3. **Verzugszinsen in Mahnungen.** Zinsen werden auf den heute offenen Betrag
-   für die ganze Zeit seit Fälligkeit berechnet; ein verspätet gezahlter Teil
-   trägt keine. Das ist weniger als § 288 BGB erlaubt, nie mehr. Gewollt?
-4. **Mahngebühren.** Voreinstellung 5 € / 5 € / 10 € ab der ersten Mahnung.
-   Ob für die Mahnung, die den Verzug erst begründet, eine Gebühr verlangt
-   werden darf, ist mit einem Anwalt zu klären.
-5. **ELSTER.** Die Anwendung übermittelt nichts. UStVA und UStJA lassen sich
-   als PDF und als XML mit den Kennzahlen herunterladen; die XML-Datei ist
-   nicht nach dem ELSTER-Schema geprüft und nicht zum Hochladen gedacht. Wie
-   sollen die Voranmeldungen abgegeben werden — durch die Kanzlei (DATEV), oder
-   durch Abschreiben in Mein ELSTER?
-6. **Bankdateien.** Die Leser für CAMT.053 und MT940 sind nach dem Schema
-   gebaut, aber noch mit keinem echten Kontoauszug der Hausbank erprobt.
+## A. Die offenen Fragen — Beurteilung
 
-## B. Annahmen je Formular
+### 1. Fremdwährung: Umrechnungskurs für die Umsatzsteuer
 
-**GmbH (die eigene Rechtsform)**
+**Rechtslage (§ 16 Abs. 6 UStG).** Werte in fremder Währung sind nach den
+Durchschnittskursen umzurechnen, die das BMF für den Monat bekannt gibt, in
+dem die Leistung ausgeführt wird (bei Ist-Versteuerung: in dem das Entgelt
+vereinnahmt wird). „Das Finanzamt kann die Umrechnung nach dem Tageskurs, der
+durch Bankmitteilung oder Kurszettel nachzuweisen ist, gestatten.“
+
+**Beurteilung.** Das Programm rechnet mit dem EZB-Referenzkurs des
+Rechnungstags und hält Kurs, Datum und Quelle an jeder Rechnung fest. Das ist
+der Tageskurs — zulässig mit Gestattung des Finanzamts. Die Gestattung ist
+formlos zu beantragen und wird üblicherweise erteilt; der Nachweis liegt im
+Programm vor. Bis sie da ist, ist der Monatsdurchschnittskurs des BMF
+maßgeblich: er lässt sich an jeder Rechnung von Hand eintragen.
+
+**Empfehlung.** Gestattung beantragen (Text unten). Eine Umstellung des
+Programms auf Monatsdurchschnittskurse wäre möglich, lohnt aber nur, wenn das
+Finanzamt den Tageskurs ablehnt.
+
+**Geändert.** Der Hinweis am Kursfeld der Rechnung nennt die Regel und die
+Gestattung.
+
+> An das Finanzamt …
+> Steuernummer …
+>
+> **Antrag auf Gestattung der Umrechnung nach dem Tageskurs (§ 16 Abs. 6 Satz 3 UStG)**
+>
+> Sehr geehrte Damen und Herren,
+>
+> wir stellen vereinzelt Rechnungen in fremder Währung aus. Wir beantragen,
+> die Werte in fremder Währung für die Berechnung der Umsatzsteuer und der
+> abziehbaren Vorsteuerbeträge ab dem Voranmeldungszeitraum … nach dem
+> Tageskurs umrechnen zu dürfen. Als Tageskurs verwenden wir den
+> Euro-Referenzkurs der Europäischen Zentralbank des Rechnungsdatums; an
+> Tagen ohne Feststellung den zuletzt festgestellten Kurs. Kurs, Datum und
+> Quelle werden zu jeder Rechnung aufgezeichnet und können jederzeit
+> nachgewiesen werden.
+>
+> Mit freundlichen Grüßen
+
+### 2. OSS-Umsätze in der Umsatzsteuer-Voranmeldung
+
+**Rechtslage.** Fernverkäufe und elektronische Leistungen an Verbraucher in
+anderen EU-Staaten sind im Inland nicht steuerbar (Leistungsort im anderen
+Mitgliedstaat), wären es aber bei Ausführung im Inland. Solche Umsätze
+gehören nach der Anleitung zur Voranmeldung in die Kennzahl 45 („Übrige nicht
+steuerbare Umsätze (Leistungsort nicht im Inland)“), in der Jahreserklärung
+in die Kennzahl 205 — nur die Bemessungsgrundlage. Die Steuer wird über das
+OSS-Verfahren beim BZSt erklärt (§ 18j UStG).
+
+**Geändert.** Die Nettobeträge der OSS-Umsätze stehen jetzt in Kz 45 / Kz 205
+(vorher in keiner Kennzahl); die Steuer bleibt außerhalb der Voranmeldung.
+
+**Dabei gefunden und geändert.** Die OSS-Meldung rechnete Umsätze in fremder
+Währung nicht um. § 16 Abs. 6 Satz 4 UStG schreibt dafür den EZB-Kurs des
+letzten Tags des Besteuerungszeitraums (Quartals) vor. So wird jetzt
+gerechnet; im laufenden Quartal vorläufig mit dem Kurs der Rechnung, und die
+Meldung sagt das.
+
+### 3. Verzugszinsen
+
+**Rechtslage (§ 288 BGB).** Fünf Prozentpunkte über dem Basiszinssatz, unter
+Unternehmern neun. Verzugszinsen und Mahnkosten sind Schadensersatz und
+unterliegen nicht der Umsatzsteuer.
+
+**Beurteilung.** Das Programm berechnet Zinsen auf den heute offenen Betrag
+seit Fälligkeit und verlangt für bereits (verspätet) gezahlte Teile keine.
+Das ist weniger, als verlangt werden dürfte, nie mehr — unbedenklich, und es
+wird ohne Umsatzsteuer berechnet. Keine Änderung.
+
+### 4. Mahngebühren
+
+**Rechtslage.** Mahnkosten sind Verzugsschaden (§§ 280 Abs. 2, 286 BGB). Die
+Kosten der Mahnung, die den Verzug erst begründet, sind nicht durch den
+Verzug verursacht und können nicht verlangt werden. § 288 BGB kennt keine
+Mahngebühr; unter Unternehmern gibt es die Pauschale von 40 € (Abs. 5).
+
+**Geändert.** Für die Zahlungserinnerung ist keine Gebühr mehr voreingestellt
+(vorher 5 €, mit dem Hinweis auf eine Reform des § 288 BGB, die es nicht
+gibt). 1. Mahnung 5 €, Letzte Mahnung 10 € bleiben; alle Beträge sind in den
+Einstellungen änderbar. Wer vertraglich einen Zahlungstermin vereinbart, bei
+dem Verzug ohne Mahnung eintritt, kann die erste Stufe selbst setzen.
+
+### 5. Abgabe über ELSTER
+
+Das Programm übermittelt nichts. Die Voranmeldung wird entweder von der
+Kanzlei abgegeben oder in Mein ELSTER eingetippt; dafür gibt es die Kennzahlen
+als PDF und als XML-Datei. Die XML-Datei ist nicht nach dem ELSTER-Schema
+geprüft — das Schema ist nur registrierten Software-Herstellern zugänglich —
+und wird im Programm nicht mehr als Upload-Datei bezeichnet. Offen bleibt
+nichts, solange niemand eine direkte Übermittlung wünscht.
+
+### 6. Bankdateien
+
+Nicht prüfbar ohne einen echten Kontoauszug der Hausbank (in der
+Entwicklungsdatenbank liegt keiner). Den ersten heruntergeladenen CAMT.053-
+oder MT940-Auszug zuerst in der Vorschau ansehen.
+
+## B. Was bei der Durchsicht der Formulare außerdem geändert wurde
+
+- **Steuern vom Einkommen als Ausgabe.** Körperschaftsteuer,
+  Solidaritätszuschlag (§ 10 Nr. 2 KStG), Gewerbesteuer (§ 4 Abs. 5b EStG) und
+  Einkommensteuer (§ 12 Nr. 3 EStG) sind keine Betriebsausgaben. Als Ausgabe
+  erfasst, minderten sie Gewinn und zu versteuerndes Einkommen. Solche
+  Ausgaben werden nicht mehr angenommen; Vorauszahlungen gehören zu KSt 1 und
+  Gewerbesteuer.
+- **Tilgung eines Darlehens** wird nicht als Ausgabe angenommen (nur Zinsen).
+- **Geschenke:** Grenze 50 € je Empfänger ab 2024, 35 € davor (§ 4 Abs. 5
+  Satz 1 Nr. 1 EStG) — vorher 50 € für jedes Jahr.
+- **KSt 1:** Verlustabzug 70 % für 2024–2027, sonst 60 % (§ 10d Abs. 2 EStG).
+- **Gewerbesteuer:** Kürzung nach § 9 Nr. 1 Satz 1 GewStG ab 2025 um die als
+  Betriebsausgabe erfasste Grundsteuer.
+- **Anlagen:** Grund und Boden wird nicht abgeschrieben.
+- **Anlagen zur Einkommensteuererklärung** (N, KAP, SO, R, Kind, V, AUS): je
+  einmal am Gesetz geprüft und berichtigt; jedes Formular nennt, was es nicht
+  abbildet.
+
+## C. Annahmen, die bleiben
+
+**GmbH**
 
 - **KSt 1:** 15 % Körperschaftsteuer, 5,5 % Solidaritätszuschlag darauf,
   Gewerbesteuer mit Messzahl 3,5 % und dem eingetragenen Hebesatz, kein
   Freibetrag, keine Anrechnung nach § 35 EStG. Berechnet werden nur die nicht
-  abziehbaren Bewirtungskosten (30 %) und Geschenke über 50 € je Empfänger.
-  Platzhalter, vom Berater zu ergänzen: verdeckte Gewinnausschüttungen,
-  Spenden, Verlustabzug (§ 10d Abs. 2 EStG: 70 % für 2024–2027, sonst 60 %),
+  abziehbaren Bewirtungskosten (30 %) und Geschenke über der Grenze.
+  Platzhalter: verdeckte Gewinnausschüttungen, Spenden, Verlustabzug,
   ausländische Steuern, § 8b KStG.
 - **Gewerbesteuer:** Hinzurechnung nach § 8 Nr. 1 GewStG (Zinsen 100 %, Mieten
   für Grundbesitz 50 %, Leasing beweglicher Güter 20 %; ein Viertel der Summe
-  über 200 000 €). Kürzung nach § 9 Nr. 1 Satz 1 ab 2025 um die als
-  Betriebsausgabe erfasste Grundsteuer; bis 2024 Platzhalter (Einheitswert
-  nicht bekannt). Die erweiterte Kürzung (Satz 2) ist nicht abgebildet.
-- **Anlagen:** Abschreibung linear nach Monaten (§ 7 Abs. 1 EStG), der Monat
-  der Anschaffung und der Veräußerung zählt voll. Grund und Boden wird nicht
-  abgeschrieben. Keine Sonderabschreibungen, keine degressive AfA, GWG wie
-  jede andere Anlage über die eingetragene Nutzungsdauer.
-- **Umsatzsteuer:** Kennzahlen nach USt 1 A / USt 2 A 2026. Die Tilgung eines
-  Darlehens wird nicht als Ausgabe angenommen (nur die Zinsen).
+  über 200 000 €). Die erweiterte Kürzung (§ 9 Nr. 1 Satz 2) fehlt.
+- **Anlagevermögen:** Abschreibung linear nach Monaten; keine
+  Sonderabschreibungen, keine degressive AfA; GWG über die eingetragene
+  Nutzungsdauer.
 
 **Anlagen zur Einkommensteuererklärung (für eine GmbH nicht einschlägig)**
 
-- **Anlage N:** Arbeitnehmer-Pauschbetrag statt der Werbungskosten, wenn diese
-  nicht höher sind, höchstens der Arbeitslohn (§ 9a EStG). Nicht abgebildet:
-  Versorgungsbezüge, Altersentlastungsbetrag, steuerfreier Arbeitslohn.
-- **Anlage KAP:** Gutschriften der importierten Konten, deren Verwendungszweck
-  Zinsen oder Dividenden nennt und die nicht verbucht sind. Erträge eines
-  betrieblichen Kontos gehören nicht hierher (§ 20 Abs. 8 EStG). Die Gutschrift
-  ist der Betrag nach einbehaltener Steuer; maßgeblich ist die
-  Steuerbescheinigung der Bank.
-- **Anlage SO:** Fristen des § 23 Abs. 1 EStG (Grundstücke zehn Jahre, andere
-  Wirtschaftsgüter ein Jahr; seit 2009 angeschaffte Wertpapiere gehören in die
-  Anlage KAP), Verlustverrechnung innerhalb des Jahres, Freigrenze 1 000 €
-  (bis 2023: 600 €). Nicht abgebildet: das selbst bewohnte Haus, die
-  Zehnjahresfrist für als Einkunftsquelle genutzte Güter, ein Verlustrücktrag.
-- **Anlage R:** Besteuerungsanteil nach dem Jahr des Rentenbeginns,
-  Ertragsanteil nach dem Alter bei Beginn (§ 22 Nr. 1 Satz 3 EStG).
-- **Anlage Kind:** Kindergeld monatlich, Freibeträge des § 32 Abs. 6 EStG je
-  Elternteil und Monat, bei Zusammenveranlagung verdoppelt; Beträge der Jahre
-  2021–2026. Volljährige Kinder zählen, wenn sie als berechtigt eingetragen
-  sind — der Nachweis ist zu prüfen. Keine Günstigerprüfung.
-- **Anlage V:** alle Rechnungen des Unternehmens gelten als Mieteinnahmen, die
-  Ausgaben werden nach ihrer Kategorie den Zeilen zugeordnet.
-- **Anlage AUS:** Methode nach dem üblichen Inhalt der Abkommen (Dividenden und
-  Zinsen: Anrechnung; Arbeitslohn, Betriebsstätte, Grundbesitz:
-  Freistellung), je Eintrag änderbar. Das einzelne Abkommen ist zu prüfen. Die
-  anzurechnende Steuer ist die gezahlte, nicht der zulässige Höchstbetrag.
+- **Anlage N:** ohne Versorgungsbezüge, Altersentlastungsbetrag, steuerfreien
+  Arbeitslohn.
+- **Anlage KAP:** nur Gutschriften nicht verbuchter, privater Konten;
+  maßgeblich ist die Steuerbescheinigung der Bank.
+- **Anlage SO:** ohne das selbst bewohnte Haus, die Zehnjahresfrist für als
+  Einkunftsquelle genutzte Güter, den Verlustrücktrag.
+- **Anlage Kind:** volljährige Kinder zählen, wenn sie als berechtigt
+  eingetragen sind — der Nachweis ist zu prüfen. Keine Günstigerprüfung.
+- **Anlage V:** alle Rechnungen des Unternehmens gelten als Mieteinnahmen.
+- **Anlage AUS:** Methode nach dem üblichen Inhalt der Abkommen, je Eintrag
+  änderbar; das einzelne Abkommen ist zu prüfen.

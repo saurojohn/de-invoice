@@ -670,7 +670,8 @@ export class UstvaService {
     }
     row('§ 13b: Leistungsempfänger schuldet die Steuer (Kz 60)', data.reverseChargeSales)
     row('Sonstige Leistungen an Unternehmer in der EU (Kz 21)', data.euServicesSales)
-    row('Übrige nicht steuerbare Umsätze (Kz 45)', data.nonTaxableOther)
+    // Tier 682: with the OSS sales' net (ust-kennzahlen.ts)
+    row('Übrige nicht steuerbare Umsätze (Kz 45)', Math.round((data.nonTaxableOther + (data.ossSales?.net ?? 0)) * 100) / 100)
     doc.moveDown(0.5)
     doc.fontSize(11).font('Helvetica-Bold').text('Steuer als Leistungsempfänger', 50, doc.y, { width: 520 })
     doc.fontSize(9).font('Helvetica')
@@ -749,11 +750,11 @@ export class UstvaService {
       doc.y,
       { width: 520 },
     )
-    // Tier 641: what is in no Kennzahl above, so the reader does not miss it
+    // Tier 641 / 682: the tax that is not in this return, and where its base stands
     if (data.ossSales && (data.ossSales.net !== 0 || data.ossSales.vat !== 0)) {
       doc.text(
-        `Nicht enthalten: Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz — netto ${this.fmtEur(data.ossSales.net)}, ` +
-        `Steuer ${this.fmtEur(data.ossSales.vat)}. Sie werden über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG).`,
+        `Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz: netto ${this.fmtEur(data.ossSales.net)} — in Kz 45 enthalten, nur als Bemessungsgrundlage. ` +
+        `Ihre Steuer (${this.fmtEur(data.ossSales.vat)}) steht nicht in dieser Voranmeldung; sie wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG).`,
         { width: 520 },
       )
     }

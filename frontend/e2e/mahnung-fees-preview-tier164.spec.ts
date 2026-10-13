@@ -11,9 +11,10 @@
  * modal that shows the breakdown (open balance +
  * Mahngebühr + Verzugszins = total due).
  *
- * Also: the default Mahngebühr values were updated
- * from the pre-2023 § 288 BGB (0/2.50/5.00) to the
- * post-2023 practice (5/5/10). A company can still
+ * The default Mahngebühr values: 0 / 5 / 10 (Tier 682 —
+ * nothing for the reminder that puts the customer in
+ * default; Tier 164 had set 5 for it, citing a reform of
+ * § 288 BGB that does not exist). A company can still
  * override via bankInfo.mahnungConfig.
  *
  * Tests:
@@ -78,13 +79,12 @@ async function fetchPreview(level: string, invoiceId = TEST_INVOICE_ID) {
 }
 
 test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
-  test('backend: fees-config defaults to 5/5/10 post-2023 § 288 BGB', async () => {
+  test('backend: fees-config defaults to 0/5/10', async () => {
     const { status, data } = await fetchConfig()
     expect(status).toBe(200)
-    // 5/5/10 are the new post-2023 § 288 BGB
-    // defaults. Companies with their own
-    // mahnungConfig override these.
-    expect(data.mahngebuehr.first).toBe(5)
+    // Tier 682: no fee for the first reminder by default.
+    // Companies with their own mahnungConfig override these.
+    expect(data.mahngebuehr.first).toBe(0)
     expect(data.mahngebuehr.second).toBe(5)
     expect(data.mahngebuehr.final).toBe(10)
     expect(data.verzugszinsPct).toBe(9)
@@ -118,8 +118,8 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     const { data: first } = await fetchPreview('first')
     const { data: second } = await fetchPreview('second')
     const { data: final } = await fetchPreview('final')
-    // Post-2023 defaults: 5 / 5 / 10
-    expect(first.mahngebuehr).toBe(5)
+    // Defaults: 0 / 5 / 10
+    expect(first.mahngebuehr).toBe(0)
     expect(second.mahngebuehr).toBe(5)
     expect(final.mahngebuehr).toBe(10)
     // All three share the same invoice
@@ -195,8 +195,8 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     expect(verzVal).toMatch(/^\d+\.\d{2}$/)
     const totalVal = await page.getByTestId('send-mahnung-fees-total').getAttribute('data-value')
     expect(totalVal).toMatch(/^\d+\.\d{2}$/)
-    // Default level is 'first' (Mahngebühr = 5 €)
-    expect(parseFloat(mahnVal!)).toBe(5)
+    // Default level is 'first' (no Mahngebühr)
+    expect(parseFloat(mahnVal!)).toBe(0)
     // Total = openBalance + mahngebuehr + verzugszins
     // (within 0.05 € rounding tolerance — the
     // server rounds to 2 decimals)
@@ -211,7 +211,7 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     expect(openText.replace(/\s|\u00a0|\u202f/g, '')).toMatch(/[\d,.]+€/)
   })
 
-  test('frontend: changing the level updates the live fees block (5 → 10)', async ({ page }) => {
+  test('frontend: changing the level updates the live fees block (0 → 10)', async ({ page }) => {
     await contextWithAuth(page)
     page.setDefaultTimeout(90_000)
     await page.goto(`/dashboard/invoices/${TEST_INVOICE_ID}`, { timeout: 90_000 })
@@ -232,7 +232,7 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     const verzRow = page.getByTestId('send-mahnung-fees-verzugszins')
     const totalRow = page.getByTestId('send-mahnung-fees-total')
     await expect(mahnRow).toBeVisible({ timeout: 30_000 })
-    await expect(mahnRow).toHaveAttribute('data-value', '5.00', { timeout: 30_000 })
+    await expect(mahnRow).toHaveAttribute('data-value', '0.00', { timeout: 30_000 })
     // Snapshot the values that should NOT change
     // when the level flips (only the Mahngebühr
     // is level-driven). If a future bug makes
@@ -246,24 +246,24 @@ test.describe('Tier 164 — Mahngebühr live preview (§ 288 BGB)', () => {
     const levelSelect = page.getByTestId('send-mahnung-level')
     await levelSelect.selectOption('final')
     // The fees block should now re-render with
-    // Mahngebühr = 10.00 € (post-2023 default
+    // Mahngebühr = 10.00 € (the default
     // for 'final'). The re-fetch is fast but
     // not synchronous — wait for the data-value
-    // to flip from '5.00' to '10.00'.
+    // to flip from '0.00' to '10.00'.
     await expect(mahnRow).toHaveAttribute('data-value', '10.00', { timeout: 15_000 })
     // openBalance + Verzugszins must stay constant
     // (the level only affects the Mahngebühr).
     await expect(openRow).toHaveAttribute('data-value', openBefore!, { timeout: 5_000 })
     await expect(verzRow).toHaveAttribute('data-value', verzBefore!, { timeout: 5_000 })
     // Total = openBalance + mahngebuehr + verzugszins,
-    // so it should have grown by exactly 5 € (10 - 5).
+    // so it should have grown by exactly 10 € (10 - 0).
     const totalFinal = parseFloat((await totalRow.getAttribute('data-value'))!)
     const totalBeforeNum = parseFloat(totalBefore!)
-    expect(Math.abs(totalFinal - totalBeforeNum - 5)).toBeLessThan(0.05)
+    expect(Math.abs(totalFinal - totalBeforeNum - 10)).toBeLessThan(0.05)
     // Switch back to 'first' and confirm
     // Mahngebühr + total flip back.
     await levelSelect.selectOption('first')
-    await expect(mahnRow).toHaveAttribute('data-value', '5.00', { timeout: 15_000 })
+    await expect(mahnRow).toHaveAttribute('data-value', '0.00', { timeout: 15_000 })
     await expect(totalRow).toHaveAttribute('data-value', totalBefore!, { timeout: 5_000 })
   })
 

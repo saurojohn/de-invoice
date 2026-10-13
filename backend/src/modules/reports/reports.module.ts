@@ -40,9 +40,10 @@ import { StorageModule } from '../storage/storage.module';
 // handles the forwardRef if needed but
 // AssetsModule doesn't depend on us).
 import { AssetsModule } from '../assets/assets.module';
+import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 
 @Module({
-  imports: [StorageModule, AssetsModule],
+  imports: [StorageModule, AssetsModule, ExchangeRateModule],
   controllers: [
     // Tier 173 split — the 7 new controllers
     // each own a domain, all share the

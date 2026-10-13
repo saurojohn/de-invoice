@@ -131,8 +131,8 @@ psql_test -c "
       \"legalName\"='$COMPANY_NAME',
       \"invoicePrefix\"='INV-',
       -- NULL out bankInfo so the Tier 164
-      -- fees-config test sees the post-2023
-      -- default (5/5/10) instead of any
+      -- fees-config test sees the default
+      -- (0/5/10, Tier 682) instead of any
       -- pre-seeded mahnungConfig override.
       -- A previous test run may have set
       -- bankInfo.mahnungConfig to the old

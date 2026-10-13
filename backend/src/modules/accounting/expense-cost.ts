@@ -45,6 +45,37 @@ export const LOAN_REPAYMENT_MESSAGE =
   'Die Tilgung eines Darlehens ist keine Ausgabe und keine Eingangsrechnung — sie mindert den Gewinn nicht. ' +
   'Erfassen Sie nur die Zinsen, mit der Kategorie „Schuldzinsen“.'
 
+/**
+ * Tier 682 — taxes on income are no expense of the business: Körperschaft-
+ * steuer and Solidaritätszuschlag (§ 10 Nr. 2 KStG), Gewerbesteuer (§ 4
+ * Abs. 5b EStG), Einkommensteuer (§ 12 Nr. 3 EStG). Their prepayments have a
+ * place of their own (KSt 1 and the trade-tax form), and a corporation's
+ * GuV carries the year's taxes as position 14.
+ *
+ * Entered as expenses — 5 000 € of Gewerbesteuer, 6 000 € of Körperschaft-
+ * steuer — they lowered the profit and the income to be taxed by 11 000 €,
+ * with nothing added back. Refused when entered; a row from before costs
+ * nothing. Not meant: Umsatzsteuer, Lohnsteuer, Kfz-Steuer, Grundsteuer —
+ * and the adviser's fee for any of them.
+ */
+export function isIncomeTax(category: string | null | undefined): boolean {
+  const c = String(category || '').trim()
+  if (!c || /berat|software|kurs|seminar|literatur/i.test(c)) return false
+  return /^(Körperschafts?steuer|KSt(\b|-)|Gewerbesteuer|GewSt(\b|-)|Solidaritätszuschlag|Soli(\b|-)|Einkommensteuer|ESt(\b|-))/i.test(c)
+}
+
+export const INCOME_TAX_MESSAGE =
+  'Körperschaftsteuer, Solidaritätszuschlag, Gewerbesteuer und Einkommensteuer sind keine Betriebsausgaben ' +
+  '(§ 10 Nr. 2 KStG, § 4 Abs. 5b und § 12 Nr. 3 EStG). Vorauszahlungen tragen Sie unter Buchhaltung bei KSt 1 ' +
+  'und bei der Gewerbesteuer ein.'
+
+/** An expense that is none: refused when entered, and costing nothing where it exists. */
+export function notAnExpense(category: string | null | undefined): string | null {
+  if (isLoanRepayment(category)) return LOAN_REPAYMENT_MESSAGE
+  if (isIncomeTax(category)) return INCOME_TAX_MESSAGE
+  return null
+}
+
 /** What the expense's amount is, whatever it is for. */
 export function rawExpenseCost(e: CostExpense, kleinunternehmer: boolean): number {
   const v = kleinunternehmer ? e.grossAmount : e.netAmount ?? e.grossAmount
@@ -53,7 +84,7 @@ export function rawExpenseCost(e: CostExpense, kleinunternehmer: boolean): numbe
 }
 
 export function expenseCost(e: CostExpense, kleinunternehmer: boolean): number {
-  return isLoanRepayment(e.category) ? 0 : rawExpenseCost(e, kleinunternehmer)
+  return notAnExpense(e.category) ? 0 : rawExpenseCost(e, kleinunternehmer)
 }
 
 /**

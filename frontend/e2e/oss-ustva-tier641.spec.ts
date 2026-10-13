@@ -69,7 +69,10 @@ test("French tax is named apart on the UStVA page; a later credit note is a corr
   await expect(note).toContainText("OSS-Verfahren")
   // the page opens on the year: the sale of the quarter before is in it unless that was last year
   const sameYear = early.slice(0, 4) === String(y)
-  await expect(note).toContainText(sameYear ? /netto 100,00\s*€, Steuer 20,00\s*€/ : /netto 20,00\s*€, Steuer 4,00\s*€/)
+  // Tier 682: the net is in Kz 45 (as a base only); the tax is what is not in the return
+  await expect(note).toContainText(sameYear ? /netto 100,00\s*€ — in Kz 45 enthalten/ : /netto 20,00\s*€ — in Kz 45 enthalten/)
+  await expect(note).toContainText(sameYear ? /Ihre Steuer \(20,00\s*€\) steht nicht in dieser Voranmeldung/ : /Ihre Steuer \(4,00\s*€\) steht nicht in dieser Voranmeldung/)
+  await expect(page.getByTestId("ustva-kz45")).toContainText(sameYear ? "100,00" : "20,00")
   await expect(page.locator("table").first()).not.toContainText("20%")
 
   // the OSS tab: this quarter's sale, and the credit note as a correction of the quarter before
