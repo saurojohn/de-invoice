@@ -123,7 +123,9 @@ export async function generateZUGFeRD(
   //
   // The footer's "ZUGFeRD konform" line is rendered on top of
   // the standard PDF via the ZUGFeRD layer below.
-  const visualPdf = await generateInvoicePDF(invoice as any, company as any, 'standard', options.templateConfig);
+  // Tier 683: the invoice's own template type, as the plain PDF — 'standard'
+  // for every e-invoice put the logo back on a "simplified" one.
+  const visualPdf = await generateInvoicePDF(invoice as any, company as any, (invoice as any).templateType || 'standard', options.templateConfig);
 
   // Embed the XML into the PDF — machines read this part.
   // This is the step that turns a "PDF with a ZUGFeRD footer"

@@ -2662,6 +2662,30 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 683 — one invoice, one document on every way out; the customer gets the e-invoice
+
+The owner, 13.10.2026: „电子发票这功能实现的怎样了？“ — how far is the e-invoice. Measured end to end before answering: a GmbH issued an invoice at two rates with a discount and Skonto; XRechnung 3.0 (UBL) and the ZUGFeRD PDF both passed the KoSIT validator; a second company read both files back with identical totals and booked the expense with a line per rate. The nine e-invoice specs (87, 139, 140, 201, 203, 268, 344, 352, 358) pass. Issuing and receiving work. What did not:
+
+- **The customer got the one copy without the XML.** The same invoice left the program in six ways, each with its own call to the renderer. Measured on a GmbH with a register entry and a managing director:
+
+  | way out | XML inside | register / director | template texts |
+  |---|---|---|---|
+  | download `GET /invoices/:id/pdf` | yes | yes | yes |
+  | `GET /invoices/:id/zugferd` | yes | yes | **no** |
+  | bulk download (ZIP) | yes | **no** | **no** |
+  | e-mail to the customer | **no** | **no** | only if the invoice named a template |
+  | e-mail, sent again | **no** | **no** | **no** |
+  | customer portal | **no** | **no** | **no** |
+
+  "Template texts" is not a colour: the § 19 UStG note of a Kleinunternehmer is a text of the template. His e-mailed invoice, the ZIP's, the portal's and `…/zugferd` had no § 19 note. The bulk ZIP and `…/zugferd` also left out the advance a final invoice deducts (Tier 472).
+- **Now:** `modules/invoice/invoice-document.ts` — `renderInvoiceDocument(prisma, invoice, company, { plain?, lenient? })` resolves the template, sets the advance deduction, builds the full issuer (`issuerContext`) and returns the e-invoice (ZUGFeRD) for an invoice, the plain PDF for a quote / order confirmation / delivery note or on `plain`. All six outlets and the GoBD archive call it; their own copies of the company context and of the template lookup are gone (`invoice.controller.ts` −130 lines). `lenient` (e-mail, resend, portal): when the XML cannot be built the plain PDF goes out and a warning is logged — an e-mail does not fail over the XML. The send result says `eInvoice: true|false`; the file name stays `<number>.pdf`. `generateZUGFeRD` renders with the invoice's own template type (was `'standard'` for every e-invoice: a "simplified" invoice got its logo back). The send dialog says that the attachment is the e-invoice (`invoicePage.attachedAsEInvoice`, `email-einvoice-note`).
+- **A second invoice under the same number.** The refusal (409, Tier 489) told the person to confirm "mit „confirmDuplicate“" — the API's field name — and the expense form and the scan (OCR) had no way to confirm: a second invoice that really is one could only be entered on the UStVA page. The message speaks to the person now; the refusal carries `code: 'DUPLICATE_EXPENSE'` (`duplicateExpenseConflict`), and `isDuplicateExpense(err)` in `lib/api.ts` lets the form, the scan and the UStVA page ask "Trotzdem als zweite Rechnung erfassen?" on exactly this refusal (the UStVA page asked on any 409 — `common/key-lock.ts` answers 409 too).
+- **The specs' PDF reader lost a byte.** While writing the spec: 2 of 30 PDFs of the same invoice read as empty. The readers matched `stream\n(.*?)\r?\nendstream` and fed the group to `zlib.decompress` — compressed data that ends in a line-break byte lost it to the pattern. The same reader was in `_lib.sh` (`pdf_contains`) and in twelve specs (203, 207, 209, 258, 259, 266, 268, 278, 279, 282, 283 — spec 203 carries a note from Tier 423 that it "failed twice in local full runs"). All use `zlib.decompressobj()` now, which stops at the end of the data.
+
+**Looked at, not a defect:** an imported e-invoice's due date, Skonto terms, IBAN and remittance text are kept — in the expense's note, not as fields (there is no list of payables by due date that could use them). **Not there, by decision of scope:** Peppol transmission; CII as a file of its own (it exists inside the ZUGFeRD PDF); validation of a *received* file runs through `POST /expenses/e-invoice/validate`.
+
+Spec `407-tier683-ein-dokument-auf-jedem-weg.sh` (26 checks; 15 fail on the code before) — it starts a mailbox (`e2e/fixtures/smtp-sink.py`, an SMTP server that writes each message to a file), so it looks at the attachment the customer would have received, validates the XML inside it with KoSIT, and reads the portal's login link from the mail. Playwright `expense-duplicate-confirm-tier683.spec.ts`; `progress-pause-rounding-report-tier621.spec.ts` reads the dialog's note.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 682 — the open questions, reviewed the way an adviser would
 
 The owner, 13.10.2026, on the checklist for the tax adviser: „你用税务师角度来审核就可以了“ — review it from the adviser's point of view yourself. Done against the statutes (gesetze-im-internet.de) and the tax administration's instructions; `docs/steuerberater-pruefliste.md` now holds the assessment of each question instead of the question. It is not a licensed adviser's opinion and says so.

@@ -4071,6 +4071,7 @@
   },
   "invoicePage": {
     "autoAttached": "(wird automatisch vom Server angehängt)",
+    "attachedAsEInvoice": "Als E-Rechnung: Das PDF enthält die Rechnung zusätzlich als XML (ZUGFeRD / Factur-X, EN 16931) — dieselbe Datei wie beim Herunterladen.",
     "cancel": "Abbrechen",
     "action": "Aktion",
     "to": "An (Empfänger)",

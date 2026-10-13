@@ -63,8 +63,8 @@ cii() { # id label → $WORK/label.xml (the CII inside the ZUGFeRD PDF)
   python3 - "$WORK/$2.pdf" "$WORK/$2.xml" <<'PY'
 import re, sys, zlib
 d = open(sys.argv[1], 'rb').read()
-for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', d, re.DOTALL):
-    try: dec = zlib.decompress(m.group(1))
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.DOTALL):
+    try: dec = zlib.decompressobj().decompress(m.group(1))
     except Exception: continue
     if b'CrossIndustryInvoice' in dec:
         open(sys.argv[2], 'wb').write(dec); sys.exit(0)

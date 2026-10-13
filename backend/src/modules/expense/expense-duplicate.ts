@@ -36,8 +36,20 @@ export function duplicateExpenseMessage(dup: { invoiceNumber: string | null; inv
   return (
     `Die Eingangsrechnung ${dup.invoiceNumber} dieses Lieferanten ist bereits erfasst ` +
     `(${new Date(dup.invoiceDate).toLocaleDateString('de-DE')}, ${Number(dup.grossAmount).toFixed(2).replace('.', ',')} €). ` +
-    'Ist es wirklich eine zweite Rechnung, mit „confirmDuplicate“ bestätigen.'
+    // Tier 683: said to the person at the form — it named the API's field („mit
+    // „confirmDuplicate“ bestätigen“); the pages ask for the confirmation themselves
+    'Ist es wirklich eine zweite Rechnung, bitte ausdrücklich bestätigen.'
   )
+}
+
+/**
+ * Tier 683: the refusal carries a code. The pages offer "enter it anyway" on
+ * it — on the status alone they would offer that for any 409 (the lock in
+ * common/key-lock.ts answers 409 too).
+ */
+export const DUPLICATE_EXPENSE = 'DUPLICATE_EXPENSE'
+export function duplicateExpenseConflict(message: string) {
+  return new ConflictException({ statusCode: 409, error: 'Conflict', code: DUPLICATE_EXPENSE, message })
 }
 
 export async function assertNoDuplicateExpense(
@@ -50,7 +62,7 @@ export async function assertNoDuplicateExpense(
 ) {
   if (confirmed) return
   const dup = await findDuplicateExpense(prisma, companyId, supplierId, invoiceNumber, creditNote)
-  if (dup) throw new ConflictException(duplicateExpenseMessage(dup))
+  if (dup) throw duplicateExpenseConflict(duplicateExpenseMessage(dup))
 }
 
 /**

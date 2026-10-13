@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { advanceDeductionFor } from '../invoice/advance'
+import { renderInvoiceDocument } from '../invoice/invoice-document'
 import { Response } from 'express'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
-import { generateZUGFeRD } from '../../invoices/zugferd.service'
-import { InvoiceTemplateService } from '../invoice-template/invoice-template.service'
 import { generateDatevBuchungsstapel, buildBuchungenFromDb, encodeDatevCsv } from '../reports/datev.service'
 import * as archiver from 'archiver'
 import * as fs from 'fs'
@@ -82,7 +80,6 @@ export class GobdArchiveService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
-    private templates: InvoiceTemplateService,
   ) {}
 
   /**
@@ -368,28 +365,6 @@ export class GobdArchiveService {
 
   // ── helpers ──
 
-  /** Tier 420: the company fields GET /invoices/:id/pdf passes to the renderer. */
-  private companyContext(company: any, templateConfig: any) {
-    return {
-      name: company?.name || '',
-      defaultVatMode: company?.defaultVatMode ?? null, // Tier 482
-      legalName: company?.legalName || undefined,
-      address: company?.address || {},
-      vatId: company?.vatId || undefined,
-      taxId: company?.taxId || undefined,
-      email: company?.email || undefined,
-      phone: company?.phone || undefined,
-      fax: company?.fax || undefined,
-      website: company?.website || undefined,
-      registerEntry: company?.registerEntry || undefined,
-      managingDirector: company?.managingDirector || undefined,
-      otherInfo: company?.otherInfo || undefined,
-      bankInfo: company?.bankInfo || undefined,
-      logoPath: company?.logoPath || undefined,
-      templateConfig,
-    } as any
-  }
-
   private async collectInvoices(
     companyId: string,
     yearStart: Date,
@@ -424,15 +399,7 @@ export class GobdArchiveService {
           pdfBuffer = (await this.storage.getFile(inv.pdfPath))?.buffer ?? null
         }
         if (!pdfBuffer) {
-          let templateConfig: any
-          try {
-            templateConfig = (await this.templates.resolveConfig(companyId, inv.templateType || 'standard', (inv as any).templateId)).config
-          } catch {
-            templateConfig = undefined
-          }
-          // Tier 473: a final invoice states the advance it deducts (Tier 472).
-          ;(inv as any).advanceDeduction = await advanceDeductionFor(this.prisma, inv)
-          pdfBuffer = await generateZUGFeRD(inv as any, this.companyContext(company, templateConfig), { templateConfig })
+          pdfBuffer = (await renderInvoiceDocument(this.prisma, inv, company)).buffer
         }
         result.push({
           id: inv.id,

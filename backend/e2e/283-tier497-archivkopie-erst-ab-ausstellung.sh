@@ -32,8 +32,8 @@ AS() { # method path [body]
 PDFTXT() { python3 - "$1" <<'PY'
 import re, sys, zlib
 d = open(sys.argv[1], 'rb').read(); out = []
-for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', d, re.DOTALL):
-    try: dec = zlib.decompress(m.group(1))
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.DOTALL):
+    try: dec = zlib.decompressobj().decompress(m.group(1))
     except Exception: continue
     for tj in re.finditer(rb'\[(.*?)\]\s*TJ', dec, re.S):
         out.append(''.join(bytes.fromhex(h.decode()).decode('latin-1') for h in re.findall(rb'<([0-9a-fA-F]+)>', tj.group(1))))

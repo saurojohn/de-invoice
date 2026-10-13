@@ -31,7 +31,7 @@ import { AttachmentsService } from '../../attachment/attachments.service'
 import { SupplierService } from '../../supplier/supplier.service'
 import { ExpenseService } from '../expense.service'
 import { expenseAmountsError } from '../amounts'
-import { findDuplicateExpense, duplicateExpenseMessage } from '../expense-duplicate'
+import { findDuplicateExpense, duplicateExpenseMessage, duplicateExpenseConflict } from '../expense-duplicate'
 import { EInvoiceFormatError, EInvoiceLine, ParsedEInvoice, parseEInvoiceXml } from './e-invoice-parser'
 import { embeddedXmlFiles } from './pdf-embedded-xml'
 import { XmlReadError, decodeXml } from './xml-reader'
@@ -335,7 +335,7 @@ export class EInvoiceImportService {
     const plan = await this.plan(companyId, file.buffer, read, opts)
     if (plan.blocking.length) throw new BadRequestException(plan.blocking.join(' '))
     if (plan.duplicate && !opts.confirmDuplicate) {
-      throw new ConflictException(`${plan.duplicate.message} Zum erneuten Einlesen mit „confirmDuplicate“ bestätigen.`)
+      throw duplicateExpenseConflict(plan.duplicate.message)
     }
     if (plan.buyerMatches === false && !opts.confirmRecipient) {
       throw new ConflictException(

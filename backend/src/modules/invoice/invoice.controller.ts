@@ -4,7 +4,6 @@ import { strictFlag } from '../../common/strict-boolean'
 import { queryInt } from '../../common/query';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
 import { assertManualPaymentMethod } from './payment-methods';
-import { advanceDeductionFor } from './advance';
 import { Throttle } from '@nestjs/throttler';
 import { Response, Request } from 'express';
 import { Prisma } from '@prisma/client';
@@ -16,7 +15,7 @@ import { CreatePaymentDto, CreateCreditNoteDto, BookPaymentNoticeDto } from './d
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { MailService } from '../mail/mail.service';
-import { generateInvoicePDF, InvoiceRenderConfig, buildEpcQrPayload } from '../../invoices/invoice-pdf.service';
+import { buildEpcQrPayload } from '../../invoices/invoice-pdf.service';
 // Tier 225: standalone GiroCode PNG download. The
 // `qrcode` lib is already a backend dep (used by
 // invoice-pdf.service.ts since Tier 224 to embed
@@ -28,7 +27,7 @@ import {
   validateXRechnungWithKoSIT,
   KoSITValidatorUnavailableError,
 } from '../../invoices/kosIT-validator.service';
-import { generateZUGFeRD } from '../../invoices/zugferd.service';
+import { renderInvoiceDocument } from './invoice-document';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
@@ -39,7 +38,6 @@ import { Auth, Require } from '../../auth/roles.decorator';
 // InvoiceEmailService. The controller still has the
 // PDF-generation imports (line 11) for the preview
 // endpoints.
-import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
 // Tier 129: see comment on the constructor.
 import { InvoiceEmailService } from './invoice-email.service';
 // Tier 165: embed a PAdES-style PDF signature
@@ -69,7 +67,6 @@ export class InvoiceController {
     private prisma: PrismaService,
     private storageService: StorageService,
     private mailService: MailService,
-    private templateService: InvoiceTemplateService,
     private paymentService: PaymentService,
     // Tier 129: extracted the email-send workflow.
     // Controller still owns the route + permission
@@ -299,15 +296,6 @@ export class InvoiceController {
 
     try {
       const company = await this.prisma.company.findUnique({ where: { id: companyId } })
-      const companyCtx = {
-        name: company?.name || '',
-      defaultVatMode: company?.defaultVatMode ?? null, // Tier 482
-        address: company?.address || {},
-        vatId: company?.vatId || undefined,
-        taxId: company?.taxId || undefined,
-        bankInfo: company?.bankInfo || undefined,
-        logoPath: company?.logoPath || undefined,
-      }
 
       const zip = new (archiverLib as any).ZipArchive({ zlib: { level: 6 } })
       const stamp = businessTodayIso()
@@ -331,34 +319,13 @@ export class InvoiceController {
             failed.push({ id, number: id, reason: 'not found' })
             continue
           }
-          let buffer: Buffer
-          let ext: string
-          if (format === 'zugferd' && !isNonFiscal(invoice.type)) { // Tier 610: a quote / delivery note is a plain PDF
-            buffer = await generateZUGFeRD(invoice, companyCtx as any)
-            ext = 'pdf'
-          } else {
-            // Tier 7.5: resolve the visual
-            // config (color/font/density/
-            // footer) from the InvoiceTemplate
-            // row before rendering. Falls
-            // back to the built-in hard-coded
-            // 'standard' look when the
-            // company has no template set.
-            const renderConfig = await this.resolveTemplateConfig(
-              invoice.companyId,
-              invoice.templateType || 'standard',
-              (invoice as any).templateId,
-            )
-            // Tier 472: a final invoice states the advance it deducts.
-            ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
-            buffer = await generateInvoicePDF(
-              invoice,
-              companyCtx as any,
-              invoice.templateType || 'standard',
-              renderConfig,
-            )
-            ext = 'pdf'
-          }
+          // Tier 683: the document as every other outlet builds it — the ZIP's
+          // e-invoices had neither the register entry and the managing
+          // director nor the texts of the template (a Kleinunternehmer's
+          // § 19 note among them), nor the advance a final invoice deducts.
+          // (Tier 610: a quote / delivery note is a plain PDF.)
+          const { buffer } = await renderInvoiceDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
+          const ext = 'pdf'
           let name = invoice.invoiceNumber || id
           // Disambiguate by appending -2, -3, ... if needed
           let unique = name
@@ -752,51 +719,12 @@ export class InvoiceController {
       // in the PDF service short-circuited because the fields
       // were undefined). User reported the right-footer
       // Impressum was missing in downloaded PDFs.
-      const templateConfig = await this.resolveTemplateConfig(
-        companyId,
-        invoice.templateType || 'standard',
-        (invoice as any).templateId,
-      )
-      const companyCtx = {
-        name: company?.name || '',
-      defaultVatMode: company?.defaultVatMode ?? null, // Tier 482
-        legalName: company?.legalName || undefined,
-        address: company?.address || {},
-        vatId: company?.vatId || undefined,
-        taxId: company?.taxId || undefined,
-        email: company?.email || undefined,
-        phone: company?.phone || undefined,
-        fax: company?.fax || undefined,
-        website: company?.website || undefined,
-        registerEntry: company?.registerEntry || undefined,
-        managingDirector: company?.managingDirector || undefined,
-        otherInfo: company?.otherInfo || undefined,
-        bankInfo: company?.bankInfo || undefined,
-        logoPath: company?.logoPath || undefined,
-        templateConfig,
-      } as any
-
       // Tier 60: ZUGFeRD is the default. The embedded XML
       // carries the machine-readable invoice data (per EN16931);
-      // the visual PDF is the same as the legacy plain-PDF
-      // render. The embedded step is ~80-120ms on a typical
-      // workstation — small enough that we don't need a
-      // separate cached /zugferd endpoint.
-      //
-      // Polish #10 fix: pass `templateConfig` as the 4th
-      // argument to generateInvoicePDF. The PDF generator
-      // reads the per-template fontFamily / primaryColor /
-      // layoutDensity from THIS argument, not from
-      // companyCtx.templateConfig. Without the 4th arg,
-      // the PDF always uses the Helvetica default + black
-      // text regardless of the InvoiceTemplate config —
-      // 34-template-applied.sh asserts on the rendered
-      // font and color, so this was a real bug.
-      // Tier 472: a final invoice states the advance it deducts.
-      ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
-      const pdfBuffer = format === 'zugferd'
-        ? await generateZUGFeRD(invoice as any, companyCtx as any, { templateConfig: templateConfig as any })
-        : await generateInvoicePDF(invoice as any, companyCtx as any, invoice.templateType || 'standard', templateConfig as any)
+      // the visual PDF is the same as the plain-PDF render.
+      // Tier 683: built by renderInvoiceDocument, as for every other outlet
+      // (template texts, full letterhead, the advance a final invoice deducts).
+      const { buffer: pdfBuffer } = await renderInvoiceDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
 
       // Auto-save PDF to local storage. The path is the
       // visual PDF (same content whether ZUGFeRD or plain)
@@ -1089,23 +1017,9 @@ export class InvoiceController {
         return;
       }
 
-      const pdfBuffer = await generateZUGFeRD(invoice, {
-        name: company.name,
-        defaultVatMode: company.defaultVatMode ?? null, // Tier 482
-        legalName: company.legalName || undefined,
-        address: company.address || {},
-        vatId: company.vatId || undefined,
-        taxId: company.taxId || undefined,
-        email: company.email || undefined,
-        phone: company.phone || undefined,
-        fax: company.fax || undefined,
-        website: company.website || undefined,
-        registerEntry: company.registerEntry || undefined,
-        managingDirector: company.managingDirector || undefined,
-        otherInfo: company.otherInfo || undefined,
-        bankInfo: company.bankInfo || undefined,
-        logoPath: company.logoPath || undefined,
-      }, { version: '2.1', conformanceLevel: 'EN16931' });
+      // Tier 683: was rendered without the template (its texts, the § 19 note)
+      // and without the advance a final invoice deducts.
+      const { buffer: pdfBuffer } = await renderInvoiceDocument(this.prisma, invoice, company);
 
       res.set({
         'Content-Type': 'application/pdf',
@@ -1753,51 +1667,6 @@ export class InvoiceController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.paymentService.delete(paymentId, companyId);
-  }
-
-  /**
-   * Tier 7.5: resolve the visual
-   * config (primaryColor, font,
-   * density, footer text) for an
-   * invoice. The render order is:
-   *
-   * 1. invoice.templateId (explicit)
-   * 2. company default template
-   * 3. hard-coded preset for
-   *    invoice.templateType
-   * 4. hard-coded 'standard' preset
-   *
-   * Returns null if no config was
-   * found — the PDF renderer falls
-   * back to its built-in hard-coded
-   * default in that case (so existing
-   * invoices without any template
-   * setup continue to render exactly
-   * the same).
-   *
-   * The lookup is wrapped in
-   * try/catch because this runs in
-   * the hot path of every PDF render;
-   * if the templates table is missing
-   * (e.g. before prisma db push ran
-   * on a fresh checkout) the PDF
-   * still works.
-   */
-  private async resolveTemplateConfig(
-    companyId: string,
-    templateType: string,
-    templateId?: string | null,
-  ): Promise<InvoiceRenderConfig | undefined> {
-    try {
-      const r = await this.templateService.resolveConfig(
-        companyId,
-        templateType,
-        templateId,
-      )
-      return r.config
-    } catch {
-      return undefined
-    }
   }
 
   // ---- Tier 138: internal team notes ----

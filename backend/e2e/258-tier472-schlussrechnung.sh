@@ -88,8 +88,8 @@ pdf_text() { python3 - "$1" <<'PY'
 import sys, re, zlib
 raw = open(sys.argv[1], 'rb').read()
 out = []
-for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', raw, re.S):
-    try: data = zlib.decompress(m.group(1))
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', raw, re.S):
+    try: data = zlib.decompressobj().decompress(m.group(1))
     except Exception: continue
     for tj in re.finditer(rb'\[(.*?)\]\s*TJ', data, re.S):
         out.append(''.join(bytes.fromhex(h.decode()).decode('latin-1') for h in re.findall(rb'<([0-9a-fA-F]+)>', tj.group(1))))

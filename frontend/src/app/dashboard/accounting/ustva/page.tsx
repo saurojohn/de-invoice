@@ -10,7 +10,7 @@ import UstPaymentsCard from "./UstPaymentsCard"
 import ZmCard from "./ZmCard"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut } from "@/lib/api"
+import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut, isDuplicateExpense } from "@/lib/api"
 import { useYearField } from "@/lib/year-field"
 
 interface UstvaData {
@@ -367,7 +367,7 @@ function UstvaPageInner() {
         } catch (e) {
           // Tier 489: the same supplier invoice number again — the backend
           // refuses it as a duplicate; a genuinely second bill is confirmed.
-          if (!(e instanceof ApiError && e.status === 409)) throw e
+          if (!isDuplicateExpense(e)) throw e // Tier 683: this refusal, not any 409
           if (!window.confirm(`${e.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) return
           await apiPost(`/api/v1/ustva/expenses?companyId=${companyId}`, { ...body, confirmDuplicate: true })
         }

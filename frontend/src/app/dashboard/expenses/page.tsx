@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
-import { apiGet, apiFetch, apiPost } from "@/lib/api"
+import { apiGet, apiFetch, apiPost, isDuplicateExpense } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 import { EInvoiceDialog } from "@/components/EInvoiceDialog"
 import { BLANK_EXPENSE, ExpenseEditForm } from "@/components/ExpenseEditForm"
@@ -1081,26 +1081,37 @@ export default function ExpensesPage() {
                             )
                             supplierId = made.supplierId
                           }
-                          const created = await apiPost(
-                            `/api/v1/expenses?companyId=${companyId}`,
-                            {
-                              description:
-                                picked.editable.description ||
-                                [supplierName, picked.editable.invoiceNumber]
-                                  .filter(Boolean)
-                                  .join(" — ") ||
-                                "OCR-Scan",
-                              invoiceDate: picked.editable.invoiceDate,
-                              ...(picked.editable.invoiceNumber
-                                ? { invoiceNumber: picked.editable.invoiceNumber }
-                                : {}),
-                              ...(supplierId ? { supplierId } : {}),
-                              netAmount: parseFloat(picked.editable.netAmount),
-                              vatRate: parseFloat(picked.editable.vatRate) / 100,
-                              vatAmount: parseFloat(picked.editable.vatAmount),
-                              grossAmount: parseFloat(picked.editable.grossAmount),
-                            },
-                          )
+                          const scanned = {
+                            description:
+                              picked.editable.description ||
+                              [supplierName, picked.editable.invoiceNumber]
+                                .filter(Boolean)
+                                .join(" — ") ||
+                              "OCR-Scan",
+                            invoiceDate: picked.editable.invoiceDate,
+                            ...(picked.editable.invoiceNumber
+                              ? { invoiceNumber: picked.editable.invoiceNumber }
+                              : {}),
+                            ...(supplierId ? { supplierId } : {}),
+                            netAmount: parseFloat(picked.editable.netAmount),
+                            vatRate: parseFloat(picked.editable.vatRate) / 100,
+                            vatAmount: parseFloat(picked.editable.vatAmount),
+                            grossAmount: parseFloat(picked.editable.grossAmount),
+                          }
+                          // Tier 683: a scan under a number that is already entered was
+                          // refused and that was the end of it — the refusal is asked about
+                          // now, as in the form.
+                          let created
+                          try {
+                            created = await apiPost(`/api/v1/expenses?companyId=${companyId}`, scanned)
+                          } catch (dup) {
+                            if (!isDuplicateExpense(dup)) throw dup
+                            if (!window.confirm(`${dup.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) {
+                              setOcr(picked)
+                              return
+                            }
+                            created = await apiPost(`/api/v1/expenses?companyId=${companyId}`, { ...scanned, confirmDuplicate: true })
+                          }
                           // The scan is the Beleg: it is kept with the
                           // expense (it used to be read and thrown away).
                           const beleg = new FormData()

@@ -4071,6 +4071,7 @@
   },
   "invoicePage": {
     "autoAttached": "（由服务器自动附加）",
+    "attachedAsEInvoice": "作为电子发票：该 PDF 同时内嵌了 XML 格式的发票数据（ZUGFeRD / Factur-X，EN 16931）——与下载得到的是同一份文件。",
     "cancel": "取消",
     "action": "操作",
     "to": "收件人",

@@ -117,4 +117,6 @@ test("progress badge, rounding, pause, report and the e-mail's time sheet", asyn
   const attach = page.getByTestId("email-attach-timesheet")
   await expect(attach).toBeChecked()
   await expect(page.getByText(`Stundennachweis_${number}.pdf`)).toBeVisible()
+  // Tier 683: the dialog says what the customer gets — the e-invoice, not a plain PDF
+  await expect(page.getByTestId("email-einvoice-note")).toContainText("ZUGFeRD")
 })

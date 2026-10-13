@@ -3216,6 +3216,10 @@ export default function InvoiceDetailPage() {
                     server-side and attached automatically. */}
                 <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-3">
                   {t("invoicePage.attachment")} <span className="font-mono">{invoice?.invoiceNumber}.pdf</span> {t("invoicePage.autoAttached")}
+                  {/* Tier 683: the customer gets the e-invoice, not a plain PDF */}
+                  {!nonFiscal && (
+                    <p className="mt-1 text-xs" data-testid="email-einvoice-note">{t("invoicePage.attachedAsEInvoice")}</p>
+                  )}
                   {/* Tier 622: an invoice over logged hours takes its time sheet along */}
                   {(invoice?.timeEntryCount ?? 0) > 0 && (
                     <label className="flex items-center gap-2 mt-2">

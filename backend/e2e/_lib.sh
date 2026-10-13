@@ -257,12 +257,17 @@ try:
 except FileNotFoundError:
     sys.exit(2)
 # Find the page content stream (FlateDecode).
-m = re.search(rb'/Length \d+\s*/Filter /FlateDecode\s*>>\s*stream\r?\n(.*?)\r?\nendstream',
+# Tier 683: the pattern ended in `\r?\nendstream` and the data went through
+# zlib.decompress — compressed data that happens to end in a line-break byte
+# lost it to the pattern, and the page read as empty (2 of 30 PDFs when
+# measured; the same reader was in twelve specs). The line break is left to
+# decompressobj now, which stops at the end of the data.
+m = re.search(rb'/Length \d+\s*/Filter /FlateDecode\s*>>\s*stream\r?\n(.*?)endstream',
               data, re.DOTALL)
 if not m:
     sys.exit(2)
 try:
-    dec = zlib.decompress(m.group(1))
+    dec = zlib.decompressobj().decompress(m.group(1))
 except zlib.error:
     sys.exit(2)
 # Pull every <HEX> chunk from TJ arrays (kerning offsets between

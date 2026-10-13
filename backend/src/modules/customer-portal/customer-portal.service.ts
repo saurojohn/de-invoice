@@ -60,7 +60,7 @@ import { daysOverdue as daysOverdueOf } from '../reminder/days-overdue';
 import { NON_FISCAL_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { withCheckedVatId } from '../../common/vat-id';
 import { emailChanges, emailOfAnotherCustomer } from '../customer/customer-email';
-import { advanceDeductionFor } from '../invoice/advance';
+import { renderInvoiceDocument } from '../invoice/invoice-document';
 import {
   BadRequestException,
   Injectable,
@@ -80,7 +80,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 // the last digit. Passing the Decimal
 // straight through to Prisma is
 // lossless.
-import { generateInvoicePDF } from '../../invoices/invoice-pdf.service';
 import { MailService } from '../mail/mail.service';
 import { recordPaymentNotice } from '../invoice/payment-notice'
 
@@ -539,21 +538,9 @@ export class CustomerPortalService {
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden')
     }
-    // Tier 472: a final invoice states the advance it deducts.
-    ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
-    return generateInvoicePDF(
-      invoice as any,
-      {
-        name: invoice.company?.name || '',
-        address: invoice.company?.address || {},
-        vatId: invoice.company?.vatId || undefined,
-        taxId: invoice.company?.taxId || undefined,
-        bankInfo: invoice.company?.bankInfo || undefined,
-        logoPath: invoice.company?.logoPath || undefined,
-      },
-      invoice.templateType || 'standard',
-      undefined,
-    )
+    // Tier 683: the document the customer was sent — the e-invoice, with the
+    // full letterhead and the template's texts (was a plain PDF without them).
+    return (await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true })).buffer
   }
 
   /**

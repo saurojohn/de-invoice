@@ -4071,6 +4071,7 @@
   },
   "invoicePage": {
     "autoAttached": "(attached automatically by the server)",
+    "attachedAsEInvoice": "As an e-invoice: the PDF also carries the invoice as XML (ZUGFeRD / Factur-X, EN 16931) — the same file as the download.",
     "cancel": "Cancel",
     "action": "Action",
     "to": "To (recipient)",

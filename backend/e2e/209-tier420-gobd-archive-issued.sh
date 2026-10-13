@@ -55,8 +55,8 @@ assert_eq "manifest revenueNet 1200 (was 2000 — draft and cancelled counted)" 
 PDFTXT() { python3 - "$1" <<'PY'
 import re, sys, zlib
 d = open(sys.argv[1], 'rb').read(); out = []
-for m in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)\r?\nendstream', d, re.DOTALL):
-    try: dec = zlib.decompress(m.group(1))
+for m in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)endstream', d, re.DOTALL):
+    try: dec = zlib.decompressobj().decompress(m.group(1))
     except Exception: continue
     out.append(b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9A-Fa-f]+)>', dec)).decode('latin-1', 'ignore'))
 print(' '.join(out))

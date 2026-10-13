@@ -30,6 +30,15 @@ export class ApiError extends Error {
 }
 
 /**
+ * Tier 683: the backend refuses a supplier's invoice number that is already
+ * entered (409, code DUPLICATE_EXPENSE). A page that creates an expense asks
+ * "enter it anyway?" on exactly this refusal and sends `confirmDuplicate`.
+ */
+export function isDuplicateExpense(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 409 && err.body?.code === "DUPLICATE_EXPENSE"
+}
+
+/**
  * Tier 629: a 403 from the roles guard names the role the action takes
  * (`requiredRole`). Its message is an internal action name — „Unzureichende
  * Berechtigung: users.read“ on the dunning-fee settings — so the pages, which

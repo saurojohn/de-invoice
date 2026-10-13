@@ -33,8 +33,8 @@ d = open(sys.argv[1], 'rb').read(); n = int(sys.argv[2])
 m = re.search(rb'/Type /Pages[^>]*?/Count (\d+)', d, re.S)
 pages = int(m.group(1)) if m else -1
 page = 0; rows = []; labels = []; totals_page = None
-for mm in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)\r?\nendstream', d, re.DOTALL):
-    try: dec = zlib.decompress(mm.group(1))
+for mm in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)endstream', d, re.DOTALL):
+    try: dec = zlib.decompressobj().decompress(mm.group(1))
     except Exception: continue
     if b'TJ' not in dec: continue
     page += 1
@@ -83,8 +83,8 @@ assert_eq "totals on page 4" "$T" "4"
 HDRS=$(python3 - "$WORK/100.pdf" <<'PY'
 import re, sys, zlib
 d = open(sys.argv[1], 'rb').read(); n = 0
-for mm in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)\r?\nendstream', d, re.DOTALL):
-    try: dec = zlib.decompress(mm.group(1))
+for mm in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)endstream', d, re.DOTALL):
+    try: dec = zlib.decompressobj().decompress(mm.group(1))
     except Exception: continue
     if b'TJ' not in dec: continue
     txt = b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9A-Fa-f]+)>', dec)).decode('latin-1', 'ignore')

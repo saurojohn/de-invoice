@@ -45,8 +45,8 @@ assert_eq "ZUGFeRD ExemptionReason names § 19" \
 import sys, re, zlib
 raw = open(sys.argv[1], 'rb').read()
 out = set()
-for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', raw, re.S):
-    try: data = zlib.decompress(m.group(1))
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', raw, re.S):
+    try: data = zlib.decompressobj().decompress(m.group(1))
     except Exception: data = m.group(1)
     for x in re.findall(rb'<ram:ExemptionReason>([^<]*)<', data): out.add(x.decode('utf-8'))
 print(' | '.join(sorted(out)))

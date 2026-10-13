@@ -9,7 +9,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { ApiError, apiPost, apiPut } from "@/lib/api"
+import { ApiError, apiPost, apiPut, isDuplicateExpense } from "@/lib/api"
 
 export interface EditableExpense {
   id: string
@@ -177,13 +177,23 @@ export function ExpenseEditForm({
       }
       if (create) {
         const { supplierId, invoiceNumber, category, paidAt, ...rest } = body
-        await apiPost(`/api/v1/expenses?companyId=${companyId}`, {
+        const payload = {
           ...rest,
           ...(supplierId ? { supplierId } : {}),
           ...(invoiceNumber ? { invoiceNumber } : {}),
           ...(category ? { category } : {}),
           ...(paidAt ? { paidAt } : {}),
-        })
+        }
+        try {
+          await apiPost(`/api/v1/expenses?companyId=${companyId}`, payload)
+        } catch (err) {
+          // Tier 683: the same supplier's invoice number again is refused as a
+          // duplicate (409). The form only showed the refusal — a second
+          // invoice that really is one could not be entered here at all.
+          if (!isDuplicateExpense(err)) throw err
+          if (!window.confirm(`${err.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) return
+          await apiPost(`/api/v1/expenses?companyId=${companyId}`, { ...payload, confirmDuplicate: true })
+        }
       } else {
         await apiPut(`/api/v1/expenses/${expense.id}?companyId=${companyId}`, body)
       }
@@ -209,12 +219,12 @@ export function ExpenseEditForm({
         </div>
         <div>
           <label className={label}>{t("expenses.invoiceNumber")}</label>
-          <input className={input} value={form.invoiceNumber}
+          <input className={input} value={form.invoiceNumber} data-testid="expense-edit-number"
             onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })} />
         </div>
         <div>
           <label className={label}>{t("expenses.supplier")}</label>
-          <select className={input} value={form.supplierId}
+          <select className={input} value={form.supplierId} data-testid="expense-edit-supplier"
             onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
             <option value="">—</option>
             {suppliers.map((s) => (

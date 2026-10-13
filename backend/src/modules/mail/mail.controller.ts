@@ -1,5 +1,5 @@
 import { queryDate, queryInt } from '../../common/query';
-import { advanceDeductionFor } from '../invoice/advance';
+import { renderInvoiceDocument } from '../invoice/invoice-document';
 import {
   Controller,
   Get,
@@ -296,10 +296,6 @@ export class MailController {
       throw new BadRequestException('Nur rechnungsgebundene E-Mails können erneut gesendet werden')
     }
 
-    // Reuse the same PDF-rendering + mail-dispatch path
-    // the invoice controller uses. We import lazily to
-    // avoid a circular module dependency at boot.
-    const { generateInvoicePDF } = await import('../../invoices/invoice-pdf.service')
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: original.invoiceId, companyId },
       include: {
@@ -315,26 +311,12 @@ export class MailController {
     if (!invoice) {
       throw new BadRequestException('Rechnung nicht gefunden')
     }
-    const company = invoice.company
     const customer = invoice.customer
 
-    // PDF buffer (regenerated — same PDF the user gets from
-    // the first send, but if the invoice was edited in the
-    // meantime the resend reflects the current state).
-    // Tier 472: a final invoice states the advance it deducts.
-    ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
-    const pdfBuffer = await generateInvoicePDF(
-      invoice as any,
-      {
-        name: company?.name || '',
-        address: company?.address || {},
-        vatId: company?.vatId || undefined,
-        taxId: company?.taxId || undefined,
-        bankInfo: company?.bankInfo || undefined,
-        logoPath: company?.logoPath || undefined,
-      },
-      (invoice as any).templateType || 'standard',
-    )
+    // The document again, as it is now (Tier 683: as the first e-mail builds
+    // it — this was a plain PDF from six company fields, without the
+    // template).
+    const { buffer: pdfBuffer } = await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true })
 
     // Recipient / subject / body — override > original
     const to = (body?.to || original.recipientEmail || '').trim()

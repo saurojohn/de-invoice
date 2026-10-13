@@ -38,7 +38,7 @@
  *   - PDF render failure → propagates (caller wraps in
  *     try/catch and records a RecurringRun error).
  */
-import { advanceDeductionFor } from './advance';
+import { renderInvoiceDocument } from './invoice-document';
 import {
   BadRequestException,
   Injectable,
@@ -50,11 +50,6 @@ import { MailService } from '../mail/mail.service';
 import { InvoiceService } from './invoice.service';
 import { ISSUED_AS, isNonFiscal } from './document-scope';
 import { generateTimesheetPdf } from '../time-tracking/timesheet-pdf';
-import { InvoiceTemplateService } from '../invoice-template/invoice-template.service';
-import {
-  generateInvoicePDF,
-  InvoiceRenderConfig,
-} from '../../invoices/invoice-pdf.service';
 import {
   renderInvoiceEmail,
   defaultSalutationFor,
@@ -88,6 +83,8 @@ export interface SendInvoiceEmailResult {
   cc?: string[];
   subject?: string;
   attachments?: string[];
+  /** Tier 683: the attached invoice carries its XML (ZUGFeRD / Factur-X) */
+  eInvoice?: boolean;
   smtpConfigured?: boolean;
   language?: 'de' | 'en' | 'zh';
   error?: string;
@@ -102,7 +99,6 @@ export class InvoiceEmailService {
     private prisma: PrismaService,
     private storageService: StorageService,
     private mailService: MailService,
-    private templateService: InvoiceTemplateService,
   ) {}
 
   /**
@@ -212,27 +208,13 @@ export class InvoiceEmailService {
     const subject = (options.overrideSubject || tpl.subject).slice(0, 250).trim();
     const text = (options.overrideBody || tpl.text).slice(0, 4000).trim();
 
-    // Build PDF
-    const renderConfig = await this.resolveTemplateConfig(
-      companyId,
-      invoice.templateType || 'standard',
-      (invoice as any).templateId,
-    );
-    // Tier 472: a final invoice states the advance it deducts.
-    ;(invoice as any).advanceDeduction = await advanceDeductionFor(this.prisma, invoice as any)
-    const pdfBuffer = await generateInvoicePDF(
-      invoice,
-      {
-        name: company?.name || '',
-        address: company?.address || {},
-        vatId: company?.vatId || undefined,
-        taxId: company?.taxId || undefined,
-        bankInfo: company?.bankInfo || undefined,
-        logoPath: company?.logoPath || undefined,
-      },
-      invoice.templateType || 'standard',
-      renderConfig,
-    );
+    // Tier 683: the customer gets the e-invoice — the PDF with the invoice as
+    // XML inside (ZUGFeRD / Factur-X), the document the download button gives.
+    // This attached a plain PDF, rendered from six company fields (no register
+    // entry, no managing director) and, unless the invoice named a template of
+    // its own, without the template's texts: a Kleinunternehmer's e-mailed
+    // invoice had no § 19 UStG note.
+    const { buffer: pdfBuffer, eInvoice } = await renderInvoiceDocument(this.prisma, invoice, company, { lenient: true });
 
     // CC
     const ccList: string[] = [];
@@ -319,21 +301,7 @@ export class InvoiceEmailService {
       smtpConfigured,
       language: lang,
       attachments: attachments.map((a) => a.filename),
+      eInvoice,
     };
-  }
-
-  private async resolveTemplateConfig(
-    companyId: string,
-    templateType: string,
-    templateId: string | null | undefined,
-  ): Promise<InvoiceRenderConfig | undefined> {
-    // Tier 7.5: per-company InvoiceTemplate visual config
-    if (!templateId) return undefined
-    try {
-      const r = await this.templateService.resolveConfig(companyId, templateType, templateId)
-      return r.config
-    } catch {
-      return undefined
-    }
   }
 }
