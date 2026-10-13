@@ -1,6 +1,6 @@
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
-import { expenseCost } from './expense-cost'
+import { expenseCost, isIncomeTax } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { Injectable } from '@nestjs/common'
@@ -294,8 +294,12 @@ export class GuVService {
     // here too, in case any leftover AfA rows
     // slipped past the pull filter (defense in
     // depth — the filter is the primary guard).
+    // Tier 682: without the taxes on income entered as expenses — they are
+    // position 14, which is computed for a corporation, and KSt 1 starts
+    // from the result before them (expense-cost.ts, isIncomeTax)
     const sonstigeExpenses = expenses.filter(
       (e) =>
+        !isIncomeTax(e.category) &&
         !/^(Material|Waren|Rohstoffe?|Fremdleistung)/i.test(e.category || '') &&
         !/^(Personal|Lohn|Gehalt|SV)/i.test(e.category || '') &&
         !/^(Schuldzins|Zins)/i.test(e.category || '') &&

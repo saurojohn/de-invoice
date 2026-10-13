@@ -46,17 +46,24 @@ export const LOAN_REPAYMENT_MESSAGE =
   'Erfassen Sie nur die Zinsen, mit der Kategorie „Schuldzinsen“.'
 
 /**
- * Tier 682 — taxes on income are no expense of the business: Körperschaft-
- * steuer and Solidaritätszuschlag (§ 10 Nr. 2 KStG), Gewerbesteuer (§ 4
- * Abs. 5b EStG), Einkommensteuer (§ 12 Nr. 3 EStG). Their prepayments have a
- * place of their own (KSt 1 and the trade-tax form), and a corporation's
- * GuV carries the year's taxes as position 14.
+ * Tier 682 — taxes on income are a cost in the commercial books and no
+ * Betriebsausgabe for the tax profit: Körperschaftsteuer and
+ * Solidaritätszuschlag (§ 10 Nr. 2 KStG), Gewerbesteuer (§ 4 Abs. 5b EStG),
+ * Einkommensteuer (§ 12 Nr. 3 EStG).
  *
  * Entered as expenses — 5 000 € of Gewerbesteuer, 6 000 € of Körperschaft-
- * steuer — they lowered the profit and the income to be taxed by 11 000 €,
- * with nothing added back. Refused when entered; a row from before costs
- * nothing. Not meant: Umsatzsteuer, Lohnsteuer, Kfz-Steuer, Grundsteuer —
- * and the adviser's fee for any of them.
+ * steuer — they lowered the EÜR's profit and, through the GuV, the income
+ * KSt 1 taxes by 11 000 €, with nothing added back. They stay expenses (the
+ * BWA shows them in its line 5000, as built in Tier 93), and:
+ *   - `deductibleCost` is 0 for them — EÜR, Anlage S, Anlage G;
+ *   - the GuV leaves them out of its cost positions: a corporation's GuV
+ *     carries the year's taxes as position 14, computed, and KSt 1 starts
+ *     from the result before them.
+ * (Tier 682 first refused them when entered, like a loan's repayment — and
+ * CI's BWA spec showed that the product means them to be entered.)
+ *
+ * Not meant: Umsatzsteuer, Lohnsteuer, Kfz-Steuer, Grundsteuer — and the
+ * adviser's fee for any of them.
  */
 export function isIncomeTax(category: string | null | undefined): boolean {
   const c = String(category || '').trim()
@@ -64,16 +71,9 @@ export function isIncomeTax(category: string | null | undefined): boolean {
   return /^(Körperschafts?steuer|KSt(\b|-)|Gewerbesteuer|GewSt(\b|-)|Solidaritätszuschlag|Soli(\b|-)|Einkommensteuer|ESt(\b|-))/i.test(c)
 }
 
-export const INCOME_TAX_MESSAGE =
-  'Körperschaftsteuer, Solidaritätszuschlag, Gewerbesteuer und Einkommensteuer sind keine Betriebsausgaben ' +
-  '(§ 10 Nr. 2 KStG, § 4 Abs. 5b und § 12 Nr. 3 EStG). Vorauszahlungen tragen Sie unter Buchhaltung bei KSt 1 ' +
-  'und bei der Gewerbesteuer ein.'
-
 /** An expense that is none: refused when entered, and costing nothing where it exists. */
 export function notAnExpense(category: string | null | undefined): string | null {
-  if (isLoanRepayment(category)) return LOAN_REPAYMENT_MESSAGE
-  if (isIncomeTax(category)) return INCOME_TAX_MESSAGE
-  return null
+  return isLoanRepayment(category) ? LOAN_REPAYMENT_MESSAGE : null
 }
 
 /** What the expense's amount is, whatever it is for. */
@@ -119,6 +119,8 @@ export function bewirtungNachweisFehlt(e: {
 
 /** The cost that counts for the tax profit: 70 % of an entertainment expense. */
 export function deductibleCost(e: CostExpense & { category?: string | null }, kleinunternehmer: boolean): number {
+  // Tier 682: a tax on income is no Betriebsausgabe
+  if (isIncomeTax(e.category)) return 0
   const cost = expenseCost(e, kleinunternehmer)
   return isBewirtung(e) ? Math.round(cost * BEWIRTUNG_ABZIEHBAR * 100) / 100 : cost
 }

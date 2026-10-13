@@ -5,7 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
-import { expenseCost, isLoanRepayment, rawExpenseCost } from './expense-cost'
+import { expenseCost, isIncomeTax, isLoanRepayment, rawExpenseCost } from './expense-cost'
 import { computeAfaSummary } from '../assets/afa'
 
 /**
@@ -314,6 +314,8 @@ export class AnlageVService {
     let tilgungCount = 0
     let tilgungSum = 0
     for (const exp of expenses) {
+      // Tier 682: the landlord's own income tax is no Werbungskosten
+      if (isIncomeTax(exp.category)) continue
       if (isLoanRepayment(exp.category)) {
         tilgungCount++
         tilgungSum += rawExpenseCost(exp, kleinunternehmer)

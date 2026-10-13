@@ -116,10 +116,11 @@ oder MT940-Auszug zuerst in der Vorschau ansehen.
 
 - **Steuern vom Einkommen als Ausgabe.** Körperschaftsteuer,
   Solidaritätszuschlag (§ 10 Nr. 2 KStG), Gewerbesteuer (§ 4 Abs. 5b EStG) und
-  Einkommensteuer (§ 12 Nr. 3 EStG) sind keine Betriebsausgaben. Als Ausgabe
-  erfasst, minderten sie Gewinn und zu versteuerndes Einkommen. Solche
-  Ausgaben werden nicht mehr angenommen; Vorauszahlungen gehören zu KSt 1 und
-  Gewerbesteuer.
+  Einkommensteuer (§ 12 Nr. 3 EStG) sind in der Buchhaltung Aufwand, steuerlich
+  aber keine Betriebsausgaben. Als Ausgabe erfasst, minderten sie den Gewinn
+  der EÜR und das zu versteuernde Einkommen in KSt 1. Sie bleiben Ausgaben
+  (die BWA zeigt sie in ihrer Zeile „Steuern vom Einkommen und Ertrag“),
+  werden aber in EÜR, Anlage S, Anlage G und KSt 1 nicht mehr abgezogen.
 - **Tilgung eines Darlehens** wird nicht als Ausgabe angenommen (nur Zinsen).
 - **Geschenke:** Grenze 50 € je Empfänger ab 2024, 35 € davor (§ 4 Abs. 5
   Satz 1 Nr. 1 EStG) — vorher 50 € für jedes Jahr.
