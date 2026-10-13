@@ -11,16 +11,16 @@ exact commands + docs you need to be productive.
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
 - **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–684 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 683.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 684.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 38454485194 / commit `714c090`, Tier 683; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
-  - Backend e2e: **406 passed / 0 failed / 1 skipped** of 407 specs — 100
-    two-digit + 307 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
+- **Test counts (last green CI, run 38464927210 / commit `b4562df`, Tier 684; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
+  - Backend e2e: **407 passed / 0 failed / 1 skipped** of 408 specs — 100
+    two-digit + 308 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (the backend job takes 18 min since Tier 684 — every issued invoice is rendered once for its copy; it was 15, the job's limit is 30. Tier 684 added 408 the copy made at issue; Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
     into the pages, 392 „zahlbar bis zum“, 393 the customer portal per currency, 394–396 Anlage SO (kinds
     and periods; rows that stay; reading writes nothing), 397 Anlage KAP, 398 Anlage N, 399 Anlage Kind,
     400 Anlage V's lines, 401 land without AfA, 402 Anlage AUS, 403 a loan's repayment is no expense,
