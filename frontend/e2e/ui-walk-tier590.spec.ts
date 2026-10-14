@@ -52,6 +52,9 @@ test("no raw translation key on the accounting and settings pages, in any langua
     await page.addInitScript((l: string) => localStorage.setItem("locale", l), locale)
     await page.goto("/dashboard/settings")
     await page.waitForLoadState("networkidle")
+    // Tier 687: on CI the page could still show "Laden…" after networkidle
+    // (run 38643531009, flaky) — wait for the content, then read it
+    await expect(page.locator("body")).toContainText("(8921)", { timeout: 60_000 })
     const settings = await page.locator("body").innerText()
     expect(settings, `settings page (${locale})`).not.toMatch(/settings\.datevAccount_/)
     expect(settings, `settings page (${locale}): the five accounts have a name`).toContain("(8921)")
@@ -66,6 +69,8 @@ test("the company form's placeholders are nobody's real data", async ({ page, re
   await signIn(page, request)
   await page.goto("/dashboard/settings")
   await page.waitForLoadState("networkidle")
+  // the form is there before it is read (Tier 687, as above)
+  await expect(page.locator("input[placeholder], textarea[placeholder]").nth(5)).toBeAttached({ timeout: 60_000 })
   const placeholders = await page.locator("input[placeholder], textarea[placeholder]").evaluateAll((els) => els.map((e) => e.getAttribute("placeholder") || ""))
   expect(placeholders.length).toBeGreaterThan(5)
   expect(placeholders.join(" | ")).not.toMatch(/shleder|Offenbach|6181/i)

@@ -9,18 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–686 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–687 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 685.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 687.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 38638831116 / commit `8e31fbc`, Tier 685; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
-  - Backend e2e: **408 passed / 0 failed / 1 skipped** of 409 specs — 100
-    two-digit + 309 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (the backend job takes 18 min since Tier 684 — every issued invoice is rendered once for its copy; it was 15, the job's limit is 30. Tier 685 added 409 an issued invoice is its kept copy; Tier 684 added 408 the copy made at issue; Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
+- **Test counts (last green CI, run 38648206049 / commit `3b25d93`, Tier 687; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
+  - Backend e2e: **410 passed / 0 failed / 1 skipped** of 411 specs — 100
+    two-digit + 311 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (the backend job takes 18 min since Tier 684 — every issued invoice is rendered once for its copy; it was 15, the job's limit is 30. Tier 687 added 411 the German calendar day; Tier 686 added 410 the kept XRechnung; Tier 685 added 409 an issued invoice is its kept copy; Tier 684 added 408 the copy made at issue; Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
     into the pages, 392 „zahlbar bis zum“, 393 the customer portal per currency, 394–396 Anlage SO (kinds
     and periods; rows that stay; reading writes nothing), 397 Anlage KAP, 398 Anlage N, 399 Anlage Kind,
     400 Anlage V's lines, 401 land without AfA, 402 Anlage AUS, 403 a loan's repayment is no expense,
@@ -2661,6 +2661,10 @@ Tier 401 run 35123354210 **failed** on backend lint — a warning
 runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 687b — the UI walk waits for the settings page
+
+Tier 686's run (38643531009) also had **1 flaky** Playwright test: `ui-walk-tier590` read the settings page while it still showed "Laden…" after `networkidle` (expected "(8921)"). It waits for the content now (`toContainText`, 60 s); the placeholder test waits for the form. Tier 687's run was clean (1070 passed, 0 flaky). Note for reading the logs: Playwright writes "retry #1" in lower case — grep case-insensitively.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 687 — reports and exchange rates count days in Germany, not in UTC
 
