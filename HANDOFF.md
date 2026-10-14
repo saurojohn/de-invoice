@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 687 — reports and exchange rates count days in Germany, not in UTC
+
+CI run 38643531009 (Tier 686) went red on specs 386 and 390 — it crossed midnight in Berlin (00:10 on 15.10.2026 = 22:10 UTC on the 14th). Not the tier's change; two product defects that show only between 00:00 and 02:00 German time:
+
+- **Report defaults.** `/reports/sales`, `/reports/customers` and the four DATEV routes defaulted to `new Date(new Date().getFullYear(), 0, 1)` … `new Date()`: the server's (UTC) year up to the current instant. An invoice dated today (German day, stored as midnight UTC) lay after "now": net sales 0 instead of 10 216,59 in spec 390. On New Year's Day before 02:00 the period would be the previous year's. Now `businessYearStart()` … `businessTodayEnd()` (`common/business-date.ts`). The dashboard's year (`new Date(now.getFullYear(), 0, 1)`) likewise.
+- **ECB rate of the invoice day.** `ecbRateOn` clamped "a date in the future" with the UTC date: an invoice dated today counted as future and got yesterday's rate and date (spec 386). `businessTodayIso()` now.
+
+Reproduced live at 00:26 Berlin with the code before: the sales report without a period showed 0 for today's invoice; with the change 100 / 19. Spec `411-tier687-der-deutsche-kalendertag.sh`: the day arithmetic at fixed instants (22:10 UTC on 14.10., 23:30 UTC on 31.12., a winter day) through ts-node, the places checked statically, and today's invoice in today's reports.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 686 — the XRechnung of an issued invoice is kept too
 
 Tier 685 froze the PDF; the XRechnung (UBL — `GET /invoices/:id/xrechnung`, `/pdf?format=xrechnung`) was still built from today's master data. Measured: issued at "Altstraße 1", the company moved; the XRechnung named "Neustraße 9" and the new IBAN. For a public customer the XRechnung *is* the invoice.

@@ -16,6 +16,7 @@
  * tabs (Umsatzbericht / Kundenbericht / etc.) don't need
  * any changes.
  */
+import { businessTodayEnd, businessYearStart } from '../../common/business-date';
 import { queryDate } from '../../common/query';
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 
@@ -38,8 +39,8 @@ export class SalesReportController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const start = queryDate(startDate, 'startDate') ?? new Date(new Date().getFullYear(), 0, 1);
-    const end = queryDate(endDate, 'endDate') ?? new Date();
+    const start = queryDate(startDate, 'startDate') ?? businessYearStart();
+    const end = queryDate(endDate, 'endDate') ?? businessTodayEnd();
 
     return this.reportsService.getSalesReport({
       companyId,
@@ -103,8 +104,8 @@ export class SalesReportController {
     // default, missing query params produced
     // `new Date(undefined)` → Invalid Date → 500
     // from the Prisma query below.
-    const start = queryDate(startDate, 'startDate') ?? new Date(new Date().getFullYear(), 0, 1)
-    const end = queryDate(endDate, 'endDate') ?? new Date()
+    const start = queryDate(startDate, 'startDate') ?? businessYearStart()
+    const end = queryDate(endDate, 'endDate') ?? businessTodayEnd()
     return this.reportsService.getCustomerReport({
       companyId,
       startDate: start,

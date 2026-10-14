@@ -61,6 +61,25 @@ export function businessTodayDate(now: Date = new Date()): Date {
 }
 
 /**
+ * Tier 687 — the default period of a report: from 1 January of the German
+ * year to the end of today's German calendar day, as date-only values.
+ * `new Date(new Date().getFullYear(), 0, 1)` and `new Date()` were the
+ * server's (UTC) year and the current instant: between 00:00 and 02:00 in
+ * Germany an invoice dated today was after the end of the period and left out
+ * of the sales and customer reports and the DATEV export (measured in CI,
+ * run 38643531009, 00:10 in Berlin), and on 1 January the period was the
+ * previous year's.
+ */
+export function businessYearStart(now: Date = new Date()): Date {
+  return dayStart(businessToday(now).y, 0, 1)
+}
+
+export function businessTodayEnd(now: Date = new Date()): Date {
+  const { y, m, d } = businessToday(now)
+  return dayEnd(y, m, d)
+}
+
+/**
  * Tier 515 — a date something happened on cannot be after today (German
  * calendar day): a payment made, a supplier's invoice received, an invoice
  * issued. Tier 514 did it for customer payments; the others still took

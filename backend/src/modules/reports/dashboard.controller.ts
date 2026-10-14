@@ -26,7 +26,7 @@ import { NOT_AFA_BOOKING } from '../accounting/booked-afa'
  * The URL paths are preserved so the frontend
  * /dashboard page doesn't change.
  */
-import { businessToday, dayEnd, dayStart } from '../../common/business-date';
+import { businessToday, businessYearStart, dayEnd, dayStart } from '../../common/business-date';
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -227,7 +227,8 @@ export class DashboardController {
   async getDashboardV2(@Query('companyId') companyId: string) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const now = new Date()
-    const yearStart = new Date(now.getFullYear(), 0, 1)
+    // Tier 687: the German year (on 1 January before 02:00 this was the previous year's)
+    const yearStart = businessYearStart(now)
 
     // Run the four expensive queries in parallel.
     // Each is bounded by the underlying SQL — no N+1.

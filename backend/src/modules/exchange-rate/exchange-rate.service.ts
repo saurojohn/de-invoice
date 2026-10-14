@@ -45,6 +45,7 @@
  * ("Kurse von 2026-06-19, 17:00 — heute aktualisieren").
  */
 
+import { businessTodayIso } from '../../common/business-date'
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -199,7 +200,9 @@ export class ExchangeRateService {
   async ecbRateOn(currency: string, on: Date | string): Promise<{ date: string; rate: string } | null> {
     const ccy = String(currency || '').toUpperCase()
     if (!/^[A-Z]{3}$/.test(ccy)) return null
-    const today = ymdOf(new Date())
+    // Tier 687: today in Germany — the UTC date made an invoice dated today a
+    // "future" one between 00:00 and 02:00 and gave it yesterday's rate
+    const today = businessTodayIso()
     const day = ymdOf(on) > today ? today : ymdOf(on)
     if (process.env.EXCHANGE_RATES_MOCK === '1') {
       const mock: Record<string, string> = { CHF: '0.9248', USD: '1.0850', GBP: '0.8520' }
