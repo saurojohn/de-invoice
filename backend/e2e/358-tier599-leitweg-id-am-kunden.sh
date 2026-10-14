@@ -48,7 +48,12 @@ AS PUT "/api/v1/customers/$K?companyId=$C" '{"address":{'"$ADDR"',"leitwegId":"0
 assert_eq "a Leitweg-ID with a Feinadresse" "$STATUS/$(stored)" "200/04011000-1234512345-06"
 AS PUT "/api/v1/customers/$K?companyId=$C" '{"address":{'"$ADDR"'}}'
 assert_eq "an address without it removes it" "$STATUS/$(stored)" "200/-"
-assert_eq "…and the buyer reference falls back to the name" "$(ref "$I")" "$TAG Bundesamt"
+# Tier 686: the issued invoice keeps the buyer reference it went out with; the
+# fallback to the name is what a new (draft) invoice gets.
+assert_eq "the issued invoice keeps the Leitweg-ID it was issued with (Tier 686)" "$(ref "$I")" "991-12345-73"
+AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$K'","issueDate":"'$TODAY'","items":[{"description":"Gutachten","quantity":1,"unit":"Stk","unitPrice":500,"vatRate":0.19}]}'
+I2=$(json_field "$BODY" id)
+assert_eq "…a new invoice's buyer reference falls back to the name" "$(ref "$I2")" "$TAG Bundesamt"
 
 note "=== 3. what is not a Leitweg-ID ==="
 no() { AS PUT "/api/v1/customers/$K?companyId=$C" '{"address":{'"$ADDR"',"leitwegId":"'"$2"'"}}'; assert_eq "$1: 400" "$STATUS/$(stored)" "400/-"; }

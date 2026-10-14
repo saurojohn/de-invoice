@@ -48,6 +48,9 @@ company A
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde GmbH","type":"business","vatId":"DE136695976","contact":{"email":"kunde@example.test"},"address":{"street":"Ring 2","postalCode":"80331","city":"München","country":"DE"}}'
 K=$(json_field "$BODY" id)
+# Tier 686: the XRechnung of an issued document is kept as it was issued —
+# the seller's details (BR-DE-1/6/7) are complete before, not after.
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"legalName":"Tier 586 Handels GmbH","registerEntry":"HRB 12345 Amtsgericht Berlin","vatId":"DE811907980","email":"info@t586.example","phone":"+49 30 1","address":{"street":"Hauptstr. 1","city":"Berlin","postalCode":"10115","country":"DE"},"bankInfo":{"iban":"DE89370400440532013000","bic":"COBADEFFXXX","bankName":"Bank"}}'
 AS POST "/api/v1/invoices?companyId=$C" '{"customerId":"'$K'","issueDate":"'$TODAY'","items":[{"description":"Beratung","quantity":2,"unit":"Std","unitPrice":150,"vatRate":0.19},{"description":"Buch","quantity":1,"unit":"Stk","unitPrice":100,"vatRate":0.07}]}'
 INV=$(json_field "$BODY" id); NR=$(json_field "$BODY" invoiceNumber)
 AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"sent"}'

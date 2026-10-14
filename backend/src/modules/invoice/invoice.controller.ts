@@ -27,7 +27,7 @@ import {
   validateXRechnungWithKoSIT,
   KoSITValidatorUnavailableError,
 } from '../../invoices/kosIT-validator.service';
-import { issuedDocument } from './invoice-document';
+import { issuedDocument, issuedXRechnung } from './invoice-document';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
@@ -847,17 +847,9 @@ export class InvoiceController {
         res.status(404).json({ error: 'Company not found' })
         return
       }
-      // Tier 115: pull the B2G Leitweg-ID from
-      // settings.leitwegId. Stored in JSONB settings rather
-      // than as a top-level column (same convention as
-      // rechtsform, sepaCreditorIdentifier, etc.).
-      const companyWithLeitweg = {
-        ...company,
-        leitwegId: (company.settings as any)?.leitwegId || null,
-      } as any
-      const xrechnungData = transformToXRechnungData(invoice, companyWithLeitweg)
-      const xmlContent = generateXRechnung(xrechnungData)
-      const buffer = Buffer.from(xmlContent, 'utf-8')
+      // Tier 686: an issued invoice's XRechnung is the one kept with it
+      // (Tier 115's Leitweg-ID from settings.leitwegId: xrechnungFor)
+      const { xml: buffer } = await issuedXRechnung(this.prisma, invoice, company)
       res.set({
         'Content-Type': 'application/xml; charset=utf-8',
         'Content-Disposition': `attachment; filename="${invoice.invoiceNumber}_xrechnung.xml"`,
@@ -890,14 +882,8 @@ export class InvoiceController {
         return;
       }
 
-      const companyWithLeitweg = {
-        ...company,
-        leitwegId: (company.settings as any)?.leitwegId || null,
-      } as any;
-      const xrechnungData = transformToXRechnungData(invoice, companyWithLeitweg);
-      const xmlContent = generateXRechnung(xrechnungData);
-
-      const buffer = Buffer.from(xmlContent, 'utf-8');
+      // Tier 686: an issued invoice's XRechnung is the one kept with it
+      const { xml: buffer } = await issuedXRechnung(this.prisma, invoice, company);
 
       res.set({
         'Content-Type': 'application/xml',

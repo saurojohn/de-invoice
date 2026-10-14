@@ -21,6 +21,7 @@ import { Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { generateInvoicePDF, InvoiceRenderConfig } from '../../invoices/invoice-pdf.service'
 import { generateZUGFeRD } from '../../invoices/zugferd.service'
+import { generateXRechnung, transformToXRechnungData } from '../../invoices/xrechnung.service'
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service'
 import { advanceDeductionFor } from './advance'
 import { isNonFiscal, NON_FISCAL_TYPES } from './document-scope'
@@ -74,6 +75,14 @@ export interface InvoiceDocument {
   eInvoice: boolean
   /** false: the plain variant of an invoice was asked for — not the copy to keep */
   canonical: boolean
+  /** Tier 686: the XRechnung (UBL) of the same rendering, kept next to the PDF */
+  xrechnung?: Buffer
+}
+
+/** The XRechnung (UBL) of an invoice — with the company's Leitweg-ID (Tier 115). */
+export function xrechnungFor(invoice: any, company: any): Buffer {
+  const withLeitweg = { ...company, leitwegId: (company?.settings as any)?.leitwegId || null }
+  return Buffer.from(generateXRechnung(transformToXRechnungData(invoice, withLeitweg)), 'utf-8')
 }
 
 /** What the renderer reads of an invoice (a credit note names the invoice it corrects). */
@@ -106,7 +115,14 @@ export async function renderInvoiceDocument(
   if (isNonFiscal(invoice.type)) return { buffer: await plain(), eInvoice: false, canonical: true }
   if (opts.plain) return { buffer: await plain(), eInvoice: false, canonical: false }
   try {
-    return { buffer: await generateZUGFeRD(invoice, issuer, { templateConfig }), eInvoice: true, canonical: true }
+    const buffer = await generateZUGFeRD(invoice, issuer, { templateConfig })
+    let xrechnung: Buffer | undefined
+    try {
+      xrechnung = xrechnungFor(invoice, company)
+    } catch (err) {
+      logger.warn(`Rechnung ${invoice.invoiceNumber}: keine XRechnung (${(err as Error)?.message})`)
+    }
+    return { buffer, eInvoice: true, canonical: true, xrechnung }
   } catch (err) {
     if (!opts.lenient) throw err
     logger.warn(`Rechnung ${invoice.invoiceNumber}: die E-Rechnung ließ sich nicht erzeugen (${(err as Error)?.message}) — es geht das PDF ohne XML hinaus`)
@@ -144,7 +160,11 @@ export async function keepIssuedCopy(
     // the invoice — through the client, every issued invoice got a second
     // „invoice.updated“ row in the audit log (and `updatedAt` moved).
     const count = await prisma.$executeRaw`UPDATE "Invoice" SET "pdfPath" = ${saved.path} WHERE id = ${invoice.id} AND "pdfPath" IS NULL`
-    if (count) invoice.pdfPath = saved.path
+    if (count) {
+      invoice.pdfPath = saved.path
+      // Tier 686: the XRechnung of the same moment, next to it
+      if (doc.xrechnung) await storage.saveAt(xrechnungPathOf(saved.path), doc.xrechnung)
+    }
   } catch (err) {
     // the document is on its way either way
     logger.error(`Rechnung ${invoice.invoiceNumber}: die Kopie ließ sich nicht ablegen (${(err as Error)?.message})`)
@@ -249,4 +269,45 @@ export async function withoutEmbeddedFiles(buffer: Buffer): Promise<Buffer> {
     if (t === PDFName.of('EmbeddedFile') || t === PDFName.of('Filespec') || t === PDFName.of('Metadata')) pdf.context.delete(ref)
   }
   return Buffer.from(await pdf.save({ useObjectStreams: false }))
+}
+
+// Tier 686 — the XRechnung of an issued invoice is kept too.
+//
+// After Tier 685 the PDF of an issued invoice was frozen, its XRechnung (UBL,
+// GET /invoices/:id/xrechnung) was not: built again from today's master data,
+// so after a move it named the new address — the e-invoice a public customer
+// receives, and the format of a B2B e-invoice as much as ZUGFeRD. It is kept
+// next to the PDF (same name, `.xrechnung.xml`), made in the same moment.
+
+/** Where the XRechnung of a kept PDF lies. */
+export function xrechnungPathOf(pdfPath: string): string {
+  return pdfPath.replace(/\.pdf$/i, '') + '.xrechnung.xml'
+}
+
+/**
+ * The XRechnung of an invoice: for an issued one the kept file (made now with
+ * the kept PDF if it has none; for a copy kept before Tier 686, made now and
+ * kept), for a draft a fresh one.
+ */
+export async function issuedXRechnung(prisma: PrismaService, invoice: any, company: any): Promise<{ xml: Buffer; fromCopy: boolean }> {
+  if (invoice.status === 'draft' || isNonFiscal(invoice.type)) return { xml: xrechnungFor(invoice, company), fromCopy: false }
+  if (!(await readCopy(prisma, invoice))) {
+    const doc = await renderInvoiceDocument(prisma, invoice, company)
+    await keepIssuedCopy(prisma, invoice, doc)
+  }
+  if (!invoice.pdfPath) return { xml: xrechnungFor(invoice, company), fromCopy: false }
+  storage ??= new StorageService()
+  const where = xrechnungPathOf(invoice.pdfPath)
+  const kept = await storage.getFile(where).catch(() => null)
+  if (kept?.buffer?.length) return { xml: kept.buffer, fromCopy: true }
+  const xml = xrechnungFor(invoice, company)
+  try {
+    await storage.saveAt(where, xml)
+  } catch (err) {
+    // another request kept it a moment ago: hand out that one
+    const again = await storage.getFile(where).catch(() => null)
+    if (again?.buffer?.length) return { xml: again.buffer, fromCopy: true }
+    logger.error(`Rechnung ${invoice.invoiceNumber}: die XRechnung ließ sich nicht ablegen (${(err as Error)?.message})`)
+  }
+  return { xml, fromCopy: false }
 }

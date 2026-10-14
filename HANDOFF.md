@@ -9,18 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–684 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–686 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 684.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 685.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 38464927210 / commit `b4562df`, Tier 684; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
-  - Backend e2e: **407 passed / 0 failed / 1 skipped** of 408 specs — 100
-    two-digit + 308 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (the backend job takes 18 min since Tier 684 — every issued invoice is rendered once for its copy; it was 15, the job's limit is 30. Tier 684 added 408 the copy made at issue; Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
+- **Test counts (last green CI, run 38638831116 / commit `8e31fbc`, Tier 685; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
+  - Backend e2e: **408 passed / 0 failed / 1 skipped** of 409 specs — 100
+    two-digit + 309 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (the backend job takes 18 min since Tier 684 — every issued invoice is rendered once for its copy; it was 15, the job's limit is 30. Tier 685 added 409 an issued invoice is its kept copy; Tier 684 added 408 the copy made at issue; Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
     into the pages, 392 „zahlbar bis zum“, 393 the customer portal per currency, 394–396 Anlage SO (kinds
     and periods; rows that stay; reading writes nothing), 397 Anlage KAP, 398 Anlage N, 399 Anlage Kind,
     400 Anlage V's lines, 401 land without AfA, 402 Anlage AUS, 403 a loan's repayment is no expense,
@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 686 — the XRechnung of an issued invoice is kept too
+
+Tier 685 froze the PDF; the XRechnung (UBL — `GET /invoices/:id/xrechnung`, `/pdf?format=xrechnung`) was still built from today's master data. Measured: issued at "Altstraße 1", the company moved; the XRechnung named "Neustraße 9" and the new IBAN. For a public customer the XRechnung *is* the invoice.
+
+- `renderInvoiceDocument` builds the XRechnung of the same rendering (`xrechnungFor`, with the company's Leitweg-ID from `settings.leitwegId` as Tier 115 did), and `keepIssuedCopy` keeps it next to the PDF: same name, `.xrechnung.xml` (`xrechnungPathOf`; `StorageService.saveAt` writes below the storage root, never over an existing file). No migration — the place follows from `pdfPath`.
+- `issuedXRechnung(prisma, invoice, company)` is what both routes call: for an issued invoice the kept file; for a copy kept before this tier (no XML next to it) the XRechnung is made once, kept, and handed out from then on; for a draft a fresh one.
+- **What it means in practice:** what the customer received does not change any more when master data changes — not the address, the bank account, a template, a customer's Leitweg-ID. An issued invoice with a wrong detail is corrected the way the law wants it: on the day of issue by editing it (Tier 477 drops the copy, the next way out makes a new one), afterwards by a credit note and a new invoice. `GET …/xrechnung/validate` still checks today's data (it is the check before something is sent).
+
+Spec `410-tier686-xrechnung-wie-ausgestellt.sh` (5 checks fail on the code before; the kept XRechnung passes KoSIT). Specs 352 and 358 followed: 352 completes the seller's details before issuing (it completed them afterwards and expected the issued credit note's XRechnung to change); 358 checks the buyer-reference fallback on a new invoice, and that the issued one keeps the Leitweg-ID it went out with.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 685 — an issued invoice is handed out as its kept copy
 
 The owner, 14.10.2026, on Tier 684's open point: „要，已开具的发票一律提供存档原件“ — an issued invoice is always handed out as its archived original.
@@ -2670,7 +2680,7 @@ The owner, 14.10.2026, on Tier 684's open point: „要，已开具的发票一�
 - **Now** `issuedDocument(prisma, invoice, company, { plain?, lenient? })` in `invoice-document.ts` is what every way out calls: for an issued invoice the kept copy (made and kept on the spot if there is none — Tier 684 makes it at issue); for a draft, a quote, an order confirmation or a delivery note a fresh rendering, as before. The download is byte for byte what the customer was sent (unsigned; `?sign` still puts the Tier 165 signature on top).
 - **`?format=pdf` of an issued invoice** is the kept copy without its XML (`withoutEmbeddedFiles`: the attachment, its file specification, the name tree entry, `/AF` and the XMP packet are removed with pdf-lib; the page content is untouched) — not a new rendering. Bulk ZIP with `format: 'pdf'` the same.
 - **A copy whose file is gone** (`pdfPath` set, no file in storage): logged as an error, the path let go, a new copy made with today's data and kept — the original cannot be brought back; the log says so.
-- **Not covered:** `GET /invoices/:id/xrechnung` still builds the XRechnung (UBL) from today's data. The kept original is the PDF with its CII inside; freezing the UBL file too would need a second stored file per invoice.
+- **Not covered here (Tier 686 does it):** `GET /invoices/:id/xrechnung` still built the XRechnung (UBL) from today's data.
 
 Spec `409-tier685-ausgestellt-ist-ausgestellt.sh` (company moves after issuing; every way out, the plain variant, a draft and a quote, a lost file; 9 of its checks fail on the code before). Spec 408 follows: a first `?format=pdf` makes the copy (as the e-invoice) and cuts the plain variant from it. Spec 154 (GiroCode) toggled the shared company's IBAN on a seeded *sent* invoice and expected the QR to follow; it checks the rendering on a draft now and adds that an issued invoice keeps the QR it was issued with. The whole backend suite was run locally: 394 of 407 passed, the rest are the specs that fail on this machine for their own reasons (and 154 before its change).
 

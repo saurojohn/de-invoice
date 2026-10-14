@@ -179,6 +179,18 @@ export class StorageService {
   }
 
   /**
+   * Tier 686: writes a file at a given place below the storage root — the
+   * XRechnung kept next to an invoice's kept PDF. Refuses a path outside the
+   * root, and does not overwrite.
+   */
+  async saveAt(relativePath: string, buffer: Buffer): Promise<void> {
+    const fullPath = path.join(this.config.localPath, relativePath);
+    if (!this.isPathSafe(fullPath)) throw new BadRequestException('Ungültiger Speicherpfad.');
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, buffer, { flag: 'wx' });
+  }
+
+  /**
    * Get file from local storage
    * @param relativePath - Relative path of the file
    */
