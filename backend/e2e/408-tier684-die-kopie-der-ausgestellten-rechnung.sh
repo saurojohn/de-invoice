@@ -95,8 +95,9 @@ assert_eq "sent to the customer by e-mail (which issues it): 201, and the copy i
 assert_eq "a draft's PDF is never kept (Tier 497)" "$(fetch "/api/v1/invoices/$DRAFT/pdf?companyId=$C" "$WORK/draft.pdf") $(kept "$DRAFT")" "200 none"
 # an invoice whose copy is gone (issued before this tier, or the file's row was reset): every way out makes it again
 q "update \"Invoice\" set \"pdfPath\"=null where id in ('$DOWN','$PLAIN','$ONLY')" >/dev/null
-assert_eq "the plain variant asked for first is not the copy (was: kept as the issued invoice)" \
-  "$(fetch "/api/v1/invoices/$PLAIN/pdf?companyId=$C&format=pdf" "$WORK/plain.pdf") $(doc "$WORK/plain.pdf") $(kept "$PLAIN")" "200 plain none"
+# (Tier 685: the copy is made — as the e-invoice — and the plain variant is cut from it; section 2 reads the copy)
+assert_eq "the plain variant asked for first: a PDF without XML; the copy kept is not it (was: kept as the issued invoice)" \
+  "$(fetch "/api/v1/invoices/$PLAIN/pdf?companyId=$C&format=pdf" "$WORK/plain.pdf") $(doc "$WORK/plain.pdf") $(kept "$PLAIN")" "200 plain kept"
 assert_eq "the download keeps the e-invoice" "$(fetch "/api/v1/invoices/$DOWN/pdf?companyId=$C" "$WORK/down.pdf") $(doc "$WORK/down.pdf") $(kept "$DOWN")" "200 einvoice kept"
 
 note "=== 2. the DATEV bundle has a Beleg for every issued invoice ==="

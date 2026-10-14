@@ -27,7 +27,7 @@ login
 # developer database, so on the CI seed every request got 404 / 500 the
 # first time the spec ran. INV-TEST-001 is seeded by e2e/ci-seed.sh
 # (status sent, total 119, no backend spec modifies it).
-INVOICE_ID="11deeb35-7147-4bdc-86d9-a302b4f80f3e"  # INV-TEST-001
+SEED_ID="11deeb35-7147-4bdc-86d9-a302b4f80f3e"  # INV-TEST-001
 
 # Backup the company's bankInfo, then re-apply the Tier 224
 # test IBAN if missing.
@@ -38,6 +38,22 @@ note "BANKINFO_BACKUP=$BANKINFO_BACKUP"
 # Force a known-good state with all 3 fields populated.
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"Company\" SET \"bankInfo\" = '{\"bic\":\"COBADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+
+# Tier 685: an issued invoice is handed out as its kept copy — it no longer
+# follows the company's bank details. What this spec checks (the QR follows
+# the IBAN) is a property of the rendering, so it uses a draft, which is
+# rendered as it is; INV-TEST-001 only lends its customer. Section 4b checks
+# the other side: an issued invoice keeps the QR it was issued with.
+K=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c "SELECT \"customerId\" FROM \"Invoice\" WHERE id='$SEED_ID';")
+mkinv() {
+  curl -sS -X POST "$API/api/v1/invoices?companyId=$COMPANY_ID" -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" \
+    -d "{\"customerId\":\"$K\",\"issueDate\":\"$(date +%F)\",\"items\":[{\"description\":\"Tier 224 GiroCode\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":100,\"vatRate\":0.19}]}" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])"
+}
+INVOICE_ID=$(mkinv)
+ISSUED_ID=$(mkinv)
+ISSUED_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X PUT "$API/api/v1/invoices/$ISSUED_ID/status?companyId=$COMPANY_ID" -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" -d '{"status":"sent"}')
+[ -n "$INVOICE_ID" ] && [ "$ISSUED_STATUS" = "200" ] && pass "fixture: a draft and an invoice issued with the IBAN" || fail "fixture: draft '$INVOICE_ID', issue $ISSUED_STATUS"
 
 # ---- 1. PDF with IBAN returns 200 + valid PDF ----
 HTTP=$(curl -sS -o /tmp/tier224-qr.pdf -w "%{http_code}" \
@@ -115,6 +131,15 @@ fs.writeFileSync('/tmp/tier224-img2.txt', String(count));
 NOIBAN_IMG=$(cat /tmp/tier224-img2.txt)
 [ "$NOIBAN_IMG" = "0" ] && pass "PDF without IBAN has 0 RGB image XObjects (QR skipped)" || fail "PDF without IBAN has $NOIBAN_IMG RGB image XObjects (expected 0)"
 
+# ---- 4b. Tier 685: the issued invoice keeps the QR it was issued with ----
+HTTP=$(curl -sS -o /tmp/tier224-issued.pdf -w "%{http_code}" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
+  "$API/api/v1/invoices/$ISSUED_ID/pdf?companyId=$COMPANY_ID&sign=false")
+ISSUED_IMG=$(node -e "
+const txt = require('fs').readFileSync('/tmp/tier224-issued.pdf').toString('binary');
+console.log((txt.match(/\/Subtype\s*\/Image[^>]*?\/ColorSpace\s*\/DeviceRGB/g) || []).length)")
+[ "$HTTP $ISSUED_IMG" = "200 1" ] && pass "the issued invoice still has its QR after the IBAN is gone (Tier 685: its kept copy)" || fail "issued invoice without IBAN: HTTP $HTTP, $ISSUED_IMG RGB images (expected 200, 1)"
+
 # ---- 5. Restore IBAN, PDF has image again ----
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -c \
   "UPDATE \"Company\" SET \"bankInfo\" = '{\"bic\":\"COBADEFFXXX\",\"iban\":\"DE89370400440532013000\",\"bankName\":\"Commerzbank\"}'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
@@ -171,7 +196,10 @@ else
   note "No original bankInfo to restore"
 fi
 
+# The draft goes; the issued invoice stays (an issued invoice is not deleted).
+curl -sS -o /dev/null -X DELETE "$API/api/v1/invoices/$INVOICE_ID?companyId=$COMPANY_ID" -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID"
+
 # Cleanup temp files
-rm -f /tmp/tier224-qr.pdf /tmp/tier224-noiban.pdf /tmp/tier224-restored.pdf /tmp/tier224-img.txt /tmp/tier224-img2.txt /tmp/tier224-img3.txt
+rm -f /tmp/tier224-issued.pdf /tmp/tier224-qr.pdf /tmp/tier224-noiban.pdf /tmp/tier224-restored.pdf /tmp/tier224-img.txt /tmp/tier224-img2.txt /tmp/tier224-img3.txt
 
 summary

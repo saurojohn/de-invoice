@@ -60,7 +60,7 @@ import { daysOverdue as daysOverdueOf } from '../reminder/days-overdue';
 import { NON_FISCAL_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { withCheckedVatId } from '../../common/vat-id';
 import { emailChanges, emailOfAnotherCustomer } from '../customer/customer-email';
-import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from '../invoice/invoice-document';
+import { INVOICE_DOCUMENT_INCLUDE, issuedDocument } from '../invoice/invoice-document';
 import {
   BadRequestException,
   Injectable,
@@ -536,8 +536,8 @@ export class CustomerPortalService {
     }
     // Tier 683: the document the customer was sent — the e-invoice, with the
     // full letterhead and the template's texts (was a plain PDF without them).
-    const doc = await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true })
-    await keepIssuedCopy(this.prisma, invoice, doc) // Tier 684: the customer has it now
+    // Tier 685: the kept copy (made and kept now if it has none)
+    const doc = await issuedDocument(this.prisma, invoice, invoice.company, { lenient: true })
     return doc.buffer
   }
 

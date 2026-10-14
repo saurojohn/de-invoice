@@ -27,7 +27,7 @@ import {
   validateXRechnungWithKoSIT,
   KoSITValidatorUnavailableError,
 } from '../../invoices/kosIT-validator.service';
-import { keepIssuedCopy, renderInvoiceDocument } from './invoice-document';
+import { issuedDocument } from './invoice-document';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
@@ -324,8 +324,8 @@ export class InvoiceController {
           // director nor the texts of the template (a Kleinunternehmer's
           // § 19 note among them), nor the advance a final invoice deducts.
           // (Tier 610: a quote / delivery note is a plain PDF.)
-          const doc = await renderInvoiceDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
-          await keepIssuedCopy(this.prisma, invoice, doc) // Tier 684
+          // Tier 685: an issued invoice is its kept copy
+          const doc = await issuedDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
           const buffer = doc.buffer
           const ext = 'pdf'
           let name = invoice.invoiceNumber || id
@@ -726,13 +726,11 @@ export class InvoiceController {
       // the visual PDF is the same as the plain-PDF render.
       // Tier 683: built by renderInvoiceDocument, as for every other outlet
       // (template texts, full letterhead, the advance a final invoice deducts).
-      const doc = await renderInvoiceDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
+      // Tier 685: an issued invoice is handed out as its kept copy (Tier 684,
+      // made when it was issued) — it was rendered again from today's master
+      // data. ?format=pdf is that copy without the XML.
+      const doc = await issuedDocument(this.prisma, invoice, company, { plain: format === 'pdf' })
       const pdfBuffer = doc.buffer
-
-      // Tier 497: the stored copy is the archive's "as issued" document
-      // (GoBD export, DATEV bundle) — a draft's is not stored. Tier 684: it
-      // is the e-invoice, never the plain variant somebody asked for first.
-      await keepIssuedCopy(this.prisma, invoice, doc)
 
       // Filename hints at the format so a Steuerberater
       // dragging the file into their archive can see at
@@ -1001,8 +999,7 @@ export class InvoiceController {
 
       // Tier 683: was rendered without the template (its texts, the § 19 note)
       // and without the advance a final invoice deducts.
-      const doc = await renderInvoiceDocument(this.prisma, invoice, company);
-      await keepIssuedCopy(this.prisma, invoice, doc); // Tier 684
+      const doc = await issuedDocument(this.prisma, invoice, company); // Tier 685: the kept copy
       const pdfBuffer = doc.buffer;
 
       res.set({

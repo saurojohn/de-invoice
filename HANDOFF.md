@@ -2662,6 +2662,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 685 — an issued invoice is handed out as its kept copy
+
+The owner, 14.10.2026, on Tier 684's open point: „要，已开具的发票一律提供存档原件“ — an issued invoice is always handed out as its archived original.
+
+- **Measured before:** an invoice issued at "Altstraße 1" with IBAN …3000 and e-mailed; then the company moved and changed its bank. Downloaded again, as `…/zugferd`, in the bulk ZIP, e-mailed again (twice: resend and send), opened in the customer portal, and as `?format=pdf`: every copy showed "Neustraße 9" and the new IBAN — rendered again from today's master data — while the archive held the original. Template and logo changes reached issued invoices the same way.
+- **Now** `issuedDocument(prisma, invoice, company, { plain?, lenient? })` in `invoice-document.ts` is what every way out calls: for an issued invoice the kept copy (made and kept on the spot if there is none — Tier 684 makes it at issue); for a draft, a quote, an order confirmation or a delivery note a fresh rendering, as before. The download is byte for byte what the customer was sent (unsigned; `?sign` still puts the Tier 165 signature on top).
+- **`?format=pdf` of an issued invoice** is the kept copy without its XML (`withoutEmbeddedFiles`: the attachment, its file specification, the name tree entry, `/AF` and the XMP packet are removed with pdf-lib; the page content is untouched) — not a new rendering. Bulk ZIP with `format: 'pdf'` the same.
+- **A copy whose file is gone** (`pdfPath` set, no file in storage): logged as an error, the path let go, a new copy made with today's data and kept — the original cannot be brought back; the log says so.
+- **Not covered:** `GET /invoices/:id/xrechnung` still builds the XRechnung (UBL) from today's data. The kept original is the PDF with its CII inside; freezing the UBL file too would need a second stored file per invoice.
+
+Spec `409-tier685-ausgestellt-ist-ausgestellt.sh` (company moves after issuing; every way out, the plain variant, a draft and a quote, a lost file; 9 of its checks fail on the code before). Spec 408 follows: a first `?format=pdf` makes the copy (as the e-invoice) and cuts the plain variant from it. Spec 154 (GiroCode) toggled the shared company's IBAN on a seeded *sent* invoice and expected the QR to follow; it checks the rendering on a draft now and adds that an issued invoice keeps the QR it was issued with. The whole backend suite was run locally: 394 of 407 passed, the rest are the specs that fail on this machine for their own reasons (and 154 before its change).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 684 — the copy of an invoice is made when it is issued
 
 Found while reading Tier 683's outlets. The stored PDF (`Invoice.pdfPath`) is what the DATEV bundle and the GoBD export hand over as the invoice "as issued" (Tier 420, 497). It was written in one place: the first download.
@@ -2672,7 +2684,7 @@ Found while reading Tier 683's outlets. The stored PDF (`Invoice.pdfPath`) is wh
 - **The copy is the e-invoice.** The first download with `?format=pdf` stored the plain variant as "the issued invoice"; `renderInvoiceDocument` marks that rendering `canonical: false` and it is not kept.
 - **A credit note's XML named no invoice** when sent again or read in the portal: those two loaded the document without `referenceInvoice`, so BG-3 (preceding invoice) was missing from the XML that Tier 683 put into them (the page showed the number). All loaders use `INVOICE_DOCUMENT_INCLUDE` now; the archive's query had no product SKU either.
 
-**Left as it is, to be decided by the owner if it matters:** a download renders the invoice again from today's master data — after the company changed its address or bank account, an old invoice downloaded again shows the new one, while the kept copy (and so the exports and the archive) holds the original. Serving an issued invoice from its copy would settle that; it would also freeze template and logo changes for issued invoices, and several specs rely on re-rendering.
+**Left as it is, to be decided by the owner if it matters (decided 14.10.2026 — Tier 685 serves the copy):** a download renders the invoice again from today's master data — after the company changed its address or bank account, an old invoice downloaded again shows the new one, while the kept copy (and so the exports and the archive) holds the original. Serving an issued invoice from its copy would settle that; it would also freeze template and logo changes for issued invoices, and several specs rely on re-rendering.
 
 Spec `408-tier684-die-kopie-der-ausgestellten-rechnung.sh` (23 checks, with the mailbox of spec 407). The whole backend suite was run locally for this one (issuing is in nearly every spec): nothing failed beyond the specs that fail on this machine for their own reasons. Spec 209 changed with the behaviour: the archive's file is byte for byte the DATEV bundle's Beleg (was: byte for byte the first download), and a never-downloaded invoice carries the address of its issue (was: "the company's current address").
 

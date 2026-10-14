@@ -1,5 +1,5 @@
 import { queryDate, queryInt } from '../../common/query';
-import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from '../invoice/invoice-document';
+import { INVOICE_DOCUMENT_INCLUDE, issuedDocument } from '../invoice/invoice-document';
 import {
   Controller,
   Get,
@@ -307,10 +307,10 @@ export class MailController {
     }
     const customer = invoice.customer
 
-    // The document again, as it is now (Tier 683: as the first e-mail builds
-    // it — this was a plain PDF from six company fields, without the
-    // template).
-    const doc = await renderInvoiceDocument(this.prisma, invoice, invoice.company, { lenient: true })
+    // The document again (Tier 683: as the first e-mail builds it — this was a
+    // plain PDF from six company fields, without the template). Tier 685: an
+    // issued invoice is sent again as its kept copy, not as it would look today.
+    const doc = await issuedDocument(this.prisma, invoice, invoice.company, { lenient: true })
     const pdfBuffer = doc.buffer
 
     // Recipient / subject / body — override > original
@@ -337,7 +337,6 @@ export class MailController {
         },
       ],
     })
-    await keepIssuedCopy(this.prisma, invoice, doc) // Tier 684
 
     // New EmailSend row — preserves the audit trail (both
     // the original and the resend are recoverable).

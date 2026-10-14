@@ -25,6 +25,7 @@ import { InvoiceTemplateService } from '../invoice-template/invoice-template.ser
 import { advanceDeductionFor } from './advance'
 import { isNonFiscal, NON_FISCAL_TYPES } from './document-scope'
 import { StorageService } from '../storage/storage.service'
+import { PDFDocument, PDFDict, PDFName, PDFRawStream, PDFRef, PDFStream } from 'pdf-lib'
 
 const logger = new Logger('InvoiceDocument')
 
@@ -176,4 +177,76 @@ export async function ensureIssuedCopies(
     }
   }
   return made
+}
+
+// Tier 685 — an issued invoice is its kept copy.
+//
+// The owner, 14.10.2026, on Tier 684's open point: „要，已开具的发票一律提供存档原件“ —
+// an issued invoice is always handed out as its archived original. Every way
+// out rendered it again from today's master data: after the company moved or
+// changed its bank account, an invoice of last year downloaded, e-mailed again
+// or opened in the portal showed the new address and IBAN, while the archive
+// held the original. Template or logo changes reached issued invoices the
+// same way.
+//
+// Drafts are rendered as they are now, as are quotes, order confirmations and
+// delivery notes (no invoices; their copies are not the subject here).
+
+/**
+ * The document of an invoice for any way out. An issued invoice: its kept copy
+ * (made and kept now if it has none). `plain`: the same copy without the XML
+ * inside — not a new rendering.
+ */
+export async function issuedDocument(
+  prisma: PrismaService,
+  invoice: any,
+  company: any,
+  opts: { plain?: boolean; lenient?: boolean } = {},
+): Promise<InvoiceDocument & { fromCopy: boolean }> {
+  if (invoice.status === 'draft' || isNonFiscal(invoice.type)) {
+    return { ...(await renderInvoiceDocument(prisma, invoice, company, opts)), fromCopy: false }
+  }
+  let copy = await readCopy(prisma, invoice)
+  if (!copy) {
+    const doc = await renderInvoiceDocument(prisma, invoice, company, { lenient: opts.lenient })
+    await keepIssuedCopy(prisma, invoice, doc)
+    if (!opts.plain) return { ...doc, fromCopy: false }
+    copy = doc.buffer
+  }
+  if (opts.plain) return { buffer: await withoutEmbeddedFiles(copy), eInvoice: false, canonical: false, fromCopy: true }
+  return { buffer: copy, eInvoice: copy.includes('factur-x.xml'), canonical: true, fromCopy: true }
+}
+
+/** The kept copy's bytes; a path whose file is gone is let go (and said so), so a new copy is made. */
+async function readCopy(prisma: PrismaService, invoice: { id: string; invoiceNumber: string; pdfPath?: string | null }): Promise<Buffer | null> {
+  if (!invoice.pdfPath) return null
+  storage ??= new StorageService()
+  const file = await storage.getFile(invoice.pdfPath).catch(() => null)
+  if (file?.buffer?.length) return file.buffer
+  logger.error(`Rechnung ${invoice.invoiceNumber}: die abgelegte Kopie ${invoice.pdfPath} fehlt — sie wird neu erzeugt`)
+  await prisma.$executeRaw`UPDATE "Invoice" SET "pdfPath" = NULL WHERE id = ${invoice.id} AND "pdfPath" = ${invoice.pdfPath}`
+  invoice.pdfPath = null
+  return null
+}
+
+/**
+ * The PDF without its embedded files and the XMP packet that announces them —
+ * the page content and everything else untouched.
+ */
+export async function withoutEmbeddedFiles(buffer: Buffer): Promise<Buffer> {
+  const pdf = await PDFDocument.load(buffer, { updateMetadata: false })
+  const catalog = pdf.catalog
+  catalog.delete(PDFName.of('AF'))
+  catalog.delete(PDFName.of('Metadata'))
+  const names = catalog.lookupMaybe(PDFName.of('Names'), PDFDict)
+  const tree = names?.get(PDFName.of('EmbeddedFiles'))
+  names?.delete(PDFName.of('EmbeddedFiles'))
+  // The objects themselves: pdf-lib writes every object it holds, referenced or not.
+  if (tree instanceof PDFRef) pdf.context.delete(tree)
+  const type = (o: unknown) => (o instanceof PDFDict ? o : o instanceof PDFRawStream || o instanceof PDFStream ? o.dict : null)?.get(PDFName.of('Type'))
+  for (const [ref, obj] of pdf.context.enumerateIndirectObjects()) {
+    const t = type(obj)
+    if (t === PDFName.of('EmbeddedFile') || t === PDFName.of('Filespec') || t === PDFName.of('Metadata')) pdf.context.delete(ref)
+  }
+  return Buffer.from(await pdf.save({ useObjectStreams: false }))
 }
