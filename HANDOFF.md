@@ -18,7 +18,7 @@ exact commands + docs you need to be productive.
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 38648206049 / commit `3b25d93`, Tier 687; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
+- **Test counts (last green CI, run 38652063793 / commit `64555a9`, Tier 687b — 0 flaky, 0 retries; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
   - Backend e2e: **410 passed / 0 failed / 1 skipped** of 411 specs — 100
     two-digit + 311 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (the backend job takes 18 min since Tier 684 — every issued invoice is rendered once for its copy; it was 15, the job's limit is 30. Tier 687 added 411 the German calendar day; Tier 686 added 410 the kept XRechnung; Tier 685 added 409 an issued invoice is its kept copy; Tier 684 added 408 the copy made at issue; Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
     into the pages, 392 „zahlbar bis zum“, 393 the customer portal per currency, 394–396 Anlage SO (kinds
