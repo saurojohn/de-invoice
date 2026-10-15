@@ -9,18 +9,18 @@ exact commands + docs you need to be productive.
 ## 1. Project snapshot
 
 - **Stack:** Next.js 15.5.27 + NestJS 11 + Prisma 5 + PostgreSQL 16 (Docker)
-- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–687 are
+- **Repo:** github.com/saurojohn/de-invoice, branch `main`. Tiers 344–689 are
   in `git log`; §8 records what each learned. Tiers 443–462 came from the
-  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 687.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
+  cloud branch `claude/eloquent-hopper-qbea72` (PR #1, merged `ba31e7f`). (Snapshot refreshed Tier 689.) **Deployment status, confirmed by the owner on 06.10.2026: not live — local development only.** The `infra/prod/` findings of Tiers 555–560 are pre-launch hardening, not incidents; nothing there needs to be checked on a server, and `scripts/baseline-migrations.sh` has no database to run on yet.
 - **Domain:** German accounting / invoice web app (§ 146 AO GoBD compliant)
   - All UI text in **German** (operator-facing). PDF output in German. i18n:
     de / en / zh (de is source of truth).
   - Full accounting features required: Raten, Rabatte, Mahnung, DATEV,
     UStVA, UStJA, ELSTER, Anlage S/V, GoBD-Archiv, Berater-mode, audit log
     hash chain. **No simplified MVP** — every feature must be complete.
-- **Test counts (last green CI, run 38652063793 / commit `64555a9`, Tier 687b — 0 flaky, 0 retries; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
-  - Backend e2e: **410 passed / 0 failed / 1 skipped** of 411 specs — 100
-    two-digit + 311 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (the backend job takes 18 min since Tier 684 — every issued invoice is rendered once for its copy; it was 15, the job's limit is 30. Tier 687 added 411 the German calendar day; Tier 686 added 410 the kept XRechnung; Tier 685 added 409 an issued invoice is its kept copy; Tier 684 added 408 the copy made at issue; Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
+- **Test counts (last green CI, run 38784574992 / commit `df0b028`, Tier 689 — 0 flaky, 0 retries; the Docker workflow last ran at Tier 657, run 38053576775 — nothing under its paths changed since):**
+  - Backend e2e: **412 passed / 0 failed / 1 skipped** of 413 specs — 100
+    two-digit + 313 three-digit; Playwright: **1070 passed, 0 failed, 0 flaky** (the backend job takes 18 min since Tier 684 — every issued invoice is rendered once for its copy; it was 15, the job's limit is 30. Tier 689 added 413 the e-mail texts per document; Tier 688 added 412 the notes on zero-rated invoices; Tier 687 added 411 the German calendar day; Tier 686 added 410 the kept XRechnung; Tier 685 added 409 an issued invoice is its kept copy; Tier 684 added 408 the copy made at issue; Tier 683 added 407 one invoice, one document on every way out; Tier 682 added 406 the adviser's review; Tier 681 added 405 no ELSTER upload promised; Tiers 658–680 added 390 the reports in euros, 391 German texts written
     into the pages, 392 „zahlbar bis zum“, 393 the customer portal per currency, 394–396 Anlage SO (kinds
     and periods; rows that stay; reading writes nothing), 397 Anlage KAP, 398 Anlage N, 399 Anlage Kind,
     400 Anlage V's lines, 401 land without AfA, 402 Anlage AUS, 403 a loan's repayment is no expense,
@@ -2690,7 +2690,7 @@ The owner, 15.10.2026: „看看发票方面还有什么要提升的吗“ — w
 - **One rule:** `modules/invoice/zero-rated.ts` — `zeroRatedGround(flags, country, vatId)` returns igl / reverseChargeEu / reverseChargeDomestic / notTaxableAbroad / export / exempt, exactly the UStVA's former `addZeroRated` branches (which now switch on it; spec 412 shows the Kennzahlen unchanged).
 - **The PDF** prints the note of the ground: igL and § 13b keep their template texts; igL is now „Steuerfreie innergemeinschaftliche Lieferung (§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG).“ (a stored template with the old default text is read as the new one); an export „Steuerfreie Ausfuhrlieferung (§ 4 Nr. 1 Buchst. a i. V. m. § 6 UStG).“; a service abroad „Nicht im Inland steuerbare Leistung (Leistungsort im Drittland, § 3a Abs. 2 UStG).“ A Kleinunternehmer's invoice keeps its § 19 note only.
 - **The e-invoice** (XRechnung and ZUGFeRD share `computeXRechnungTotals`): an export is category G (`VATEX-EU-G`, „Steuerfreie Ausfuhrlieferung“), an EU customer's 0 % sale with a VAT id K — both were E. KoSIT accepts both. A service abroad stays AE (category O would forbid the seller's VAT id, BR-O-2).
-- **Page texts** (de/en/zh, 12 of them) named § 1a; they name § 4 Nr. 1b / § 6a now.
+- **Page texts** (de/en/zh, 12 of them) named § 1a; they name § 4 Nr. 1b / § 6a now. Tier 688b: so do the backend's — the form's suggestion ("empfohlen: §1a UStG …"), the §13b/igL contradiction error (spec 59 asserted „§1a“), the UStVA PDF row. The e-invoice importer's „Innergemeinschaftlicher Erwerb (§ 1a UStG)“ is right and stays: it is the buyer's acquisition.
 - **Not decided by the program:** a 0 % sale in Germany without a flag ("exempt") — the program cannot know which § 4 exemption applies; the invoice gets no note, the user writes it into the remarks.
 
 Spec `412-tier688-steuerhinweise-auf-der-rechnung.sh` (8 of its checks fail on the code before; the UStVA check passes on both — the counting did not change).

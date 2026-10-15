@@ -546,7 +546,7 @@ export class InvoiceService {
     // API caller could try.
     if (dto.reverseCharge === true && dto.euTransaction === true) {
       throw new BadRequestException(
-        'Reverse-Charge (§13b UStG) und Innergemeinschaftliche Lieferung (§1a UStG) schließen sich gegenseitig aus — bitte nur eine USt-Behandlung wählen.',
+        'Reverse-Charge (§13b UStG) und Innergemeinschaftliche Lieferung (§ 6a UStG) schließen sich gegenseitig aus — bitte nur eine USt-Behandlung wählen.',
       )
     }
 
@@ -1103,7 +1103,7 @@ export class InvoiceService {
     const effectiveIgE = dto.euTransaction ?? existing.euTransaction
     if (effectiveRC && effectiveIgE) {
       throw new BadRequestException(
-        'Reverse-Charge (§13b UStG) und Innergemeinschaftliche Lieferung (§1a UStG) schließen sich gegenseitig aus — bitte nur eine USt-Behandlung wählen.',
+        'Reverse-Charge (§13b UStG) und Innergemeinschaftliche Lieferung (§ 6a UStG) schließen sich gegenseitig aus — bitte nur eine USt-Behandlung wählen.',
       )
     }
     if (dto.euTransaction === true || (effectiveIgE && dto.customerId)) {

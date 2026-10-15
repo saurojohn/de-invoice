@@ -103,6 +103,9 @@ assert_eq "its old igL text is read as the corrected one" "$(note_of "$IGL2")" "
 
 note "=== 5. the pages do not name § 1a any more ==="
 MSG="$SCRIPT_DIR/../../frontend/messages"
+SRC="$SCRIPT_DIR/../src"
+assert_eq "nor do the backend's texts about the seller's igL: the form's hint, the contradiction error, the UStVA PDF (Tier 688b)" \
+  "$(grep -rh "empfohlen: §1a UStG\|Innergemeinschaftliche Lieferung (§1a UStG)\|'igL (§1a UStG)'" "$SRC" | wc -l | tr -d ' ')" "0"
 assert_eq "de / en / zh: no „§1a UStG“ (was 12 texts)" "$(cat "$MSG/de.json" "$MSG/en.json" "$MSG/zh.json" | grep -c '§1a UStG')" "0"
 
 summary

@@ -300,7 +300,7 @@ export function suggestUstBehandlung(input: {
     if (cc && EU_COUNTRY_CODES.has(cc) && companyCC && EU_COUNTRY_CODES.has(companyCC)) {
       return {
         suggested: 'euTransaction',
-        reason: `EU B2B (${cc} → ${companyCC}) — empfohlen: §1a UStG Innergemeinschaftliche Lieferung. Falls B2B-Dienstleistung: §13b UStG Reverse Charge wählen.`,
+        reason: `EU B2B (${cc} → ${companyCC}) — empfohlen: Innergemeinschaftliche Lieferung (§ 4 Nr. 1b, § 6a UStG). Falls B2B-Dienstleistung: §13b UStG Reverse Charge wählen.`,
         customerHasVatId: true,
         isEuB2b: true,
       }

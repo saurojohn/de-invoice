@@ -157,12 +157,13 @@ EOF
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" "$BAD_BODY" > /dev/null
 CONTRADICTION_STATUS="$STATUS"
 assert_eq "both-true is rejected" "$CONTRADICTION_STATUS" "400"
-# Body should mention both §13b and §1a
+# Body should mention both §13b and the igL's § 6a (Tier 688: it named
+# § 1a, the buyer's acquisition, not the seller's exempt supply)
 CONTRADICTION_MSG=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('message',''))")
-if [[ "$CONTRADICTION_MSG" == *"§13b"* && "$CONTRADICTION_MSG" == *"§1a"* ]]; then
-  pass "error message names both §13b and §1a"
+if [[ "$CONTRADICTION_MSG" == *"§13b"* && "$CONTRADICTION_MSG" == *"§ 6a"* && "$CONTRADICTION_MSG" != *"§1a"* ]]; then
+  pass "error message names both §13b and § 6a"
 else
-  fail "error message should name both §13b and §1a (got: $CONTRADICTION_MSG)"
+  fail "error message should name both §13b and § 6a (got: $CONTRADICTION_MSG)"
 fi
 
 # ---- 4. Toggle: switch RC off via PUT ----

@@ -650,7 +650,7 @@ export class UstvaService {
     doc.moveDown(0.2)
     doc.fontSize(9).font('Helvetica')
     const sY = doc.y
-    doc.text('igL (§1a UStG)', 50, sY, { width: 250 })
+    doc.text('igL (§ 4 Nr. 1b UStG)', 50, sY, { width: 250 }) // Tier 688: § 1a is the buyer's acquisition
     doc.text(this.fmtEur(data.igL), 380, sY, { width: 90, align: 'right' })
     doc.text('—', 480, sY, { width: 90, align: 'right' })
     doc.moveDown(0.3)
