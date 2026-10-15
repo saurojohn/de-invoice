@@ -1702,11 +1702,12 @@ export class InvoiceService {
     if (issuing && before.type !== 'CN') {
       // Tier 499: also a draft saved with a total of 0 or below before then.
       assertPositiveTotal(Number(before.total));
-      const [company, customer] = await Promise.all([
+      const [company, customer, items] = await Promise.all([
         this.prisma.company.findUnique({ where: { id: companyId } }),
         this.prisma.customer.findFirst({ where: { id: before.customerId, companyId } }),
+        this.prisma.invoiceItem.findMany({ where: { invoiceId: before.id }, select: { vatRate: true } }), // Tier 690
       ]);
-      assertInvoiceDetails(before, company ?? {}, customer);
+      assertInvoiceDetails({ ...before, items }, company ?? {}, customer);
     }
     const advance = issuing ? await this.advanceToSettle(before, companyId) : null
 

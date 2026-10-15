@@ -1285,6 +1285,7 @@
     "taxTreatment": "USt-Behandlung",
     "taxTreatmentStandard": "Standard (19% / 7%)",
     "taxTreatmentReverseCharge": "Reverse-Charge (§13b UStG)",
+    "exemptionHintMissing": "Ohne Umsatzsteuer an einen Kunden in Deutschland: Bitte den Grund der Steuerbefreiung in die Bemerkungen schreiben, z. B. „Steuerfrei nach § 4 Nr. 21 UStG“ (§ 14 Abs. 4 Nr. 8 UStG) — sonst lässt sich die Rechnung nicht ausstellen.",
     "taxTreatmentEu": "Innergemeinschaftliche Lieferung (§ 4 Nr. 1b, § 6a UStG)",
     "taxTreatmentKleinunternehmer": "Kleinunternehmer (§19 UStG)",
     "taxTreatmentHelp": "Bestimmt, ob die Rechnung USt enthält oder steuerfrei ausgestellt wird.",

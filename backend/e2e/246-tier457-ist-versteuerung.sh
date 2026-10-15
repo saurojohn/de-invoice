@@ -31,7 +31,8 @@ AS() { # method path [body]
 py() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);$1"; }
 AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; K=$(json_field "$BODY" id)
 sent() { # issueDate net rate → id
-  AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"$1\",\"items\":[{\"description\":\"Leistung\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$2,\"vatRate\":$3}]}"
+  # Tier 690: an exempt sale names its exemption, or it is not issued
+  AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"$1\",\"notes\":\"Steuerfrei nach § 4 Nr. 14 UStG\",\"items\":[{\"description\":\"Leistung\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$2,\"vatRate\":$3}]}"
   local id; id=$(json_field "$BODY" id)
   AS PUT "/api/v1/invoices/$id/status?companyId=$C" '{"status":"sent"}'
   echo "$id"

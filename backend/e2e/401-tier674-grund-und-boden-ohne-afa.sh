@@ -23,7 +23,8 @@ AS() { # method path [body]
 field() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);print(eval(sys.argv[1]))" "$1" 2>/dev/null; }
 SQL() { docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -q -At -c "$1"; }
 asset() { echo "{\"type\":\"$1\",\"bezeichnung\":\"$2\",\"anschaffungsDatum\":\"2024-01-15\",\"anschaffungsKosten\":$3,\"nutzungsdauerMonate\":$4}"; }
-afa() { AS GET "/api/v1/assets/booking-status?companyId=$C&year=2025"; field "{x['bezeichnung']: x['computedAfA'] for x in d}"; }
+# (sorted by name: the route's order is not fixed — Tier 690, a local run returned Acker first)
+afa() { AS GET "/api/v1/assets/booking-status?companyId=$C&year=2025"; field "dict(sorted((x['bezeichnung'], x['computedAfA']) for x in d))"; }
 
 note "=== 1. the computation ==="
 cat > "$SCRIPT_DIR/../.tier674-probe.ts" <<'TS'
@@ -64,10 +65,10 @@ AS PATCH "/api/v1/assets/$HALLE?companyId=$C" '{"type":"Gebaeude","nutzungsdauer
 assert_eq "… and gets one again as a building" "$STATUS|$(field "d['nutzungsdauerMonate']")" "200|396"
 
 note "=== 3. no AfA is computed or booked for land ==="
-assert_eq "2025: the hall 9 090,91 €, the land nothing (the plot was 2 000 €)" "$(afa)" "{'Bauplatz': 0, 'Acker': 0, 'Halle': 9090.91}"
+assert_eq "2025: the hall 9 090,91 €, the land nothing (the plot was 2 000 €)" "$(afa)" "{'Acker': 0, 'Bauplatz': 0, 'Halle': 9090.91}"
 # a row from before: land with a useful life in the database
 SQL "UPDATE \"Asset\" SET \"nutzungsdauerMonate\" = 600 WHERE id = '$LAND'" >/dev/null
-assert_eq "… also for land stored with a useful life before" "$(afa)" "{'Bauplatz': 0, 'Acker': 0, 'Halle': 9090.91}"
+assert_eq "… also for land stored with a useful life before" "$(afa)" "{'Acker': 0, 'Bauplatz': 0, 'Halle': 9090.91}"
 AS POST "/api/v1/assets/book-afa?companyId=$C&year=2025" '{}'
 assert_eq "„AfA buchen“: one booking, the hall's" "$STATUS|$(field "(d['bookedCount'], d['totalAnnualAfA'], [b['assetName'] for b in d['booked']])")" "201|(1, 9090.91, ['Halle'])"
 assert_eq "… and one AfA expense in the books" "$(SQL "SELECT count(*) || '/' || sum(\"netAmount\") FROM \"Expense\" WHERE \"companyId\" = '$C' AND category = 'AfA'" | sed 's/0*$//; s/\.$//')" "1/-9090.91"

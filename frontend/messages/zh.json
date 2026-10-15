@@ -1285,6 +1285,7 @@
     "taxTreatment": "增值税处理",
     "taxTreatmentStandard": "标准（19% / 7%）",
     "taxTreatmentReverseCharge": "逆向征税（§13b UStG）",
+    "exemptionHintMissing": "向德国客户开具不含增值税的发票：请在备注中写明免税依据，例如“Steuerfrei nach § 4 Nr. 21 UStG”（§ 14 Abs. 4 Nr. 8 UStG），否则无法开具。",
     "taxTreatmentEu": "欧盟内部供应（§ 4 Nr. 1b、§ 6a UStG）",
     "taxTreatmentKleinunternehmer": "小微企业（§19 UStG）",
     "taxTreatmentHelp": "确定发票是否含增值税或免税开具。",

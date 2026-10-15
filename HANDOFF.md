@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 690 — a tax-exempt sale names its exemption, or it is not issued
+
+The owner, 15.10.2026, on Tier 688's open point (option 2 of two; option 1 would have been a field with a migration): „就用它“ — refuse to issue until the exemption is named.
+
+- **The rule** (`mandatory-details.ts`, the Tier 494 check every issuing passes): an invoice with a 0 % line whose ground is "exempt" (`zeroRatedGround`: no igL / § 13b flag, not an EU customer with a VAT id, not a third country) is refused unless its remarks (`notes`, printed as „Bemerkungen“) name the exemption — a § or Art. with a number, or „steuerfrei“ / „steuerbefreit“ / „umsatzsteuerfrei“ / „befreit“ (`EXEMPTION_HINT`). The answer: „… es fehlen Pflichtangaben (§ 14 Abs. 4 UStG): Hinweis auf die Steuerbefreiung — in den Bemerkungen, z. B. „Steuerfrei nach § 4 Nr. 21 UStG“ (§ 14 Abs. 4 Nr. 8 UStG)“. It applies to a small invoice too (§ 33 Satz 1 Nr. 4 UStDV) — the check runs before the Kleinbetrag shortcut. A Kleinunternehmer is exempt from it (the § 19 note). The issuing route reads the invoice's line rates for it; a recurring run that issues by itself passes the run's rates, flags and the template's remarks.
+- **The form** (`invoices/create`) says it before: under the remarks field, for a German customer with a 0 % line, no flag, no Kleinunternehmer and no such remark (`invoice-exemption-hint`, `invoice.exemptionHintMissing` in de/en/zh).
+- **Specs that issued 0 % invoices to German customers for round numbers** now give the remark: 92 (installment suggestion), 246 (Ist-Versteuerung — its "exempt sale"). Spec 401 compared a dict in the route's row order, which is not fixed (a local run returned the assets in another order); it sorts now.
+
+Spec `414-tier690-steuerbefreiung-nennen.sh` (6 checks fail on the code before). The whole backend suite was run locally for it: nothing beyond the local-only failures and the three specs above.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 689 — a credit note, a receipt and a proforma each go out with their own text
 
 Same review. The e-mail templates (server `mail/templates/invoice-email.template.ts`, and the send dialog's own table in `invoices/[id]/page.tsx`) had texts for an invoice and — since Tier 610 — for a quote, an order confirmation and a delivery note. Everything else got the invoice's. Measured with the mailbox of spec 407:
@@ -2691,7 +2701,7 @@ The owner, 15.10.2026: „看看发票方面还有什么要提升的吗“ — w
 - **The PDF** prints the note of the ground: igL and § 13b keep their template texts; igL is now „Steuerfreie innergemeinschaftliche Lieferung (§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG).“ (a stored template with the old default text is read as the new one); an export „Steuerfreie Ausfuhrlieferung (§ 4 Nr. 1 Buchst. a i. V. m. § 6 UStG).“; a service abroad „Nicht im Inland steuerbare Leistung (Leistungsort im Drittland, § 3a Abs. 2 UStG).“ A Kleinunternehmer's invoice keeps its § 19 note only.
 - **The e-invoice** (XRechnung and ZUGFeRD share `computeXRechnungTotals`): an export is category G (`VATEX-EU-G`, „Steuerfreie Ausfuhrlieferung“), an EU customer's 0 % sale with a VAT id K — both were E. KoSIT accepts both. A service abroad stays AE (category O would forbid the seller's VAT id, BR-O-2).
 - **Page texts** (de/en/zh, 12 of them) named § 1a; they name § 4 Nr. 1b / § 6a now. Tier 688b: so do the backend's — the form's suggestion ("empfohlen: §1a UStG …"), the §13b/igL contradiction error (spec 59 asserted „§1a“), the UStVA PDF row. The e-invoice importer's „Innergemeinschaftlicher Erwerb (§ 1a UStG)“ is right and stays: it is the buyer's acquisition.
-- **Not decided by the program:** a 0 % sale in Germany without a flag ("exempt") — the program cannot know which § 4 exemption applies; the invoice gets no note, the user writes it into the remarks.
+- **Not decided by the program:** a 0 % sale in Germany without a flag ("exempt") — the program cannot know which § 4 exemption applies; the user writes it into the remarks (Tier 690 refuses to issue it otherwise).
 
 Spec `412-tier688-steuerhinweise-auf-der-rechnung.sh` (8 of its checks fail on the code before; the UStVA check passes on both — the counting did not change).
 

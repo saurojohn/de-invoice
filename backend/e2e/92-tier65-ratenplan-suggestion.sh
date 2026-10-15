@@ -53,7 +53,7 @@ CUST_ID=$(json_field "$BODY" id)
 
 mkinv92() { # unitPrice -> invoice id, status sent
   local id
-  api_post "/api/v1/invoices?companyId=$COMPANY_ID" "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$(date +%Y-%m-%d)\",\"items\":[{\"description\":\"$T396\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$1,\"vatRate\":0}]}"
+  api_post "/api/v1/invoices?companyId=$COMPANY_ID" "{\"customerId\":\"$CUST_ID\",\"issueDate\":\"$(date +%Y-%m-%d)\",\"notes\":\"Steuerfrei nach § 4 Nr. 21 UStG (Tier 690)\",\"items\":[{\"description\":\"$T396\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$1,\"vatRate\":0}]}"
   id=$(json_field "$BODY" id)
   api_put "/api/v1/invoices/$id/status?companyId=$COMPANY_ID" '{"status":"sent"}'
   echo "$id"

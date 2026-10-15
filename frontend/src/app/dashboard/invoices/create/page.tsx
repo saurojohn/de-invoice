@@ -1201,6 +1201,19 @@ function CreateInvoicePageInner() {
     }
   }
 
+  // Tier 690: a sale without VAT in Germany (no § 13b, no igL, a German
+  // customer) is tax-exempt — the invoice names the exemption (§ 14 Abs. 4
+  // Nr. 8 UStG), or the backend refuses to issue it. The form says so first.
+  const exemptionHintMissing = (() => {
+    if (kleinunternehmer || form.reverseCharge || form.euTransaction) return false
+    if (!form.items.some((it) => Math.abs(Number(it.vatRate)) < 0.00005)) return false
+    const c = customers.find((x) => x.id === form.customerId)
+    if (!c) return false
+    const country = String((c as any).address?.country || "").trim().toLowerCase()
+    if (!["", "de", "deu", "deutschland", "germany"].includes(country)) return false
+    return !/§\s*\d|steuerfrei|steuerbefrei|umsatzsteuerfrei|befreit|art(?:\.|ikel)\s*\d/i.test(form.notes || "")
+  })()
+
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <header className="bg-white dark:bg-gray-800 border-b shadow-sm">
@@ -2423,6 +2436,11 @@ function CreateInvoicePageInner() {
                     aria-label={t("invoice.notes")}
                     data-testid="invoice-notes-input"
                   />
+                  {exemptionHintMissing && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" data-testid="invoice-exemption-hint">
+                      {t("invoice.exemptionHintMissing")}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>

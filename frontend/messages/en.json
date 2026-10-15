@@ -1285,6 +1285,7 @@
     "taxTreatment": "VAT Treatment",
     "taxTreatmentStandard": "Standard (19% / 7%)",
     "taxTreatmentReverseCharge": "Reverse Charge (§13b UStG)",
+    "exemptionHintMissing": "No VAT for a customer in Germany: please state the ground of the exemption in the remarks, e.g. “Steuerfrei nach § 4 Nr. 21 UStG” (§ 14 Abs. 4 Nr. 8 UStG) — otherwise the invoice cannot be issued.",
     "taxTreatmentEu": "Intra-Community Supply (§ 4 Nr. 1b, § 6a UStG)",
     "taxTreatmentKleinunternehmer": "Small Business (§19 UStG)",
     "taxTreatmentHelp": "Determines whether the invoice includes VAT or is issued tax-free.",

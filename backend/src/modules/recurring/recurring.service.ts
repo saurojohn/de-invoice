@@ -1084,7 +1084,12 @@ export class RecurringService {
           tx.company.findUnique({ where: { id: companyId } }),
           tx.customer.findFirst({ where: { id: tpl.customerId, companyId } }),
         ])
-        assertInvoiceDetails({ total: total4, eurTotal: toEur4(total4) }, co ?? {}, cu)
+        assertInvoiceDetails({
+          total: total4, eurTotal: toEur4(total4),
+          // Tier 690: the run's rates and flags, and the template's remarks
+          reverseCharge: vat.reverseCharge, euTransaction: vat.euTransaction,
+          items: items.map((it) => ({ vatRate: vat.rate(it.vatRate) })), notes: tpl.notes,
+        }, co ?? {}, cu)
       }
 
       const invoice = await tx.invoice.create({
