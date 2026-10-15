@@ -33,6 +33,7 @@ import { issuedDocument, issuedXRechnung } from './invoice-document';
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
 import { CreateInvoiceDto, UpdateInvoiceDto, UpdateInvoiceStatusDto, CreateFinalInvoiceDto } from './dto/invoice.dto';
 import { DOCUMENT_NAMES, isNonFiscal } from './document-scope';
+import { defaultSalutationFor, renderInvoiceEmail } from '../mail/templates/invoice-email.template';
 import { Auth, Require } from '../../auth/roles.decorator';
 // Tier 129: renderInvoiceEmail + EmailLang moved to
 // InvoiceEmailService. The controller still has the
@@ -1131,8 +1132,18 @@ export class InvoiceController {
     const invoiceNumber = invoice.invoiceNumber;
     const totalAmount = parseFloat(invoice.total.toString()).toFixed(2);
 
-    const subject = `Rechnung ${invoiceNumber}`;
-    const body = `Sehr geehrte/r Herr/Frau ${recipientName},\n\nanbei erhalten Sie die Rechnung ${invoiceNumber} über EUR ${totalAmount}.\n\nBitte begleichen Sie den Betrag bis zum Fälligkeitsdatum.\n\nMit freundlichen Grüßen\n${company?.name || ''}`;
+    // Tier 689: the text the send uses (per document type, German amount and
+    // date). This route wrote its own: "Rechnung … über EUR -119.00. Bitte
+    // begleichen Sie den Betrag" for a credit note.
+    const eur = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: invoice.currency || 'EUR' }).format(n);
+    const { subject, text: body } = renderInvoiceEmail('de', {
+      invoiceNumber,
+      customerName: recipientName,
+      amount: eur(Math.abs(Number(invoice.total))),
+      dueDate: invoice.dueDate ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(invoice.dueDate)) : '—',
+      companyName: company?.name || '',
+      salutation: defaultSalutationFor('de', !!recipientName.trim()),
+    }, invoice.type);
 
     return {
       recipientEmail,

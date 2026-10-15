@@ -166,7 +166,8 @@ export class InvoiceEmailService {
 
     const recipientName = customer.name || '';
     const invoiceNumber = invoice.invoiceNumber;
-    const totalAmount = parseFloat(invoice.total.toString());
+    // Tier 689: a credit note is stored negative — its e-mail names the amount
+    const totalAmount = Math.abs(parseFloat(invoice.total.toString()));
     const lang: EmailLang =
       options.language === 'en' || options.language === 'zh' ? options.language : 'de';
 

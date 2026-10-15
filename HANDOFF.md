@@ -2662,6 +2662,20 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 689 — a credit note, a receipt and a proforma each go out with their own text
+
+Same review. The e-mail templates (server `mail/templates/invoice-email.template.ts`, and the send dialog's own table in `invoices/[id]/page.tsx`) had texts for an invoice and — since Tier 610 — for a quote, an order confirmation and a delivery note. Everything else got the invoice's. Measured with the mailbox of spec 407:
+
+- **a credit note:** "Rechnung CN-… — anbei erhalten Sie die Rechnung CN-… über -119,00 €. Bitte begleichen Sie den Betrag bis zum …";
+- **a receipt (Quittung):** "Bitte begleichen Sie den Betrag" — for what is paid;
+- **a proforma:** "Rechnung PI-…";
+- **a customer named „Müller & Söhne“:** "Sehr geehrte/r Müller &amp; Söhne" — the template HTML-escaped the name (Tier 11, "defence in depth"), but the e-mail is plain text: no `html` part; the e-mail views show the stored text as text, and global search escapes before it marks (Tier 317).
+- **`GET /invoices/:id/email-data`** (no page calls it) wrote its own text: "Rechnung … über EUR -119.00 … begleichen".
+
+Now CN, RCV and PI have their texts in de/en/zh on both sides (spec 413 compares the two tables); a credit note's amount is named positive ("unsere Gutschrift … über 119,00 €"); the name stands as typed; `email-data` renders the shared template. Spec 17 changed with it: it asserted the escaping, it now asserts the name as typed and no HTML entities.
+
+Spec `413-tier689-mails-je-belegart.sh` (8 checks, all fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 688 — the invoice names why it carries no German VAT, as the UStVA counts it
 
 The owner, 15.10.2026: „看看发票方面还有什么要提升的吗“ — what else can be improved on the invoice side. Measured by issuing one invoice of each kind (100 € net) and reading the PDF and the XRechnung:

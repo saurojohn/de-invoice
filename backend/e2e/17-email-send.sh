@@ -12,9 +12,10 @@
 #   2. The subject + body are rendered in the chosen
 #      locale (de / en / zh) with the right currency
 #      and date format.
-#   3. The customer name is HTML-escaped in the
-#      rendered text (defence in depth against
-#      injection via the customer name).
+#   3. The customer name stands in the text as typed (Tier 689: the
+#      e-mail is plain text — it was HTML-escaped, so "Müller & Söhne"
+#      arrived as "Müller &amp; Söhne"; the pages show the stored text
+#      as text, and global search escapes before it marks, Tier 317).
 #   4. The EmailSend row is recorded with the right
 #      language tag and the rendered subject.
 #   5. The resend endpoint clones the original
@@ -38,7 +39,6 @@ echo "=== Test: email send-out (multi-locale + resend) ==="
 
 UNIQ=$(date +%s | tail -c 6)
 CUSTOMER_NAME_RAW="Tier11 <b>Test</b> & Co ${UNIQ}"
-CUSTOMER_NAME_HTML_ESC="Tier11 &lt;b&gt;Test&lt;/b&gt; &amp; Co ${UNIQ}"
 
 # 1. Create a fresh customer with an email + a name with
 # HTML in it to test the escape behaviour.
@@ -115,16 +115,15 @@ SUBJ_ZH=$(json_field "$BODY" subject)
 assert_contains "Chinese subject has 发票" "$SUBJ_ZH" "发票"
 assert_contains "Chinese subject has 来自" "$SUBJ_ZH" "来自"
 
-# 6. Verify the bodyPreview in DB has the customer's HTML
-# escaped in the de send (the body text preview is what
-# shows up in the Email Center detail dialog).
+# 6. The bodyPreview (what the Email Center shows, as text) has the
+# customer's name as typed — a plain-text e-mail carries no HTML entities.
 api_get "/api/v1/mail/emails/${EMAIL_ID_DE}?companyId=${COMPANY_ID}"
 BODY_PREVIEW=$(json_field "$BODY" bodyPreview)
-assert_contains "customer name HTML-escaped (&lt;b&gt; in body)" "$BODY_PREVIEW" "&lt;b&gt;Test&lt;/b&gt;"
-if echo "$BODY_PREVIEW" | grep -q '<b>Test</b>'; then
-  fail "raw <b> in body preview — escape failed"
+assert_contains "customer name as typed in the plain-text body (Tier 689; was &lt;b&gt; / &amp;)" "$BODY_PREVIEW" "${CUSTOMER_NAME_RAW}"
+if echo "$BODY_PREVIEW" | grep -q '&amp;\|&lt;'; then
+  fail "HTML entities in a plain-text e-mail"
 else
-  pass "no raw HTML in body preview"
+  pass "no HTML entities in the plain-text body"
 fi
 
 # 7. Override subject — send with a custom subject

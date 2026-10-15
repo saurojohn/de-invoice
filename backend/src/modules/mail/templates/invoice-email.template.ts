@@ -54,20 +54,6 @@ export interface RenderedInvoiceEmail {
   text: string;
 }
 
-// HTML-escape for the customer name (defence-in-depth
-// against template-injection — the user-supplied name
-// is the only field that comes from outside the
-// template file, so it's the only one that needs
-// escaping).
-function esc(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 const TEMPLATES: Record<EmailLang, { subject: string; body: string }> = {
   de: {
     subject: 'Rechnung {invoiceNumber} von {companyName}',
@@ -102,6 +88,135 @@ const TEMPLATES: Record<EmailLang, { subject: string; body: string }> = {
 // Tier 610: a quote asks for an order, not for money; a delivery note
 // asks for nothing.
 const DOCUMENT_TEMPLATES: Record<string, Record<EmailLang, { subject: string; body: string }>> = {
+  // Tier 689: a credit note, a receipt and a proforma had none — they went out
+  // as "anbei erhalten Sie die Rechnung CN-… über -119,00 €. Bitte begleichen
+  // Sie den Betrag" (a receipt: pay what is paid).
+  CN: {
+    de: {
+      subject: 'Gutschrift {invoiceNumber} von {companyName}',
+      body:
+        '{salutation} {customerName},\n' +
+        '\n' +
+        'anbei erhalten Sie unsere Gutschrift {invoiceNumber} über {amount}.\n' +
+        '\n' +
+        'Sie finden sie im Anhang als PDF.\n' +
+        '\n' +
+        'Mit freundlichen Grüßen\n' +
+        '{companyName}',
+    },
+    en: {
+      subject: 'Credit note {invoiceNumber} from {companyName}',
+      body:
+        '{salutation} {customerName},\n' +
+        '\n' +
+        'Please find attached our credit note {invoiceNumber} for {amount}.\n' +
+        '\n' +
+        'It is attached as a PDF.\n' +
+        '\n' +
+        'Kind regards,\n' +
+        '{companyName}',
+    },
+    zh: {
+      subject: '贷项通知单 {invoiceNumber} 来自 {companyName}',
+      body:
+        '{salutation}{customerName}:\n' +
+        '\n' +
+        '随信附上我方贷项通知单 {invoiceNumber},金额 {amount}。\n' +
+        '\n' +
+        '贷项通知单以 PDF 格式附在邮件中。\n' +
+        '\n' +
+        '此致\n' +
+        '敬礼\n' +
+        '\n' +
+        '{companyName}',
+    },
+  },
+  RCV: {
+    de: {
+      subject: 'Quittung {invoiceNumber} von {companyName}',
+      body:
+        '{salutation} {customerName},\n' +
+        '\n' +
+        'anbei erhalten Sie die Quittung {invoiceNumber} über {amount}. Der Betrag ist bezahlt — vielen Dank.\n' +
+        '\n' +
+        'Sie finden sie im Anhang als PDF.\n' +
+        '\n' +
+        'Mit freundlichen Grüßen\n' +
+        '{companyName}',
+    },
+    en: {
+      subject: 'Receipt {invoiceNumber} from {companyName}',
+      body:
+        '{salutation} {customerName},\n' +
+        '\n' +
+        'Please find attached receipt {invoiceNumber} for {amount}. The amount has been paid — thank you.\n' +
+        '\n' +
+        'It is attached as a PDF.\n' +
+        '\n' +
+        'Kind regards,\n' +
+        '{companyName}',
+    },
+    zh: {
+      subject: '收据 {invoiceNumber} 来自 {companyName}',
+      body:
+        '{salutation}{customerName}:\n' +
+        '\n' +
+        '随信附上收据 {invoiceNumber},金额 {amount}。该款项已付清,谢谢。\n' +
+        '\n' +
+        '收据以 PDF 格式附在邮件中。\n' +
+        '\n' +
+        '此致\n' +
+        '敬礼\n' +
+        '\n' +
+        '{companyName}',
+    },
+  },
+  PI: {
+    de: {
+      subject: 'Proforma-Rechnung {invoiceNumber} von {companyName}',
+      body:
+        '{salutation} {customerName},\n' +
+        '\n' +
+        'anbei erhalten Sie die Proforma-Rechnung {invoiceNumber} über {amount}.\n' +
+        '\n' +
+        'Bitte überweisen Sie den Betrag bis zum {dueDate}.\n' +
+        '\n' +
+        'Sie finden sie im Anhang als PDF.\n' +
+        '\n' +
+        'Mit freundlichen Grüßen\n' +
+        '{companyName}',
+    },
+    en: {
+      subject: 'Proforma invoice {invoiceNumber} from {companyName}',
+      body:
+        '{salutation} {customerName},\n' +
+        '\n' +
+        'Please find attached proforma invoice {invoiceNumber} for {amount}.\n' +
+        '\n' +
+        'Please transfer the amount by {dueDate}.\n' +
+        '\n' +
+        'It is attached as a PDF.\n' +
+        '\n' +
+        'Kind regards,\n' +
+        '{companyName}',
+    },
+    zh: {
+      subject: '形式发票 {invoiceNumber} 来自 {companyName}',
+      body:
+        '{salutation}{customerName}:\n' +
+        '\n' +
+        '随信附上形式发票 {invoiceNumber},金额 {amount}。\n' +
+        '\n' +
+        '请于 {dueDate} 前转账。\n' +
+        '\n' +
+        '形式发票以 PDF 格式附在邮件中。\n' +
+        '\n' +
+        '此致\n' +
+        '敬礼\n' +
+        '\n' +
+        '{companyName}',
+    },
+  },
   QU: {
     de: {
       subject: 'Angebot {invoiceNumber} von {companyName}',
@@ -195,9 +310,11 @@ export function renderInvoiceEmail(
 ): RenderedInvoiceEmail {
   const table = (documentType && DOCUMENT_TEMPLATES[documentType]) || TEMPLATES;
   const tpl = table[lang] || table.de;
+  // Tier 689: the e-mail is plain text — the name was HTML-escaped, so
+  // "Müller & Söhne" arrived as "Müller &amp; Söhne", "O'Brien" as "O&#39;Brien".
   const safeVars = {
     ...vars,
-    customerName: esc(vars.customerName || ''),
+    customerName: vars.customerName || '',
   };
   const sub = (s: string): string =>
     s.replace(/\{(\w+)\}/g, (_m, k: string) => {
