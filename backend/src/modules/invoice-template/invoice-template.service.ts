@@ -1,3 +1,4 @@
+import { IGL_NOTE, IGL_NOTE_BEFORE_688 } from '../invoice/zero-rated'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { generateInvoicePDF } from '../../invoices/invoice-pdf.service'
@@ -60,12 +61,11 @@ const DEFAULT_CONFIG: Required<TemplateConfig> = {
   showAbsenderzeile: true,
   reverseChargeNote:
     'Steuerschuldnerschaft des Leistungsempfängers (§13b UStG).',
-  // Tier 27: §1a UStG note for innergemeinschaftliche
-  // Lieferungen. Same position on the PDF as the §13b
-  // note (footerY - 28); the PDF picks one OR the other
-  // (an invoice is never both).
-  euTransactionNote:
-    'Steuerfreie innergemeinschaftliche Lieferung (§1a UStG).',
+  // Tier 27: the note for innergemeinschaftliche Lieferungen. Same position
+  // on the PDF as the §13b note (footerY - 28); the PDF picks one (Tier 688:
+  // by zeroRatedGround). Tier 688: the exemption is § 4 Nr. 1 b / § 6a UStG —
+  // "§1a UStG" is the buyer's acquisition.
+  euTransactionNote: IGL_NOTE,
   kleineUnternehmerNote:
     'Gemäß §19 UStG wird keine Umsatzsteuer berechnet.',
 }
@@ -227,6 +227,10 @@ export class InvoiceTemplateService {
     // Tier 480: the § 19 UStG note belongs on a Kleinunternehmer's
     // invoices only — every template carries its text.
     const resolved = await this.resolveTemplateConfig(companyId, templateType, templateId)
+    // Tier 688: a template stored with the old default names the wrong §
+    if (resolved.config.euTransactionNote === IGL_NOTE_BEFORE_688) {
+      resolved.config = { ...resolved.config, euTransactionNote: IGL_NOTE }
+    }
     const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
     if (co?.defaultVatMode !== 'kleinunternehmer') {
       resolved.config = { ...resolved.config, kleineUnternehmerNote: '' }

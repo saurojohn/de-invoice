@@ -33,6 +33,7 @@
  *   - zugferd.service.ts (Factur-X reuses the data transform)
  */
 
+import { zeroRatedGround } from '../modules/invoice/zero-rated'
 import { invoiceTaxBreakdown } from '../modules/invoice/tax-breakdown'
 
 export interface XRechnungSupplier {
@@ -506,12 +507,14 @@ function generatePaymentTerms(data: XRechnungData): string {
   </cac:PaymentTerms>`
 }
 
-export type TaxCategoryCode = 'S' | 'K' | 'AE' | 'E'
+export type TaxCategoryCode = 'S' | 'K' | 'AE' | 'G' | 'E'
 
 /** Tier 412: exemption reasons for the zero-rated categories (BR-K-10, BR-AE-10, BR-E-10). */
 export const EXEMPTION: Record<Exclude<TaxCategoryCode, 'S'>, { code?: string; text: string }> = {
   K: { code: 'VATEX-EU-IC', text: 'Steuerfreie innergemeinschaftliche Lieferung' },
   AE: { code: 'VATEX-EU-AE', text: 'Steuerschuldnerschaft des Leistungsempfängers' },
+  // Tier 688: an export to a third country (§ 4 Nr. 1 Buchst. a, § 6 UStG) — was E
+  G: { code: 'VATEX-EU-G', text: 'Steuerfreie Ausfuhrlieferung' },
   E: { text: 'Steuerbefreite Leistung' },
 }
 
@@ -640,8 +643,13 @@ function allocateCents(total: number, weights: number[]): number[] {
  * that category's share of the discounted net (tax-breakdown.ts).
  */
 export function computeXRechnungTotals(data: XRechnungData): XRechnungTotals {
-  const categoryOf = (rate: number): TaxCategoryCode =>
-    rate > 0 ? 'S' : data.euTransaction ? 'K' : data.reverseCharge ? 'AE' : 'E'
+  // Tier 688: the zero-rated category follows the UStVA's ground
+  // (invoice/zero-rated.ts): an export is G, an EU customer's 0 % sale with a
+  // VAT id is an igL (K) — both were E.
+  const ground = zeroRatedGround(data, (data.customer?.address as any)?.country, data.customer?.vatId)
+  const zeroCategory: TaxCategoryCode = data.euTransaction ? 'K' : data.reverseCharge ? 'AE'
+    : ground === 'igl' ? 'K' : ground === 'export' ? 'G' : 'E'
+  const categoryOf = (rate: number): TaxCategoryCode => (rate > 0 ? 'S' : zeroCategory)
 
   const lineNets = data.items.map((i) => cents(i.netAmount))
   const lineExtension = lineNets.reduce((a, b) => a + b, 0)

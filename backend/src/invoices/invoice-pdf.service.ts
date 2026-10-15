@@ -1,3 +1,4 @@
+import { EXPORT_NOTE, IGL_NOTE, NOT_TAXABLE_ABROAD_NOTE, zeroRatedGround } from '../modules/invoice/zero-rated'
 import { findLogo } from '../modules/company/logo-store'
 import PDFKit from "pdfkit"
 import * as fs from "fs"
@@ -976,18 +977,28 @@ export async function generateInvoicePDF(
           { lineBreak: false },
         )
     }
-    if (renderConfig?.reverseChargeNote && (invoice as any).reverseCharge) {
+    // Tier 688: the ground of a zero-rated sale (invoice/zero-rated.ts, the
+    // UStVA's rule) decides the note. igL and § 13b keep their template texts;
+    // an export and a service abroad got none / the § 13b one before. A
+    // Kleinunternehmer's invoice has the § 19 note below instead.
+    const zeroRatedLine = (invoice.items || []).some((it: any) => Math.abs(toFloat(it.vatRate)) < 0.00005)
+    const groundNote = (() => {
+      if (renderConfig?.kleineUnternehmerNote) return null
+      const flagged = (invoice as any).reverseCharge || (invoice as any).euTransaction
+      if (!zeroRatedLine && !flagged) return null
+      const customer = (invoice as any).customer
+      switch (zeroRatedGround(invoice as any, customer?.address?.country, customer?.vatId)) {
+        case 'igl': return renderConfig?.euTransactionNote || IGL_NOTE
+        case 'reverseChargeEu':
+        case 'reverseChargeDomestic': return renderConfig?.reverseChargeNote || null
+        case 'notTaxableAbroad': return NOT_TAXABLE_ABROAD_NOTE
+        case 'export': return EXPORT_NOTE
+        default: return null
+      }
+    })()
+    if (groundNote) {
       doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
-        .text(renderConfig.reverseChargeNote, leftMargin, footerY - 28, { lineBreak: false })
-    }
-    // Tier 27: §1a UStG note for IgE invoices.
-    // Same position as the §13b note — they're
-    // mutually exclusive (the backend already
-    // rejects both=true on create/update), so only
-    // one of the two is ever rendered.
-    if (renderConfig?.euTransactionNote && (invoice as any).euTransaction) {
-      doc.font(fontFor('bold')).fontSize(8).fillColor(primaryColor)
-        .text(renderConfig.euTransactionNote, leftMargin, footerY - 28, { lineBreak: false })
+        .text(groundNote, leftMargin, footerY - 28, { lineBreak: false })
     }
     // Tier 480: the note is resolved per company (resolveConfig leaves it
     // only for a Kleinunternehmer) and shown on a document without VAT. The

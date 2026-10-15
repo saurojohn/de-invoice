@@ -1699,7 +1699,7 @@ function CreateInvoicePageInner() {
                         <span
                           className="text-[10px] px-2 py-0.5 rounded font-medium bg-blue-100 text-blue-800"
                           data-testid="invoice-ust-suggestion-eub2b-badge"
-                          title={t("invoice.ustSuggestionEuB2bTitle") || "EU-B2B — §1a oder §13b UStG"}
+                          title={t("invoice.ustSuggestionEuB2bTitle") || "EU-B2B — § 6a oder § 13b UStG"}
                         >
                           🇪🇺 EU B2B
                         </span>

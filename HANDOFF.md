@@ -2662,6 +2662,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 688 — the invoice names why it carries no German VAT, as the UStVA counts it
+
+The owner, 15.10.2026: „看看发票方面还有什么要提升的吗“ — what else can be improved on the invoice side. Measured by issuing one invoice of each kind (100 € net) and reading the PDF and the XRechnung:
+
+| kind | note on the invoice before | e-invoice before | UStVA |
+|---|---|---|---|
+| intra-EU supply (flag) | „… (§1a UStG)“ — § 1a is the buyer's acquisition | K | Kz 41 |
+| export to Switzerland | **none** (§ 14 Abs. 4 Nr. 8 UStG wants the exemption named) | E „Steuerbefreite Leistung“ | Kz 43 |
+| service to a Swiss business (§ 13b flag) | „Steuerschuldnerschaft … (§13b UStG)“ — a German rule for a recipient abroad | AE | Kz 45 |
+| 0 % to a French business with VAT id, no flag | **none** | E | Kz 41 |
+
+- **One rule:** `modules/invoice/zero-rated.ts` — `zeroRatedGround(flags, country, vatId)` returns igl / reverseChargeEu / reverseChargeDomestic / notTaxableAbroad / export / exempt, exactly the UStVA's former `addZeroRated` branches (which now switch on it; spec 412 shows the Kennzahlen unchanged).
+- **The PDF** prints the note of the ground: igL and § 13b keep their template texts; igL is now „Steuerfreie innergemeinschaftliche Lieferung (§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG).“ (a stored template with the old default text is read as the new one); an export „Steuerfreie Ausfuhrlieferung (§ 4 Nr. 1 Buchst. a i. V. m. § 6 UStG).“; a service abroad „Nicht im Inland steuerbare Leistung (Leistungsort im Drittland, § 3a Abs. 2 UStG).“ A Kleinunternehmer's invoice keeps its § 19 note only.
+- **The e-invoice** (XRechnung and ZUGFeRD share `computeXRechnungTotals`): an export is category G (`VATEX-EU-G`, „Steuerfreie Ausfuhrlieferung“), an EU customer's 0 % sale with a VAT id K — both were E. KoSIT accepts both. A service abroad stays AE (category O would forbid the seller's VAT id, BR-O-2).
+- **Page texts** (de/en/zh, 12 of them) named § 1a; they name § 4 Nr. 1b / § 6a now.
+- **Not decided by the program:** a 0 % sale in Germany without a flag ("exempt") — the program cannot know which § 4 exemption applies; the invoice gets no note, the user writes it into the remarks.
+
+Spec `412-tier688-steuerhinweise-auf-der-rechnung.sh` (8 of its checks fail on the code before; the UStVA check passes on both — the counting did not change).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 687b — the UI walk waits for the settings page
 
 Tier 686's run (38643531009) also had **1 flaky** Playwright test: `ui-walk-tier590` read the settings page while it still showed "Laden…" after `networkidle` (expected "(8921)"). It waits for the content now (`toContainText`, 60 s); the placeholder test waits for the form. Tier 687's run was clean (1070 passed, 0 flaky). Note for reading the logs: Playwright writes "retry #1" in lower case — grep case-insensitively.

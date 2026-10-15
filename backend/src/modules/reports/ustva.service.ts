@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
+import { zeroRatedGround } from '../invoice/zero-rated';
 import { cashBookings } from '../cashbook/cash-bookings';
 import { besteuerungsart, istPaidDocuments } from './ustva-ist';
 import { taxedAbroad } from './oss-scope';
@@ -216,28 +217,31 @@ export class UstvaService {
       vatId: string,
       net: number,
     ) => {
-      const isGermanVatId = vatId.startsWith('DE');
-      if (flags.euTransaction === true) {
-        igL += net;
-        addZm(vatId, 'L', net);
-      } else if (flags.reverseCharge === true) {
-        // The customer owes the tax. Abroad in the EU: a B2B service whose
-        // place of supply is there (Kz 21); outside the EU: Kz 45; otherwise
-        // a domestic § 13b supply (Kz 60). These used to land in "sonstige
-        // steuerfreie Umsätze", or in igL for an EU customer with a VAT id.
-        if (country && country !== 'DE' && this.isEUCountry(country)) {
+      // Tier 688: the classification lives in invoice/zero-rated.ts — the
+      // invoice's note and its e-invoice category follow the same rule.
+      switch (zeroRatedGround(flags, country, vatId)) {
+        case 'igl':
+          igL += net;
+          addZm(vatId, 'L', net);
+          break;
+        case 'reverseChargeEu':
+          // The customer owes the tax. Abroad in the EU: a B2B service whose
+          // place of supply is there (Kz 21); outside the EU: Kz 45; otherwise
+          // a domestic § 13b supply (Kz 60).
           euServicesSales += net;
           addZm(vatId, 'S', net);
-        }
-        else if (country && !this.isEUCountry(country)) nonTaxableOther += net;
-        else reverseChargeSales += net;
-      } else if (this.isIntraEU(country, vatId, isGermanVatId)) {
-        igL += net;
-        addZm(vatId, 'L', net);
-      } else if (country && !this.isEUCountry(country)) {
-        exportThirdCountry += net;
-      } else {
-        otherExempt += net;
+          break;
+        case 'notTaxableAbroad':
+          nonTaxableOther += net;
+          break;
+        case 'reverseChargeDomestic':
+          reverseChargeSales += net;
+          break;
+        case 'export':
+          exportThirdCountry += net;
+          break;
+        default:
+          otherExempt += net;
       }
     };
     let invoiceCount = salesInvoices.length;
