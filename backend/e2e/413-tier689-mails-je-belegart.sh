@@ -45,8 +45,8 @@ PY
 
 AS PUT "/api/v1/companies/$C?companyId=$C" '{"vatId":"DE123456789","email":"info@t689.example","phone":"+49 30 1","address":{"street":"Hauptstr. 1","city":"Berlin","postalCode":"10115","country":"DE"},"bankInfo":{"iban":"DE89370400440532013000","bic":"COBADEFFXXX","bankName":"Bank"}}'
 AS PUT "/api/v1/mail/config?companyId=$C" "{\"smtpHost\":\"127.0.0.1\",\"smtpPort\":$PORT,\"smtpSecure\":false,\"smtpUser\":\"u\",\"smtpPassword\":\"p\",\"fromEmail\":\"rechnung@example.test\",\"fromName\":\"$TAG\",\"enabled\":true}"
-AS POST "/api/v1/customers?companyId=$C" '{"name":"Müller & Söhne","type":"business","vatId":"DE987654321","address":{"street":"Weg 2","city":"Hamburg","postalCode":"20095","country":"DE"},"contact":{"email":"mueller@example.test"}}'
-K=$(P "d['id']")
+AS POST "/api/v1/customers?companyId=$C" '{"name":"Müller & Söhne","type":"business","vatId":"DE987654321","address":{"street":"Weg 2","city":"Hamburg","postalCode":"20095","country":"DE"},"contact":{"email":"mueller@example.test","name":"Müller & Söhne"}}'
+K=$(P "d['id']") # (Tier 691: greeted by the contact person's name — a company without one is "Damen und Herren")
 TODAY=$(TZ=Europe/Berlin date +%F)
 mk() { AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",${1:+\"type\":\"$1\",}\"issueDate\":\"$TODAY\",\"items\":[{\"description\":\"Beratung\",\"quantity\":1,\"unit\":\"Std\",\"unitPrice\":100,\"vatRate\":0.19}]}"; P "d['id']"; }
 INV=$(mk); AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"sent"}'

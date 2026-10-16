@@ -730,6 +730,8 @@
     "contact": "Kontakt",
     "email": "E-Mail",
     "phone": "Telefon",
+    "contactName": "Ansprechpartner",
+    "contactNamePlaceholder": "z. B. Frau Petra Schmidt",
     "paymentTerms": "Zahlungsfrist (Tage)",
     "creditLimit": "Kreditlimit (€)",
     "creditLimitPlaceholder": "z. B. 5000",

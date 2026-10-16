@@ -432,7 +432,8 @@ export async function generateInvoicePDF(
       custY += 14
     }
     if (invoice.customer.vatId) {
-      doc.text(`UST-IDNr.: ${invoice.customer.vatId}`, leftMargin, custY, { lineBreak: false })
+      // Tier 691: "USt-IdNr." as the BZSt writes it (was "UST-IDNr." here, "USt-IDNr." in the header)
+      doc.text(`USt-IdNr.: ${invoice.customer.vatId}`, leftMargin, custY, { lineBreak: false })
       custY += 14
     }
 
@@ -534,7 +535,7 @@ export async function generateInvoicePDF(
       detailsRow++
     }
     if (company.vatId) {
-      doc.text("USt-IDNr.:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      doc.text("USt-IdNr.:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }
     if (company.taxId) {

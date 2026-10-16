@@ -25,7 +25,7 @@ interface Customer {
   timeRoundingMode?: string | null
   type: string
   address: { street?: string; city?: string; postalCode?: string; country?: string; leitwegId?: string }
-  contact?: { email?: string; phone?: string }
+  contact?: { email?: string; phone?: string; name?: string }
   paymentTerms: number | null
   // "active" = usable, anything else = deactivated by admin.
   // Match against the literal value, not truthiness, so an
@@ -220,6 +220,7 @@ export default function CustomersPage() {
     leitwegId: "",
     email: "",
     phone: "",
+    contactName: "",
     // Tier 428: the customer's Zahlungsziel now decides the due date of
     // their invoices, so a new customer starts on the company's default
     // payment days (loaded below, 30 until it arrives) instead of "sofort
@@ -273,6 +274,7 @@ export default function CustomersPage() {
         leitwegId: customer.address?.leitwegId || "",
         email: customer.contact?.email || "",
         phone: customer.contact?.phone || "",
+        contactName: customer.contact?.name || "", // Tier 691
         // Tier 428: NULL means "the company's default" — show that value.
         paymentTerms: customer.paymentTerms ?? defaultPaymentTerms,
         taxExempt: !!customer.taxExempt,
@@ -294,6 +296,7 @@ export default function CustomersPage() {
         leitwegId: "",
         email: "",
         phone: "",
+        contactName: "",
         // Reopening the modal gives the same fresh state as the first open.
         paymentTerms: defaultPaymentTerms,
         taxExempt: false,
@@ -363,6 +366,8 @@ export default function CustomersPage() {
       contact: {
         email: form.email,
         phone: form.phone,
+        // Tier 691: the Ansprechpartner — greeted in e-mails, named in reminders
+        name: form.contactName.trim(),
       },
       paymentTerms: form.paymentTerms,
       ...(form.creditLimit.trim() !== "" ? { creditLimit: Number(form.creditLimit) } : {}),
@@ -1401,6 +1406,15 @@ export default function CustomersPage() {
                       )}
                     </div>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("customer.contactName")}</label>
+                  <Input
+                    value={form.contactName}
+                    onChange={(e) => setForm({ ...form, contactName: e.target.value })}
+                    placeholder={t("customer.contactNamePlaceholder")}
+                    data-testid="customer-contact-name"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

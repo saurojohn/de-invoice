@@ -1402,6 +1402,20 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  // Tier 691: the greeting as the server builds it (greetingFor in
+  // invoice-email.template.ts): a company without a contact person is
+  // "Sehr geehrte Damen und Herren", the contact person or a private customer
+  // by name — it was "Sehr geehrte/r <company>".
+  const greetingOf = (lang: "de" | "en" | "zh"): { salutation: string; customerName: string } => {
+    const c = invoice?.customer as { name?: string; type?: string; contact?: { name?: string } | null } | undefined
+    const contact = String(c?.contact?.name ?? "").trim()
+    const name = contact || String(c?.name ?? "").trim()
+    if (!contact && c?.type === "business" && lang !== "zh") {
+      return { salutation: lang === "en" ? "Dear Sir or Madam" : "Sehr geehrte Damen und Herren", customerName: "" }
+    }
+    return { salutation: name ? (lang === "de" ? "Sehr geehrte/r" : lang === "en" ? "Dear" : "尊敬的") : "", customerName: name }
+  }
+
   const openEmailModal = () => {
     if (!invoice) return
     // Pre-fill from the customer's email and the German
@@ -1415,10 +1429,10 @@ export default function InvoiceDetailPage() {
       lang,
     )
     const dueDate = fmtDateForEmail(invoice.dueDate, lang)
-    const salutation = invoice.customer.name ? "Sehr geehrte/r" : ""
+    const { salutation, customerName } = greetingOf(lang)
     const vars: Record<string, string> = {
       invoiceNumber: invoice.invoiceNumber,
-      customerName: invoice.customer.name || "",
+      customerName,
       amount,
       dueDate,
       companyName: invoice.company?.name || "",
@@ -1428,7 +1442,7 @@ export default function InvoiceDetailPage() {
     setEmailTo(invoice.customer.contact?.email || "")
     setEmailExtraCc("")
     setEmailSubject(substitute(tpl.subject, vars))
-    setEmailBody(substitute(tpl.body, vars))
+    setEmailBody(substitute(tpl.body, vars).replace(/ +,/g, ","))
     setSubjectTouched(false)
     setBodyTouched(false)
     setShowEmailModal(true)
@@ -1449,19 +1463,17 @@ export default function InvoiceDetailPage() {
       lang,
     )
     const dueDate = fmtDateForEmail(invoice?.dueDate, lang)
-    const salutation = invoice?.customer.name
-      ? (lang === "de" ? "Sehr geehrte/r" : lang === "en" ? "Dear" : "尊敬的")
-      : ""
+    const { salutation, customerName } = greetingOf(lang)
     const vars: Record<string, string> = {
       invoiceNumber: invoice?.invoiceNumber || "",
-      customerName: invoice?.customer.name || "",
+      customerName,
       amount,
       dueDate,
       companyName: invoice?.company?.name || "",
       salutation,
     }
     if (!subjectTouched) setEmailSubject(substitute(tpl.subject, vars))
-    if (!bodyTouched) setEmailBody(substitute(tpl.body, vars))
+    if (!bodyTouched) setEmailBody(substitute(tpl.body, vars).replace(/ +,/g, ","))
   }
 
   // Send the email with the form values. Closes the modal

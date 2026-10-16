@@ -2662,6 +2662,19 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 691 — a company is greeted as a company; a contact person can be entered; „USt-IdNr.“
+
+The owner, 16.10.2026: „继续找发票方面还要提升的“. Measured with the mailbox:
+
+- **The greeting.** Every e-mail to a company began "Sehr geehrte/r Kunde GmbH," (English: "Dear Kunde GmbH,"). `greetingFor(lang, customer, chosen)` in `invoice-email.template.ts`: a company without a contact person is "Sehr geehrte Damen und Herren," / "Dear Sir or Madam,"; the contact person, or a private customer, by name; a salutation picked in the dialog with the name. The send, the resend (same service), the recurring preview, `email-data` and the send dialog (`greetingOf`) use it; the template drops the space a nameless greeting leaves before the comma.
+- **The contact person could not be entered.** The reminders read `customer.contact.name` since Tier 388 — but `CustomerContactDto` refused the property (a customer with it: 400), and no form had the field. It takes `name` now (≤ 100), and the customer form has „Ansprechpartner“ (`customer-contact-name`, de/en/zh).
+- **„USt-IdNr.“** on the PDF, as the BZSt writes it — the customer block said „UST-IDNr.:“, the header „USt-IDNr.:“.
+- Specs 17 and 413 greeted a company by name; their customers have a contact person now (which keeps their checks of the name as typed).
+
+Spec `415-tier691-anrede-und-ust-idnr.sh` (5 checks fail on the code before).
+
+**Looked at, not changed:** the overdue comparisons with `setHours(0,0,0,0)` (installments, customer statement) are off only between 00:00 and 02:00 German time on a UTC server; the portal's `dueDate < now` only gates a count that is taken by German day (Tier 528).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 690 — a tax-exempt sale names its exemption, or it is not issued
 
 The owner, 15.10.2026, on Tier 688's open point (option 2 of two; option 1 would have been a field with a migration): „就用它“ — refuse to issue until the exemption is named.

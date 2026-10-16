@@ -64,6 +64,14 @@ export class CustomerContactDto {
   @IsString()
   @IsOptional()
   phone?: string;
+
+  // Tier 691: the contact person (Ansprechpartner). The reminders read it
+  // since Tier 388 and the e-mail greeting since Tier 691 — but the DTO
+  // refused it, so no form could set it.
+  @IsString()
+  @IsOptional()
+  @MaxLength(100, { message: 'Ansprechpartner: höchstens 100 Zeichen' })
+  name?: string;
 }
 
 export class CreateCustomerDto {

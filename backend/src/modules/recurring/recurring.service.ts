@@ -1486,14 +1486,14 @@ export class RecurringService {
     const emailLang: 'de' | 'en' | 'zh' =
       lang === 'en-US' ? 'en' : lang === 'zh-CN' ? 'zh' : 'de'
     const recipient = (tpl.customer?.contact as any)?.email || null
-    const customerName = tpl.customer?.name || ''
     // The company "salutation" in the email template
     // is locale-aware; we use the salutation helper
     // from the template module to keep this in sync.
-    const { defaultSalutationFor, renderInvoiceEmail } = await import(
+    const { greetingFor, renderInvoiceEmail } = await import(
       '../mail/templates/invoice-email.template'
     )
-    const salutation = defaultSalutationFor(emailLang, Boolean(customerName))
+    // Tier 691: a company without a contact person — "Sehr geehrte Damen und Herren"
+    const greeting = greetingFor(emailLang, tpl.customer as any)
     const amount = new Intl.NumberFormat(
       emailLang === 'en' ? 'en-US' : emailLang === 'zh' ? 'zh-CN' : 'de-DE',
       { style: 'currency', currency: tpl.currency || 'EUR' },
@@ -1509,11 +1509,11 @@ export class RecurringService {
     const sampleInvoiceNumber = `INV-XXXX-${new Date().getFullYear()}-????`
     const rendered = renderInvoiceEmail(emailLang, {
       invoiceNumber: sampleInvoiceNumber,
-      customerName,
+      customerName: greeting.customerName,
       amount,
       dueDate: dueDateStr,
       companyName: tpl.company?.name || '',
-      salutation,
+      salutation: greeting.salutation,
     })
     return {
       subject: rendered.subject,

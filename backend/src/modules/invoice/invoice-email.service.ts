@@ -52,7 +52,7 @@ import { ISSUED_AS, isNonFiscal } from './document-scope';
 import { generateTimesheetPdf } from '../time-tracking/timesheet-pdf';
 import {
   renderInvoiceEmail,
-  defaultSalutationFor,
+  greetingFor,
   type EmailLang,
 } from '../mail/templates/invoice-email.template';
 
@@ -194,16 +194,16 @@ export class InvoiceEmailService {
       }
     };
 
-    const salutation = (options.salutation && options.salutation.trim()) ||
-      defaultSalutationFor(lang, !!recipientName.trim());
+    // Tier 691: a company without a contact person — "Sehr geehrte Damen und Herren"
+    const greeting = greetingFor(lang, customer, options.salutation);
 
     const tpl = renderInvoiceEmail(lang, {
       invoiceNumber,
-      customerName: recipientName,
+      customerName: greeting.customerName,
       amount: fmtAmount(totalAmount, lang),
       dueDate: fmtDate(invoice.dueDate ? new Date(invoice.dueDate) : null, lang),
       companyName: company?.name || '',
-      salutation,
+      salutation: greeting.salutation,
     }, invoice.type);
 
     const subject = (options.overrideSubject || tpl.subject).slice(0, 250).trim();

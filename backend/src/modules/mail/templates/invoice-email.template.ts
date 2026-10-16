@@ -321,7 +321,29 @@ export function renderInvoiceEmail(
       const v = (safeVars as any)[k];
       return v === undefined || v === null ? '' : String(v);
     });
-  return { subject: sub(tpl.subject), text: sub(tpl.body) };
+  // Tier 691: a greeting without a name ("Sehr geehrte Damen und Herren")
+  // leaves "{salutation} {customerName}," as "… Herren ," — no space before it
+  return { subject: sub(tpl.subject), text: sub(tpl.body).replace(/ +,/g, ',') };
+}
+
+/**
+ * Tier 691 — the greeting of a customer. A company without a contact person
+ * is "Sehr geehrte Damen und Herren" (it was "Sehr geehrte/r Müller &
+ * Söhne"); the contact person, or a private customer, by name. `chosen` is
+ * the salutation picked in the send dialog — it is used with the name.
+ */
+export function greetingFor(
+  lang: EmailLang,
+  customer: { name?: string | null; type?: string | null; contact?: unknown } | null | undefined,
+  chosen?: string | null,
+): { salutation: string; customerName: string } {
+  const contact = String((customer?.contact as { name?: unknown } | null)?.name ?? '').trim()
+  const name = contact || String(customer?.name ?? '').trim()
+  if (chosen && chosen.trim()) return { salutation: chosen.trim(), customerName: name }
+  if (!contact && customer?.type === 'business' && lang !== 'zh') {
+    return { salutation: lang === 'en' ? 'Dear Sir or Madam' : 'Sehr geehrte Damen und Herren', customerName: '' }
+  }
+  return { salutation: defaultSalutationFor(lang, !!name), customerName: name }
 }
 
 // BC helper for the old call site (single arg with no

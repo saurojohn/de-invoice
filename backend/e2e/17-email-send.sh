@@ -45,7 +45,7 @@ CUSTOMER_NAME_RAW="Tier11 <b>Test</b> & Co ${UNIQ}"
 api_post "/api/v1/customers?companyId=${COMPANY_ID}" "{
   \"name\": \"${CUSTOMER_NAME_RAW}\",
   \"type\": \"business\",
-  \"contact\": {\"email\": \"tier11-${UNIQ}@example.com\"},
+  \"contact\": {\"email\": \"tier11-${UNIQ}@example.com\", \"name\": \"${CUSTOMER_NAME_RAW}\"},
   \"address\": {\"street\": \"Teststr. 1\", \"postalCode\": \"12345\", \"city\": \"Berlin\", \"country\": \"DE\"}
 }"
 CUSTOMER_ID=$(json_field "$BODY" id)
