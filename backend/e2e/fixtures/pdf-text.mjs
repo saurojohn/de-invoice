@@ -8,6 +8,7 @@
 // Default: all text runs of all pages joined, a space where a line ends (the
 // old reader had the space PDFKit writes there), for substring checks.
 // --lines: one text run per line. --json: [[run, …] per page].
+/* global process, console */
 import { readFileSync } from 'node:fs'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 

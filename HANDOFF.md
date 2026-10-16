@@ -2680,6 +2680,8 @@ The owner, 16.10.2026, on the open point of Tier 692's review: „同意“ to d
 
 **The specs read PDF text through pdf.js now.** An embedded TrueType font is written as glyph numbers (Identity-H with a ToUnicode table); the specs' reader decoded the hex strings as Latin-1. `e2e/fixtures/pdf-text.mjs` (pdfjs-dist, a dependency already): joined text (a space where a line ends — pdf.js drops the one PDFKit writes), `--lines` one run per line, `--json` runs per page; `_lib.sh` `pdf_contains` / `pdf_text` use it. Changed to it: 207, 209, 258, 259, 266, 278, 279, 282, 283, 387, 392, 407, 408, 409, 412, 415. Spec 34 counts the embedded Liberation families instead of `/BaseFont /Helvetica|Times|Courier`; spec 87 expects `Alternative` and `text/xml` (it expected `Source`; CI runs that check with pypdf, locally it is skipped).
 
+Tier 693b: CI run 38910242704 — tests green, **Backend lint red**: `eslint .` lints `e2e/fixtures/pdf-text.mjs` too, without Node's globals (`process`, `console`: no-undef); the file declares them now.
+
 Spec `417-tier693-pdfa-3-wirklich.sh` (7 checks fail on the code before): the PDF/A and Factur-X structure in Python (CI), and — with `MUSTANG_JAR` pointing to `Mustang-CLI-2.26.0.jar` (59 MB, not in the repository) — Mustang's verdict.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 692 — the invoice-number prefix of the settings page is used
