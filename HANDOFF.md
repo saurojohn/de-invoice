@@ -2662,6 +2662,26 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 693 — the ZUGFeRD invoice is a real PDF/A-3, and the XML can be found
+
+The owner, 16.10.2026, on the open point of Tier 692's review: „同意“ to downloading a font, a colour profile and the reference validator. Measured with **Mustang 2.26** (github.com/ZUGFeRD/mustangproject, veraPDF inside) on the ZUGFeRD PDF: **PDF invalid, XML invalid** — „XMP Metadata not found“, „XML could not be extracted“; the XMP claimed „PDF/A-3B“ all the same (the embedder's own comment said conformance had never been checked). Behind it:
+
+- the XMP stream was written **inline in the catalog** (a stream must be an indirect object) — strict readers did not find it; and it named Factur-X properties without the `pdfaExtension` schema (ISO 19005-3 6.6.2.3);
+- the attachment was `application/vnd.cef.factur-x+xml` (Factur-X: `text/xml`), `/AFRelationship` an array `[Source Data]` (one name: `Alternative` for EN 16931 and above, `Data` below);
+- no OutputIntent — 71 uses of DeviceRGB / DeviceGray and the transparency group failed (6.2.4.3, 6.2.10);
+- the fonts were not embedded (6.2.11.4).
+
+**Now:**
+- `src/invoices/pdf-fonts.ts` registers Liberation Sans / Serif / Mono (SIL OFL, the metrics of Helvetica / Times / Courier — the layout does not move; checked visually) under the standard names, as PDFKit's start font too; all 37 font calls go through `fontFor()`. Files in `backend/assets/fonts` with the licence, `backend/assets/README.md`; the Dockerfile copies `assets/` (two levels up from `dist/invoices`). Missing fonts are logged and the PDF is made with the standard fonts (no PDF/A) rather than not at all.
+- `zugferd-embed.ts`: sRGB OutputIntent (`assets/icc/sRGB-v2-micro.icc`, CC0), the XMP as Factur-X 1.0 writes it (separate descriptions, the `fx` extension schema) as an indirect unfiltered stream, Info and XMP alike (title „Rechnung <Nr.>“ / „Gutschrift <Nr.>“, producer, creator, dates in whole seconds), `text/xml`, `Alternative`.
+- Mustang: **PDF valid, XML valid** for an invoice, a credit note, an igL, an export, a Kleinunternehmer's invoice and a 4-page invoice. Two notices remain, by design: BR-DE-21 (the XRechnung identifier — the ZUGFeRD is the EN 16931 profile) and PEPPOL-EN16931-R001 (no Peppol business process).
+- A PDF is 44 KB instead of 15 KB (the font subsets); a rendering takes ~90 ms.
+- Invoices issued before this tier keep their kept copy (Tier 685) — they stay as issued.
+
+**The specs read PDF text through pdf.js now.** An embedded TrueType font is written as glyph numbers (Identity-H with a ToUnicode table); the specs' reader decoded the hex strings as Latin-1. `e2e/fixtures/pdf-text.mjs` (pdfjs-dist, a dependency already): joined text (a space where a line ends — pdf.js drops the one PDFKit writes), `--lines` one run per line, `--json` runs per page; `_lib.sh` `pdf_contains` / `pdf_text` use it. Changed to it: 207, 209, 258, 259, 266, 278, 279, 282, 283, 387, 392, 407, 408, 409, 412, 415. Spec 34 counts the embedded Liberation families instead of `/BaseFont /Helvetica|Times|Courier`; spec 87 expects `Alternative` and `text/xml` (it expected `Source`; CI runs that check with pypdf, locally it is skipped).
+
+Spec `417-tier693-pdfa-3-wirklich.sh` (7 checks fail on the code before): the PDF/A and Factur-X structure in Python (CI), and — with `MUSTANG_JAR` pointing to `Mustang-CLI-2.26.0.jar` (59 MB, not in the repository) — Mustang's verdict.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 692 — the invoice-number prefix of the settings page is used
 
 Same review. Einstellungen → „Rechnungspräfix“ stored the value (`Company.invoicePrefix`, read back) and nothing read it: `invoiceNumberPrefix()` hard-coded INV-. Measured: prefix "RE", next invoice INV-2026-000001.

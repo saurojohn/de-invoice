@@ -24,16 +24,8 @@ AS() { # method path [body]
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[2]))" "$BODY" "$1"; }
-pdf_text() { python3 - "$1" <<'PY'
-import sys, re, zlib
-raw = open(sys.argv[1], 'rb').read()
-for m in re.finditer(rb'stream\r?\n(.*?)endstream', raw, re.S):
-    try: data = zlib.decompressobj().decompress(m.group(1))
-    except Exception: continue
-    for tj in re.finditer(rb'\[(.*?)\]\s*TJ', data, re.S):
-        print(''.join(bytes.fromhex(h.decode()).decode('latin-1') for h in re.findall(rb'<([0-9a-fA-F]+)>', tj.group(1))))
-PY
-}
+# Tier 693: the invoice PDF embeds its fonts — read through pdf.js (fixtures/pdf-text.mjs)
+pdf_text() { node "$(dirname "$0")/fixtures/pdf-text.mjs" "$1" --lines; }
 invoice() { # vatRate → invoice id (sent)
   AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\"}"; local k; k=$(json_field "$BODY" id)
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$k\",\"issueDate\":\"2026-09-01\",\"items\":[{\"description\":\"Beratung\",\"quantity\":1,\"unit\":\"Std\",\"unitPrice\":1000,\"vatRate\":$1}]}"

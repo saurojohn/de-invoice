@@ -44,17 +44,19 @@ fetch() { curl -sS -o "$2" -w "%{http_code}" -H "x-user-id: $U" -H "x-company-id
 kept() { q "select case when \"pdfPath\" is null then 'none' else 'kept' end from \"Invoice\" where id='$1'"; }
 # doc FILE needle… → "einvoice|plain|none" and, per needle, + (on the page) or -
 doc() {
-  python3 - "$@" <<'PY'
-import re, sys, zlib
+  # Tier 693: the invoice PDF embeds its fonts — its text through pdf.js
+  node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$1" > "$WORK/doc.txt" 2>/dev/null || : > "$WORK/doc.txt"
+  DOC_TXT="$WORK/doc.txt" python3 - "$@" <<'PY'
+import os, re, sys, zlib
 try: d = open(sys.argv[1], 'rb').read()
 except OSError: d = b''
 if d[:4] != b'%PDF': print('none'); sys.exit(0)
-text, cii = '', False
+cii = False
+text = open(os.environ['DOC_TXT'], encoding='utf-8').read()
 for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.DOTALL):
     try: dec = zlib.decompressobj().decompress(m.group(1))
     except Exception: continue
-    if b'CrossIndustryInvoice' in dec: cii = True; continue
-    text += b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9A-Fa-f]+)>', dec) if len(h) % 2 == 0).decode('latin-1', 'ignore')
+    if b'CrossIndustryInvoice' in dec: cii = True
 print(' '.join(['einvoice' if cii else 'plain'] + [('+' if n in text else '-') for n in sys.argv[2:]]))
 PY
 }

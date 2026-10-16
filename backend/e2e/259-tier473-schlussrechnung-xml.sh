@@ -47,14 +47,15 @@ assert_eq "…and it validates" "$(P "(d.get('valid'), [e['rule'] for e in d.get
 
 note "=== ZUGFeRD ==="
 curl -sS -o /tmp/t473.pdf -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/invoices/$INV/zugferd?companyId=$C"
-python3 - /tmp/t473.pdf > /tmp/t473.txt <<'PY'
+# Tier 693: the invoice PDF embeds its fonts — read through pdf.js (fixtures/pdf-text.mjs)
+node "$(dirname "$0")/fixtures/pdf-text.mjs" /tmp/t473.pdf --lines > /tmp/t473.txt
+python3 - /tmp/t473.pdf >> /tmp/t473.txt <<'PY'
 import sys, re, zlib
 raw = open(sys.argv[1], 'rb').read()
 for m in re.finditer(rb'stream\r?\n(.*?)endstream', raw, re.S):
     try: data = zlib.decompressobj().decompress(m.group(1))
-    except Exception: data = m.group(1)
-    for tj in re.finditer(rb'\[(.*?)\]\s*TJ', data, re.S):
-        print(''.join(bytes.fromhex(h.decode()).decode('latin-1') for h in re.findall(rb'<([0-9a-fA-F]+)>', tj.group(1))))
+    except Exception: continue
+    if b'CrossIndustryInvoice' not in data: continue
     for x in re.findall(rb'<ram:(TotalPrepaidAmount|DuePayableAmount)>([^<]+)<', data):
         print('XML %s=%s' % (x[0].decode(), x[1].decode()))
 PY

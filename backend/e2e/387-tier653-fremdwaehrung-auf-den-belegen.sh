@@ -33,19 +33,12 @@ field() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);prin
 day() { python3 -c "import datetime;print((datetime.date.today()-datetime.timedelta(days=$1)).isoformat())"; }
 # The text of a PDF written with the built-in fonts: the strings of its TJ
 # operators.
-cat > "$TMP/pdftext.py" <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read()
-out = []
-for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.S):
-    try: t = zlib.decompress(m.group(1))
-    except Exception: continue
-    for arr in re.findall(rb'\[((?:<[0-9a-fA-F]*>|[-0-9. ]+)+)\]\s*TJ', t):
-        out.append(b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9a-fA-F]*)>', arr)).decode('cp1252', 'replace'))
-# (a non-breaking space stands between an amount and its currency)
-print('\n'.join(out).replace('\u00a0', ' '))
-PY
-TEXT() { python3 "$TMP/pdftext.py" "$1"; }
+# Tier 693: the invoice PDF embeds its fonts — its text through pdf.js; a
+# non-breaking space (between an amount and its currency) read as a space
+cat > "$TMP/pdftext.sh" <<'SH'
+node "$1/fixtures/pdf-text.mjs" "$2" --lines | sed $'s/\xc2\xa0/ /g'
+SH
+TEXT() { bash "$TMP/pdftext.sh" "$(dirname "$0")" "$1"; }
 [[ "${EXCHANGE_RATES_MOCK:-}" == "1" ]] || { note "EXCHANGE_RATES_MOCK is not 1 — the fixed rates are needed"; summary; exit 0; }
 TODAY=$(TZ=Europe/Berlin date +%F)
 

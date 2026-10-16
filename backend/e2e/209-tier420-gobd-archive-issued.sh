@@ -52,16 +52,8 @@ curl -sS -o "$WORK/a.zip" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/
 assert_eq "3 invoice PDFs (sent, sent, cancelled — no draft)" "$(ls "$WORK/Invoices" | wc -l | tr -d ' ')" "3"
 assert_eq "manifest revenueNet 1200 (was 2000 — draft and cancelled counted)" \
   "$(python3 -c "import json;print(json.load(open('$WORK/MANIFEST.json'))['totals']['revenueNet'])")" "1200"
-PDFTXT() { python3 - "$1" <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read(); out = []
-for m in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)endstream', d, re.DOTALL):
-    try: dec = zlib.decompressobj().decompress(m.group(1))
-    except Exception: continue
-    out.append(b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9A-Fa-f]+)>', dec)).decode('latin-1', 'ignore'))
-print(' '.join(out))
-PY
-}
+# Tier 693: the invoice PDF embeds its fonts — read through pdf.js (fixtures/pdf-text.mjs)
+PDFTXT() { node "$(dirname "$0")/fixtures/pdf-text.mjs" "$1"; }
 ISSUED_NO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select \"invoiceNumber\" from \"Invoice\" where id='$SENT'")
 NEVER_NO=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select \"invoiceNumber\" from \"Invoice\" where id='$NEVER'")
 A_ISSUED="$WORK/Invoices/$ISSUED_NO.pdf"

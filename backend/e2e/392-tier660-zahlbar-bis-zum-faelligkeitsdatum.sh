@@ -19,20 +19,14 @@ AS() { # method path [body]
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 field() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);print(eval(sys.argv[1]))" "$1" 2>/dev/null; }
-cat > "$TMP/pdftext.py" <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read()
-out = []
-for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.S):
-    try: t = zlib.decompress(m.group(1))
-    except Exception: continue
-    for arr in re.findall(rb'\[((?:<[0-9a-fA-F]*>|[-0-9. ]+)+)\]\s*TJ', t):
-        out.append(b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9a-fA-F]*)>', arr)).decode('cp1252', 'replace'))
-print('\n'.join(out).replace(' ', ' '))
-PY
+# Tier 693: the invoice PDF embeds its fonts — its text through pdf.js; a
+# non-breaking space (between an amount and its currency) read as a space
+cat > "$TMP/pdftext.sh" <<'SH'
+node "$1/fixtures/pdf-text.mjs" "$2" --lines | sed $'s/\xc2\xa0/ /g'
+SH
 LINES() { # invoice id → the lines of its PDF that speak of paying
   curl -sS -o "$TMP/x.pdf" "$API/api/v1/invoices/$1/pdf?companyId=$C" -H "x-user-id: $U" -H "x-company-id: $C"
-  python3 "$TMP/pdftext.py" "$TMP/x.pdf" | grep -i "zahlbar\|fällig am\|skonto" | tr '\n' '|'
+  bash "$TMP/pdftext.sh" "$(dirname "$0")" "$TMP/x.pdf" | grep -i "zahlbar\|fällig am\|skonto" | tr '\n' '|'
 }
 TODAY=$(TZ=Europe/Berlin date +%F)
 de() { python3 -c "import datetime,sys; d=datetime.date.fromisoformat('$TODAY')+datetime.timedelta(days=$1); print(d.strftime('%d.%m.%Y'))"; }

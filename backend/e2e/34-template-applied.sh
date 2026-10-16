@@ -70,6 +70,11 @@ assert_status 201 "seed invoice"
 INV_ID=$(json_field "$BODY" id)
 note "Seeded invoice $INV_ID"
 
+# Tier 693: the invoice PDF embeds its fonts (PDF/A): Liberation Sans / Serif /
+# Mono stand in for Helvetica / Times / Courier (the same metrics). fonts FILE
+# FAMILY → how many distinct fonts of the family are embedded (regular, bold).
+fonts() { strings "$1" | grep -o "/BaseFont /[A-Z]*+Liberation$2[-A-Za-z]*" | sort -u | wc -l | tr -d ' '; }
+
 # ----- 1. Baseline: PDF without template (Helvetica only) -----
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
@@ -79,8 +84,8 @@ assert_file_size "/tmp/t34-baseline.pdf" "1. baseline PDF rendered"
 # when text uses regular + bold weights (the headers are
 # bold, the body is regular). So baseline should have
 # exactly 2 Helvetica refs (regular + Bold).
-HELV_ONLY=$(strings /tmp/t34-baseline.pdf | grep -c "/BaseFont /Helvetica")
-TIMES_BEFORE=$(strings /tmp/t34-baseline.pdf | grep -c "/BaseFont /Times")
+HELV_ONLY=$(fonts /tmp/t34-baseline.pdf Sans)
+TIMES_BEFORE=$(fonts /tmp/t34-baseline.pdf Serif)
 assert_eq "1b. baseline has 2 Helvetica refs (regular + bold)" "$HELV_ONLY" "2"
 assert_eq "1c. baseline has NO Times font" "$TIMES_BEFORE" "0"
 
@@ -95,7 +100,7 @@ curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
 assert_file_size "/tmp/t34-times.pdf" "3. rendered PDF"
 
 # 3a. Times-Bold now embedded
-TIMES_AFTER=$(strings /tmp/t34-times.pdf | grep -c "/BaseFont /Times")
+TIMES_AFTER=$(fonts /tmp/t34-times.pdf Serif)
 if [[ "$TIMES_AFTER" -gt 0 ]]; then
   pass "3a. PDF now embeds Times font (count=$TIMES_AFTER)"
 else
@@ -167,7 +172,7 @@ assert_status 200 "5. switch to Courier (200)"
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -o /tmp/t34-courier.pdf
-COURIER=$(strings /tmp/t34-courier.pdf | grep -c "/BaseFont /Courier")
+COURIER=$(fonts /tmp/t34-courier.pdf Mono)
 if [[ "$COURIER" -gt 0 ]]; then
   pass "5b. PDF now embeds Courier font (count=$COURIER)"
 else
@@ -181,9 +186,9 @@ assert_status 200 "6. delete template (200)"
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -o /tmp/t34-fallback.pdf
-TIMES_FALLBACK=$(strings /tmp/t34-fallback.pdf | grep -c "/BaseFont /Times")
-HELV_FALLBACK=$(strings /tmp/t34-fallback.pdf | grep -c "/BaseFont /Helvetica")
-COURIER_FALLBACK=$(strings /tmp/t34-fallback.pdf | grep -c "/BaseFont /Courier")
+TIMES_FALLBACK=$(fonts /tmp/t34-fallback.pdf Serif)
+HELV_FALLBACK=$(fonts /tmp/t34-fallback.pdf Sans)
+COURIER_FALLBACK=$(fonts /tmp/t34-fallback.pdf Mono)
 assert_eq "6b. no Times font after delete" "$TIMES_FALLBACK" "0"
 # After delete the renderer falls back
 # to the hard-coded 'standard' preset

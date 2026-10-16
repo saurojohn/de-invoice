@@ -34,17 +34,8 @@ fetch() { curl -sS -o "$2" -w "%{http_code}" -H "x-user-id: $U" -H "x-company-id
 # note ID → the tax note on the invoice's page (the line after the payment terms), or "-"
 note_of() {
   fetch "/api/v1/invoices/$1/pdf?companyId=$C&format=pdf&sign=false" "$WORK/$1.pdf" >/dev/null
-  python3 - "$WORK/$1.pdf" <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read(); t = []
-for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.DOTALL):
-    try: dec = zlib.decompressobj().decompress(m.group(1))
-    except Exception: continue
-    for line in re.findall(rb'\[(.*?)\]\s*TJ', dec, re.DOTALL):
-        t.append(b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9A-Fa-f]+)>', line) if len(h) % 2 == 0).decode('latin-1', 'ignore'))
-hits = [x for x in t if 'UStG' in x or 'steuerbar' in x]
-print(hits[0] if hits else '-')
-PY
+  # Tier 693: the invoice PDF embeds its fonts — its text runs through pdf.js
+  node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$WORK/$1.pdf" --lines | grep -m1 "UStG\|steuerbar" || echo "-"
 }
 category_of() { fetch "/api/v1/invoices/$1/xrechnung?companyId=$C" "$WORK/$1.xml" >/dev/null; python3 -c "
 import re,sys; x=open(sys.argv[1],encoding='utf-8').read()

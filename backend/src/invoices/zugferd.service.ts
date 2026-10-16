@@ -23,7 +23,7 @@ import { generateInvoicePDF } from './invoice-pdf.service';
  *   2. The ZUGFeRD 2.x XML (CrossIndustryInvoice) is generated
  *      by generateZUGFeRDXml()
  *   3. zugferd-embed.ts loads the PDF with pdf-lib, attaches
- *      the XML as `factur-x.xml` with AFRelationship=Source+Data,
+ *      the XML as `factur-x.xml` with AFRelationship=Alternative (Tier 693),
  *      and writes the Factur-X XMP metadata
  *   4. The result is a single PDF that humans can read AND
  *      ERP systems (Lexware, SevDesk, Datev, etc.) can parse

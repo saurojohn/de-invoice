@@ -163,6 +163,9 @@ COPY --from=dev --chown=app:app /app/prisma ./prisma
 # Tier 559: scripts/baseline-migrations.sh (one-time, for a database that was
 # created with `db push`).
 COPY --from=dev --chown=app:app /app/scripts ./scripts
+# Tier 693: the fonts and the colour profile of the invoice PDF (PDF/A-3) —
+# two levels up from /app/dist/invoices is /app, so /app/assets.
+COPY --from=dev --chown=app:app /app/assets ./assets
 # Tier 569: where kosIT-validator.service.ts looks for it — three levels up
 # from /app/dist/invoices is /, so /infra/kosit.
 COPY --from=kosit / /infra/kosit/

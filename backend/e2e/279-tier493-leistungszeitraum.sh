@@ -32,14 +32,16 @@ P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[
 AS PUT "/api/v1/companies/$C?companyId=$C" '{"vatId":"DE123456789","address":{"street":"Hauptstr. 1","postalCode":"10115","city":"Berlin","country":"DE"},"bankInfo":{"iban":"DE89370400440532013000","bic":"COBADEFFXXX","bankName":"Testbank"}}'
 AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\",\"contact\":{\"email\":\"kunde@example.test\"},\"address\":{\"street\":\"Ring 2\",\"postalCode\":\"80331\",\"city\":\"Berlin\",\"country\":\"DE\"}}"
 K=$(json_field "$BODY" id)
-pdf_text() { python3 - "$1" <<'PY'
+# Tier 693: the invoice PDF embeds its fonts — read through pdf.js (fixtures/pdf-text.mjs)
+pdf_text() {
+  node "$(dirname "$0")/fixtures/pdf-text.mjs" "$1" --lines
+  python3 - "$1" <<'PY'
 import sys, re, zlib
 raw = open(sys.argv[1], 'rb').read()
 for m in re.finditer(rb'stream\r?\n(.*?)endstream', raw, re.S):
     try: data = zlib.decompressobj().decompress(m.group(1))
-    except Exception: data = m.group(1)
-    for tj in re.finditer(rb'\[(.*?)\]\s*TJ', data, re.S):
-        print(''.join(bytes.fromhex(h.decode()).decode('latin-1') for h in re.findall(rb'<([0-9a-fA-F]+)>', tj.group(1))))
+    except Exception: continue
+    if b'CrossIndustryInvoice' not in data: continue
     for x in re.findall(rb'<ram:BillingSpecifiedPeriod>(.*?)</ram:BillingSpecifiedPeriod>', data, re.S):
         print('XML ' + ' '.join(d.decode() for d in re.findall(rb'format="102">(\d+)<', x)))
 PY

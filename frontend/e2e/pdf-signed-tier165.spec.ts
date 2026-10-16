@@ -148,8 +148,8 @@ test.describe('Tier 165 — PAdES-style PDF signature', () => {
     expect(headers['x-pdf-fingerprint']).toBeUndefined()
     // No "_signed" in the filename.
     expect(headers['content-disposition']).not.toContain('_signed')
-    // Plain PDF — no /ByteRange placeholder.
-    expect(body.length).toBeLessThan(8000)
+    // Plain PDF — no /ByteRange placeholder. (Tier 693: no size bound — the
+    // invoice PDF embeds its font subsets now, ~40 KB unsigned; it was < 8 KB.)
     expect(body.toString('binary').indexOf('/ByteRange')).toBe(-1)
   })
 

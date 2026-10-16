@@ -26,27 +26,21 @@ AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"bu
 
 WORK=$(mktemp -d)
 # pdf_facts file n → "pages|rows found|each row once|labels|totals page"
+# Tier 693: the invoice PDF embeds its fonts — its text runs per page through
+# pdf.js (fixtures/pdf-text.mjs --json)
 pdf_facts() {
-  python3 - "$1" "$2" <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read(); n = int(sys.argv[2])
-m = re.search(rb'/Type /Pages[^>]*?/Count (\d+)', d, re.S)
-pages = int(m.group(1)) if m else -1
-page = 0; rows = []; labels = []; totals_page = None
-for mm in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)endstream', d, re.DOTALL):
-    try: dec = zlib.decompressobj().decompress(mm.group(1))
-    except Exception: continue
-    if b'TJ' not in dec: continue
-    page += 1
-    for line in dec.split(b'\n'):
-        hx = re.findall(rb'<([0-9A-Fa-f]+)>', line)
-        if not hx: continue
-        txt = b''.join(bytes.fromhex(h.decode()) for h in hx).decode('latin-1', 'ignore')
+  node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$1" --json > "$WORK/facts.json"
+  python3 - "$WORK/facts.json" "$2" <<'PY'
+import json, sys
+pages = json.load(open(sys.argv[1])); n = int(sys.argv[2])
+rows = []; labels = []; totals_page = None
+for i, runs in enumerate(pages, 1):
+    for txt in runs:
         if txt.startswith('Position '): rows.append(txt)
         if txt.startswith('Seite '): labels.append(txt)
-        if txt.startswith('Gesamtbetrag:'): totals_page = page
+        if txt.startswith('Gesamtbetrag:'): totals_page = i
 want = ['Position %03d' % i for i in range(1, n + 1)]
-print(f"{pages}|{len(rows)}|{sorted(rows) == want}|{';'.join(labels)}|{totals_page}")
+print(f"{len(pages)}|{len(rows)}|{sorted(rows) == want}|{';'.join(labels)}|{totals_page}")
 PY
 }
 invoice() { # n → pdf path
@@ -80,18 +74,7 @@ assert_eq "all 100 rows, once each" "$ONCE" "True"
 assert_eq "4 page labels" "$(tr ';' '\n' <<<"$L" | grep -c 'von 4')" "4"
 assert_eq "totals on page 4" "$T" "4"
 # the column headers are repeated on each page
-HDRS=$(python3 - "$WORK/100.pdf" <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read(); n = 0
-for mm in re.finditer(rb'/Filter /FlateDecode[^>]*>>\s*stream\r?\n(.*?)endstream', d, re.DOTALL):
-    try: dec = zlib.decompressobj().decompress(mm.group(1))
-    except Exception: continue
-    if b'TJ' not in dec: continue
-    txt = b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9A-Fa-f]+)>', dec)).decode('latin-1', 'ignore')
-    n += 'Einzelpreis' in txt
-print(n)
-PY
-)
+HDRS=$(node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$WORK/100.pdf" --json | python3 -c "import json,sys; print(sum('Einzelpreis' in p for p in json.load(sys.stdin)))")
 assert_eq "column headers on all 4 pages" "$HDRS" "4"
 
 note "=== 4. the ZUGFeRD PDF of a long invoice is the same document ==="

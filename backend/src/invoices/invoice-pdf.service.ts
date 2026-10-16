@@ -1,3 +1,4 @@
+import { defaultFontFile, registerEmbeddedFonts } from './pdf-fonts'
 import { EXPORT_NOTE, IGL_NOTE, NOT_TAXABLE_ABROAD_NOTE, zeroRatedGround } from '../modules/invoice/zero-rated'
 import { findLogo } from '../modules/company/logo-store'
 import PDFKit from "pdfkit"
@@ -234,7 +235,11 @@ export async function generateInvoicePDF(
     // a per-side object — `margin` (singular) is the all-sides
     // shortcut and would clobber this.
     // Tier 418: bufferPages so every page can get its "Seite i von n" at the end.
-    const doc = new PDFKit({ margins: { top: 50, left: 50, right: 50, bottom: 10 }, size: "A4", bufferPages: true }) as any
+    // Tier 693: the fonts are embedded (PDF/A) — the start font too, or
+    // PDFKit puts its own Helvetica into the file before the first text
+    const startFont = defaultFontFile()
+    const doc = new PDFKit({ margins: { top: 50, left: 50, right: 50, bottom: 10 }, size: "A4", bufferPages: true, ...(startFont ? { font: startFont } : {}) }) as any
+    registerEmbeddedFonts(doc)
     const chunks: Buffer[] = []
 
     doc.on("data", (chunk: Buffer) => chunks.push(chunk))

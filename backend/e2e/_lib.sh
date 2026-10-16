@@ -248,36 +248,17 @@ skip_if() {
 #   5. greps the result for the pattern
 # Returns 0 if pattern found, 1 otherwise.
 pdf_contains() {
-  local pattern="$1" file="$2"
-  python3 - "$pattern" "$file" <<'PY'
-import re, sys, zlib
-pattern, file = sys.argv[1], sys.argv[2]
-try:
-    data = open(file, 'rb').read()
-except FileNotFoundError:
-    sys.exit(2)
-# Find the page content stream (FlateDecode).
-# Tier 683: the pattern ended in `\r?\nendstream` and the data went through
-# zlib.decompress — compressed data that happens to end in a line-break byte
-# lost it to the pattern, and the page read as empty (2 of 30 PDFs when
-# measured; the same reader was in twelve specs). The line break is left to
-# decompressobj now, which stops at the end of the data.
-m = re.search(rb'/Length \d+\s*/Filter /FlateDecode\s*>>\s*stream\r?\n(.*?)endstream',
-              data, re.DOTALL)
-if not m:
-    sys.exit(2)
-try:
-    dec = zlib.decompressobj().decompress(m.group(1))
-except zlib.error:
-    sys.exit(2)
-# Pull every <HEX> chunk from TJ arrays (kerning offsets between
-# them are just spacing, not characters, so naive concat works
-# for substring search).
-hex_chunks = re.findall(rb'<([0-9A-Fa-f]+)>', dec)
-text = b''.join(bytes.fromhex(h.decode()) for h in hex_chunks).decode('latin-1', 'ignore')
-sys.exit(0 if pattern in text else 1)
-PY
+  # Tier 693: through pdf.js (fixtures/pdf-text.mjs) — the invoice PDF embeds
+  # its fonts now, written as glyph numbers; the old reader decoded the hex
+  # strings of the first content stream as Latin-1. Exit 0 found, 1 not
+  # found, 2 no such file / no PDF.
+  local pattern="$1" file="$2" text
+  [[ -f "$file" ]] || return 2
+  text=$(node "$(dirname "${BASH_SOURCE[0]}")/fixtures/pdf-text.mjs" "$file") || return 2
+  grep -qF -- "$pattern" <<<"$text"
 }
+# pdf_text FILE [--lines] → the text of a PDF (see fixtures/pdf-text.mjs)
+pdf_text() { node "$(dirname "${BASH_SOURCE[0]}")/fixtures/pdf-text.mjs" "$@"; }
 
 # Tier 423: the rows of a DATEV Buchungsstapel (EXTF 700), read by column
 # heading, one per line, tab-separated:

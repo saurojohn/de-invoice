@@ -65,16 +65,9 @@ note "=== 2. the VAT id on the invoice ==="
 AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$FIRM\",\"issueDate\":\"$(TZ=Europe/Berlin date +%F)\",\"items\":[{\"description\":\"Beratung\",\"quantity\":1,\"unit\":\"Std\",\"unitPrice\":100,\"vatRate\":0.19}]}"
 I=$(P "d['id']")
 curl -sS -o "$WORK/i.pdf" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/invoices/$I/pdf?companyId=$C&sign=false"
-assert_eq "„USt-IdNr.“ for the customer's and the own (was: UST-IDNr. / USt-IDNr.)" "$(python3 - "$WORK/i.pdf" <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read(); t = ''
-for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.DOTALL):
-    try: dec = zlib.decompressobj().decompress(m.group(1))
-    except Exception: continue
-    t += b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9A-Fa-f]+)>', dec) if len(h) % 2 == 0).decode('latin-1', 'ignore')
-print(t.count('USt-IdNr.:'), t.count('UST-IDNr'), t.count('USt-IDNr'))
-PY
-)" "2 0 0"
+T=$(node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$WORK/i.pdf") # Tier 693: through pdf.js (embedded fonts)
+assert_eq "„USt-IdNr.“ for the customer's and the own (was: UST-IDNr. / USt-IDNr.)" \
+  "$(grep -o 'USt-IdNr\.:' <<<"$T" | wc -l | tr -d ' ') $(grep -o 'UST-IDNr' <<<"$T" | wc -l | tr -d ' ') $(grep -o 'USt-IDNr' <<<"$T" | wc -l | tr -d ' ')" "2 0 0"
 
 note "=== 3. the send dialog greets the same way ==="
 PAGE="$SCRIPT_DIR/../../frontend/src/app/dashboard/invoices/[id]/page.tsx"

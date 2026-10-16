@@ -41,17 +41,19 @@ P() { echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(
 fetch() { curl -sS -o "$2" -w "%{http_code}" -H "x-user-id: $U" -H "x-company-id: $C" "$API$1"; }
 # where FILE → "einvoice|plain|none" + which address and IBAN the page shows: old / new / both / neither
 where() {
-  python3 - "$1" <<'PY'
-import re, sys, zlib
+  # Tier 693: the invoice PDF embeds its fonts — its text through pdf.js
+  node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$1" > "$WORK/doc.txt" 2>/dev/null || : > "$WORK/doc.txt"
+  DOC_TXT="$WORK/doc.txt" python3 - "$1" <<'PY'
+import os, re, sys, zlib
 try: d = open(sys.argv[1], 'rb').read()
 except OSError: d = b''
 if d[:4] != b'%PDF': print('none'); sys.exit(0)
-text, cii = '', False
+cii = False
+text = open(os.environ['DOC_TXT'], encoding='utf-8').read()
 for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.DOTALL):
     try: dec = zlib.decompressobj().decompress(m.group(1))
     except Exception: continue
-    if b'CrossIndustryInvoice' in dec: cii = True; continue
-    text += b''.join(bytes.fromhex(h.decode()) for h in re.findall(rb'<([0-9A-Fa-f]+)>', dec) if len(h) % 2 == 0).decode('latin-1', 'ignore')
+    if b'CrossIndustryInvoice' in dec: cii = True
 def which(old, new):
     o, n = old in text, new in text
     return 'both' if o and n else 'old' if o else 'new' if n else 'neither'

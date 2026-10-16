@@ -29,17 +29,8 @@ AS() { # method path [body]
     -H "Content-Type: application/json" ${3:+-d "$3"})
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
-PDFTXT() { python3 - "$1" <<'PY'
-import re, sys, zlib
-d = open(sys.argv[1], 'rb').read(); out = []
-for m in re.finditer(rb'stream\r?\n(.*?)endstream', d, re.DOTALL):
-    try: dec = zlib.decompressobj().decompress(m.group(1))
-    except Exception: continue
-    for tj in re.finditer(rb'\[(.*?)\]\s*TJ', dec, re.S):
-        out.append(''.join(bytes.fromhex(h.decode()).decode('latin-1') for h in re.findall(rb'<([0-9a-fA-F]+)>', tj.group(1))))
-print('\n'.join(out))
-PY
-}
+# Tier 693: the invoice PDF embeds its fonts — read through pdf.js (fixtures/pdf-text.mjs)
+PDFTXT() { node "$(dirname "$0")/fixtures/pdf-text.mjs" "$1" --lines; }
 AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Ring 2\",\"postalCode\":\"80331\",\"city\":\"München\",\"country\":\"DE\"}}"
 K=$(json_field "$BODY" id)
 TODAY=$(date +%Y-%m-%d)

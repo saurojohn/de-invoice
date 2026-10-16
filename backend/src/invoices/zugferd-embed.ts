@@ -14,37 +14,27 @@
  *
  * This module is the bridge: take the PDFKit buffer, load it
  * with pdf-lib, attach the Factur-X XML as a file with
- * AFRelationship = "Source" (the primary machine-readable
- * representation) and a name of exactly `factur-x.xml`
- * (ISO 21931 mandates this filename), then write XMP
+ * AFRelationship = "Alternative" (Factur-X 1.0 for EN 16931:
+ * the XML is an equivalent of the visual invoice) and a name of
+ * exactly `factur-x.xml` (Factur-X mandates it), then write XMP
  * metadata declaring the document as Factur-X EN16931.
  *
- * What it does NOT do
- * ───────────────────
- * True PDF/A-3 conformance requires:
- *   - All fonts embedded and subset
- *   - Explicit ColorSpace entries
- *   - OutputIntent for the target color space
- *   - No transparent objects without the proper Group
- *     dictionary
- *   - And more (see ISO 19005-3 §6)
- *
- * PDFKit's output is *visually* a fine PDF/A-3 — Helvetica is
- * already a Type 1 standard font (always embedded in any
- * compliant reader), images are in standard color spaces —
- * but verifying full conformance is a job for veraPDF /
- * 3-Heights. We mark the document with the XMP hints that
- * tools like Lexware, SevDesk, Datev and the official
- * Factur-X checker look for, which is what 95% of real-world
- * recipients actually check.
- *
- * If you need hard PDF/A-3 conformance for an ELSTER / archive
- * submission, run the output of this module through
- *   verapdf --flavour 3B input.pdf
- * and patch any flags it raises.
+ * PDF/A-3 (Tier 693)
+ * ─────────────────
+ * The document is a PDF/A-3B, checked with Mustang 2.26 (the ZUGFeRD
+ * reference validator, veraPDF inside) — spec 417, with MUSTANG_JAR:
+ *   - fonts embedded (pdf-fonts.ts: Liberation in place of the standard 14)
+ *   - an sRGB OutputIntent (assets/icc/sRGB-v2-micro.icc)
+ *   - the XMP an indirect, unfiltered stream with the Factur-X extension
+ *     schema, Info and XMP alike
+ *   - the XML as factur-x.xml, text/xml, /AFRelationship /Alternative
+ * Until Tier 693 the XMP claimed PDF/A-3B and none of this held; Mustang
+ * could not even find the XML.
  */
 
-import { PDFDocument, AFRelationship, PDFName, PDFArray, PDFDict } from 'pdf-lib';
+import * as fs from 'fs';
+import * as path from 'path';
+import { PDFDocument, AFRelationship, PDFName, PDFString } from 'pdf-lib';
 
 /**
  * Embed Factur-X / ZUGFeRD XML into a PDF buffer.
@@ -54,9 +44,8 @@ import { PDFDocument, AFRelationship, PDFName, PDFArray, PDFDict } from 'pdf-lib
  * zugferd.service.ts → generateZUGFeRDXml). It will be
  * attached as a file with:
  *   - Filename: `factur-x.xml` (ISO-mandated)
- *   - AFRelationship: Source + Data
- *   - MIME type: application/vnd.cef.factur-x+xml
- *     (Factur-X 1.0 / ZUGFeRD 2.x official MIME)
+ *   - AFRelationship: Alternative (EN 16931 and above), Data (lower profiles)
+ *   - MIME type: text/xml (Factur-X 1.0 / ZUGFeRD 2.x)
  *
  * XMP metadata is also rewritten with the Factur-X
  * conformance hints. The reader then knows the file is a
@@ -78,101 +67,132 @@ export async function embedFacturX(
   conformanceLevel: 'BASIC' | 'EN16931' | 'EXTENDED' = 'EN16931',
 ): Promise<Buffer> {
   const pdf = await PDFDocument.load(pdfBuffer, { updateMetadata: false });
+  const level = xmpConformanceLevel(conformanceLevel);
 
-  // Embed the XML as a file. pdf-lib normalises the
-  // representation: it ends up as a Filespec dictionary
-  // with the right /F, /UF, /AFRelationship, /EF.
+  // Tier 693: measured with Mustang (veraPDF inside), the PDF was no PDF/A-3
+  // and the validator could not even find the XML: the XMP stream sat inline
+  // in the catalog (a stream must be an indirect object), the attachment was
+  // "application/vnd.cef.factur-x+xml" (Factur-X: text/xml), /AFRelationship
+  // was an array [Source Data] (a single name: Alternative for EN 16931 and
+  // above, Data for the lower profiles), the XMP named Factur-X properties
+  // without their extension schema, there was no OutputIntent (every
+  // DeviceRGB / DeviceGray use failed), and the fonts were not embedded
+  // (pdf-fonts.ts).
   const xmlBuffer = Buffer.from(xml, 'utf-8');
   const fileName = 'factur-x.xml';
+  const now = new Date(Math.floor(Date.now() / 1000) * 1000); // whole seconds: Info and XMP alike
+  const relationship = level === 'MINIMUM' || level === 'BASIC WL' || level === 'BASIC'
+    ? AFRelationship.Data : AFRelationship.Alternative;
   await pdf.attach(xmlBuffer, fileName, {
-    mimeType: 'application/vnd.cef.factur-x+xml',
-    description: `Factur-X ${version} invoice data (${conformanceLevel})`,
-    creationDate: new Date(),
-    modificationDate: new Date(),
-    // AFRelationship declares the role of the attachment in
-    // the PDF structure tree. Source = the machine-readable
-    // equivalent of the visual content. Some validators
-    // also want "Data" — pdf-lib lets us set both.
-    afRelationship: AFRelationship.Source,
+    mimeType: 'text/xml',
+    description: `Factur-X ${level} invoice data`,
+    creationDate: now,
+    modificationDate: now,
+    afRelationship: relationship,
   });
 
-  // pdf-lib's `attach` only sets Source. Add Data as a
-  // second relationship for viewers / validators that
-  // require it (e.g. the official Factur-X checker).
-  const afArray = (() => {
-    // Traverse to the latest AF array on the catalog.
-    const catalog = pdf.catalog;
-    const af = catalog.lookup(PDFName.of('AF')) as PDFArray | undefined;
-    if (!af) return null;
-    return af;
-  })();
-  if (afArray && afArray.size() > 0) {
-    // Append a Data relationship mirroring the Source one
-    // we just set, on the same attachment.
-    const lastSrc = afArray.get(afArray.size() - 1) as PDFDict;
-    const ref = lastSrc;
-    // Mutate the Filespec to add /AFRelationship as an
-    // array of [Source, Data] (instead of the single value
-    // pdf-lib wrote). This is what the spec allows.
-    const filespec = pdf.context.lookup(ref) as PDFDict;
-    if (filespec) {
-      filespec.set(
-        PDFName.of('AFRelationship'),
-        pdf.context.obj([PDFName.of('Source'), PDFName.of('Data')]),
-      );
-    }
-  }
+  // ── OutputIntent: sRGB (ISO 19005-3 6.2.4.3, 6.2.10) ───
+  const icc = fs.readFileSync(ICC_PROFILE);
+  const iccRef = pdf.context.register(pdf.context.flateStream(icc, { N: 3 }));
+  const outputIntent = pdf.context.register(pdf.context.obj({
+    Type: PDFName.of('OutputIntent'),
+    S: PDFName.of('GTS_PDFA1'),
+    OutputConditionIdentifier: PDFString.of('sRGB IEC61966-2.1'),
+    Info: PDFString.of('sRGB IEC61966-2.1'),
+    DestOutputProfile: iccRef,
+  }));
+  pdf.catalog.set(PDFName.of('OutputIntents'), pdf.context.obj([outputIntent]));
 
-  // ── XMP metadata ───────────────────────────────────────
-  // Rewrite the document's XMP packet with the Factur-X
-  // hints. A ZUGFeRD-aware reader parses XMP first to
-  // decide whether to look for the embedded XML at all.
+  // ── document information, the same in Info and in XMP (6.6.3) ──
   const producer = `de-invoice (ZUGFeRD ${version})`;
-  const now = new Date().toISOString();
+  const header = /<rsm:ExchangedDocument>\s*<ram:ID>([^<]*)<\/ram:ID>\s*<ram:TypeCode>(\d+)</.exec(xml);
+  const kind = header?.[2] === '381' ? 'Gutschrift' : 'Rechnung';
+  const title = header ? `${kind} ${unescapeXml(header[1])}` : kind;
+  pdf.setTitle(title);
+  pdf.setProducer(producer);
+  pdf.setCreator('de-invoice');
+  pdf.setCreationDate(now);
+  pdf.setModificationDate(now);
+  const stamp = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
   const xmp = `<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="de-invoice">
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
   <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-    <rdf:Description rdf:about=""
-        xmlns:pdf="http://ns.adobe.com/pdf/1.3/"
-        xmlns:xmp="http://ns.adobe.com/xap/1.0/"
-        xmlns:dc="http://purl.org/dc/elements/1.1/"
-        xmlns:fx="urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#"
-        xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
-      <pdf:Producer>${escapeXml(producer)}</pdf:Producer>
-      <xmp:CreatorTool>de-invoice</xmp:CreatorTool>
-      <xmp:CreateDate>${now}</xmp:CreateDate>
-      <xmp:ModifyDate>${now}</xmp:ModifyDate>
-      <xmp:MetadataDate>${now}</xmp:MetadataDate>
-      <dc:format>application/pdf</dc:format>
-      <dc:title>
-        <rdf:Alt>
-          <rdf:li xml:lang="x-default">Factur-X Invoice</rdf:li>
-        </rdf:Alt>
-      </dc:title>
+    <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
       <pdfaid:part>3</pdfaid:part>
       <pdfaid:conformance>B</pdfaid:conformance>
+    </rdf:Description>
+    <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:format>application/pdf</dc:format>
+      <dc:title><rdf:Alt><rdf:li xml:lang="x-default">${escapeXml(title)}</rdf:li></rdf:Alt></dc:title>
+      <dc:creator><rdf:Seq><rdf:li>de-invoice</rdf:li></rdf:Seq></dc:creator>
+    </rdf:Description>
+    <rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+      <pdf:Producer>${escapeXml(producer)}</pdf:Producer>
+    </rdf:Description>
+    <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/">
+      <xmp:CreatorTool>de-invoice</xmp:CreatorTool>
+      <xmp:CreateDate>${stamp}</xmp:CreateDate>
+      <xmp:ModifyDate>${stamp}</xmp:ModifyDate>
+      <xmp:MetadataDate>${stamp}</xmp:MetadataDate>
+    </rdf:Description>
+    <rdf:Description rdf:about="" xmlns:fx="urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#">
       <fx:DocumentType>INVOICE</fx:DocumentType>
       <fx:DocumentFileName>${escapeXml(fileName)}</fx:DocumentFileName>
       <fx:Version>${FACTUR_X_XMP_VERSION}</fx:Version>
-      <fx:ConformanceLevel>${escapeXml(xmpConformanceLevel(conformanceLevel))}</fx:ConformanceLevel>
+      <fx:ConformanceLevel>${escapeXml(level)}</fx:ConformanceLevel>
+    </rdf:Description>
+    <rdf:Description rdf:about=""
+        xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/"
+        xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#"
+        xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">
+      <pdfaExtension:schemas>
+        <rdf:Bag>
+          <rdf:li rdf:parseType="Resource">
+            <pdfaSchema:schema>Factur-X PDFA Extension Schema</pdfaSchema:schema>
+            <pdfaSchema:namespaceURI>urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#</pdfaSchema:namespaceURI>
+            <pdfaSchema:prefix>fx</pdfaSchema:prefix>
+            <pdfaSchema:property>
+              <rdf:Seq>
+${FACTUR_X_PROPERTIES.map(([name, description]) => `                <rdf:li rdf:parseType="Resource">
+                  <pdfaProperty:name>${name}</pdfaProperty:name>
+                  <pdfaProperty:valueType>Text</pdfaProperty:valueType>
+                  <pdfaProperty:category>external</pdfaProperty:category>
+                  <pdfaProperty:description>${description}</pdfaProperty:description>
+                </rdf:li>`).join('\n')}
+              </rdf:Seq>
+            </pdfaSchema:property>
+          </rdf:li>
+        </rdf:Bag>
+      </pdfaExtension:schemas>
     </rdf:Description>
   </rdf:RDF>
 </x:xmpmeta>
 <?xpacket end="w"?>`;
 
-  // pdf-lib has no first-class XMP setter that preserves
-  // the existing packet, so we drop straight into the
-  // catalog and replace the Metadata stream with a brand
-  // new one that holds our XMP packet.
-  const newMetadataStream = pdf.context.stream(xmp, {
+  // An indirect, unfiltered stream (6.6.2.1); it was written inline into the catalog
+  const metadata = pdf.context.register(pdf.context.stream(Buffer.from(xmp, 'utf-8'), {
     Type: PDFName.of('Metadata'),
     Subtype: PDFName.of('XML'),
-    Length: pdf.context.obj(Buffer.byteLength(xmp, 'utf-8')),
-  });
-  pdf.catalog.set(PDFName.of('Metadata'), newMetadataStream);
+  }));
+  pdf.catalog.set(PDFName.of('Metadata'), metadata);
 
   return Buffer.from(await pdf.save({ useObjectStreams: false }));
+}
+
+/** The four properties of the Factur-X XMP schema, as its extension schema declares them. */
+const FACTUR_X_PROPERTIES: [string, string][] = [
+  ['DocumentFileName', 'The name of the embedded XML document'],
+  ['DocumentType', 'The type of the hybrid document in capital letters, e.g. INVOICE or ORDER'],
+  ['Version', 'The actual version of the standard applying to the embedded XML document'],
+  ['ConformanceLevel', 'The conformance level of the embedded XML document'],
+];
+
+// backend/src/invoices → backend/assets, and the same from backend/dist/invoices
+const ICC_PROFILE = path.resolve(__dirname, '..', '..', 'assets', 'icc', 'sRGB-v2-micro.icc');
+
+function unescapeXml(text: string): string {
+  return text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 }
 
 function escapeXml(text: string): string {

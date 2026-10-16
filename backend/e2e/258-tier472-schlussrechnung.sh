@@ -84,18 +84,8 @@ assert_eq "4200 Erhaltene Anzahlungen 0 after the final invoice (was 1190)" \
 
 note "=== the PDF states the deduction ==="
 curl -sS -o /tmp/t472.pdf -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/invoices/$INV/pdf?companyId=$C&sign=false"
-pdf_text() { python3 - "$1" <<'PY'
-import sys, re, zlib
-raw = open(sys.argv[1], 'rb').read()
-out = []
-for m in re.finditer(rb'stream\r?\n(.*?)endstream', raw, re.S):
-    try: data = zlib.decompressobj().decompress(m.group(1))
-    except Exception: continue
-    for tj in re.finditer(rb'\[(.*?)\]\s*TJ', data, re.S):
-        out.append(''.join(bytes.fromhex(h.decode()).decode('latin-1') for h in re.findall(rb'<([0-9a-fA-F]+)>', tj.group(1))))
-print('\n'.join(out))
-PY
-}
+# Tier 693: the invoice PDF embeds its fonts — read through pdf.js (fixtures/pdf-text.mjs)
+pdf_text() { node "$(dirname "$0")/fixtures/pdf-text.mjs" "$1" --lines; }
 TXT=$(pdf_text /tmp/t472.pdf)
 assert_eq "abzgl. Anzahlung with the Proforma's number and date, on one line" "$(echo "$TXT" | grep -c "^abzgl. Anzahlung PI-.* vom 10.12.2025:$")" "1"
 assert_eq "…its net and tax: darin netto € 1.000,00, USt 19 %" "$(echo "$TXT" | grep -c "darin netto .*1.000,00, USt 19 %")" "1"
