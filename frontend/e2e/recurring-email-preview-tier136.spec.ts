@@ -136,9 +136,11 @@ test.describe('Tier 136 — Recurring email preview', () => {
     // assert that some email is present rather
     // than pinning a specific value.
     expect(recipient).toMatch(/@/)
-    // Body — must contain the customer name + the sample amount (119,00 €)
+    // Body — the greeting + the sample amount (119,00 €). Tier 691: BWA
+    // Test Kunde is a company without a contact person, greeted „Sehr
+    // geehrte Damen und Herren“ (was: „Sehr geehrte/r BWA Test Kunde“)
     const body = await page.getByTestId('recurring-email-preview-body').textContent()
-    expect(body).toContain('BWA Test Kunde')
+    expect(body).toContain('Sehr geehrte Damen und Herren,')
     expect(body).toContain('119,00')
   })
 

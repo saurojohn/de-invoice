@@ -2680,7 +2680,7 @@ The owner, 16.10.2026: „继续找发票方面还要提升的“. Measured with
 - **The greeting.** Every e-mail to a company began "Sehr geehrte/r Kunde GmbH," (English: "Dear Kunde GmbH,"). `greetingFor(lang, customer, chosen)` in `invoice-email.template.ts`: a company without a contact person is "Sehr geehrte Damen und Herren," / "Dear Sir or Madam,"; the contact person, or a private customer, by name; a salutation picked in the dialog with the name. The send, the resend (same service), the recurring preview, `email-data` and the send dialog (`greetingOf`) use it; the template drops the space a nameless greeting leaves before the comma.
 - **The contact person could not be entered.** The reminders read `customer.contact.name` since Tier 388 — but `CustomerContactDto` refused the property (a customer with it: 400), and no form had the field. It takes `name` now (≤ 100), and the customer form has „Ansprechpartner“ (`customer-contact-name`, de/en/zh).
 - **„USt-IdNr.“** on the PDF, as the BZSt writes it — the customer block said „UST-IDNr.:“, the header „USt-IDNr.:“.
-- Specs 17 and 413 greeted a company by name; their customers have a contact person now (which keeps their checks of the name as typed).
+- Specs 17 and 413 greeted a company by name; their customers have a contact person now (which keeps their checks of the name as typed). Tier 692b: CI run 38878846837 had one more — `recurring-email-preview-tier136.spec.ts` expected „BWA Test Kunde“ in the preview's body; the seeded customer is a company without a contact person, greeted „Sehr geehrte Damen und Herren,“ now, which the test expects.
 
 Spec `415-tier691-anrede-und-ust-idnr.sh` (5 checks fail on the code before).
 
