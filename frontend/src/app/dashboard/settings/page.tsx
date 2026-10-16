@@ -1154,7 +1154,10 @@ export default function SettingsPage() {
                     value={form.invoicePrefix}
                     onChange={(e) => setForm({ ...form, invoicePrefix: e.target.value })}
                     placeholder="INV"
+                    data-testid="settings-invoice-prefix"
                   />
+                  {/* Tier 692: the prefix is used now — say how */}
+                  <p className="mt-1 text-xs text-gray-500">{t("settings.invoicePrefixHint")}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">

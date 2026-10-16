@@ -45,12 +45,27 @@ export interface InvoiceNumber {
   sequenceNumber: number
 }
 
-export function invoiceNumberPrefix(type: string): string {
+/** The prefixes of the other documents — an invoice prefix cannot be one of them. */
+export const RESERVED_NUMBER_PREFIXES = ['AN', 'LS', 'AB', 'CN', 'PI', 'RCV']
+
+/**
+ * Tier 692 — the invoice prefix of the settings page ("Rechnungsnummer-
+ * Präfix", Company.invoicePrefix). It was stored and never read: a company
+ * that set "RE" still numbered INV-2026-000001. Letters only (the numbers are
+ * parsed as LETTERS-YEAR-NUMBER), not another document's prefix; anything else
+ * is INV.
+ */
+export function ownInvoicePrefix(stored: string | null | undefined): string {
+  const p = String(stored ?? '').trim().replace(/-$/, '').toUpperCase()
+  return /^[A-Z]{1,10}$/.test(p) && !RESERVED_NUMBER_PREFIXES.includes(p) ? `${p}-` : 'INV-'
+}
+
+export function invoiceNumberPrefix(type: string, ownPrefix?: string | null): string {
   // Tier 610: a quote is numbered AN-… (Angebot), a delivery note LS-… (Lieferschein)
   if (type === 'QU') return 'AN-'
   if (type === 'DN') return 'LS-'
   if (type === 'OC') return 'AB-' // Tier 614: Auftragsbestätigung
-  return type === 'CN' ? 'CN-' : type === 'PI' ? 'PI-' : type === 'RCV' ? 'RCV-' : 'INV-'
+  return type === 'CN' ? 'CN-' : type === 'PI' ? 'PI-' : type === 'RCV' ? 'RCV-' : ownInvoicePrefix(ownPrefix)
 }
 
 /**
@@ -95,7 +110,12 @@ export async function nextInvoiceNumber(
     throw new BadRequestException('companyId is required to number an invoice')
   }
 
-  const prefix = invoiceNumberPrefix(type)
+  // Tier 692: an invoice takes the company's own prefix; the sequence stays
+  // the type's, so a changed prefix continues the count of the year
+  const own = type === 'INV'
+    ? (await tx.company.findUnique({ where: { id: companyId }, select: { invoicePrefix: true } }))?.invoicePrefix
+    : null
+  const prefix = invoiceNumberPrefix(type, own)
   // Lowercase and unquoted on purpose (Tier 174).
   const seqName = `invoice_seq_${type.toLowerCase()}_${year}_${companyToken(companyId)}`
 
@@ -197,10 +217,13 @@ export async function releaseInvoiceNumber(
   const m = /^([A-Z]+)-(\d{4})-(\d+)$/.exec(invoiceNumber || '')
   if (!m) return
   const prefix = `${m[1]}-`
-  const type = m[1] === 'AN' ? 'QU' : m[1] === 'LS' ? 'DN' : m[1] === 'AB' ? 'OC' : m[1]
+  // Tier 692: any other letters are an invoice's — the company's prefix of
+  // today or of the day the number was given (INV by default)
+  const fixed: Record<string, string> = { AN: 'QU', LS: 'DN', AB: 'OC', CN: 'CN', PI: 'PI', RCV: 'RCV' }
+  const type = fixed[m[1]] ?? 'INV'
   const year = Number(m[2])
   const seq = Number(m[3])
-  if (invoiceNumberPrefix(type) !== prefix || !Number.isInteger(year) || year < 1000 || year > 9999) {
+  if (!Number.isInteger(year) || year < 1000 || year > 9999) {
     return
   }
   if (!/^[A-Z]{2,5}$/.test(type) || !Number.isInteger(seq) || seq < 1) return

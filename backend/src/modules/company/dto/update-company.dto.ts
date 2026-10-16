@@ -2,6 +2,7 @@ import { StrictNumber } from '../../../common/strict-number'
 import { StrictBoolean } from '../../../common/strict-boolean'
 import { RECHTSFORMEN } from '../rechtsform';
 import {
+  Matches,
   IsString,
   IsOptional,
   IsEmail,
@@ -179,9 +180,14 @@ export class UpdateCompanyDto {
   @MaxLength(200)
   logoPath?: string;
 
+  // Tier 692: it is used now (invoice-number.ts) — letters only, at most 10,
+  // and not the prefix of another document
   @IsString()
   @IsOptional()
-  @MaxLength(20)
+  @ValidateIf((o) => o.invoicePrefix !== '' && o.invoicePrefix != null) // empty: INV
+  @Matches(/^(?!(?:AN|LS|AB|CN|PI|RCV)-?$)[A-Za-z]{1,10}-?$/i, {
+    message: 'Rechnungsnummer-Präfix: 1 bis 10 Buchstaben, z. B. „RE“ — nicht AN, LS, AB, CN, PI oder RCV (die Präfixe der anderen Belege)',
+  })
   invoicePrefix?: string;
 
   @StrictNumber() @IsInt()

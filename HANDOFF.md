@@ -2662,6 +2662,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 692 — the invoice-number prefix of the settings page is used
+
+Same review. Einstellungen → „Rechnungspräfix“ stored the value (`Company.invoicePrefix`, read back) and nothing read it: `invoiceNumberPrefix()` hard-coded INV-. Measured: prefix "RE", next invoice INV-2026-000001.
+
+- `ownInvoicePrefix(stored)` in `invoice-number.ts`: letters only, 1–10, upper-cased, not another document's prefix (AN, LS, AB, CN, PI, RCV — `RESERVED_NUMBER_PREFIXES`), else INV. `nextInvoiceNumber` reads it for an invoice; the sequence stays the type's, so a prefix changed during the year continues the year's count (RE-…-000002 → RG-…-000003). `releaseInvoiceNumber` (the newest draft deleted) takes any other letters as an invoice's prefix — it returned without stepping back for anything but INV.
+- The DTO accepts letters only (an empty value is INV) and says so; the settings page explains the field (`settings.invoicePrefixHint`). Several number ranges are allowed (UStAE 14.5 Abs. 10) — each number stays unique.
+- Credit notes, proformas, receipts keep CN-/PI-/RCV-, quotes, delivery notes, order confirmations AN-/LS-/AB-.
+- A company that had typed something into the field before (stored, unused) gets that prefix from now on if it is letters; anything else stays INV until it is changed — saving the settings page then asks for letters.
+
+Spec `416-tier692-rechnungsnummer-praefix.sh` (9 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 691 — a company is greeted as a company; a contact person can be entered; „USt-IdNr.“
 
 The owner, 16.10.2026: „继续找发票方面还要提升的“. Measured with the mailbox:

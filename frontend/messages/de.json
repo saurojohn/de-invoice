@@ -1692,6 +1692,7 @@
     "bic": "BIC / SWIFT",
     "invoiceSettings": "Rechnungseinstellungen",
     "invoicePrefix": "Rechnungspräfix",
+    "invoicePrefixHint": "Nur Buchstaben, z. B. „RE“ → RE-2026-000001. Gilt für Rechnungen, die ab jetzt angelegt werden; die Zählung des Jahres läuft weiter.",
     "defaultPaymentDays": "Standard-Zahlungsziel",
     "defaultVatMode": "Standard-USt-Behandlung",
     "defaultVatModeNone": "Bei jeder Rechnung manuell auswählen",

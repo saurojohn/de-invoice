@@ -1692,6 +1692,7 @@
     "bic": "BIC / SWIFT",
     "invoiceSettings": "发票设置",
     "invoicePrefix": "发票前缀",
+    "invoicePrefixHint": "仅限字母，例如 “RE” → RE-2026-000001。适用于今后新建的发票；当年的编号继续累计。",
     "defaultPaymentDays": "默认付款期限",
     "defaultVatMode": "默认增值税处理",
     "defaultVatModeNone": "每张发票手动选择",

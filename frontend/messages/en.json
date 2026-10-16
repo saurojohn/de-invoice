@@ -1692,6 +1692,7 @@
     "bic": "BIC / SWIFT",
     "invoiceSettings": "Invoice Settings",
     "invoicePrefix": "Invoice Prefix",
+    "invoicePrefixHint": "Letters only, e.g. “RE” → RE-2026-000001. Applies to invoices created from now on; the count of the year continues.",
     "defaultPaymentDays": "Default Payment Term",
     "defaultVatMode": "Default VAT Treatment",
     "defaultVatModeNone": "Pick manually per invoice",
