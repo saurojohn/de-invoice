@@ -7,7 +7,7 @@
 # hourly rate. The open, billable, priced entries of a customer become the
 # lines of an invoice draft; from then on they are "billed" and neither
 # changed nor deleted. Deleting the draft or cancelling the invoice opens
-# them again. Hours are billed as on the invoice line: with two decimals
+# them again (an issued invoice: by a Storno credit note, Tier 694). Hours are billed as on the invoice line: with two decimals
 # (50 min → 0,83 Std), times the rate.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -123,8 +123,11 @@ assert_eq "the draft is deleted: its entries are open again" "$STATUS $(q "selec
 AS POST "/api/v1/time-entries/bill?companyId=$C" '{"customerId":"'$K'","entryIds":["'$E1'"]}'; INV2=$(json_field "$BODY" invoiceId)
 AS PUT "/api/v1/invoices/$INV2/status?companyId=$C" '{"status":"sent"}'
 assert_eq "one entry billed and the invoice issued: still billed" "$STATUS $(q "select \"invoiceId\"='$INV2' from \"TimeEntry\" where id='$E1'")" "200 t"
+# Tier 694: an issued invoice is cancelled by a Storno credit note over its full amount
 AS PUT "/api/v1/invoices/$INV2/status?companyId=$C" '{"status":"cancelled"}'
-assert_eq "the invoice is cancelled: the entry is open again, to be invoiced anew" "$STATUS $(q "select \"invoiceId\" is null from \"TimeEntry\" where id='$E1'")" "200 t"
+assert_eq "the issued invoice is not cancelled by its status: the entry stays billed" "$STATUS $(q "select \"invoiceId\"='$INV2' from \"TimeEntry\" where id='$E1'")" "400 t"
+AS POST "/api/v1/invoices/$INV2/credit-note?companyId=$C" '{"reason":"Storno"}'
+assert_eq "the invoice is cancelled by a Storno credit note: the entry is open again, to be invoiced anew" "$STATUS $(q "select \"invoiceId\" is null from \"TimeEntry\" where id='$E1'")" "201 t"
 
 AS POST "/api/v1/time-entries/bill?companyId=$C" '{"customerId":"'$K'"}'; INV3=$(json_field "$BODY" invoiceId)
 (AS POST "/api/v1/time-entries/bill?companyId=$C" '{"customerId":"'$K2'"}'; echo "$STATUS" > "/tmp/$TAG.1") &

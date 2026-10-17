@@ -4075,6 +4075,8 @@
   },
   "invoicePage": {
     "autoAttached": "(attached automatically by the server)",
+    "stornoConfirm": "Cancel invoice {number}? A cancellation invoice (credit note for the full amount) is created for you to send to the customer — it corrects the VAT in the month of the cancellation.",
+    "stornoCreated": "Cancellation invoice {number} created — please send it to the customer.",
     "attachedAsEInvoice": "As an e-invoice: the PDF also carries the invoice as XML (ZUGFeRD / Factur-X, EN 16931) — the same file as the download.",
     "cancel": "Cancel",
     "action": "Action",

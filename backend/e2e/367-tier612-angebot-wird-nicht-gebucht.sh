@@ -44,7 +44,10 @@ fixture_issuer "$C"
 AS POST "/api/v1/customers?companyId=$C" '{"name":"'$TAG' Kunde","type":"business","address":{"street":"Ring 2","postalCode":"80331","city":"München","country":"DE"},"contact":{"email":"'$TAG'-kunde@example.test"}}'; K=$(json_field "$BODY" id)
 doc INV; INV=$I; status "$INV" sent
 doc INV; DRAFT=$I
-doc INV; GONE=$I; status "$GONE" sent; status "$GONE" cancelled
+doc INV; GONE=$I; status "$GONE" sent
+# Tier 694: an issued invoice is cancelled by a Storno credit note; older data has
+# issued invoices set to "cancelled", as this one
+q "update \"Invoice\" set status='cancelled' where id='$GONE'" >/dev/null
 doc PI;  PI=$I;  status "$PI" sent
 doc QU;  QU=$I;  status "$QU" offered
 doc DN;  DN=$I;  status "$DN" delivered

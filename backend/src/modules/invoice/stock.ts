@@ -29,6 +29,22 @@ const round4 = (n: number) => Math.round(n * 10000) / 10000
 /** Types whose lines are goods leaving the warehouse. */
 const moves = (type: string) => type !== 'CN' && type !== 'PI' && !isNonFiscal(type) // Tier 610: nor a quote / delivery note / order confirmation
 
+/**
+ * Tier 694 — an issued invoice is cancelled by a Storno credit note now (no
+ * longer by the status). Credit notes that cover its whole amount undo it as
+ * the cancellation did: its goods come back, its hours are open again. A
+ * partial one (a reduction of the price) leaves both as they are.
+ */
+export async function fullyCredited(db: Db, companyId: string, invoiceId: string): Promise<boolean> {
+  const original = await db.invoice.findFirst({ where: { id: invoiceId, companyId }, select: { total: true, type: true } })
+  if (!original || original.type === 'CN' || !(Math.abs(Number(original.total)) > 0)) return false
+  const credited = await db.invoice.aggregate({
+    where: { companyId, referenceInvoiceId: invoiceId, type: 'CN', status: { notIn: ['draft', 'cancelled'] } },
+    _sum: { total: true },
+  })
+  return Math.abs(Number(credited._sum.total ?? 0)) >= Math.abs(Number(original.total)) - 0.005
+}
+
 export async function syncInvoiceStock(
   db: Db,
   companyId: string,
@@ -44,7 +60,10 @@ export async function syncInvoiceStock(
   const label = opts.label ?? invoice?.invoiceNumber ?? invoiceId
 
   const wanted = new Map<string, number>()
-  if (invoice && moves(invoice.type) && invoice.status !== 'draft' && invoice.status !== 'cancelled') {
+  if (
+    invoice && moves(invoice.type) && invoice.status !== 'draft' && invoice.status !== 'cancelled' &&
+    !(await fullyCredited(db, companyId, invoiceId)) // Tier 694: a full Storno gives the goods back
+  ) {
     for (const it of invoice.items) {
       if (!it.productId) continue
       wanted.set(it.productId, round4((wanted.get(it.productId) ?? 0) + Number(it.quantity)))

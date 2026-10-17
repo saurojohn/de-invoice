@@ -4075,6 +4075,8 @@
   },
   "invoicePage": {
     "autoAttached": "（由服务器自动附加）",
+    "stornoConfirm": "作废发票 {number}？系统将生成一张冲销贷项通知单（全额贷项），请发送给客户——它在作废当月更正增值税。",
+    "stornoCreated": "已生成冲销单 {number}——请发送给客户。",
     "attachedAsEInvoice": "作为电子发票：该 PDF 同时内嵌了 XML 格式的发票数据（ZUGFeRD / Factur-X，EN 16931）——与下载得到的是同一份文件。",
     "cancel": "取消",
     "action": "操作",

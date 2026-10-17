@@ -13,6 +13,9 @@
 # follow an edit of its lines, and come back when it is cancelled or deleted;
 # stock may go below 0 (oversold, and by how much); a product id of another
 # company is refused. A credit note does not move stock.
+# Tier 694: an issued invoice is cancelled by a Storno credit note over its
+# full amount (the status "cancelled" is for drafts) — the goods come back
+# when the invoice is fully credited; a partial credit note moves nothing.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
@@ -43,6 +46,7 @@ stock() { q "select trim(trailing '.' from trim(trailing '0' from \"stockQuantit
 line() { echo "{\"productId\":\"$PR\",\"description\":\"Gürtel\",\"quantity\":$1,\"unit\":\"Stk\",\"unitPrice\":50,\"vatRate\":0.19}"; }
 inv() { AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"$TODAY\",\"items\":[$1]}"; I=$(json_field "$BODY" id); }
 status() { AS PUT "/api/v1/invoices/$I/status?companyId=$C" "{\"status\":\"$1\"}"; }
+storno() { AS POST "/api/v1/invoices/$I/credit-note?companyId=$C" '{"reason":"Storno"}'; }
 assert_eq "fixture: 10 in stock" "$(stock)" "10"
 
 note "=== a draft takes nothing ==="
@@ -60,11 +64,12 @@ AS PUT "/api/v1/invoices/$I?companyId=$C" "{\"items\":[$(line 5)]}"
 assert_eq "edited on its day to 5: 5 (was 7)" "$STATUS/$(stock)" "200/5"
 AS PUT "/api/v1/invoices/$I?companyId=$C" "{\"items\":[$(line 2),$(line 2)]}"
 assert_eq "…to two lines of 2: 6" "$(stock)" "6"
-status cancelled
-assert_eq "cancelled: 10 again (was 7)" "$STATUS/$(stock)" "200/10"
+storno
+assert_eq "cancelled by a Storno credit note: 10 again (was 7)" "$STATUS/$(stock)" "201/10"
 assert_eq "…the history says what came back" "$(q "select string_agg(\"changeType\"||' '||trim(trailing '.' from trim(trailing '0' from quantity::text)), ', ' order by \"createdAt\") from \"ProductStockHistory\" where reference='$I'")" "sale 3, sale 2, return 1, return 4"
-status cancelled
-assert_eq "cancelling twice returns nothing twice" "$(stock)" "10"
+storno
+assert_eq "a second Storno is refused" "$STATUS" "400"
+assert_eq "…and returns nothing twice" "$(stock)" "10"
 
 note "=== issued and deleted on its day ==="
 inv "$(line 4)"; status sent
@@ -77,13 +82,13 @@ inv "$(line 50)"
 assert_eq "the draft warns" "$(P "d['stockWarnings'][0]['available']")/$(P "d['stockWarnings'][0]['required']")" "10/50"
 status sent
 assert_eq "issued over 50: −40 (was 0)" "$(stock)" "-40"
-status cancelled
+storno
 assert_eq "cancelled: 10" "$(stock)" "10"
 
 note "=== a credit note does not move stock ==="
 inv "$(line 3)"; status sent
-AS POST "/api/v1/invoices/$I/credit-note?companyId=$C" '{"reason":"Preisnachlass"}'
-assert_eq "credit note created" "$STATUS" "201"
+AS POST "/api/v1/invoices/$I/credit-note?companyId=$C" '{"amount":59.5,"reason":"Preisnachlass"}'
+assert_eq "a partial credit note created" "$STATUS" "201"
 assert_eq "…the stock stays at 7" "$(stock)" "7"
 
 note "=== a draft from before this tier (stock taken at creation) ==="

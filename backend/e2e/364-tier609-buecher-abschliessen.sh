@@ -61,7 +61,8 @@ expense 2026-03-25 M-2;                              assert_eq "an expense dated
 AS PUT "/api/v1/expenses/$EXP?companyId=$C" '{"netAmount":200}';   assert_eq "changing the expense of 12.03." "$(closed)" "locked"
 AS DELETE "/api/v1/ustva/expenses/$EXP?companyId=$C";      assert_eq "deleting it" "$(closed)/$(q "select count(*) from \"Expense\" where id='$EXP'")" "locked/1"
 AS PUT "/api/v1/invoices/$LATE/status?companyId=$C" '{"status":"sent"}'; assert_eq "issuing the draft dated 20.03." "$(closed)" "locked"
-AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"cancelled"}'; assert_eq "cancelling the invoice of 10.03." "$(closed)/$(q "select status from \"Invoice\" where id='$INV'")" "locked/sent"
+# Tier 694: no issued invoice is cancelled by its status (the Storno credit note in 3. is the way)
+AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"cancelled"}'; assert_eq "cancelling the invoice of 10.03. by its status" "$STATUS/$(q "select status from \"Invoice\" where id='$INV'")" "400/sent"
 AS POST "/api/v1/invoices/$INV/payments?companyId=$C" '{"amount":50,"paymentDate":"2026-03-28","paymentMethod":"bank_transfer"}'; assert_eq "a payment dated 28.03." "$(closed)" "locked"
 AS POST "/api/v1/accounting/vouchers/$VOU/correct?companyId=$C" '{"date":"2026-03-20","lines":[{"accountId":"'$A1'","debit":60},{"accountId":"'$A2'","credit":60}]}'; assert_eq "a corrected voucher dated into March" "$(closed)" "locked"
 AS POST "/api/v1/assets?companyId=$C" '{"type":"Maschine","bezeichnung":"'$TAG'","anschaffungsDatum":"2025-01-01","anschaffungsKosten":1200,"nutzungsdauerMonate":12}'

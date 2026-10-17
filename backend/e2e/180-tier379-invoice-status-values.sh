@@ -19,9 +19,22 @@ S="/api/v1/invoices/$INV/status?companyId=$COMPANY_ID"
 db_status() { sql "SELECT status FROM \"Invoice\" WHERE id = '$INV';"; }
 
 note "=== 1. every value of the detail page's dropdown still works ==="
-for st in sent overdue paid cancelled draft; do
+for st in sent overdue paid; do
   api_put "$S" "{\"status\":\"$st\"}"
   assert_status 200 "status → $st"
+  assert_eq "stored status" "$(db_status)" "$st"
+done
+# Tier 694: an issued invoice is cancelled by a Storno credit note, not by the status
+api_put "$S" '{"status":"cancelled"}'
+assert_status 400 "issued: status → cancelled is refused (Tier 694)"
+echo "$BODY" | grep -q "Stornorechnung" && pass "…the answer points to the Storno" || fail "message: $BODY"
+assert_eq "…and the status stays" "$(db_status)" "paid"
+# a draft is still cancelled by the status, and comes back
+api_post "/api/v1/invoices?companyId=$COMPANY_ID" "{\"customerId\":\"$CUST\",\"issueDate\":\"$(date +%Y-%m-%d)\",\"items\":[{\"description\":\"e2e-180 draft\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":10,\"vatRate\":0.19}]}"
+INV=$(json_field "$BODY" id); S="/api/v1/invoices/$INV/status?companyId=$COMPANY_ID"
+for st in cancelled draft; do
+  api_put "$S" "{\"status\":\"$st\"}"
+  assert_status 200 "draft: status → $st"
   assert_eq "stored status" "$(db_status)" "$st"
 done
 

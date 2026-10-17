@@ -158,7 +158,10 @@ doc INV 200 "$K2"; S2=$I; status "$S2" sent      # 238, 38 paid
 AS POST "/api/v1/invoices/$S2/payments?companyId=$C" '{"amount":38,"paymentDate":"'$TODAY'","paymentMethod":"bank_transfer"}'
 doc INV 50 "$K2"; S3=$I; status "$S3" sent; status "$S3" paid   # 59.50 paid
 doc INV 400 "$K2"                                 # a draft
-doc INV 300 "$K2"; S5=$I; status "$S5" sent; status "$S5" cancelled
+doc INV 300 "$K2"; S5=$I; status "$S5" sent
+# Tier 694: an issued invoice is cancelled by a Storno credit note; older data has
+# issued invoices set to "cancelled", as this one
+q "update \"Invoice\" set status='cancelled' where id='$S5'" >/dev/null
 doc QU 900 "$K2"; status "$I" offered
 AS GET "/api/v1/reports/customers?companyId=$C&startDate=$YEAR-01-01&endDate=$YEAR-12-31"
 assert_eq "three issued invoices: 416,50 invoiced, 97,50 paid, 319,00 open (was: draft, cancelled and quote counted as open)" \

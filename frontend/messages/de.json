@@ -4075,6 +4075,8 @@
   },
   "invoicePage": {
     "autoAttached": "(wird automatisch vom Server angehängt)",
+    "stornoConfirm": "Rechnung {number} stornieren? Es wird eine Stornorechnung (Gutschrift über den vollen Betrag) erstellt, die Sie dem Kunden senden — sie korrigiert die Umsatzsteuer im Monat der Stornierung.",
+    "stornoCreated": "Stornorechnung {number} erstellt — bitte dem Kunden senden.",
     "attachedAsEInvoice": "Als E-Rechnung: Das PDF enthält die Rechnung zusätzlich als XML (ZUGFeRD / Factur-X, EN 16931) — dieselbe Datei wie beim Herunterladen.",
     "cancel": "Abbrechen",
     "action": "Aktion",

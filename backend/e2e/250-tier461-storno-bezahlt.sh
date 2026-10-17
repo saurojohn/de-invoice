@@ -14,7 +14,7 @@
 # Gutschrift erstellen").
 # Now cancelling is refused while payments or active credit notes exist — the
 # correction is a credit note (and a refund of what was paid). An unpaid
-# invoice can still be cancelled.
+# invoice could still be cancelled — since Tier 694 no issued invoice is.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
@@ -65,9 +65,15 @@ cancel "$G"
 assert_eq "cancelling an invoice with a credit note (was 200)" "$STATUS" "400"
 assert_eq "the June UStVA is unchanged (was 19: both invoices had left it)" "$(ust)" "304"
 
-note "=== unpaid: still possible ==="
+note "=== unpaid: a Storno credit note too (Tier 694) ==="
+# Tier 694: an issued invoice is never cancelled by its status — until the
+# customer has the correction the tax shown is owed (§ 14c UStG), and the
+# correction belongs to the month it is made (§ 17 UStG)
 cancel "$O"
-assert_eq "an unpaid invoice is cancelled" "$STATUS" "200"
-assert_eq "…and leaves the UStVA" "$(ust)" "285"
+assert_eq "an unpaid issued invoice is not cancelled by the status either (was 200)" "$STATUS" "400"
+assert_eq "…the message points to the Storno" "$(says Stornorechnung)" "yes"
+AS POST "/api/v1/invoices/$O/credit-note?companyId=$C" '{"reason":"Storno"}'
+assert_eq "the Storno credit note is made" "$STATUS" "201"
+assert_eq "…June keeps the invoice (the credit note is in its own month; was 285)" "$(ust)" "304"
 
 summary

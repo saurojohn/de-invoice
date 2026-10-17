@@ -1749,6 +1749,27 @@ export default function InvoiceDetailPage() {
 
   const changeStatus = async (newStatus: string) => {
     if (!invoice || invoice.status === newStatus) return
+    // Tier 694: an issued invoice is cancelled by a Storno credit note over the
+    // full amount — the document the customer receives (§ 14c, § 17 UStG).
+    // The status alone took it out of the books of its month and told nobody.
+    if (newStatus === "cancelled" && invoice.status !== "draft" && (invoice.type === "INV" || invoice.type === "RCV")) {
+      if (!confirm(t("invoicePage.stornoConfirm").replace("{number}", invoice.invoiceNumber))) return
+      setStatusChanging(true)
+      try {
+        const companyId = localStorage.getItem("companyId")
+        const cn = await apiPost<{ id: string; invoiceNumber: string }>(
+          `/api/v1/invoices/${invoice.id}/credit-note?companyId=${companyId}`,
+          { reason: "Storno" },
+        )
+        toast.success(t("invoicePage.stornoCreated").replace("{number}", cn.invoiceNumber))
+        router.push(`/dashboard/invoices/${cn.id}?companyId=${companyId}`)
+      } catch (err) {
+        toast.error(err instanceof ApiError ? err.message : `Netzwerkfehler: ${err}`)
+      } finally {
+        setStatusChanging(false)
+      }
+      return
+    }
     if (!confirm(`Status auf "${getStatusLabel(newStatus)}" setzen?`)) return
     setStatusChanging(true)
     try {

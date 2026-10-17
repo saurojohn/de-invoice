@@ -2662,6 +2662,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 694 — an issued invoice is cancelled by a Storno credit note
+
+The owner, 17.10.2026, on the point left open since Tier 685: „要改“. Measured: an issued 1 190 € invoice of June, set to „Storniert“ on the invoice page in October — 200; it left the **June** UStVA (190 € output tax gone from a return that may be filed), October showed nothing, and the customer kept a document stating 190 € tax and received none correcting it. The issuer owes that tax until the recipient has the correction (§ 14c UStG); the correction belongs to the month of the cancellation (§ 17 UStG).
+
+- `updateStatus`: „cancelled“ is refused (400, the reason in the message) for an issued INV / RCV. A draft is still cancelled by its status; invoices cancelled before this tier stay as they are (and are treated as before — spec 209, 251, 365, 367 keep such a fixture, set by SQL).
+- The invoice page's „Storniert“ on an issued invoice asks (`invoicePage.stornoConfirm`, de/en/zh) and creates the credit note over the full amount (`POST /invoices/:id/credit-note {reason: "Storno"}`, dated today), then opens it to be sent (`stornoCreated`). After credit notes over the whole amount the invoice shows „bezahlt“ (settled by the Gutschrift payments, as before for credit notes) — not „storniert“.
+- What the status cancellation undid, a full credit note undoes now (`fullyCredited` in `stock.ts`, issued CNs ≥ |total|): the goods come back to stock (`syncInvoiceStock`), the billed hours are open again (Tier 611). A partial credit note (a price reduction) moves neither. A credit note set to „cancelled“ resyncs its invoice's stock (a settled one is not cancelled — „bereits verrechnet“).
+- The delete refusals pointed to the status „Storniert“; they name the Stornorechnung now.
+
+Specs changed: 180 (the status walk: cancelled on a draft, 400 on an issued invoice), 250 (an unpaid issued invoice: 400, the Storno keeps June), 305 (stock back by the Storno; the credit-note case is a partial one), 364 (closed March: the status is refused before the closing is asked), 366 (hours open again by the Storno). Spec `418-tier694-storno-per-gutschrift.sh` (16 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 693 — the ZUGFeRD invoice is a real PDF/A-3, and the XML can be found
 
 The owner, 16.10.2026, on the open point of Tier 692's review: „同意“ to downloading a font, a colour profile and the reference validator. Measured with **Mustang 2.26** (github.com/ZUGFeRD/mustangproject, veraPDF inside) on the ZUGFeRD PDF: **PDF invalid, XML invalid** — „XMP Metadata not found“, „XML could not be extracted“; the XMP claimed „PDF/A-3B“ all the same (the embedder's own comment said conformance had never been checked). Behind it:

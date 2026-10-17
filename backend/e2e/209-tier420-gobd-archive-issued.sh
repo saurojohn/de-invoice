@@ -31,7 +31,11 @@ status() { AS PUT "/api/v1/invoices/$1/status?companyId=$C" "{\"status\":\"$2\"}
 SENT=$(mk Gesendet 1000); status "$SENT" sent
 NEVER=$(mk NieHeruntergeladen 200); status "$NEVER" sent
 DRAFT=$(mk Entwurf 500)
-CANC=$(mk Storniert 300); status "$CANC" sent; status "$CANC" cancelled
+CANC=$(mk Storniert 300); status "$CANC" sent
+# Tier 694: an issued invoice is no longer cancelled by its status (a Storno
+# credit note does it); this spec is about how a cancelled invoice is
+# archived, which older data still has — set it as it was set then
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qAtc "update \"Invoice\" set status='cancelled' where id='$CANC'" >/dev/null
 pass "fixture: sent 1000 + sent 200, a 500 draft, a cancelled 300"
 
 WORK=$(mktemp -d)

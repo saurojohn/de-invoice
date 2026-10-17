@@ -39,8 +39,9 @@ status() { AS GET "/api/v1/invoices/$1?companyId=$C"; json_field "$BODY" status;
 says() { grep -qi "$1" <<<"$BODY" && echo yes || echo "no: $BODY"; }
 ust() { AS GET "/api/v1/ustva/compute?companyId=$C&year=2026&month=6"; py 'print("%g" % d["umsatzsteuer"])'; }
 
-X=$(draft); AS PUT "/api/v1/invoices/$X/status?companyId=$C" '{"status":"sent"}'
-AS PUT "/api/v1/invoices/$X/status?companyId=$C" '{"status":"cancelled"}'
+# Tier 694: an issued invoice is cancelled by a Storno credit note, so only a
+# draft still turns "cancelled" by its status (older data has issued ones)
+X=$(draft); AS PUT "/api/v1/invoices/$X/status?companyId=$C" '{"status":"cancelled"}'
 D=$(draft)
 assert_eq "fixture: a cancelled invoice and a draft — no output tax" "$(ust)" "0"
 

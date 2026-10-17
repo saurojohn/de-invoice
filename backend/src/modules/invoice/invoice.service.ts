@@ -4,7 +4,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceAmounts, toCents } from './invoice-amounts';
 import { assertPositiveTotal } from './positive-total';
-import { syncInvoiceStock } from './stock';
+import { fullyCredited, syncInvoiceStock } from './stock';
 import { invoiceTaxBreakdown } from './tax-breakdown';
 import { Prisma } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
@@ -1336,7 +1336,7 @@ export class InvoiceService {
     // the house — it is deleted on any day (the page offers it, Tier 610).
     if (!this.isToday(existing.issueDate) && !(isNonFiscal(existing.type) && existing.status === 'draft')) {
       throw new ForbiddenException(
-        'Rechnung kann nur am Ausstellungstag gelöscht werden. Für ältere Rechnungen den Status auf "Storniert" setzen.',
+        'Rechnung kann nur am Ausstellungstag gelöscht werden. Eine ausgestellte Rechnung wird mit einer Stornorechnung storniert (Rechnungsseite: Status „Storniert“ erstellt sie).',
       );
     }
     // Last-invoice rule: only the invoice with the highest
@@ -1373,7 +1373,7 @@ export class InvoiceService {
     )
     if (!maxEntry || maxEntry.id !== id) {
       throw new ForbiddenException(
-        'Es kann nur die zuletzt erstellte Rechnung gelöscht werden. Für ältere Rechnungen den Status auf "Storniert" setzen.',
+        'Es kann nur die zuletzt erstellte Rechnung gelöscht werden. Eine ausgestellte Rechnung wird mit einer Stornorechnung storniert (Rechnungsseite: Status „Storniert“ erstellt sie).',
       )
     }
     // Tier 406: an invoice with recorded payments is not deleted.
@@ -1642,6 +1642,23 @@ export class InvoiceService {
       throw new BadRequestException(`Den Status „${status}“ gibt es nur bei einem Angebot, einer Auftragsbestätigung oder einem Lieferschein.`);
     }
 
+    // Tier 694: an issued invoice (or receipt) is not cancelled by a status.
+    // The owner, 17.10.2026: „要改“ — cancelling it makes a Storno credit note.
+    // The status took the invoice out of every return in the month it was
+    // issued, and the customer kept a document stating the tax: the issuer
+    // owes it until the recipient has the correction (§ 14c UStG), and the
+    // correction belongs to the month of the cancellation (§ 17 UStG). The
+    // credit note is that document (POST /invoices/:id/credit-note). A draft
+    // is still simply cancelled.
+    if (status === 'cancelled' && before.status !== 'draft' && before.status !== 'cancelled' && (before.type === 'INV' || before.type === 'RCV')) {
+      throw new BadRequestException(
+        'Eine ausgestellte Rechnung wird nicht über den Status storniert, sondern mit einer Stornorechnung ' +
+        '(Gutschrift über den vollen Betrag), die der Kunde erhält: Bis er die Korrektur hat, schulden Sie die ' +
+        'ausgewiesene Umsatzsteuer (§ 14c UStG), und die Korrektur gehört in den Monat der Stornierung (§ 17 UStG). ' +
+        'Auf der Rechnungsseite erstellt der Status „Storniert“ sie.',
+      );
+    }
+
     // Tier 461: a cancelled document leaves every return (UStVA, EÜR, DATEV —
     // with its payments). An invoice that was paid, or that a credit note
     // corrects, cannot just leave: measured, a paid 1 190 € invoice cancelled
@@ -1742,6 +1759,10 @@ export class InvoiceService {
     // Tier 520: the goods leave when the invoice is issued and come back when
     // it is cancelled.
     await syncInvoiceStock(this.prisma, companyId, id);
+    // Tier 694: a cancelled credit note no longer undoes its invoice
+    if (before.type === 'CN' && before.referenceInvoiceId && status === 'cancelled') {
+      await syncInvoiceStock(this.prisma, companyId, before.referenceInvoiceId);
+    }
 
     // Fire invoice.paid ONLY on the draft → paid transition.
     // We don't fire it on every status change because that
@@ -1928,6 +1949,20 @@ export class InvoiceService {
     const overage = Math.round((cnAmount - synthetic) * 100) / 100;
     if (overage > 0.005) {
       await this.creditBalance.recordGutschriftOverage(companyId, original.customerId, cn.id, overage, original.invoiceNumber);
+    }
+    await this.afterCreditNote(original.id, companyId); // Tier 694
+  }
+
+  /**
+   * Tier 694: a credit note was issued for `originalId`. When the credit notes
+   * cover the whole invoice it is undone as a cancellation undid it: its goods
+   * back in stock (syncInvoiceStock asks fullyCredited) and its hours open to
+   * be invoiced anew (Tier 611).
+   */
+  private async afterCreditNote(originalId: string, companyId: string): Promise<void> {
+    await syncInvoiceStock(this.prisma, companyId, originalId);
+    if (await fullyCredited(this.prisma, companyId, originalId)) {
+      await this.prisma.timeEntry.updateMany({ where: { companyId, invoiceId: originalId }, data: { invoiceId: null } });
     }
   }
 
@@ -2336,6 +2371,8 @@ export class InvoiceService {
         }
       }
     }
+
+    await this.afterCreditNote(original.id, companyId) // Tier 694
 
     // Strip the internal _gutschriftOverage field
     // before returning — callers should not see it.
