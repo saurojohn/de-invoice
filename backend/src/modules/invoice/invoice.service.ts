@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceAmounts, toCents } from './invoice-amounts';
 import { assertPositiveTotal } from './positive-total';
 import { coversWhole, CREDITING, fullyCredited, syncInvoiceStock } from './stock';
+import { syncInstallments } from '../installment-plan/installment-sync';
 import { invoiceTaxBreakdown } from './tax-breakdown';
 import { Prisma } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
@@ -2010,6 +2011,12 @@ export class InvoiceService {
    * be invoiced anew (Tier 611).
    */
   private async afterCreditNote(originalId: string, companyId: string): Promise<void> {
+    // Tier 699: the Raten of a Ratenplan follow the invoice's payments, the
+    // credit note's „Gutschrift“ payment among them (Tier 429) — but that
+    // payment is booked here, not through PaymentService, and the plan was
+    // never told: an invoice cancelled by its Storno kept an active plan with
+    // three open Raten (and the dunning pause it set).
+    await syncInstallments(this.prisma, originalId);
     await syncInvoiceStock(this.prisma, companyId, originalId);
     if (await fullyCredited(this.prisma, companyId, originalId)) {
       await this.prisma.timeEntry.updateMany({ where: { companyId, invoiceId: originalId }, data: { invoiceId: null } });

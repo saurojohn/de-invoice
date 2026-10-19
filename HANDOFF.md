@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 699 — a Ratenplan follows the credit notes of its invoice
+
+The Raten of a plan follow the invoice's payments (Tier 429, `syncInstallments`), the „Gutschrift“ payment of a credit note among them — the module says so. But that payment is written by the credit-note code (`createCreditNoteLocked` / `settleIssuedCreditNote`), not through `PaymentService`, and the plan was never synchronised. Measured: a 1 190 € invoice on three Raten of 396,66 €, cancelled by its Storno credit note (Tier 694) — the plan stayed „active“ with three open Raten, and the dunning pause it had set stayed on.
+
+`afterCreditNote` (Tier 694's hook after either credit-note path) calls `syncInstallments` first: a partial credit note settles the first Rate(n) as a payment would; a Storno settles all of them, the plan completes and its pause ends.
+
+Spec `423-tier699-ratenplan-nach-gutschrift.sh` (3 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 698 — the customer portal shows a cancelled invoice as cancelled
 
 The same as Tier 696 for the customer: the portal showed the stored status, „Bezahlt“ for an invoice cancelled by its Storno credit note — one the customer never paid — next to the credit note. `portalStatus` (customer-portal.service.ts) reports `cancelled` („Storniert“) when issued credit notes cover the whole invoice (`coversWhole`, Tier 696), in the list and on the invoice's page; the page's select takes the credit notes for that and leaves them out of the answer (Tier 545: named fields only). A partial credit note changes nothing; the tiles were already right (credit notes are no payment, Tier 662).
