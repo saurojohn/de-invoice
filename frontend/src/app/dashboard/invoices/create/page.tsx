@@ -1444,7 +1444,7 @@ function CreateInvoicePageInner() {
                           <div className="font-medium text-sm">{c.name}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
                             {c.customerNumber && `${c.customerNumber} · `}
-                            {c.vatId ? `USt-IDNr. ${c.vatId}` : (t("customer.noVatId") || "keine USt-ID")}
+                            {c.vatId ? `USt-IdNr. ${c.vatId}` : (t("customer.noVatId") || "keine USt-ID")}
                           </div>
                           {c.address && (c.address.street || c.address.postalCode || c.address.city) && (
                             <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">

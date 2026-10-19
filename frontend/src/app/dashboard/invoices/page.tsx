@@ -1,5 +1,6 @@
 "use client"
 
+import { formatMoney } from "@/lib/money"
 import { todayIso } from "@/lib/today"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -1235,9 +1236,8 @@ function InvoicesPageInner() {
                     <td className="px-4 py-3">{invoice.customer?.name || "-"}</td>
                     {/* Tier 653: an invoice in another currency stood here with "€" */}
                     <td className="px-4 py-3">
-                      {(invoice as { currency?: string }).currency && (invoice as { currency?: string }).currency !== "EUR"
-                        ? `${Number(invoice.total).toFixed(2)} ${(invoice as { currency?: string }).currency}`
-                        : `€${Number(invoice.total).toFixed(2)}`}
+                      {/* Tier 704: 1.190,00 € — it was "€1190.00" */}
+                      {formatMoney(invoice.total, (invoice as { currency?: string }).currency || "EUR")}
                     </td>
                     <td className="px-4 py-3">{formatDateDE(invoice.issueDate)}</td>
                     <td className="px-4 py-3">

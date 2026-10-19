@@ -1,5 +1,6 @@
 "use client"
 
+import { formatMoney } from "@/lib/money"
 import { apiBase } from "@/lib/apiBase"
 import { todayIso } from "@/lib/today"
 import { useEffect, useRef, useState } from "react"
@@ -641,11 +642,8 @@ export default function InvoiceDetailPage() {
   // exactly what the recipient will see).
   // Tier 653: an amount of this invoice in the invoice's own currency. The
   // page wrote "€" before every amount — a USD invoice read "€11900.00".
-  const money = (n: number | string): string => {
-    const v = (Number(n) || 0).toFixed(2)
-    const code = (invoice?.currency || "EUR").toUpperCase()
-    return code === "EUR" ? `€${v}` : `${v} ${code}`
-  }
+  // Tier 704: as a German page writes it (1.190,00 €), not "€1190.00"
+  const money = (n: number | string): string => formatMoney(n, invoice?.currency || "EUR")
   const fmtAmountForEmail = (n: number, currency: string, lang: "de" | "en" | "zh"): string => {
     try {
       const locale = lang === "de" ? "de-DE" : lang === "en" ? "en-US" : "zh-CN"
@@ -2239,7 +2237,7 @@ export default function InvoiceDetailPage() {
                   <div className="text-gray-700 dark:text-gray-200">{invoice.company.address.country}</div>
                 )}
                 <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-x-2">
-                  {invoice.company.vatId && <span>UST-IDNr.: {invoice.company.vatId}</span>}
+                  {invoice.company.vatId && <span>USt-IdNr.: {invoice.company.vatId}</span>}
                   {invoice.company.taxId && <span>· Steuernr.: {invoice.company.taxId}</span>}
                 </div>
                 {(invoice.company.email || invoice.company.phone) && (
@@ -2295,7 +2293,7 @@ export default function InvoiceDetailPage() {
             <CardContent>
               <div className="space-y-2 text-base">
                 <div className="font-medium">{invoice.customer?.name}</div>
-                {invoice.customer?.vatId && <div className="text-gray-600 dark:text-gray-300">UST-IDNr.: {invoice.customer.vatId}</div>}
+                {invoice.customer?.vatId && <div className="text-gray-600 dark:text-gray-300">USt-IdNr.: {invoice.customer.vatId}</div>}
                 {invoice.customer?.address && (
                   <div className="text-gray-600 dark:text-gray-300">
                     {invoice.customer.address.street}<br />
@@ -2854,7 +2852,7 @@ export default function InvoiceDetailPage() {
                     {t("installmentPlan.total") || "Gesamtbetrag"}:
                   </span>
                   <span className="font-mono font-medium">
-                    {Number(installmentPlan.totalAmount).toFixed(2)} €
+                    {formatMoney(installmentPlan.totalAmount)}
                   </span>
                   <span className="text-gray-400">·</span>
                   <span className="text-gray-500 dark:text-gray-400">
@@ -2913,10 +2911,10 @@ export default function InvoiceDetailPage() {
                           {formatDate(inst.dueDate)}
                         </td>
                         <td className="py-2 pr-2 text-right font-mono">
-                          {Number(inst.amount).toFixed(2)} €
+                          {formatMoney(inst.amount)}
                         </td>
                         <td className="py-2 pr-2 text-right font-mono">
-                          {Number(inst.paidAmount).toFixed(2)} €
+                          {formatMoney(inst.paidAmount)}
                         </td>
                         <td className="py-2 pr-2">
                           <span

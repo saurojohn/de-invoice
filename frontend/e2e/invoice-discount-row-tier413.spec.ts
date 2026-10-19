@@ -69,12 +69,13 @@ test.describe('Tier 413 — the invoice discount on the detail page', () => {
     const row = page.getByTestId('invoice-discount-row')
     await expect(row).toBeVisible()
     await expect(row).toContainText('Rabatt')
-    await expect(row).toContainText('100.00')
+    // (Tier 704: amounts as a German page writes them)
+    await expect(row).toContainText('100,00 €')
     const card = row.locator('..')
     await expect(card).toContainText('Nettobetrag')
-    await expect(card).toContainText('900.00')
-    await expect(card).toContainText('171.00')
-    await expect(card).toContainText('1071.00')
+    await expect(card).toContainText('900,00 €')
+    await expect(card).toContainText('171,00 €')
+    await expect(card).toContainText('1.071,00 €')
   })
 
   test('an invoice without a discount has no Rabatt row', async ({ page }) => {

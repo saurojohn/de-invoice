@@ -880,7 +880,7 @@ export default function SettingsPage() {
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">UST-IDNr.</label>
+                  <label className="block text-sm font-medium mb-1">USt-IdNr.</label>
                   <Input
                     value={form.vatId}
                     onChange={(e) => setForm({ ...form, vatId: e.target.value })}

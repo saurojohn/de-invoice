@@ -690,7 +690,7 @@ export default function CustomersPage() {
               columns={[
                 { header: "Name", accessor: (c) => c.name },
                 { header: "Typ", accessor: (c) => c.type },
-                { header: "USt-IDNr.", accessor: (c) => c.vatId || "" },
+                { header: "USt-IdNr.", accessor: (c) => c.vatId || "" },
                 { header: "Steuerbefreit", accessor: (c) => (c.taxExempt ? "Ja" : "Nein") },
                 { header: "Straße", accessor: (c) => c.address?.street || "" },
                 { header: "PLZ", accessor: (c) => c.address?.postalCode || "" },

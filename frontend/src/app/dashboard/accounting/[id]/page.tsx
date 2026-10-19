@@ -1,5 +1,6 @@
 "use client"
 
+import { formatMoney } from "@/lib/money"
 import { apiGet } from "@/lib/api"
 
 import { useEffect, useState } from "react"
@@ -184,10 +185,10 @@ export default function VoucherDetailPage() {
                       <td className="py-3 px-4 text-sm">{line.account.name}</td>
                       <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">{line.description || "-"}</td>
                       <td className="py-3 px-4 text-sm text-right font-mono">
-                        {parseFloat(line.debit) > 0 ? `€${parseFloat(line.debit).toFixed(2)}` : ""}
+                        {parseFloat(line.debit) > 0 ? formatMoney(line.debit) : ""}
                       </td>
                       <td className="py-3 px-4 text-sm text-right font-mono">
-                        {parseFloat(line.credit) > 0 ? `€${parseFloat(line.credit).toFixed(2)}` : ""}
+                        {parseFloat(line.credit) > 0 ? formatMoney(line.credit) : ""}
                       </td>
                     </tr>
                   ))}

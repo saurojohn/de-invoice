@@ -2662,6 +2662,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 704 — the invoice pages, read as a user reads them
+
+The owner, 19.10.2026: „继续找发票方面还要提升的“. The rules behind invoices being thorough, the invoice pages were walked through in the browser as a user (a fresh company, dark mode, German): form → list → invoice page.
+
+- **Dark mode: light boxes with light text.** The choice of the VAT treatment on the invoice form (Standard / § 13b / igL) was light grey on a near-white box — measured contrast **1.2 : 1** (WCAG asks 4.5). The box sets `bg-gray-50` and no `dark:` variant; its labels inherit the dark page's light text. Counted: 128 elements in 37 files set a light background (`bg-white`, `bg-*-50/100/200`) without a `dark:bg-`. `globals.css` now gives such an element dark text in dark mode (`:root.dark :is(.bg-…):not([class*="dark:bg-"])`); an element that sets its own colour (a badge's `text-red-800` …) is untouched, so nothing readable changes. The document-type chips and the customer dropdown on the same form read now as well.
+- **Amounts as in German.** The list and the invoice page wrote „€535.50“ — the form, the reports and the PDF „535,50 €“. `src/lib/money.ts` `formatMoney` (de-DE, `€` for euros, the code for another currency: „2.380,00 USD“), used by the list, the invoice page (lines, totals, payments, Raten), the bank import's lines and a voucher's lines.
+- **„USt-IdNr.“** on the invoice page's letterhead and customer block, the settings label, the customer CSV heading, the portal profile and the form's customer picker (they said „UST-IDNr.“ / „USt-IDNr.“; the PDF says „USt-IdNr.“ since Tier 691).
+- Looked at, not changed: a React hydration warning on every form page in development — `FieldLabels` (Tier 637) gives labels and fields their `for`/`id` right after the layout hydrates, before a page's own Suspense part does; React keeps the attributes (the labels work) and only reports them. And the payment-term select shows „Sofort fällig“ for a moment until the company's default arrives; what is saved is what the select shows by then.
+
+Playwright `invoice-dark-and-amounts-tier704.spec.ts` (dark colour scheme: the contrast of the VAT choice ≥ 4.5 — 1.2 on the code before; „1.190,00 €“ in the list and on the page; „USt-IdNr.:“ twice). `foreign-currency-documents-tier653` and `invoice-discount-row-tier413` read the German amounts now.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 703 — a customer no longer asks for a portal link; the company sends it
 
 The owner, 19.10.2026, asked what the customer portal is („客户应该不能登陆我们的发票系统“), and chose option 2 of three (keep / only the links the company sends / no portal at all): „2“. Before, `/portal/login` was public: anyone typing an address that is a customer's contact e-mail got a 30-day link to that customer's invoices by mail, without the company doing anything (`POST /customer-portal/request-session`).

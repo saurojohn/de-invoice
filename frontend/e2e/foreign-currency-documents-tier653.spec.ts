@@ -56,15 +56,16 @@ test("USD on the invoice page, in the list, on the reminders page and in the sta
   // the invoice page
   await page.goto(`/dashboard/invoices/${usd.id}`)
   await expect(page.getByTestId("invoice-rate-note")).toBeVisible({ timeout: 90_000 })
-  await expect(page.getByText("2380.00 USD").first()).toBeVisible()
-  await expect(page.getByText("€2380.00")).toHaveCount(0)
-  await expect(page.getByText("€2000.00")).toHaveCount(0)
+  // (Tier 704: amounts as a German page writes them — 2.380,00 USD, 1.190,00 €)
+  await expect(page.getByText("2.380,00 USD").first()).toBeVisible()
+  await expect(page.getByText("2.380,00 €")).toHaveCount(0)
+  await expect(page.getByText("2.000,00 €")).toHaveCount(0)
 
   // the list
   await page.goto("/dashboard/invoices")
-  await expect(page.getByText("2380.00 USD")).toBeVisible({ timeout: 90_000 })
-  await expect(page.getByText("€1190.00")).toBeVisible()
-  await expect(page.getByText("€2380.00")).toHaveCount(0)
+  await expect(page.getByText("2.380,00 USD")).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText("1.190,00 €")).toBeVisible()
+  await expect(page.getByText("2.380,00 €")).toHaveCount(0)
 
   // the reminders page: each invoice in its own currency, the sum in euros
   await page.goto("/dashboard/reminders")

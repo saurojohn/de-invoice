@@ -480,7 +480,7 @@ function PortalPageInner() {
               {data.customer.vatId && (
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">
-                    {t("portal.profileVatIdLabel") || "USt-IDNr."}
+                    {t("portal.profileVatIdLabel") || "USt-IdNr."}
                   </p>
                   <p className="text-gray-900 dark:text-gray-100 mt-0.5 font-mono">
                     {data.customer.vatId}
@@ -556,7 +556,7 @@ function PortalPageInner() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium mb-1">
-                    {t("portal.profileVatIdLabel") || "USt-IDNr."}
+                    {t("portal.profileVatIdLabel") || "USt-IdNr."}
                   </label>
                   <input
                     type="text"

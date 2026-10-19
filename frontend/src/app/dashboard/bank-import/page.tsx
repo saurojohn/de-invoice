@@ -1,5 +1,6 @@
 "use client"
 
+import { formatMoney } from "@/lib/money"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -1341,7 +1342,7 @@ export default function BankImportPage() {
                               : "text-green-700 dark:text-green-300")
                           }
                         >
-                          {parseFloat(t.amount).toFixed(2)} €
+                          {formatMoney(t.amount)}
                         </td>
                       </tr>
                     ),
