@@ -53,7 +53,9 @@ AS POST "/api/v1/expenses?companyId=$C" '{"description":"eigene","invoiceNumber"
 note "=== 1. the bulk download ==="
 curl -sS -o "$D/a.zip" -X POST "$API/api/v1/invoices/bulk-download?companyId=$C" -H "x-user-id: $U" -H "x-company-id: $C" -H "Content-Type: application/json" -d '{"invoiceIds":["'$IA'","'$IB'"]}'
 MAN=$(python3 -c "import zipfile,sys;z=zipfile.ZipFile(sys.argv[1]);print(z.read('_manifest.txt').decode());print('FILES',[n for n in z.namelist() if not n.startswith('_')])" "$D/a.zip" 2>/dev/null)
-assert_eq "the manifest does not name A's invoice, its amount or its customer (was: all three)" "$(echo "$MAN" | grep -c "$NA.*4711\|Geheimkunde\|5606")" "0"
+# (without the tag: it is a millisecond timestamp, in B's customer name too,
+# and held "5606" by chance in CI run 39272624280)
+assert_eq "the manifest does not name A's invoice, its amount or its customer (was: all three)" "$(echo "$MAN" | sed "s/$TAG//g" | grep -c "$NA.*4711\|Geheimkunde\|5606")" "0"
 assert_eq "…it still lists B's own invoice" "$(echo "$MAN" | grep -c "B-Kunde")" "1"
 assert_eq "…and the archive holds B's document only" "$(echo "$MAN" | grep -c "FILES \['[^,]*'\]")" "1"
 

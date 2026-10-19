@@ -2681,7 +2681,7 @@ And the manual / bulk pipeline itself: the letter sent never showed the **Verzug
 
 Spec `426-tier702-automatische-mahnung.sh` (7 checks fail on the code before).
 
-Tier 702b: CI run 39267518990 — backend 425 / 0 / 1, **Playwright 2 failed**: `mahnung-fees-preview-tier164.spec.ts` expects the shared company's fees at their defaults (0 / 5 / 10) and found 7,50 € — saved earlier by `dunning-config-tier123.spec.ts` through the settings card, which since this tier writes the one fee configuration (before, the card's fees went to `settings.dunning`, which nothing else read). That spec now puts the defaults back in an `afterAll`. Not runnable locally (it names :3001 without `E2E_API_URL`).
+Tier 702b: CI run 39267518990 — backend 425 / 0 / 1, **Playwright 2 failed**: `mahnung-fees-preview-tier164.spec.ts` expects the shared company's fees at their defaults (0 / 5 / 10) and found 7,50 € — saved earlier by `dunning-config-tier123.spec.ts` through the settings card, which since this tier writes the one fee configuration (before, the card's fees went to `settings.dunning`, which nothing else read). That spec now puts the defaults back in an `afterAll`. Not runnable locally (it names :3001 without `E2E_API_URL`). Tier 702c: run 39272624280 — Playwright 1 071 / 0, **backend 1 failed**: spec 355 grepped the bulk-download manifest for A's amount „5606“; B's customer name carries the spec's tag, a millisecond timestamp, which held „5606“ by chance. The tag is removed before the match.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 701 — the payment link says what is left to pay, and when nothing is
 
