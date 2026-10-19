@@ -132,7 +132,9 @@ assert_eq "the credit note by e-mail names the invoice (as before, now as an e-i
 AS POST "/api/v1/mail/emails/$SEND/resend?companyId=$C" '{}'
 attachment "$CNNR.pdf" "$WORK/cn-resend.pdf"
 assert_eq "sent again, it does too" "$STATUS $(doc "$WORK/cn-resend.pdf" "$DOWNNR")" "201 einvoice +"
-curl -sS -o /dev/null -X POST "$API/api/v1/customer-portal/request-session?email=$KMAIL"
+# Tier 703: the company sends the portal link (a customer can no longer ask for one)
+kid=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select id from \"Customer\" where \"companyId\"='$C' and contact->>'email'='$KMAIL' limit 1")
+AS POST "/api/v1/customer-portal/admin/create-session?companyId=$C" "{\"customerId\":\"$kid\"}"
 TOKEN=$(python3 - "$BOX" <<'PY'
 import email, os, re, sys
 files = sorted(os.listdir(sys.argv[1]))

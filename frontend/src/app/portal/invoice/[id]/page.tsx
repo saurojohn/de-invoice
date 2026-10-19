@@ -190,7 +190,7 @@ function PortalInvoiceDetailInner() {
             className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md px-4 py-2 text-sm"
             data-testid="portal-back-to-list"
           >
-            {t("portal.requestNew") || "Neuen Login-Link anfordern"}
+            {t("portal.requestNew")}
           </button>
         </div>
       </main>

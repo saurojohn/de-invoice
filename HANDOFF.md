@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 703 — a customer no longer asks for a portal link; the company sends it
+
+The owner, 19.10.2026, asked what the customer portal is („客户应该不能登陆我们的发票系统“), and chose option 2 of three (keep / only the links the company sends / no portal at all): „2“. Before, `/portal/login` was public: anyone typing an address that is a customer's contact e-mail got a 30-day link to that customer's invoices by mail, without the company doing anything (`POST /customer-portal/request-session`).
+
+- `POST /customer-portal/request-session` answers 403 („Einen Zugang zum Kundenportal erhalten Sie von Ihrem Rechnungssteller per Link …“). The route stays public, so an old page or a bookmark gets the explanation, not a 404 (spec 176's list unchanged).
+- The company's ways stay: the customer page's „Portal-Login senden“ (`admin/create-session`, same mail, same rate limit per address) and the payment link of one invoice.
+- `/portal/login` is a notice now (`portal-login-closed`), where an expired or invalid link leads; the e-mail form and its texts are gone (de/en/zh), „Neuen Login-Link anfordern“ became „Hinweise zum Zugang“.
+- Specs: 148 and 338 check the refusal; 148, 407, 408, 409 take the session the company's way. Playwright 131 / 133 / 155 take it through `e2e/fixtures/portal-token.ts` (the admin link carries the token — no reading of `/tmp/backend.log`), and read `E2E_API_URL` now, so they run locally; 133 opens an issued invoice (`status=sent` — the newest of its customer can be a draft other specs left, which the portal rightly does not show).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 702 — the automatic Mahnung is the Mahnung the company would send by hand
 
 The daily run (09:00, and „Jetzt ausführen“ = `POST /reminders/auto-run`) wrote its letter with code of its own. Measured with the test mailbox, on a 1 190 € invoice overdue since 15.08.2026 with 500 € paid:

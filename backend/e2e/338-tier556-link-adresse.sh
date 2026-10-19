@@ -29,6 +29,7 @@ assert_eq "nor a forged Host" "$(grep -c "evil" <<<"$(json_field "$R" url)")" "0
 assert_eq "the link is on a configured address" "$(python3 -c "import sys;u=sys.argv[1];print(any(u.startswith(o.strip().rstrip('/')+'/portal?token=') for o in sys.argv[2].split(',')))" "$URL" "${FRONTEND_URL:-http://localhost:3000,http://localhost:3100}")" "True"
 R=$(session -H "X-Forwarded-Host: localhost:3100" -H "X-Forwarded-Proto: http")
 assert_eq "a configured address in the request is kept (the frontend's proxy)" "$(json_field "$R" url | cut -d/ -f1-3)" "http://localhost:3100"
-assert_eq "the public route still answers" "$(curl -sS -m 30 -X POST "$API/api/v1/customer-portal/request-session" -H "Content-Type: application/json" -H "X-Forwarded-Host: evil.example" -d "{\"email\":\"$TAG@example.test\"}")" '{"sent":true}'
+# Tier 703: the public route sends no link at all any more
+assert_eq "the public route sends no link" "$(curl -sS -m 30 -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/customer-portal/request-session" -H "Content-Type: application/json" -H "X-Forwarded-Host: evil.example" -d "{\"email\":\"$TAG@example.test\"}")" "403"
 curl -sS -o /dev/null -X DELETE "$API/api/v1/customers/$K?companyId=$COMPANY_ID" "${H[@]}"
 summary

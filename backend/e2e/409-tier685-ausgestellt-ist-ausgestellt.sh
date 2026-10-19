@@ -107,7 +107,9 @@ assert_eq "e-mailed again (was: new)" "$STATUS $(where "$WORK/resend.pdf")" "201
 AS POST "/api/v1/invoices/$INV/send-email?companyId=$C" '{}'
 attachment "$NUM.pdf" "$WORK/again.pdf"
 assert_eq "sent once more from the invoice (was: new)" "$STATUS $(where "$WORK/again.pdf")" "201 $W"
-curl -sS -o /dev/null -X POST "$API/api/v1/customer-portal/request-session?email=$KMAIL"
+# Tier 703: the company sends the portal link (a customer can no longer ask for one)
+kid=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select id from \"Customer\" where \"companyId\"='$C' and contact->>'email'='$KMAIL' limit 1")
+AS POST "/api/v1/customer-portal/admin/create-session?companyId=$C" "{\"customerId\":\"$kid\"}"
 TOKEN=$(python3 - "$BOX" <<'PY'
 import email, os, re, sys
 files = sorted(os.listdir(sys.argv[1]))

@@ -22,9 +22,10 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
 import { PG_CONTAINER } from './fixtures/test-env'
+import { portalTokenFor } from './fixtures/portal-token'
 
 const CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
-const API = 'http://localhost:3001'
+const API = process.env.E2E_API_URL || 'http://localhost:3001'
 
 // The portal request-session endpoint is rate-limited
 // to 5 requests per 5 min per email. We have ~10
@@ -60,20 +61,11 @@ function ensureCustomer() {
 }
 
 async function getToken(): Promise<string> {
-  const ctx = await playwrightRequest.newContext()
-  const res = await ctx.post(
-    `${API}/api/v1/customer-portal/request-session?email=${encodeURIComponent(TEST_EMAIL)}`,
-  )
-  expect(res.status()).toBe(201)
-  await ctx.dispose()
-  // Read the latest token from the backend log
-  const fs = await import('fs/promises')
-  const log = await fs.readFile('/tmp/backend.log', 'utf-8')
-  const lines = log.split('\n').filter((l) => l.includes('portal session created'))
-  const last = lines[lines.length - 1] || ''
-  const m = last.match(/token=([0-9a-f]{64})/)
-  expect(m, 'expected to find a portal session token in /tmp/backend.log').toBeTruthy()
-  return m![1]
+  // Tier 703: the company's link (a customer no longer asks for one)
+  const { status, token } = await portalTokenFor(API, CUSTOMER_ID)
+  expect(status).toBe(201)
+  expect(token, 'expected a portal token in the admin link').toMatch(/^[0-9a-f]{64}$/)
+  return token
 }
 
 async function getProfile(token: string) {

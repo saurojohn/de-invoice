@@ -112,7 +112,9 @@ outlets() {
   attachment "$num.pdf" "$WORK/$l-mail.pdf"
   AS POST "/api/v1/mail/emails/$sendId/resend?companyId=$C" '{}'
   attachment "$num.pdf" "$WORK/$l-resend.pdf"
-  curl -sS -o /dev/null -X POST "$API/api/v1/customer-portal/request-session?email=$mail"
+  # Tier 703: the company sends the portal link (a customer can no longer ask for one)
+  local kid; kid=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select id from \"Customer\" where \"companyId\"='$C' and contact->>'email'='$mail' limit 1")
+  AS POST "/api/v1/customer-portal/admin/create-session?companyId=$C" "{\"customerId\":\"$kid\"}"
   local token; token=$(python3 - "$BOX" <<'PY'
 import email, os, re, sys
 files = sorted(os.listdir(sys.argv[1]))

@@ -3,8 +3,9 @@
  *
  * New flow (replaces the single-invoice /portal/:token):
  *
- *   1. Customer opens the public portal page
- *      (/portal/login) and types their email.
+ *   1. The company sends the customer a link (customer page →
+ *      `admin/create-session`). Tier 703: a customer can no longer ask for
+ *      one by typing an e-mail address on /portal/login (the owner's choice).
  *   2. requestSession(email) — looks up the
  *      Customer by contact.email, generates a
  *      long-lived session token (30d, sliding),

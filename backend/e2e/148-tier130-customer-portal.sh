@@ -3,7 +3,8 @@
 # Tier 130 — customer portal (multi-invoice login)
 #
 # Tests the new /api/v1/customer-portal/* endpoints:
-#   - request-session (rate-limited, no customer-leak)
+#   - request-session: refused since Tier 703 (the company sends the link)
+#   - admin/create-session (rate-limited per e-mail)
 #   - getCustomerInvoices (token-auth, sliding expiry)
 #   - getInvoice (token + customer-scoped)
 #   - getInvoicePdf (token + customer-scoped)
@@ -38,13 +39,19 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc \
 # Equality is symmetric, but a passing check printed "✗ true expected=
 # request-session returns sent=true" — label and value swapped.
 echo "=== Step 1: request session ==="
-RESP=$(curl -sS -X POST "$API/api/v1/customer-portal/request-session?email=$EMAIL")
-assert_eq "request-session returns sent=true" "$(echo "$RESP" | jq -r '.sent')" "true"
-
-# Extract the token from the backend log
-sleep 1
-TOKEN=$(tail -100 /tmp/backend.log | grep "portal session created" | tail -1 | sed -n 's/.*token=\([0-9a-f]\{64\}\).*/\1/p')
-[ -n "$TOKEN" ] || { fail "no session token found in backend log"; exit 1; }
+# Tier 703: a customer no longer asks for a link with an e-mail address
+HTTP_CODE=$(curl -sS -o /tmp/t130-req.json -w "%{http_code}" -X POST "$API/api/v1/customer-portal/request-session?email=$EMAIL")
+assert_eq "request-session is refused (was: 201, a 30-day link to any address on file)" "$HTTP_CODE" "403"
+grep -q "Rechnungssteller" /tmp/t130-req.json && pass "…saying the link comes from the issuer" || fail "message: $(cat /tmp/t130-req.json)"
+# the company sends it
+admin_session() {
+  curl -sS -X POST "$API/api/v1/customer-portal/admin/create-session?companyId=$COMPANY_ID" \
+    -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" \
+    -d "{\"customerId\":\"$CUSTOMER_ID\"}"
+}
+RESP=$(admin_session)
+TOKEN=$(echo "$RESP" | jq -r '.url' | sed -n 's/.*token=\([0-9a-f]\{64\}\).*/\1/p')
+[ -n "$TOKEN" ] || { fail "no session token in the admin's link: $RESP"; exit 1; }
 echo "  token = ${TOKEN:0:16}..."
 
 echo ""
@@ -97,13 +104,14 @@ HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
 assert_eq "bad token returns 401" "$HTTP_CODE" "401"
 
 echo ""
-echo "=== Step 7: rate-limit per email (6th request in 5min = 400) ==="
+echo "=== Step 7: rate-limit per email (more than 5 links in 5min = 400) ==="
 for i in 1 2 3 4 5; do
-  curl -sS -X POST "$API/api/v1/customer-portal/request-session?email=$EMAIL" >/dev/null
+  admin_session >/dev/null
 done
-# The 6th should be rate-limited
-HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/customer-portal/request-session?email=$EMAIL")
-assert_eq "6th request in 5min returns 400 (rate-limited)" "$HTTP_CODE" "400"
+# beyond five (the first one above counts) the mail is not sent again
+HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/customer-portal/admin/create-session?companyId=$COMPANY_ID" \
+  -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" -H "Content-Type: application/json" -d "{\"customerId\":\"$CUSTOMER_ID\"}")
+assert_eq "a 7th link in 5min returns 400 (rate-limited)" "$HTTP_CODE" "400"
 
 echo ""
 echo ""

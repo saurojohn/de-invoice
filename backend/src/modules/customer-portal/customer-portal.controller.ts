@@ -35,6 +35,7 @@
  */
 import {
   BadRequestException,
+  ForbiddenException,
   Body,
   Controller,
   Get,
@@ -67,20 +68,17 @@ export class CustomerPortalController {
   ) {}
   @Public()
 
+  // Tier 703: the owner, 19.10.2026 („2“): a customer does not ask for a
+  // portal link with an e-mail address any more — the company sends it
+  // (customer page, `admin/create-session`) or a payment link for one invoice.
+  // This answered every address on file with a 30-day link, without the
+  // company knowing. The route stays public so the old login page and a
+  // bookmarked request get the explanation instead of a 404.
   @Post('request-session')
-  async requestSession(
-    @Req() req: Request,
-    @Query('email') email?: string,
-  ) {
-    if (!email && req.body && typeof req.body === 'object' && (req.body as any).email) {
-      email = (req.body as any).email
-    }
-    if (!email || typeof email !== 'string') {
-      throw new BadRequestException('email is required')
-    }
-    const origin = this.originFromRequest(req)
-    const ip = this.ipFromRequest(req)
-    return this.svc.requestSession(email, origin, ip)
+  requestSession(): never {
+    throw new ForbiddenException(
+      'Einen Zugang zum Kundenportal erhalten Sie von Ihrem Rechnungssteller per Link — er kann hier nicht angefordert werden.',
+    )
   }
   @Public()
 
@@ -279,11 +277,5 @@ export class CustomerPortalController {
 
   private originFromRequest(req: Request): string {
     return publicOrigin(req as any) // Tier 556: a configured address, never the request's word for it
-  }
-
-  private ipFromRequest(req: Request): string | undefined {
-    const fwd = req.headers['x-forwarded-for'] as string
-    if (fwd) return fwd.split(',')[0].trim()
-    return (req as any).ip || (req.socket as any)?.remoteAddress
   }
 }

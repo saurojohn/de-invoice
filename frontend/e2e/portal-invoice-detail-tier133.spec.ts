@@ -19,6 +19,7 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { execSync } from 'child_process'
 import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
+import { portalTokenFor } from './fixtures/portal-token'
 
 // Use the portal-test customer seeded by
 // ci-seed.sh (id aabbccdd-1337-1337-1337-...,
@@ -33,7 +34,7 @@ import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 // endpoint can resolve).
 const TEST_EMAIL = `tier133-customer+${Date.now()}-${process.pid}@example.com`
 const TEST_CUSTOMER_ID = 'aabbccdd-1337-1337-1337-000000000001'
-const API = 'http://localhost:3001'
+const API = process.env.E2E_API_URL || 'http://localhost:3001'
 
 test.describe('Tier 133 — Portal invoice detail', () => {
   const { userId: USER_ID, companyId: COMPANY_ID } = getTestEnv()
@@ -74,28 +75,12 @@ test.describe('Tier 133 — Portal invoice detail', () => {
   })
 
   async function getTokenForCustomer(): Promise<{ token: string; customerId: string; invoiceId: string }> {
-    // Request a session via the public endpoint.
-    // The endpoint is rate-limited (5/5min per email) —
-    // previous spec runs may have used the budget; tolerate
-    // the 400 and skip the dependent tests in that case.
-    const ctx = await playwrightRequest.newContext()
-    const res = await ctx.post(`${API}/api/v1/customer-portal/request-session?email=${encodeURIComponent(TEST_EMAIL)}`)
-    if (res.status() !== 201) {
-      // Throttled or rate-limited — bail out of the
-      // dependent test by returning empty token/invoiceId;
-      // the test's expects() will then fail with a useful
-      // message rather than throwing on a backend call.
-      await ctx.dispose()
-      return { token: '', customerId: '', invoiceId: '' }
-    }
-    // Read the latest token from the backend log
-    const fs = await import('fs/promises')
-    const log = await fs.readFile('/tmp/backend.log', 'utf-8')
-    const lines = log.split('\n').filter((l) => l.includes('portal session created'))
-    const last = lines[lines.length - 1] || ''
-    const m = last.match(/token=([0-9a-f]{64})/)
-    const token = m ? m[1] : ''
-    await ctx.dispose()
+    // Tier 703: the company's link (a customer no longer asks for one). The
+    // link is rate-limited per e-mail (5 / 5 min) — beforeAll gives the
+    // customer a per-run address; a refusal leaves the token empty and the
+    // test's expects() say so.
+    const { status, token: sent } = await portalTokenFor(API, TEST_CUSTOMER_ID)
+    const token = status === 201 ? sent : ''
     // Find an invoice for the test customer
     const adminCtx = await playwrightRequest.newContext({
       extraHTTPHeaders: {
@@ -104,7 +89,8 @@ test.describe('Tier 133 — Portal invoice detail', () => {
       },
     })
     const invoicesRes = await adminCtx.get(
-      `${API}/api/v1/invoices?companyId=${COMPANY_ID}&customerId=${TEST_CUSTOMER_ID}&pageSize=1`,
+      // an issued one: the portal shows no draft (Tier 496), and other specs leave drafts for this customer
+      `${API}/api/v1/invoices?companyId=${COMPANY_ID}&customerId=${TEST_CUSTOMER_ID}&status=sent&pageSize=1`,
     )
     const data = await invoicesRes.json()
     const customerId = TEST_CUSTOMER_ID
