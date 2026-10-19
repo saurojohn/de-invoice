@@ -2662,6 +2662,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 700 — a SEPA direct debit collects what is open
+
+The direct-debit batch (pain.008, `direct-debit.service.ts`) took each invoice's **total**. Measured: an invoice of 1 190 € with a 119 € credit note and one of 1 190 € with a 500 € part payment — both listed as 1 190 € and debited 1 190 € each in the generated XML (619 € too much from the customer's account; CtrlSum 3 570 € for 2 951 € open); an invoice in USD went into the file with `Ccy="USD"`, which no bank takes (SEPA is euros only).
+
+- `openToCollect(inv)`: the total less the payments booked on it (a credit note's „Gutschrift“ payment among them), in cents. `GET /payments/direct-debit/open` carries it as `openAmount` (and `currency`) and leaves out an invoice with nothing open; the batch debits it per transaction, in CtrlSum / totalAmount and in each `SepaDirectDebitCollection.amount`.
+- A batch refuses an invoice in another currency („zieht nur Euro ein“) and one with nothing open.
+- The page shows the amount collected, with „offen von 1.190,00 €“ under it where it differs (`directDebit.openOfTotal`, de/en/zh); the selection's sum is the open amounts.
+- Not changed: a batch already generated is a file the company has handed to its bank; a Storno afterwards does not withdraw it (the bank does).
+
+Spec `424-tier700-lastschrift-offener-betrag.sh` (7 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 699 — a Ratenplan follows the credit notes of its invoice
 
 The Raten of a plan follow the invoice's payments (Tier 429, `syncInstallments`), the „Gutschrift“ payment of a credit note among them — the module says so. But that payment is written by the credit-note code (`createCreditNoteLocked` / `settleIssuedCreditNote`), not through `PaymentService`, and the plan was never synchronised. Measured: a 1 190 € invoice on three Raten of 396,66 €, cancelled by its Storno credit note (Tier 694) — the plan stayed „active“ with three open Raten, and the dunning pause it had set stayed on.

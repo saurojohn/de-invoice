@@ -38,6 +38,12 @@ import { PrismaService } from '../../prisma/prisma.service'
  *     generation (the user prints / emails the
  *     mandate text themselves)
  */
+/** Tier 700: the invoice's open amount in cents-exact euros — what a direct debit collects */
+function openToCollect(inv: { total: unknown; payments: Array<{ amount: unknown }> }): number {
+  const paid = inv.payments.reduce((sum, p) => sum + Math.round(Number(p.amount ?? 0) * 100), 0)
+  return Math.max(0, Math.round(Number(inv.total) * 100) - paid) / 100
+}
+
 @Injectable()
 export class DirectDebitService {
   constructor(private prisma: PrismaService) {}
@@ -187,6 +193,7 @@ export class DirectDebitService {
         collectedBySepaBatchId: null,
       },
       include: {
+        payments: { select: { amount: true } }, // Tier 700
         customer: {
           include: {
             sepaDirectDebitMandates: {
@@ -204,7 +211,7 @@ export class DirectDebitService {
     // mandate is filtered out — they need a mandate
     // signed first.
     return invoices
-      .filter((inv) => inv.customer.sepaDirectDebitMandates.length > 0)
+      .filter((inv) => inv.customer.sepaDirectDebitMandates.length > 0 && openToCollect(inv) > 0)
       .map((inv) => ({
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
@@ -214,6 +221,9 @@ export class DirectDebitService {
         issueDate: inv.issueDate,
         dueDate: inv.dueDate,
         total: Number(inv.total),
+        // Tier 700: what is collected — the total less what was paid or credited
+        openAmount: openToCollect(inv),
+        currency: inv.currency,
         status: inv.status,
         mandateId: inv.customer.sepaDirectDebitMandates[0].id,
         mandateReference: inv.customer.sepaDirectDebitMandates[0].mandateReference,
@@ -297,7 +307,7 @@ export class DirectDebitService {
         status: { in: ['sent', 'overdue'] },
         collectedBySepaBatchId: null,
       },
-      include: { customer: true },
+      include: { customer: true, payments: { select: { amount: true } } }, // Tier 700
     })
     if (invoices.length === 0) {
       throw new BadRequestException(
@@ -310,6 +320,20 @@ export class DirectDebitService {
       throw new BadRequestException(
         `Folgende Rechnungen sind nicht offen / nicht im Besitz dieser Firma: ${missing.join(', ')}`,
       )
+    }
+
+    // Tier 700: a direct debit collects what is open — the total less the
+    // payments booked on the invoice, a credit note's „Gutschrift“ payment
+    // among them. It collected the total: an invoice of 1 190 € with a
+    // 119 € credit note (or a 500 € part payment) was debited 1 190 € from
+    // the customer's account. SEPA is in euros (pain.008 Ccy EUR).
+    for (const inv of invoices) {
+      if (String(inv.currency || 'EUR').toUpperCase() !== 'EUR') {
+        throw new BadRequestException(`Rechnung ${inv.invoiceNumber} ist in ${inv.currency} — eine SEPA-Lastschrift zieht nur Euro ein.`)
+      }
+      if (openToCollect(inv) <= 0) {
+        throw new BadRequestException(`Rechnung ${inv.invoiceNumber} hat keinen offenen Betrag mehr (bezahlt oder gutgeschrieben).`)
+      }
     }
 
     // Load the mandates and verify they're active + belong
@@ -358,7 +382,7 @@ export class DirectDebitService {
 
     // Build the pain.008 XML.
     const totalAmount = invMandatePairs.reduce(
-      (s, p) => s.plus(p.inv.total),
+      (s, p) => s.plus(openToCollect(p.inv)),
       new Prisma.Decimal(0),
     ).toNumber()
     const xml = this.buildPain008Xml({
@@ -375,7 +399,7 @@ export class DirectDebitService {
         collectionId: `C-${inv.id}`,
         endToEndId: `E2E-${inv.id}`,
         invoiceNumber: inv.invoiceNumber,
-        amount: Number(inv.total),
+        amount: openToCollect(inv),
         currency: inv.currency,
         debitorIban: mandate.iban,
         debitorBic: mandate.bic || undefined,
@@ -425,7 +449,7 @@ export class DirectDebitService {
           batchId: batch.id,
           mandateId: mandate.id,
           invoiceId: inv.id,
-          amount: inv.total,
+          amount: openToCollect(inv),
           preNotificationSentAt: new Date(),
           preNotificationDeadline: preNotifDeadline,
           status: 'pre_notified',

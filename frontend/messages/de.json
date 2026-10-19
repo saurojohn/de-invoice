@@ -3449,7 +3449,8 @@
       "batchCreateError": "Batch konnte nicht erzeugt werden",
       "selectCustomer": "Bitte einen Kunden auswählen",
       "invalidIban": "IBAN muss mit 2 Großbuchstaben + 2 Ziffern beginnen (z.B. DE89…)"
-    }
+    },
+    "openOfTotal": "offen von {total} €"
   },
   "anlageSo": {
     "title": "Anlage SO (Sonstige Einkünfte)",

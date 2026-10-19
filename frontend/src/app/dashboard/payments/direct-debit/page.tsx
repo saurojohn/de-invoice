@@ -121,6 +121,8 @@ interface OpenInvoice {
   issueDate: string
   dueDate: string
   total: number
+  // Tier 700: what the debit collects — the total less payments and credit notes
+  openAmount?: number
   status: string
   mandateId: string
   mandateReference: string
@@ -236,7 +238,7 @@ export default function DirectDebitPage() {
     () =>
       openInvoices
         .filter((e) => selected.has(e.id))
-        .reduce((sum, e) => sum + Number(e.total || 0), 0),
+        .reduce((sum, e) => sum + Number(e.openAmount ?? e.total ?? 0), 0),
     [openInvoices, selected],
   )
 
@@ -864,8 +866,13 @@ export default function DirectDebitPage() {
                           <td className="py-2 pr-3 whitespace-nowrap">
                             {fmtDateDE(inv.dueDate)}
                           </td>
-                          <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">
-                            {fmtMoney(inv.total)} €
+                          <td className="py-2 pr-3 text-right font-mono whitespace-nowrap" data-testid="direct-debit-amount">
+                            {fmtMoney(inv.openAmount ?? inv.total)} €
+                            {inv.openAmount != null && Math.abs(inv.openAmount - inv.total) > 0.005 && (
+                              <span className="block text-xs text-gray-500 dark:text-gray-400">
+                                {t("directDebit.openOfTotal", { total: fmtMoney(inv.total) })}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">
                             {inv.mandateReference}

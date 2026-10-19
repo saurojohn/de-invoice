@@ -3449,7 +3449,8 @@
       "batchCreateError": "批次创建失败",
       "selectCustomer": "请选择一位客户",
       "invalidIban": "IBAN 必须以 2 个大写字母 + 2 位数字开头（如 DE89…）"
-    }
+    },
+    "openOfTotal": "总额 {total} € 中的未付部分"
   },
   "anlageSo": {
     "title": "Anlage SO（其他收入）",

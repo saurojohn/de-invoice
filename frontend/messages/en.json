@@ -3449,7 +3449,8 @@
       "batchCreateError": "Could not create batch",
       "selectCustomer": "Please select a customer",
       "invalidIban": "IBAN must start with 2 uppercase letters + 2 digits (e.g. DE89…)"
-    }
+    },
+    "openOfTotal": "open of {total} €"
   },
   "anlageSo": {
     "title": "Anlage SO (Other Income)",
