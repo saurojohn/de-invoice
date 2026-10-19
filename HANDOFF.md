@@ -2662,6 +2662,19 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 695 — a credit note states what it corrects
+
+The owner, 19.10.2026: „继续找发票方面还要提升的“. Measured on the Storno credit note of Tier 694 (a June invoice over 10 Std, supplied 28.05.2026, credited 19.10.2026):
+
+- **The units:** the full credit note wrote every line as „Stück“ — „10,00 Stück“ for 10 hours. It keeps the invoice's unit now.
+- **The date of supply:** the credit note had none — the PDF showed no Leistungsdatum (Tier 492 shows a set one only on a credit note), and XRechnung / ZUGFeRD fall back to the issue date: InvoicePeriod 19.10.2026 for a service of May. A credit note made from an invoice now takes its Leistungszeitraum, or its Leistungsdatum, or — none recorded — its issue date, which the invoice itself states as the Leistungsdatum. The returns go by the issue date (nothing reads `deliveryDate` there), so the correction stays in its own month (§ 17 UStG).
+- **The reference:** „Bezug zu Rechnung: INV-…“ — and now „Rechnung vom: 01.06.2026“ under it (§ 31 Abs. 5 UStDV: a specific, unambiguous reference). The XML already carried the date (BillingReference).
+- **The account:** the credit note showed the company's account under „Zahlungsinformationen“, as if the customer were to pay; it is „Bankverbindung“ on a credit note.
+
+Credit notes issued before this tier keep their kept copy (Tier 685). Spec `419-tier695-gutschrift-nennt-was-sie-korrigiert.sh` (10 checks fail on the code before).
+
+**Open, for the owner:** the title „GUTSCHRIFT“. In the UStG a „Gutschrift“ is the self-billing document of the recipient (§ 14 Abs. 2 S. 2); a seller's correction so named is not objected to (BMF 25.10.2013) but is commonly titled „Rechnungskorrektur“ or, over the full amount, „Stornorechnung“.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 694 — an issued invoice is cancelled by a Storno credit note
 
 The owner, 17.10.2026, on the point left open since Tier 685: „要改“. Measured: an issued 1 190 € invoice of June, set to „Storniert“ on the invoice page in October — 200; it left the **June** UStVA (190 € output tax gone from a return that may be filed), October showed nothing, and the customer kept a document stating 190 € tax and received none correcting it. The issuer owes that tax until the recipient has the correction (§ 14c UStG); the correction belongs to the month of the cancellation (§ 17 UStG).

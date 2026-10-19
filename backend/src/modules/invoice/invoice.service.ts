@@ -2072,6 +2072,7 @@ export class InvoiceService {
       quantity: number
       unitPrice: number
       vatRate: number
+      unit?: string
     }>
     let cnDiscount: { discountPercent?: number; discountAmount?: number } = {}
     const refundByAmount = (gross: number) => {
@@ -2127,6 +2128,7 @@ export class InvoiceService {
         quantity: Number(it.quantity),
         unitPrice: -Number(it.unitPrice),
         vatRate: Number(it.vatRate ?? 0.19),
+        unit: it.unit || undefined, // Tier 695: 10 Std came back as 10 Stück
       }))
       // Tier 416: the full refund mirrors the original including its
       // discount. Without it a 1 071 € invoice (1 000 − 10 %) was refunded
@@ -2218,6 +2220,16 @@ export class InvoiceService {
           costCenter: original.costCenter,
           costObject: original.costObject,
           referenceInvoiceId: original.id,
+          // Tier 695: a credit note corrects the supply of its invoice — the
+          // Leistungsdatum (or -zeitraum) is the invoice's. It had none: the
+          // PDF showed no date of supply, XRechnung and ZUGFeRD stated the
+          // credit note's own day as the period of the service. The invoice
+          // itself states its issue date when none was recorded (Tier 492).
+          // The returns go by the issue date, so the correction stays in the
+          // month it is made (§ 17 UStG).
+          ...(original.servicePeriodStart && original.servicePeriodEnd
+            ? { servicePeriodStart: original.servicePeriodStart, servicePeriodEnd: original.servicePeriodEnd }
+            : { deliveryDate: original.deliveryDate ?? original.issueDate }),
           // The CN's own notes line carries the
           // reason (or a default "Gutschrift zu
           // <original.invoiceNumber>").
@@ -2234,7 +2246,7 @@ export class InvoiceService {
             create: cnLines.map((l, i) => ({
               description: l.description,
               quantity: l.quantity,
-              unit: 'Stück',
+              unit: l.unit || 'Stück',
               unitPrice: l.unitPrice,
               vatRate: l.vatRate,
               netAmount: amounts.lines[i].net,

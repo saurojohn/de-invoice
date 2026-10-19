@@ -54,7 +54,7 @@ interface Invoice {
   // "Gutschrift zu <original>".
   type?: string
   referenceInvoiceId?: string | null
-  referenceInvoice?: { invoiceNumber: string } | null
+  referenceInvoice?: { invoiceNumber: string; issueDate?: Date | string | null } | null
   // Tier 472: a final invoice deducts the advance paid on its Proforma
   // (advanceDeductionFor in modules/invoice/advance.ts).
   advanceDeduction?: {
@@ -547,9 +547,16 @@ export async function generateInvoicePDF(
       doc.text("Steuernummer:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }
+    // Tier 695: the invoice corrected is named by its number and its date
+    // (§ 31 Abs. 5 UStDV: a specific and unambiguous reference)
+    const corrected = (invoice as any).type === "CN" && (invoice as any).referenceInvoiceId ? (invoice as any).referenceInvoice : null
     if ((invoice as any).type === "CN" && (invoice as any).referenceInvoiceId) {
       doc.text("Bezug zu Rechnung:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
+      if (corrected?.issueDate) {
+        doc.text("Rechnung vom:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+        detailsRow++
+      }
     }
 
     detailsRow = 0
@@ -581,6 +588,10 @@ export async function generateInvoicePDF(
       const refNumber = ref?.invoiceNumber || "—"
       doc.text(refNumber, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
       detailsRow++
+      if (corrected?.issueDate) {
+        doc.text(formatDate(corrected.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+        detailsRow++
+      }
     }
 
     // Items table Y — follow the larger of (a) customer block end
@@ -1016,7 +1027,9 @@ export async function generateInvoicePDF(
     }
 
     if (company.bankInfo && typeof company.bankInfo === 'object') {
-      doc.text("Zahlungsinformationen:", leftMargin, footerY, { lineBreak: false })
+      // Tier 695: a credit note asks for no payment — the account is the
+      // company's, not an instruction to pay
+      doc.text(docType === "CN" ? "Bankverbindung:" : "Zahlungsinformationen:", leftMargin, footerY, { lineBreak: false })
       if (company.bankInfo.bankName) doc.text(`Bank: ${company.bankInfo.bankName}`, leftMargin, footerY + 12, { lineBreak: false })
       if (company.bankInfo.iban) doc.text(`IBAN: ${company.bankInfo.iban}`, leftMargin, footerY + 24, { lineBreak: false })
       if (company.bankInfo.bic) doc.text(`BIC: ${company.bankInfo.bic}`, leftMargin, footerY + 36, { lineBreak: false })
