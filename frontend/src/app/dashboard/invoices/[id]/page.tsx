@@ -2628,7 +2628,7 @@ export default function InvoiceDetailPage() {
                     step="0.01"
                     value={payForm.amount}
                     onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
-                    placeholder={outstanding > 0 ? `Offen: ${outstanding.toFixed(2)}` : "0.00"}
+                    placeholder={outstanding > 0 ? `Offen: ${money(outstanding)}` : "0,00"}
                   />
                 </div>
                 {invoice.currency && invoice.currency !== "EUR" && (
@@ -2758,15 +2758,11 @@ export default function InvoiceDetailPage() {
               <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
                 {(
                   t("invoice.ratensplanSuggestDesc") ||
-                  "Diese Rechnung über {amount} liegt über dem Schwellenwert von {threshold} EUR. Sie können dem Kunden einen Ratenplan anbieten."
+                  "Diese Rechnung über {amount} liegt über dem Schwellenwert von {threshold}. Sie können dem Kunden einen Ratenplan anbieten."
                 )
-                  .replace(
-                    "{amount}",
-                    Number(invoice?.total || 0).toFixed(2) +
-                      " " +
-                      (invoice?.currency || "EUR"),
-                  )
-                  .replace("{threshold}", ratensplanSuggestion.threshold)}
+                  // Tier 704: 535,50 € — it said "535.50 EUR"
+                  .replace("{amount}", money(invoice?.total || 0))
+                  .replace("{threshold}", formatMoney(ratensplanSuggestion.threshold))}
               </p>
             </div>
             <Button

@@ -1308,7 +1308,7 @@
     "costCenter": "Cost center (DATEV)",
     "costObject": "Cost object (DATEV)",
     "ratensplanSuggestTitle": "Offer installment plan?",
-    "ratensplanSuggestDesc": "This invoice for {amount} is above the {threshold} EUR threshold. You can offer the customer an installment plan — reminders will be auto-paused.",
+    "ratensplanSuggestDesc": "This invoice for {amount} is above the {threshold} threshold. You can offer the customer an installment plan — reminders will be auto-paused.",
     "ratensplanSuggestButton": "Create installment plan",
     "ratensplanModalTitle": "Create installment plan from invoice",
     "ratensplanModalSubtitle": "The customer's reminders are auto-paused while the plan runs.",

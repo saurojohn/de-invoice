@@ -1308,7 +1308,7 @@
     "costCenter": "Kostenstelle (DATEV)",
     "costObject": "Kostenträger (DATEV)",
     "ratensplanSuggestTitle": "Ratenplan anbieten?",
-    "ratensplanSuggestDesc": "Diese Rechnung über {amount} liegt über dem Schwellenwert von {threshold} EUR. Sie können dem Kunden einen Ratenplan anbieten — die Mahnung wird automatisch pausiert.",
+    "ratensplanSuggestDesc": "Diese Rechnung über {amount} liegt über dem Schwellenwert von {threshold}. Sie können dem Kunden einen Ratenplan anbieten — die Mahnung wird automatisch pausiert.",
     "ratensplanSuggestButton": "Ratenplan erstellen",
     "ratensplanModalTitle": "Ratenplan aus Rechnung erstellen",
     "ratensplanModalSubtitle": "Die Mahnung für diesen Kunden wird automatisch pausiert, solange der Ratenplan läuft.",

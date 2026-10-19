@@ -70,6 +70,7 @@ test("dark mode, German: the VAT choice is readable, amounts and the USt-IdNr. a
     headers: H,
     data: { customerId: customer.id, issueDate: "2026-10-01", items: [{ description: "Montage", quantity: 1, unit: "Stk", unitPrice: 1000, vatRate: 0.19 }] },
   })).json()
+  expect((await request.put(`${API}/api/v1/invoices/${invoice.id}/status?companyId=${companyId}`, { headers: H, data: { status: "sent" } })).status()).toBe(200)
 
   await page.context().addCookies([
     { name: "x-user-id", value: userId, domain: "localhost", path: "/" },
@@ -108,4 +109,6 @@ test("dark mode, German: the VAT choice is readable, amounts and the USt-IdNr. a
   await expect(page.locator("body")).not.toContainText("UST-IDNr")
   await expect(page.locator("body")).toContainText("1.190,00 €")
   await expect(page.locator("body")).not.toContainText("€1000.00")
+  // the Ratenplan hint (was "über 1190.00 EUR … von 500 EUR")
+  await expect(page.getByTestId("ratensplan-suggest-banner")).toContainText("1.190,00 €", { timeout: 30_000 })
 })
