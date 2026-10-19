@@ -372,6 +372,9 @@ export class BulkReminderService {
       currency: fxOf(invoice as any).currency, // Tier 653
       // Tier 421: the open balance, and how the interest was computed.
       openAmount: Math.round((fees.totalDue - fees.mahngebuehr - fees.verzugszins) * 100) / 100,
+      // Tier 702: the interest the Mahnung row books — the letter sent showed
+      // the fee only (its total too), the copy re-rendered from the list both
+      verzugszins: fees.verzugszins,
       verzugszinsPct: fees.verzugszinsPct,
       basiszinssatz: fees.basiszinssatz,
       zinsaufschlag: fees.zinsaufschlag,

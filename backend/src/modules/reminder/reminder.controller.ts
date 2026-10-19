@@ -660,7 +660,17 @@ export class ReminderController {
     if (!company) {
       throw new NotFoundException('Company not found')
     }
-    return readDunningConfig(company.settings)
+    // Tier 702: the fees are the ones every Mahnung charges — the Mahnungen
+    // page's (bankInfo.mahnungConfig). This card kept its own, which only the
+    // automatic run read: the same company charged 7,50 € by hand and 5 € by
+    // the cron.
+    const fees = await this.reminderService.getFeeConfig(companyId)
+    return {
+      ...readDunningConfig(company.settings),
+      level1Fee: fees.mahngebuehr.first,
+      level2Fee: fees.mahngebuehr.second,
+      level3Fee: fees.mahngebuehr.final,
+    }
   }
 
   @Put('dunning-config')
@@ -694,6 +704,10 @@ export class ReminderController {
     await this.prisma.company.update({
       where: { id: companyId },
       data: { settings: newSettings },
+    })
+    // Tier 702: the fees go where every Mahnung reads them
+    await this.reminderService.setFeeConfig(companyId, {
+      mahngebuehr: { first: body.level1Fee, second: body.level2Fee, final: body.level3Fee },
     })
     // Return the saved config (in case the DTO
     // mutated any value via the validator).

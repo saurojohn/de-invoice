@@ -44,26 +44,14 @@ import { Cron } from "@nestjs/schedule"
 import { PrismaService } from "../../prisma/prisma.service"
 import { MailService } from "../mail/mail.service"
 import { ReminderService } from "./reminder.service"
-import { readDunningConfig, fxOf } from "./reminder.service"
+import { BulkReminderService } from "./bulk-reminder.service"
+import { readDunningConfig } from "./reminder.service"
 // Tier 119: every cron tick records to the shared
 // CronHealthService for the admin dashboard.
 import { CronHealthService } from "../admin/cron-health.service"
-import {
-  generateMahnungPDF,
-  computeNeueFrist,
-} from "./mahnung-pdf.service"
 import { countWerktage } from "./werktage"
+import { businessDayIso, businessTodayIso } from "../../common/business-date"
 import { ErrorTrackingService } from "../system/error-tracking.service"
-
-const BANK_LINE = (bank: any): string => {
-  if (!bank) return ""
-  const parts: string[] = []
-  if (bank.accountHolder) parts.push(bank.accountHolder)
-  if (bank.iban) parts.push(`IBAN: ${bank.iban}`)
-  if (bank.bic) parts.push(`BIC: ${bank.bic}`)
-  if (bank.bankName) parts.push(`bei ${bank.bankName}`)
-  return parts.join(", ")
-}
 
 @Injectable()
 export class AutoReminderService {
@@ -73,6 +61,8 @@ export class AutoReminderService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly reminders: ReminderService,
+    // Tier 702: the per-invoice pipeline of the manual and the bulk send
+    private readonly bulk: BulkReminderService,
     private readonly errors: ErrorTrackingService,
     // Tier 119: record every cron tick to the shared
     // health table so the admin dashboard can see
@@ -187,6 +177,22 @@ export class AutoReminderService {
         //   2+ prior        → final
         const level = this.reminders.getNextReminderLevel(inv.reminderCount)
         if (!level) continue
+        // Tier 702: the next level waits for the deadline the previous letter
+        // set („neue Frist“). The thresholds count from the due date, so an
+        // invoice overdue for weeks got the Zahlungserinnerung, the Mahnung
+        // and the letzte Mahnung on three days running — each letter naming a
+        // deadline the next one did not wait for.
+        const previous = await this.prisma.mahnung.findFirst({
+          where: { companyId, invoiceId: inv.id, cancelledAt: null },
+          orderBy: { sentAt: "desc" },
+          select: { neueFrist: true },
+        })
+        if (previous && businessDayIso(previous.neueFrist) >= businessTodayIso()) {
+          this.logger.debug(
+            `[AUTO-REMINDER] ${inv.invoiceNumber}: the deadline of the last letter (${businessDayIso(previous.neueFrist)}) is still running`,
+          )
+          continue
+        }
 
         // 3d: idempotency — don't send if a Mahnung for
         // THIS invoice at THIS level was already sent
@@ -231,104 +237,22 @@ export class AutoReminderService {
             : dunningConfig.level3Days
         if (werktageOverdue < minOverdue) continue
 
-        // Tier 123: late fee from the dunning config.
-        // Per-level — typically 0/5/10 EUR for the
-        // default config. The Mahnung PDF renders the
-        // fee under the overdue-amount table.
-        // Tier 653: set in euros, demanded in the invoice's currency
-        const fx = fxOf(inv as any)
-        const mahngebuehr =
-          Math.round(
-            (level === "first"
-              ? dunningConfig.level1Fee
-              : level === "second"
-              ? dunningConfig.level2Fee
-              : dunningConfig.level3Fee) * fx.rate * 100,
-          ) / 100
-
-        // 3c: generate Mahnung PDF and prepare the email.
-        const neueFrist = computeNeueFrist(today, level)
-        const total = Number(inv.total) || 0
-        const bankLine = BANK_LINE(company.bankInfo)
-        const pdfBuffer = await generateMahnungPDF({
-          level,
-          invoiceNumber: inv.invoiceNumber,
-          invoiceDate: new Date(inv.issueDate),
-          dueDate,
-          totalAmount: total,
-          currency: fx.currency,
-          mahngebuehr,
-          customer: inv.customer,
-          company: {
-            name: company.name,
-            legalName: company.legalName,
-            address: company.address as any,
-            email: company.email,
-            phone: company.phone,
-            bankInfo: company.bankInfo,
-            taxId: company.taxId,
-            vatId: company.vatId,
-            logoPath: company.logoPath,
-          },
-          daysOverdue: inv.daysOverdue,
-          werktageOverdue,
-          neueFrist: neueFrist.toISOString(),
-          bankLine,
-          // Tier 40: pass cost-center stamps through. Both
-          // are optional — the PDF generator skips the
-          // section when both are empty.
-          costCenter: inv.costCenter ?? null,
-          costObject: inv.costObject ?? null,
-          // Tier 55: pass Skonto stamps for the
-          // "Skonto-Fenster abgelaufen" note.
-          skontoPercent: inv.skontoPercent != null
-            ? Number(inv.skontoPercent)
-            : null,
-          skontoDays: inv.skontoDays ?? null,
-        })
-
-        // Render the email subject + body using the
-        // same template pipeline the manual send uses.
-        // renderForInvoice takes (invoiceId, companyId, level),
-        // NOT the full invoice object — common footgun.
-        const rendered = await this.reminders.renderForInvoice(
-          inv.id,
-          companyId,
-          level,
-        )
-        const subject = rendered.subject
-        const bodyText = rendered.body
-
-        // Send the email with the PDF attached.
-        await this.mail.send(companyId, {
-          to: customerEmail,
-          subject,
-          text: bodyText,
-          attachments: [
-            {
-              filename: `${LEVEL_TITLE_FILENAME[level]}-${inv.invoiceNumber}.pdf`,
-              content: pdfBuffer,
-              contentType: "application/pdf",
-            },
-          ],
-        })
-
-        // Record the EmailSend row (same path the
-        // manual /reminders/send route uses, so the
-        // dashboard shows the send and reminderCount
-        // increments).
-        await this.reminders.recordReminderSend(
-          companyId,
-          inv.id,
-          customerEmail,
-          inv.customer.contact?.name || inv.customer.name,
-          subject,
-          bodyText,
-          level,
-          // createdById: null for cron-triggered sends
-          undefined,
-        )
-
+        // Tier 702: the letter goes through the pipeline of the manual and the
+        // bulk send (BulkReminderService) — the cron had its own. Measured, on
+        // a 1 190 € invoice with 500 € paid: the automatic letter demanded
+        // 1 190 € (the manual one 690 € — Tier 421), charged no Verzugszinsen,
+        // took its fee from another setting (Company.settings.dunning, the
+        // manual one from the Mahnungen page), and wrote no Mahnung row, so
+        // the dunning list, the fees booked and the "no lower level after a
+        // higher one" rule (Tier 526) never saw it. The pipeline also keeps
+        // the pauses and the Ratenplan hold as the manual send does.
+        const result = await this.bulk.sendSingle(companyId, inv.id, level)
+        if (!result.ok || result.status === "skipped") {
+          this.logger.debug(
+            `[AUTO-REMINDER] ${inv.invoiceNumber}/${level}: not sent — ${result.error ?? result.status}`,
+          )
+          continue
+        }
         sent += 1
         this.logger.log(
           `[AUTO-REMINDER] sent ${level} to ${inv.invoiceNumber} (${inv.daysOverdue}d / ${werktageOverdue}W overdue)`,
@@ -353,8 +277,3 @@ export class AutoReminderService {
   }
 }
 
-const LEVEL_TITLE_FILENAME: Record<"first" | "second" | "final", string> = {
-  first: "Zahlungserinnerung",
-  second: "Mahnung",
-  final: "Letzte-Mahnung",
-}

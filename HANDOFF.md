@@ -2662,6 +2662,25 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 702 — the automatic Mahnung is the Mahnung the company would send by hand
+
+The daily run (09:00, and „Jetzt ausführen“ = `POST /reminders/auto-run`) wrote its letter with code of its own. Measured with the test mailbox, on a 1 190 € invoice overdue since 15.08.2026 with 500 € paid:
+
+- it demanded **1 190 €** — the manual letter 690 € (Tier 421); no Verzugszinsen;
+- its fee came from Einstellungen → Mahnwesen (`Company.settings.dunning.levelNFee`), the manual letter's from Mahnungen → Einstellungen (`bankInfo.mahnungConfig`): two pages, two fees for the same letter;
+- it wrote **no Mahnung row** — the dunning list, the fees booked and the „no lower level after a higher one“ rule (Tier 526) never saw it;
+- a second run the same day sent the next level at once: the levels' thresholds count Werktage from the due date, so an invoice overdue for weeks got Zahlungserinnerung, Mahnung and letzte Mahnung on three days running, each naming a deadline the next did not wait for.
+
+And the manual / bulk pipeline itself: the letter sent never showed the **Verzugszinsen** the Mahnung row books (not passed to the PDF; its total left them out); the copy re-rendered from the list had them.
+
+**Now:**
+- `runForCompany` picks invoice and level as before and hands each to `BulkReminderService.sendSingle` — the pipeline of the manual and the bulk send (open amount, interest, fee, pauses, Ratenplan hold, level order, Mahnung row, EmailSend). Its own PDF / mail code is gone.
+- The next level waits until the deadline of the last letter (`Mahnung.neueFrist`, German day) has passed.
+- `GET /reminders/dunning-config` returns the fees of the fee configuration; `PUT` writes them there too (and keeps the days in `settings.dunning`) — both pages show and set the same fees.
+- The letter sent carries `verzugszins` (line and total).
+
+Spec `426-tier702-automatische-mahnung.sh` (7 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 701 — the payment link says what is left to pay, and when nothing is
 
 The public page of a payment link (`/pay/<token>`) showed the invoice's **total** and the button „Zahlung melden“ whatever had happened to the invoice. Measured: a 1 190 € invoice with a 500 € part payment — the page said 1 190 € (the report itself took the open 690 €, Tier 430); a paid invoice and one cancelled by its Storno credit note — the button was offered; an invoice cancelled by its status (data before Tier 694) took a payment report — 201, a notice of 1 190 €.

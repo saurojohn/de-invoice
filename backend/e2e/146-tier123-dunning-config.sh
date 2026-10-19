@@ -47,6 +47,12 @@ note "initial: $INITIAL_CONFIG"
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = settings - 'dunning' WHERE id='$COMPANY_ID';" >/dev/null 2>&1
 pass "wiped dunning key from Company.settings"
+# Tier 702: the fees shown are the fee configuration's (bankInfo.mahnungConfig,
+# the Mahnungen page) — kept and wiped as well, put back at the end
+INITIAL_FEES=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc \
+  "SELECT coalesce(\"bankInfo\"->'mahnungConfig', 'null'::jsonb) FROM \"Company\" WHERE id='$COMPANY_ID';")
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
+  "UPDATE \"Company\" SET \"bankInfo\" = \"bankInfo\" - 'mahnungConfig' WHERE id='$COMPANY_ID' AND \"bankInfo\" IS NOT NULL;" >/dev/null 2>&1
 
 # ───── 1. GET returns German Mittelstand defaults ─────
 note "=== 1. GET with no dunning key → defaults ==="
@@ -118,6 +124,13 @@ echo "$ERR" | grep -q "must not be less than 0" && pass "error message mentions 
 note "=== 5. Restore initial config ==="
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Company\" SET settings = settings || jsonb_build_object('dunning', ($INITIAL_CONFIG::jsonb)) WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+if [[ "$INITIAL_FEES" == "null" || -z "$INITIAL_FEES" ]]; then
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
+    "UPDATE \"Company\" SET \"bankInfo\" = \"bankInfo\" - 'mahnungConfig' WHERE id='$COMPANY_ID' AND \"bankInfo\" IS NOT NULL;" >/dev/null 2>&1
+else
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
+    "UPDATE \"Company\" SET \"bankInfo\" = coalesce(\"bankInfo\", '{}'::jsonb) || jsonb_build_object('mahnungConfig', '$INITIAL_FEES'::jsonb) WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+fi
 pass "restored initial dunning config"
 
 rm -f /tmp/t146-bad.json /tmp/t146-negfee.json
