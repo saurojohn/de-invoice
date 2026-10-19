@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 707 — a recurring invoice made as a draft is not sent
+
+Walk, Wiederkehrende Rechnungen → Neue Vorlage: the form started with „Rechnungs-Status: Entwurf“ (the invoices are drafts, to be looked at before they go out) **and** „Rechnung nach Generierung an Kunden senden“ ticked. Measured with the test mailbox: a template with these defaults, „Jetzt generieren“ — the invoice was **issued** („sent“: sending a draft issues it, Tier 495) and in the customer's mailbox. The draft setting did nothing.
+
+- `RecurringService.isDraft`: a generated invoice that is a draft is not e-mailed — after the 06:00 run and after „Jetzt generieren“ (`emailGeneratedInvoice`); the log says why.
+- A new template's `sendEmail` defaults to on only when its invoices are issued directly (`invoiceStatus: 'sent'`); one of drafts sends nothing.
+- The form: the box starts unticked; ticking it makes the invoices „Versendet“, choosing „Entwurf“ unticks it (its title says so, `recurring.sendEmailIssues`, de/en/zh). An existing template of drafts with the box on shows it off.
+- Specs: `428-tier707-entwurf-wird-nicht-gesendet.sh` (4 checks fail on the code before); 35 expected `sendEmail` true by default for a template of drafts; Playwright `recurring-email-tier129` expected the box ticked by default — both follow, and the latter reads `E2E_API_URL` now.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 706 — the customer cards say what is so
 
 Further on in the walk (Kundenverwaltung, 1024 px, dark mode):

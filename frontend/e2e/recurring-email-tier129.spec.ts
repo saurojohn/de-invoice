@@ -12,6 +12,8 @@
  * must be reachable at /dashboard/recurring-invoices.
  */
 import { test, expect } from '@playwright/test'
+
+const API = process.env.E2E_API_URL || 'http://localhost:3001'
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
@@ -29,7 +31,10 @@ test.describe('Tier 129 — Recurring invoice auto-email', () => {
     }, { userId: USER_ID, companyId: COMPANY_ID })
   })
 
-  test('recurring form shows the sendEmail checkbox, default checked', async ({ page }) => {
+  // Tier 707: a new template makes drafts and sends nothing — a draft is looked
+  // at first (the run sent the draft, which issued it). Ticking "senden"
+  // makes the invoices "Versendet"; choosing "Entwurf" unticks it.
+  test('recurring form shows the sendEmail checkbox: off with Entwurf, on makes Versendet', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/dashboard/recurring-invoices')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
@@ -37,9 +42,13 @@ test.describe('Tier 129 — Recurring invoice auto-email', () => {
     await page.getByRole('button', { name: /Neu|New|新建/ }).first().click()
     const checkbox = page.getByTestId('recurring-form-send-email')
     await expect(checkbox).toBeVisible({ timeout: 10_000 })
-    // Default checked — the user opted into recurring,
-    // they want the email by default
-    await expect(checkbox).toBeChecked()
+    const status = page.getByTestId('recurring-form-invoice-status')
+    await expect(status).toHaveValue('draft')
+    await expect(checkbox).not.toBeChecked()
+    await checkbox.check()
+    await expect(status).toHaveValue('sent')
+    await status.selectOption('draft')
+    await expect(checkbox).not.toBeChecked()
   })
 
   test('unchecking the checkbox persists sendEmail=false on save', async ({ page, request }) => {
@@ -61,6 +70,7 @@ test.describe('Tier 129 — Recurring invoice auto-email', () => {
     await page.getByTestId('recurring-item-description').first().fill('Tier 365 Wartung')
     await page.getByTestId('recurring-item-unit-price').first().fill('100')
     const checkbox = page.getByTestId('recurring-form-send-email')
+    await checkbox.check()
     await expect(checkbox).toBeChecked()
     await checkbox.uncheck()
     await expect(checkbox).not.toBeChecked()
@@ -74,14 +84,14 @@ test.describe('Tier 129 — Recurring invoice auto-email', () => {
     const tpl = await res.json()
     try {
       const get = await request.get(
-        `http://localhost:3001/api/v1/recurring-invoices/${tpl.id}?companyId=${COMPANY_ID}`,
+        `${API}/api/v1/recurring-invoices/${tpl.id}?companyId=${COMPANY_ID}`,
         { headers },
       )
       expect(get.status()).toBe(200)
       expect((await get.json()).sendEmail, 'sendEmail stored for the new template').toBe(false)
     } finally {
       await request.delete(
-        `http://localhost:3001/api/v1/recurring-invoices/${tpl.id}?companyId=${COMPANY_ID}`,
+        `${API}/api/v1/recurring-invoices/${tpl.id}?companyId=${COMPANY_ID}`,
         { headers },
       )
     }

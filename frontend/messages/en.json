@@ -1560,6 +1560,7 @@
     "servicePeriod_none": "None (date of supply = issue date)",
     "invoiceStatus": "Invoice status",
     "sendEmail": "Email invoice to customer after generation",
+    "sendEmailIssues": "Invoices that are sent are issued (\"Sent\"); a draft is not sent but checked by you first.",
     "emailPreview": "Email preview",
     "emailPreviewTitle": "Email preview",
     "emailPreviewDesc": "This is what the automatic email will look like. Values are samples (invoice number, due date).",

@@ -1560,6 +1560,7 @@
     "servicePeriod_none": "Keiner (Leistungsdatum = Rechnungsdatum)",
     "invoiceStatus": "Rechnungs-Status",
     "sendEmail": "Rechnung nach Generierung an Kunden senden",
+    "sendEmailIssues": "Gesendete Rechnungen werden ausgestellt („Versendet“); ein Entwurf wird nicht gesendet, sondern zuerst von Ihnen geprüft.",
     "emailPreview": "Email-Vorschau",
     "emailPreviewTitle": "Email-Vorschau",
     "emailPreviewDesc": "So sieht die automatische Email aus. Werte sind Beispieldaten (Rechnungsnummer, Fälligkeit).",

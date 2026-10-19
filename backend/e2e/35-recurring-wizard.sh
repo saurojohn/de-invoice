@@ -30,7 +30,8 @@ NAME=$(echo "$BODY" | python3 -c "import json,sys; print(json.load(sys.stdin)['n
 assert_eq "1b. name persisted" "$NAME" "E2E Wartung 2026"
 # Tier 365: sendEmail was never written by create()/update(); the column's
 # default stood. Without a value in the body it must still default to true.
-assert_eq "1c. sendEmail defaults to true" "$(json_field "$BODY" sendEmail)" "True"
+# Tier 707: a template of drafts sends nothing by default (a sent draft is issued)
+assert_eq "1c. sendEmail defaults to false for a template of drafts" "$(json_field "$BODY" sendEmail)" "False"
 
 # ===== 2. List =====
 api_get "/api/v1/recurring-invoices?companyId=$COMPANY_ID"

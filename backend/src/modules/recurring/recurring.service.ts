@@ -368,7 +368,9 @@ export class RecurringService {
         notes: input.notes ?? null,
         invoiceStatus: input.invoiceStatus ?? 'draft',
         servicePeriod: input.servicePeriod ?? 'none',
-        sendEmail: input.sendEmail ?? true,
+        // Tier 707: a template whose invoices are drafts (the default) sends
+        // nothing by itself — the draft is there to be looked at first
+        sendEmail: input.sendEmail ?? ((input.invoiceStatus ?? 'draft') === 'sent'),
         // Tier 153: time-bounded pause. NULL by
         // default — the UI uses a separate "Pause
         // bis" modal to set this.
@@ -1266,7 +1268,7 @@ export class RecurringService {
           where: { id: t.id },
           select: { sendEmail: true, language: true },
         })
-        if (tpl?.sendEmail) {
+        if (tpl?.sendEmail && !(await this.isDraft(r.invoiceId))) {
           try {
             const emailResult = await this.invoiceEmailService.sendInvoiceByEmail(
               r.invoiceId,
@@ -1332,6 +1334,22 @@ export class RecurringService {
    * already created, a failed email is a notification
    * issue, not a generation issue.
    */
+  /**
+   * Tier 707: a template set to "Entwurf" makes drafts — to be looked at and
+   * sent by hand. With "Rechnung nach Generierung an Kunden senden" (on by
+   * default) the run e-mailed the draft, and sending issues a draft (Tier
+   * 495): measured, „Jetzt generieren“ on a template with the defaults gave
+   * an issued invoice in the customer's mailbox. A draft is not sent.
+   */
+  private async isDraft(invoiceId: string): Promise<boolean> {
+    const inv = await this.prisma.invoice.findUnique({ where: { id: invoiceId }, select: { status: true } })
+    if (inv?.status === 'draft') {
+      this.logger.log(`recurring: invoice ${invoiceId} is a draft — not e-mailed (template set to "Entwurf")`)
+      return true
+    }
+    return false
+  }
+
   async emailGeneratedInvoice(
     templateId: string,
     companyId: string,
@@ -1342,6 +1360,7 @@ export class RecurringService {
       select: { sendEmail: true, language: true },
     })
     if (!tpl?.sendEmail) return
+    if (await this.isDraft(invoiceId)) return // Tier 707
 
     try {
       const result = await this.invoiceEmailService.sendInvoiceByEmail(

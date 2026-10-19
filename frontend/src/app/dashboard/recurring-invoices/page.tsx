@@ -197,7 +197,8 @@ export default function RecurringInvoicesPage() {
   // for "internal review" templates where the
   // billing team wants to look at the generated
   // invoice before it goes out.
-  const [sendEmail, setSendEmail] = useState(true)
+  // Tier 707: off by default — a new template makes drafts (see below)
+  const [sendEmail, setSendEmail] = useState(false)
   const [items, setItems] = useState<RecurringItem[]>([
     { description: "", quantity: 1, unit: "Stück", unitPrice: 0, vatRate: 0.19 },
   ])
@@ -274,10 +275,10 @@ export default function RecurringInvoicesPage() {
     setEndDate("")
     setInvoiceStatus("draft")
     setServicePeriod("current")
-    // Tier 365: openEdit loads the template's sendEmail, so without this reset
-    // a new template opened after editing a "no e-mail" one would silently
-    // start unchecked. (It never mattered before: the backend ignored the flag.)
-    setSendEmail(true)
+    // Tier 365: openEdit loads the template's sendEmail, so a new template
+    // resets it. Tier 707: to off — a new template makes drafts, and a draft
+    // is not sent (it was: the run sent and so issued it).
+    setSendEmail(false)
     setItems([{ description: "", quantity: 1, unit: "Stück", unitPrice: 0, vatRate: 0.19 }])
     setShowModal(true)
   }
@@ -298,7 +299,7 @@ export default function RecurringInvoicesPage() {
     // default to true (the safe default = "send the
     // email") so a fresh fetch on an old backend
     // doesn't silently disable notifications.
-    setSendEmail(tpl.sendEmail ?? true)
+    setSendEmail((tpl.sendEmail ?? true) && tpl.invoiceStatus === "sent") // Tier 707: a draft is not sent
     setItems(tpl.items.map((it) => ({
       description: it.description,
       productNumber: it.productNumber,
@@ -1075,8 +1076,14 @@ export default function RecurringInvoicesPage() {
                     </label>
                     <select
                       value={invoiceStatus}
-                      onChange={(e) => setInvoiceStatus(e.target.value as "draft" | "sent")}
+                      onChange={(e) => {
+                        const next = e.target.value as "draft" | "sent"
+                        setInvoiceStatus(next)
+                        // Tier 707: a draft is looked at first, not sent
+                        if (next === "draft") setSendEmail(false)
+                      }}
                       className="w-full border rounded px-3 py-2 text-sm"
+                      data-testid="recurring-form-invoice-status"
                     >
                       <option value="draft">{t("recurring.status_draft") || "Entwurf"}</option>
                       <option value="sent">{t("recurring.status_sent") || "Versendet"}</option>
@@ -1108,9 +1115,14 @@ export default function RecurringInvoicesPage() {
                       type="checkbox"
                       id="recurring-send-email"
                       checked={sendEmail}
-                      onChange={(e) => setSendEmail(e.target.checked)}
+                      onChange={(e) => {
+                        setSendEmail(e.target.checked)
+                        // Tier 707: what is sent is issued — the invoices are made as "Versendet"
+                        if (e.target.checked) setInvoiceStatus("sent")
+                      }}
                       className="mr-2"
                       data-testid="recurring-form-send-email"
+                      title={t("recurring.sendEmailIssues")}
                     />
                     <label
                       htmlFor="recurring-send-email"
