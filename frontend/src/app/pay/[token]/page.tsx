@@ -41,6 +41,9 @@ interface PortalView {
     subtotal: string
     totalVat: string
     total: string
+    // Tier 701: what is still to pay; 'paid' / 'cancelled' when nothing is
+    openAmount?: string
+    settled?: "paid" | "cancelled" | null
     status: string
     customerName: string
     language: string
@@ -116,6 +119,9 @@ const LABEL: Record<string, Record<string, string>> = {
     markPaid: "Zahlung melden",
     marked: "✓ Vielen Dank! Ihre Zahlungsmeldung ist eingegangen — wir bestätigen den Eingang, sobald das Geld da ist.",
     paidAmount: "Gemeldeter Betrag",
+    openAmount: "Offener Betrag", // i18n-ok: this page's own de/en/zh map
+    settledPaid: "Diese Rechnung ist bezahlt — es ist nichts mehr zu zahlen.", // i18n-ok: this page's own de/en/zh map
+    settledCancelled: "Diese Rechnung wurde storniert — es ist nichts zu zahlen.", // i18n-ok: this page's own de/en/zh map
     linkExpires: "Dieser Link ist gültig bis",
     expired: "Dieser Link ist abgelaufen.",
     invalid: "Dieser Link ist nicht (mehr) gültig.",
@@ -140,6 +146,9 @@ const LABEL: Record<string, Record<string, string>> = {
     markPaid: "Report payment",
     marked: "✓ Thank you! We have received your payment report and will confirm once the money arrives.",
     paidAmount: "Reported amount",
+    openAmount: "Amount due",
+    settledPaid: "This invoice is paid — nothing is left to pay.",
+    settledCancelled: "This invoice was cancelled — there is nothing to pay.",
     linkExpires: "This link is valid until",
     expired: "This link has expired.",
     invalid: "This link is no longer valid.",
@@ -164,6 +173,9 @@ const LABEL: Record<string, Record<string, string>> = {
     markPaid: "报告付款",
     marked: "✓ 感谢！我们已收到您的付款报告，款项到账后会确认。",
     paidAmount: "报告金额",
+    openAmount: "待付金额",
+    settledPaid: "此发票已付清，无需再付款。",
+    settledCancelled: "此发票已作废，无需付款。",
     linkExpires: "本链接有效期至",
     expired: "本链接已过期。",
     invalid: "本链接已失效。",
@@ -381,6 +393,15 @@ export default function PayByTokenPage() {
                 {formatMoney(invoice.total, invoice.currency, supportedLang)}
               </div>
             </div>
+            {/* Tier 701: part paid or part credited — what is left */}
+            {!invoice.settled && invoice.openAmount != null && Math.abs(Number(invoice.openAmount) - Number(invoice.total)) > 0.005 && (
+              <div>
+                <div className="text-gray-500">{labels.openAmount}</div>
+                <div className="text-2xl font-semibold" data-testid="pay-open">
+                  {formatMoney(invoice.openAmount, invoice.currency, supportedLang)}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Items */}
@@ -434,7 +455,14 @@ export default function PayByTokenPage() {
 
           {/* Mark as paid or already-paid confirmation */}
           <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-            {markResult ? (
+            {invoice.settled ? (
+              <div
+                className="p-3 bg-gray-50 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 rounded text-sm"
+                data-testid="pay-settled"
+              >
+                {invoice.settled === "cancelled" ? labels.settledCancelled : labels.settledPaid}
+              </div>
+            ) : markResult ? (
               <div
                 className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 rounded text-sm"
                 data-testid="pay-marked"

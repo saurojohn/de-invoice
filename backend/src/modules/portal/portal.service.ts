@@ -31,8 +31,22 @@ import { isNonFiscal } from '../invoice/document-scope'
 import { randomBytes } from 'crypto'
 import { PrismaService } from '../../prisma/prisma.service'
 import { recordPaymentNotice } from '../invoice/payment-notice'
+import { coversWhole, CREDITING } from '../invoice/stock' // Tier 701
 
 const DEFAULT_EXPIRY_DAYS = 30
+
+/** Tier 701: the total less what was paid or credited, in euros to the cent */
+function openOf(inv: { total: unknown; payments: { amount: unknown }[] }): number {
+  const paid = inv.payments.reduce((sum, p) => sum + Math.round(Number(p.amount ?? 0) * 100), 0)
+  return Math.max(0, Math.round(Number(inv.total) * 100) - paid) / 100
+}
+
+/** Tier 701: 'cancelled' (by status or by its Storno credit note), 'paid', or null while open */
+function settledAs(inv: { status: string; type: string; total: unknown; payments: { amount: unknown }[]; creditNotes: { total: unknown }[] }): 'paid' | 'cancelled' | null {
+  if (inv.status === 'cancelled' || coversWhole(inv, inv.creditNotes)) return 'cancelled'
+  if (inv.status === 'paid' || openOf(inv) <= 0) return 'paid'
+  return null
+}
 
 @Injectable()
 export class PortalService {
@@ -151,6 +165,8 @@ export class PortalService {
         invoice: {
           include: {
             items: { orderBy: { sortOrder: 'asc' } },
+            payments: { select: { amount: true } }, // Tier 701
+            creditNotes: { where: CREDITING, select: { total: true } },
           },
         },
       },
@@ -191,6 +207,11 @@ export class PortalService {
         subtotal: link.invoice.subtotal.toString(),
         totalVat: link.invoice.totalVat.toString(),
         total: link.invoice.total.toString(),
+        // Tier 701: what is still to pay, and whether nothing is — the page
+        // showed the total of a part-paid invoice, and of a paid or
+        // cancelled one, with the button to report a payment
+        openAmount: openOf(link.invoice).toFixed(2),
+        settled: settledAs(link.invoice),
         status: link.invoice.status,
         customerName: link.invoice.customerName,
         language: link.invoice.language,
@@ -256,10 +277,15 @@ export class PortalService {
     // the customer's click alone.
     const invoice = await this.prisma.invoice.findUnique({
       where: { id: link.invoiceId },
-      include: { payments: { select: { amount: true } } },
+      include: { payments: { select: { amount: true } }, creditNotes: { where: CREDITING, select: { total: true } } },
     })
     if (!invoice) throw new NotFoundException('Rechnung nicht gefunden')
-    if (invoice.status === 'paid') {
+    // Tier 701: a cancelled invoice takes no payment report (a legacy
+    // "cancelled" status, or a Storno by credit note)
+    if (settledAs(invoice) === 'cancelled') {
+      throw new BadRequestException('Diese Rechnung wurde storniert — es ist nichts zu zahlen.')
+    }
+    if (invoice.status === 'paid' || openOf(invoice) <= 0) {
       return {
         alreadyPaid: true,
         reported: false,

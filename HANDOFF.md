@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 701 — the payment link says what is left to pay, and when nothing is
+
+The public page of a payment link (`/pay/<token>`) showed the invoice's **total** and the button „Zahlung melden“ whatever had happened to the invoice. Measured: a 1 190 € invoice with a 500 € part payment — the page said 1 190 € (the report itself took the open 690 €, Tier 430); a paid invoice and one cancelled by its Storno credit note — the button was offered; an invoice cancelled by its status (data before Tier 694) took a payment report — 201, a notice of 1 190 €.
+
+- `GET /portal/<token>` carries `openAmount` (total less payments, credit notes among them) and `settled`: `cancelled` (status, or a Storno by credit note — `coversWhole`, Tier 696), `paid` (nothing open), or null.
+- `POST /portal/<token>/mark-paid` refuses a cancelled invoice (400, „storniert — es ist nichts zu zahlen“); one with nothing open answers `alreadyPaid` as a paid one did.
+- The page shows „Offener Betrag“ under the total where they differ (`pay-open`) and, when settled, says so instead of the button (`pay-settled`). Its texts are in the page's own de/en/zh map, marked `i18n-ok` for spec 391.
+
+Spec `425-tier701-zahlungslink-offen.sh` (8 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 700 — a SEPA direct debit collects what is open
 
 The direct-debit batch (pain.008, `direct-debit.service.ts`) took each invoice's **total**. Measured: an invoice of 1 190 € with a 119 € credit note and one of 1 190 € with a 500 € part payment — both listed as 1 190 € and debited 1 190 € each in the generated XML (619 € too much from the customer's account; CtrlSum 3 570 € for 2 951 € open); an invoice in USD went into the file with `Ccy="USD"`, which no bank takes (SEPA is euros only).
