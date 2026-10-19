@@ -97,6 +97,7 @@ interface InvoiceRow {
   total: number
   status: string
   type: string
+  fullyCredited?: boolean // Tier 698: cancelled by its credit notes (Tier 696)
 }
 
 interface InstallmentPlanRow {
@@ -1472,6 +1473,12 @@ export default function CustomerDetailPage() {
                             <td className="py-2 text-gray-600">{getTypeLabel(inv.type, t)}</td>
                             <td className="py-2 text-right font-mono">{fmtEur(inv.total)}</td>
                             <td className="py-2">
+                              {/* Tier 698: a Storno by credit note leaves the invoice "paid" (Tier 696) */}
+                              {inv.fullyCredited ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-700" data-testid="tab-invoices-credited">
+                                  {t("invoice.creditedFully")}
+                                </span>
+                              ) : (
                               <span
                                 className={
                                   "text-[10px] px-2 py-0.5 rounded font-medium " +
@@ -1486,6 +1493,7 @@ export default function CustomerDetailPage() {
                               >
                                 {getStatusLabel(inv.status, t)}
                               </span>
+                              )}
                             </td>
                           </tr>
                         ))}

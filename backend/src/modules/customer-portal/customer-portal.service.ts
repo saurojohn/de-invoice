@@ -82,6 +82,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 // lossless.
 import { MailService } from '../mail/mail.service';
 import { recordPaymentNotice } from '../invoice/payment-notice'
+import { coversWhole, CREDITING } from '../invoice/stock' // Tier 698
 
 /** Tier 662: an invoice's total less what was paid or credited on it. */
 const openOf = (inv: { total: unknown; payments: Array<{ amount: unknown }> }): number =>
@@ -139,6 +140,15 @@ export interface PortalCustomerSummary {
     expiresAt: string;
     lastUsedAt: string | null;
   };
+}
+
+/**
+ * Tier 698: an invoice cancelled by a Storno credit note (Tier 694) is
+ * settled by it — its status is "paid", and the customer's portal said
+ * "Bezahlt" for an invoice the customer never paid. It says "Storniert".
+ */
+function portalStatus(inv: { status: string; type: string; total: unknown; creditNotes: { total: unknown }[] }): string {
+  return coversWhole(inv, inv.creditNotes) ? 'cancelled' : inv.status
 }
 
 @Injectable()
@@ -344,6 +354,7 @@ export class CustomerPortalService {
           take: 1,
           select: { amount: true, reportedAt: true },
         },
+        creditNotes: { where: CREDITING, select: { total: true } }, // Tier 698
       },
     })
 
@@ -378,7 +389,7 @@ export class CustomerPortalService {
         total: inv.total.toString(),
         openAmount: openOf(inv).toString(),
         currency: String(inv.currency || 'EUR').toUpperCase(),
-        status: inv.status,
+        status: portalStatus(inv),
         type: inv.type,
         daysOverdue,
         paymentReported: inv.paymentNotices[0]
@@ -503,12 +514,14 @@ export class CustomerPortalService {
           orderBy: { reportedAt: 'desc' },
           select: { id: true, amount: true, reportedAt: true },
         },
+        creditNotes: { where: CREDITING, select: { total: true } }, // Tier 698
       },
     })
     if (!invoice) {
       throw new NotFoundException('Rechnung nicht gefunden')
     }
-    return invoice
+    const { creditNotes, ...shown } = invoice
+    return { ...shown, status: portalStatus({ ...invoice, creditNotes }) }
   }
 
   /**

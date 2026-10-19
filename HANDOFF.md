@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 698 — the customer portal shows a cancelled invoice as cancelled
+
+The same as Tier 696 for the customer: the portal showed the stored status, „Bezahlt“ for an invoice cancelled by its Storno credit note — one the customer never paid — next to the credit note. `portalStatus` (customer-portal.service.ts) reports `cancelled` („Storniert“) when issued credit notes cover the whole invoice (`coversWhole`, Tier 696), in the list and on the invoice's page; the page's select takes the credit notes for that and leaves them out of the answer (Tier 545: named fields only). A partial credit note changes nothing; the tiles were already right (credit notes are no payment, Tier 662).
+
+The customer's page in the dashboard (tab „Rechnungen“) labels such an invoice „Storniert (Gutschrift)“ too (`tab-invoices-credited`, from the list's `fullyCredited`).
+
+Spec `422-tier698-portal-storno.sh` (2 checks fail on the code before); `storno-credit-note-tier696.spec.ts` checks the customer's page as well (fails without the change).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 697 — an invoice e-mailed to the customer is no longer edited or deleted
 
 An issued invoice may be edited or deleted on its issue day (Tier 477: not once a payment or a credit note is booked on it); the edit drops the kept copy and the next way out makes a new one (Tier 497 / 684). Measured with the test mailbox: an invoice over 1 × 100 € issued and e-mailed, then edited the same day to 5 × 100 € — 200; PDF, XRechnung and archive showed the 595 € version, the customer held the 119 € one. Two documents under one number, and the one received gone from the archive (§ 147 AO, GoBD: kept unchanged). Deleting it the same day — 200 — left the customer an invoice that no longer existed; its tax is owed all the same (§ 14c UStG).

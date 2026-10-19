@@ -7,7 +7,8 @@
  * opens it. Tier 696: the invoice it cancels is settled by it — its status is
  * "paid", and the list and the page said "Bezahlt". They say "Storniert
  * (Gutschrift)" now; the credit note links its invoice and the invoice its
- * credit notes (neither page named the other).
+ * credit notes (neither page named the other). Tier 698: the customer's page
+ * lists it so too.
  */
 import { test, expect } from "@playwright/test"
 
@@ -78,4 +79,10 @@ test("Storniert: the credit note is made, opened and linked; the invoice is show
   await page.goto("/dashboard/invoices")
   const row = page.locator(`[data-testid="invoice-row"][data-invoice-number="${invoice.invoiceNumber}"]`)
   await expect(row.getByTestId("row-credited")).toBeVisible({ timeout: 60_000 })
+
+  // Tier 698: and the customer's page
+  await page.goto(`/dashboard/customers/${customer.id}`)
+  await page.getByTestId("tab-invoices").click({ timeout: 60_000 })
+  const customerRow = page.getByTestId("tab-invoices-row").filter({ hasText: invoice.invoiceNumber })
+  await expect(customerRow.getByTestId("tab-invoices-credited")).toBeVisible({ timeout: 30_000 })
 })
