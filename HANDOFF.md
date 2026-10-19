@@ -2662,6 +2662,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 696 — an invoice cancelled by its credit note is shown as cancelled; the two name each other
+
+Since Tier 694 an issued invoice is cancelled by a credit note over its full amount. The credit note settles it (a „Gutschrift“ payment), so its status is „paid“ — and the invoice list and page said **„Bezahlt“** for a cancelled invoice. Neither page named the other document: the credit note's page did not link its invoice, the invoice's page not its credit notes (only a payment row „CN CN-…“).
+
+- `stock.ts`: `CREDITING` (issued credit notes, not withdrawn) and `coversWhole(original, creditNotes)` — the rule `fullyCredited` (Tier 694: stock, hours) applies, now shared.
+- `GET /invoices` rows and `GET /invoices/:id` carry `fullyCredited`; the detail also `creditNotes` (id, number, date, total; by date).
+- The list shows „Storniert (Gutschrift)“ (`row-credited`) instead of „Bezahlt“; the page shows it in place of the status dropdown (`invoice-credited-fully` — nothing is left to change), and links: a credit note „Gutschrift zu INV-…“ (`credit-note-for`), an invoice each „Gutschrift CN-…“ (`credit-note-of`). de/en/zh.
+- The status stays „paid“ — the status filter „Bezahlt“ still finds such an invoice; the returns are unchanged.
+
+Spec `420-tier696-storno-sichtbar.sh` (7 checks fail on the code before) and `storno-credit-note-tier696.spec.ts` — the first Playwright test of Tier 694's „Storniert“ on the page: asked, the credit note made and opened, the links, the invoice and the list row (fails on the code before at the link).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 695 — a credit note states what it corrects
 
 The owner, 19.10.2026: „继续找发票方面还要提升的“. Measured on the Storno credit note of Tier 694 (a June invoice over 10 Std, supplied 28.05.2026, credited 19.10.2026):

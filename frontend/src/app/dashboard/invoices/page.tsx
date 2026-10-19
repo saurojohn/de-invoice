@@ -23,6 +23,7 @@ interface Invoice {
   status: string
   issueDate: string
   progress?: Record<string, string> // Tier 621
+  fullyCredited?: boolean // Tier 696: credit notes cover the whole invoice (a Storno)
 }
 
 function InvoicesPageInner() {
@@ -1240,9 +1241,17 @@ function InvoicesPageInner() {
                     </td>
                     <td className="px-4 py-3">{formatDateDE(invoice.issueDate)}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs ${getStatusColor(invoice.status)}`}>
-                        {getStatusLabel(invoice.status)}
-                      </span>
+                      {/* Tier 696: a Storno by credit note leaves the invoice settled ("paid");
+                          it is shown as what it is */}
+                      {invoice.fullyCredited ? (
+                        <span className={`px-2 py-1 rounded text-xs ${getStatusColor("cancelled")}`} data-testid="row-credited">
+                          {t("invoice.creditedFully")}
+                        </span>
+                      ) : (
+                        <span className={`px-2 py-1 rounded text-xs ${getStatusColor(invoice.status)}`}>
+                          {getStatusLabel(invoice.status)}
+                        </span>
+                      )}
                       {/* Tier 621: how far a quote / an order confirmation has been invoiced */}
                       {(invoice.type === "QU" || invoice.type === "OC") && (invoice.progress?.INV === "partial" || invoice.progress?.INV === "full") && (
                         <span

@@ -64,6 +64,10 @@ interface Invoice {
   payments: { amount: string; paymentDate: string; paymentMethod: string }[]
   // Tier 473: a final invoice's Proforma (Tier 472)
   advanceInvoice?: { id: string; invoiceNumber: string } | null
+  // Tier 696: the invoice a credit note corrects, the credit notes of an invoice
+  referenceInvoice?: { id: string; invoiceNumber: string } | null
+  creditNotes?: { id: string; invoiceNumber: string; issueDate: string; total: string }[]
+  fullyCredited?: boolean
   // Tier 610: the quote behind an invoice, and what was made from a document
   sourceDocument?: { id: string; invoiceNumber: string; type: string; status: string } | null
   derivedDocuments?: { id: string; invoiceNumber: string; type: string; status: string }[]
@@ -1855,8 +1859,38 @@ export default function InvoiceDetailPage() {
                 {t("invoice.finalInvoiceOf")} {invoice.advanceInvoice.invoiceNumber}
               </a>
             )}
+            {/* Tier 696: a credit note names its invoice, an invoice its credit notes */}
+            {invoice.type === "CN" && invoice.referenceInvoice && (
+              <a
+                href={`/dashboard/invoices/${invoice.referenceInvoice.id}`}
+                className="text-sm text-gray-600 dark:text-gray-300 underline"
+                data-testid="credit-note-for"
+              >
+                {t("invoice.creditNoteFor")} {invoice.referenceInvoice.invoiceNumber}
+              </a>
+            )}
+            {(invoice.creditNotes ?? []).map((cn) => (
+              <a
+                key={cn.id}
+                href={`/dashboard/invoices/${cn.id}`}
+                className="text-sm text-gray-600 dark:text-gray-300 underline"
+                data-testid="credit-note-of"
+              >
+                {t("invoice.creditNoteLink")} {cn.invoiceNumber}
+              </a>
+            ))}
             {/* Status as a quick-change dropdown — invoice state moves
-                through draft → sent → paid (or overdue/cancelled). */}
+                through draft → sent → paid (or overdue/cancelled). A Storno
+                by credit note (Tier 696) leaves nothing to change. */}
+            {invoice.fullyCredited ? (
+              <span
+                className={`text-sm rounded-full px-3 py-1 ${getStatusColor("cancelled")}`}
+                style={{ fontWeight: 500 }}
+                data-testid="invoice-credited-fully"
+              >
+                {t("invoice.creditedFully")}
+              </span>
+            ) : (
             <select
               value={invoice.status}
               data-testid="invoice-status-select"
@@ -1869,6 +1903,7 @@ export default function InvoiceDetailPage() {
                 <option key={st} value={st}>{getStatusLabel(st)}</option>
               ))}
             </select>
+            )}
             {nonFiscal && (
               <span
                 className="text-xs px-2 py-1 rounded bg-teal-100 text-teal-700 dark:text-teal-300"

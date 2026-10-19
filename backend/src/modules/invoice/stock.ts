@@ -37,12 +37,19 @@ const moves = (type: string) => type !== 'CN' && type !== 'PI' && !isNonFiscal(t
  */
 export async function fullyCredited(db: Db, companyId: string, invoiceId: string): Promise<boolean> {
   const original = await db.invoice.findFirst({ where: { id: invoiceId, companyId }, select: { total: true, type: true } })
-  if (!original || original.type === 'CN' || !(Math.abs(Number(original.total)) > 0)) return false
-  const credited = await db.invoice.aggregate({
-    where: { companyId, referenceInvoiceId: invoiceId, type: 'CN', status: { notIn: ['draft', 'cancelled'] } },
-    _sum: { total: true },
-  })
-  return Math.abs(Number(credited._sum.total ?? 0)) >= Math.abs(Number(original.total)) - 0.005
+  if (!original) return false
+  const credited = await db.invoice.findMany({ where: { companyId, referenceInvoiceId: invoiceId, ...CREDITING }, select: { total: true } })
+  return coversWhole(original, credited)
+}
+
+/** Tier 696: the credit notes that count — issued, not withdrawn */
+export const CREDITING = { type: 'CN', status: { notIn: ['draft', 'cancelled'] } }
+
+/** Tier 696: do these credit notes cover the whole document (a Storno)? */
+export function coversWhole(original: { type: string; total: unknown }, creditNotes: { total: unknown }[]): boolean {
+  const total = Math.abs(Number(original.total))
+  if (original.type === 'CN' || !(total > 0)) return false
+  return creditNotes.reduce((s, cn) => s + Math.abs(Number(cn.total)), 0) >= total - 0.005
 }
 
 export async function syncInvoiceStock(

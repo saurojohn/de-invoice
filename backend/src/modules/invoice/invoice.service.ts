@@ -4,7 +4,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceAmounts, toCents } from './invoice-amounts';
 import { assertPositiveTotal } from './positive-total';
-import { fullyCredited, syncInvoiceStock } from './stock';
+import { coversWhole, CREDITING, fullyCredited, syncInvoiceStock } from './stock';
 import { invoiceTaxBreakdown } from './tax-breakdown';
 import { Prisma } from '@prisma/client';
 import { WebhookService } from '../webhook/webhook.service';
@@ -145,15 +145,21 @@ export class InvoiceService {
     const [data, total] = await Promise.all([
       this.prisma.invoice.findMany({
         where,
-        include: { customer: true, items: true, payments: true, referenceInvoice: true },
+        include: {
+          customer: true, items: true, payments: true, referenceInvoice: true,
+          creditNotes: { where: CREDITING, select: { total: true } }, // Tier 696
+        },
         orderBy: { createdAt: 'desc' },
         skip,
         take: ps,
       }),
       this.prisma.invoice.count({ where }),
     ])
+    // Tier 696: an invoice cancelled by a Storno credit note is settled by it
+    // ("paid") — the list says what it is
+    const rows = data.map(({ creditNotes, ...row }) => ({ ...row, fullyCredited: coversWhole(row, creditNotes) }))
     return {
-      data: await this.withProgress(companyId, data),
+      data: await this.withProgress(companyId, rows),
       total,
       page: pg,
       pageSize: ps,
@@ -382,6 +388,8 @@ export class InvoiceService {
         referenceInvoice: true,
         // Tier 473: a final invoice's Proforma (Tier 472)
         advanceInvoice: { select: { id: true, invoiceNumber: true } },
+        // Tier 696: its credit notes, and whether they cancel it
+        creditNotes: { where: CREDITING, select: { id: true, invoiceNumber: true, issueDate: true, total: true }, orderBy: [{ issueDate: 'asc' }, { createdAt: 'asc' }] },
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -408,7 +416,7 @@ export class InvoiceService {
     for (const to of Object.keys(conversion).filter((x) => x !== 'OC')) progress[to] = InvoiceService.progressOf(invoice.items, conversion[to]);
     // Tier 618: an invoice over logged hours has a time sheet
     const timeEntryCount = await this.prisma.timeEntry.count({ where: { companyId, invoiceId: id } });
-    return { ...invoice, sourceDocument, derivedDocuments, conversion, progress, timeEntryCount, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
+    return { ...invoice, fullyCredited: coversWhole(invoice, invoice.creditNotes), sourceDocument, derivedDocuments, conversion, progress, timeEntryCount, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
   }
 
   /**
