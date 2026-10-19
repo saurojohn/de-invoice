@@ -18,7 +18,7 @@
  * Pre-flight: backend must be running, the dunning
  * config endpoint must be reachable.
  */
-import { test, expect } from '@playwright/test'
+import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
@@ -167,5 +167,21 @@ test.describe('Tier 123 — Dunning config card', () => {
       await new Promise((r) => setTimeout(r, 200))
     }
     expect(data.level2Fee).toBe(7.5)
+  })
+
+  // Tier 702: the card's fees are the fees every Mahnung charges (the
+  // Mahnungen page's) — leave the shared company as found, or the 7,50 €
+  // saved above is what the next spec's letters charge.
+  test.afterAll(async () => {
+    const ctx = await playwrightRequest.newContext()
+    const reset = await ctx.put(
+      'http://localhost:3001/api/v1/reminders/dunning-config?companyId=' + COMPANY_ID,
+      {
+        headers: { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID, 'content-type': 'application/json' },
+        data: { level1Days: 1, level2Days: 7, level3Days: 14, level1Fee: 0, level2Fee: 5, level3Fee: 10 },
+      },
+    )
+    await ctx.dispose()
+    expect(reset.ok()).toBeTruthy()
   })
 })

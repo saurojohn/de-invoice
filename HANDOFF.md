@@ -2681,6 +2681,8 @@ And the manual / bulk pipeline itself: the letter sent never showed the **Verzug
 
 Spec `426-tier702-automatische-mahnung.sh` (7 checks fail on the code before).
 
+Tier 702b: CI run 39267518990 — backend 425 / 0 / 1, **Playwright 2 failed**: `mahnung-fees-preview-tier164.spec.ts` expects the shared company's fees at their defaults (0 / 5 / 10) and found 7,50 € — saved earlier by `dunning-config-tier123.spec.ts` through the settings card, which since this tier writes the one fee configuration (before, the card's fees went to `settings.dunning`, which nothing else read). That spec now puts the defaults back in an `afterAll`. Not runnable locally (it names :3001 without `E2E_API_URL`).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 701 — the payment link says what is left to pay, and when nothing is
 
 The public page of a payment link (`/pay/<token>`) showed the invoice's **total** and the button „Zahlung melden“ whatever had happened to the invoice. Measured: a 1 190 € invoice with a 500 € part payment — the page said 1 190 € (the report itself took the open 690 €, Tier 430); a paid invoice and one cancelled by its Storno credit note — the button was offered; an invoice cancelled by its status (data before Tier 694) took a payment report — 201, a notice of 1 190 €.
