@@ -416,7 +416,9 @@ export class InvoiceService {
     for (const to of Object.keys(conversion).filter((x) => x !== 'OC')) progress[to] = InvoiceService.progressOf(invoice.items, conversion[to]);
     // Tier 618: an invoice over logged hours has a time sheet
     const timeEntryCount = await this.prisma.timeEntry.count({ where: { companyId, invoiceId: id } });
-    return { ...invoice, fullyCredited: coversWhole(invoice, invoice.creditNotes), sourceDocument, derivedDocuments, conversion, progress, timeEntryCount, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
+    // Tier 697: delivered to the customer — the page offers no edit / delete
+    const sentToCustomer = await this.sentToCustomer(invoice)
+    return { ...invoice, fullyCredited: coversWhole(invoice, invoice.creditNotes), sentToCustomer, sourceDocument, derivedDocuments, conversion, progress, timeEntryCount, advanceDeduction: await advanceDeductionFor(this.prisma, invoice) };
   }
 
   /**
@@ -1095,6 +1097,7 @@ export class InvoiceService {
         'Korrigieren Sie mit einer Gutschrift.',
       );
     }
+    await this.assertNotSentToCustomer(existing, 'bearbeitet'); // Tier 697
 
     // Tier 27: same §13b/§1a contradiction
     // guard as on create. The user can switch
@@ -1399,6 +1402,7 @@ export class InvoiceService {
         'Rechnung mit erfassten Zahlungen kann nicht gelöscht werden. Bitte eine Gutschrift erstellen.',
       );
     }
+    await this.assertNotSentToCustomer(existing, 'gelöscht'); // Tier 697
     const deleted = await this.prisma.$transaction(async (tx) => {
       // deleteMany items explicitly even though cascade exists —
       // it's a no-op then, but future-proofs if cascade is removed.
@@ -1959,6 +1963,44 @@ export class InvoiceService {
       await this.creditBalance.recordGutschriftOverage(companyId, original.customerId, cn.id, overage, original.invoiceNumber);
     }
     await this.afterCreditNote(original.id, companyId); // Tier 694
+  }
+
+  /**
+   * Tier 697: an issued invoice that was e-mailed to the customer is what the
+   * customer holds. Editing it on its day replaced the kept copy (Tier 497 /
+   * 684) — the version the customer received was gone from the archive
+   * (§ 147 AO, GoBD: kept unchanged), and the customer and the books held two
+   * different documents under one number; deleting it left the customer an
+   * invoice that no longer existed (whose tax is owed all the same, § 14c
+   * UStG). Once sent, it is corrected as on any later day: by a credit note
+   * and, where needed, a new invoice. A draft is never sent (sending issues it).
+   */
+  private async assertNotSentToCustomer(
+    existing: { id: string; companyId: string; status: string; type: string },
+    action: 'bearbeitet' | 'gelöscht',
+  ): Promise<void> {
+    const sent = await this.sentToCustomer(existing)
+    if (!sent) return
+    const at = sent.at.toLocaleString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    throw new ForbiddenException(
+      `Die Rechnung wurde bereits an ${sent.to} gesendet (${at} Uhr) und kann nicht mehr ${action} werden — ` +
+      'der Kunde hat sie so erhalten, und so bleibt sie archiviert. Korrigieren Sie mit einer Gutschrift (Storno) und, wenn nötig, einer neuen Rechnung.',
+    )
+  }
+
+  /** Tier 697: the first delivery of an issued invoice to the customer, if any */
+  private async sentToCustomer(
+    existing: { id: string; companyId: string; status: string; type: string },
+  ): Promise<{ to: string; at: Date } | null> {
+    if (existing.status === 'draft' || existing.type === 'PI' || isNonFiscal(existing.type)) return null
+    const sent = await this.prisma.emailSend.findFirst({
+      // 'sent': delivered by the company's SMTP ('opened' is the mail client
+      // offered without a server — maybe never sent)
+      where: { companyId: existing.companyId, invoiceId: existing.id, status: 'sent' },
+      select: { recipientEmail: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    })
+    return sent ? { to: sent.recipientEmail, at: sent.createdAt } : null
   }
 
   /**

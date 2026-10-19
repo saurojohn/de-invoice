@@ -68,6 +68,8 @@ interface Invoice {
   referenceInvoice?: { id: string; invoiceNumber: string } | null
   creditNotes?: { id: string; invoiceNumber: string; issueDate: string; total: string }[]
   fullyCredited?: boolean
+  // Tier 697: delivered to the customer by e-mail — no longer edited or deleted
+  sentToCustomer?: { to: string; at: string } | null
   // Tier 610: the quote behind an invoice, and what was made from a document
   sourceDocument?: { id: string; invoiceNumber: string; type: string; status: string } | null
   derivedDocuments?: { id: string; invoiceNumber: string; type: string; status: string }[]
@@ -2072,7 +2074,17 @@ export default function InvoiceDetailPage() {
                 {t("invoice.lockedByPayments")}
               </span>
             )}
-            {(isToday || (nonFiscal && invoice.status === "draft")) && payments.length === 0 && (
+            {/* Tier 697: e-mailed to the customer — the backend refuses edit and delete */}
+            {isToday && payments.length === 0 && invoice.sentToCustomer && (
+              <span
+                className="text-xs text-gray-500 dark:text-gray-400"
+                data-testid="invoice-locked-by-sending"
+                title={t("invoice.lockedBySendingTitle")}
+              >
+                {t("invoice.lockedBySending").replace("{to}", invoice.sentToCustomer.to)}
+              </span>
+            )}
+            {(isToday || (nonFiscal && invoice.status === "draft")) && payments.length === 0 && !invoice.sentToCustomer && (
               <>
                 <Button
                   variant="outline"

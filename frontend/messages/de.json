@@ -1173,6 +1173,8 @@
     "creditNoteLink": "Gutschrift",
     "lockedByPayments": "Gesperrt (Zahlungen gebucht)",
     "lockedByPaymentsTitle": "Auf diese Rechnung sind Zahlungen oder Gutschriften gebucht — korrigieren Sie mit einer Gutschrift.",
+    "lockedBySending": "An {to} versandt — nicht mehr änderbar",
+    "lockedBySendingTitle": "Der Kunde hat die Rechnung so erhalten, und so bleibt sie archiviert. Korrigieren Sie mit einer Gutschrift (Status „Storniert“) und, wenn nötig, einer neuen Rechnung.",
     "advanceRefund": "Anzahlung zurückzahlen",
     "advanceRefundTitle": "Der Auftrag entfällt: die Anzahlung wird mit heutigem Datum zurückgezahlt (Steuer und Einnahme werden in diesem Zeitraum korrigiert)",
     "advanceRefundPrompt": "Zurückzuzahlender Betrag:",

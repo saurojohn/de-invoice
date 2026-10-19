@@ -1173,6 +1173,8 @@
     "creditNoteLink": "Credit note",
     "lockedByPayments": "Locked (payments booked)",
     "lockedByPaymentsTitle": "Payments or credit notes are booked on this invoice — correct it with a credit note.",
+    "lockedBySending": "Sent to {to} — can no longer be changed",
+    "lockedBySendingTitle": "The customer received the invoice as it is, and it stays archived that way. Correct it with a credit note (status \"Cancelled\") and, if needed, a new invoice.",
     "advanceRefund": "Refund advance",
     "advanceRefundTitle": "The order is cancelled: the advance is refunded as of today (tax and income are corrected in this period)",
     "advanceRefundPrompt": "Amount to refund:",

@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 697 — an invoice e-mailed to the customer is no longer edited or deleted
+
+An issued invoice may be edited or deleted on its issue day (Tier 477: not once a payment or a credit note is booked on it); the edit drops the kept copy and the next way out makes a new one (Tier 497 / 684). Measured with the test mailbox: an invoice over 1 × 100 € issued and e-mailed, then edited the same day to 5 × 100 € — 200; PDF, XRechnung and archive showed the 595 € version, the customer held the 119 € one. Two documents under one number, and the one received gone from the archive (§ 147 AO, GoBD: kept unchanged). Deleting it the same day — 200 — left the customer an invoice that no longer existed; its tax is owed all the same (§ 14c UStG).
+
+- `assertNotSentToCustomer` in `update` and `remove`: an issued invoice (not a draft, a Proforma, a quote …) with an `EmailSend` of status `sent` — delivered by the company's mail server, by any route that records one (send, resend, reminder, recurring) — is refused (403) with the address and the time it went out; the correction is a credit note and, where needed, a new invoice. `opened` (the mail client offered without a server, maybe never sent) does not lock it.
+- `GET /invoices/:id` carries `sentToCustomer` ({to, at} or null); the page shows „An … versandt — nicht mehr änderbar“ (`invoice-locked-by-sending`, the reason in its title, de/en/zh) instead of Edit / Delete.
+- Not covered: a document the customer fetched in the portal, or one sent outside the app — the app does not know.
+
+Spec `421-tier697-versandt-ist-versandt.sh` (4 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 696 — an invoice cancelled by its credit note is shown as cancelled; the two name each other
 
 Since Tier 694 an issued invoice is cancelled by a credit note over its full amount. The credit note settles it (a „Gutschrift“ payment), so its status is „paid“ — and the invoice list and page said **„Bezahlt“** for a cancelled invoice. Neither page named the other document: the credit note's page did not link its invoice, the invoice's page not its credit notes (only a payment row „CN CN-…“).
