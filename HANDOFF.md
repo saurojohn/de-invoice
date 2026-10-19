@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 708 — a credit note over the whole amount takes the invoice's lines
+
+Walk, invoice page → „Gutschrift“: the dialog fills in the open amount (535,50 €); its hint says an empty field credits everything with the invoice's lines 1:1. Sent as it opened, the credit note had **one line** — the reason as its text („Erstattung“ without one), quantity 1, „Stück“ — the lines, quantities and units of the invoice gone from the document that corrects it (Tier 695 had made the full credit note keep them).
+
+`createCreditNoteLocked`: an amount equal to the invoice's total, nothing credited before, is the full credit note (lines mirrored, discount mirrored). A smaller amount, or the rest after a part, stays one line per rate, as before.
+
+Spec `429-tier708-gutschrift-ueber-alles.sh` (fails on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 707 — a recurring invoice made as a draft is not sent
 
 Walk, Wiederkehrende Rechnungen → Neue Vorlage: the form started with „Rechnungs-Status: Entwurf“ (the invoices are drafts, to be looked at before they go out) **and** „Rechnung nach Generierung an Kunden senden“ ticked. Measured with the test mailbox: a template with these defaults, „Jetzt generieren“ — the invoice was **issued** („sent“: sending a draft issues it, Tier 495) and in the customer's mailbox. The draft setting did nothing.

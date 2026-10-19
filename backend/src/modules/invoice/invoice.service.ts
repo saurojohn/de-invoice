@@ -2174,7 +2174,14 @@ export class InvoiceService {
           vatRate: l.vatRate ?? origRates[0],
         }
       })
-    } else if (opts.amount != null && opts.amount > 0) {
+    } else if (
+      opts.amount != null && opts.amount > 0 &&
+      // Tier 708: the whole invoice, nothing credited yet — the same as a full
+      // credit note. The page's dialog fills in the open amount; sent as it
+      // is, the credit note had one line „Erstattung“ instead of the
+      // invoice's lines (which the full one takes over 1:1).
+      !(alreadyCredited === 0 && Math.abs(Number(opts.amount) - Number(original.total)) < 0.005)
+    ) {
       cnLines = refundByAmount(Number(opts.amount))
     } else if (alreadyCredited > 0) {
       // A "full" refund after partial ones credits what is left.
