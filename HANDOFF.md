@@ -2752,7 +2752,7 @@ The owner, 19.10.2026: „继续找发票方面还要提升的“. Measured on t
 
 Credit notes issued before this tier keep their kept copy (Tier 685). Spec `419-tier695-gutschrift-nennt-was-sie-korrigiert.sh` (10 checks fail on the code before).
 
-**Open, for the owner:** the title „GUTSCHRIFT“. In the UStG a „Gutschrift“ is the self-billing document of the recipient (§ 14 Abs. 2 S. 2); a seller's correction so named is not objected to (BMF 25.10.2013) but is commonly titled „Rechnungskorrektur“ or, over the full amount, „Stornorechnung“.
+**Decided by the owner, 19.10.2026:** the title stays „GUTSCHRIFT“ („不要改，这样对的“). (Asked because in the UStG a „Gutschrift“ is the recipient's self-billing document, § 14 Abs. 2 S. 2; a seller's correction so named is not objected to, BMF 25.10.2013.) Also decided the same day: **no entry of gross prices** (prices including VAT) on invoices („不需要“) — unit prices stay net. Neither is to be raised again.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 694 — an issued invoice is cancelled by a Storno credit note
 
