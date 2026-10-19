@@ -2670,6 +2670,8 @@ Walk, invoice page → „Gutschrift“: the dialog fills in the open amount (53
 
 Spec `429-tier708-gutschrift-ueber-alles.sh` (fails on the code before).
 
+Tier 708b: CI run 39315147279 (Tier 706, frontend only) — Playwright 1 073 / 0, **backend 1 failed**: spec 368's digest of 13 report views differed before and after creating an order confirmation; locally it never did (3 runs), and every clock field is stripped. Not found which view moved — the spec now writes each view to a file and names the ones that differ (with a diff), so a next occurrence says it. Found on the way and made deterministic: the invoice list ordered by `createdAt` alone, the customer summary's „last invoice“ / „last payment“ by `issueDate` / `paymentDate` alone — two documents of the same moment or day could swap between two calls; they take `createdAt` / `id` as tie-breakers now.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 707 — a recurring invoice made as a draft is not sent
 
 Walk, Wiederkehrende Rechnungen → Neue Vorlage: the form started with „Rechnungs-Status: Entwurf“ (the invoices are drafts, to be looked at before they go out) **and** „Rechnung nach Generierung an Kunden senden“ ticked. Measured with the test mailbox: a template with these defaults, „Jetzt generieren“ — the invoice was **issued** („sent“: sending a draft issues it, Tier 495) and in the customer's mailbox. The draft setting did nothing.

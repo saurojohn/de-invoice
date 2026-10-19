@@ -86,21 +86,27 @@ assert_eq "its PDF: a plain PDF, no e-invoice inside" "$(cat "/tmp/$TAG.code")/$
 rm -f "/tmp/$TAG.pdf" "/tmp/$TAG.code"
 
 note "=== 4. no figure moves ==="
+# figures DIR — each view's answer (without its clock fields) to a file of its own
 figures() {
-  local out=""
+  mkdir -p "$1"; local i=0
   for p in "ustva/compute?year=$YEAR&month=$MONTH" "reports/aging" "reports/pnl?year=$YEAR" "reports/dashboard" "reports/dashboard-v2" \
            "reports/customers?startDate=$YEAR-01-01&endDate=$YEAR-12-31" "reminders/overdue" "reminders/stats" \
            "accounting/euer?year=$YEAR" "reports/datev-preview?from=$YEAR-01-01&to=$YEAR-12-31" "invoices?limit=200" "customers?limit=50" "customers/$K/summary?x=1"; do
     AS GET "/api/v1/$p&companyId=$C"
-    out+="$STATUS $(echo "$BODY" | sed -E 's/"(generatedAt|timestamp|asOf|exportedAt|updatedAt)":"[^"]*"//g')"$'\n'
+    i=$((i+1)); { echo "$p"; echo "$STATUS $(echo "$BODY" | sed -E 's/"(generatedAt|timestamp|asOf|exportedAt|updatedAt)":"[^"]*"//g')"; } > "$1/$i"
   done
-  echo "$out" | shasum | cut -d' ' -f1
 }
+FIG=$(mktemp -d)
 status "$INV" sent
-BEFORE=$(figures)
+figures "$FIG/before"
 status "$BIG" confirmed
 doc OC 500000
-assert_eq "a confirmed order over 1 190 000 € and a draft: UStVA, aging, P&L, both dashboards, customer report, reminders, EÜR, DATEV, invoice list, customer list and summary unchanged" "$(figures)" "$BEFORE"
+figures "$FIG/after"
+# (CI run 39315147279 found these different once, locally never — the views that moved are named now)
+MOVED=$(for f in "$FIG"/before/*; do cmp -s "$f" "$FIG/after/$(basename "$f")" || head -1 "$f"; done | tr '\n' ' ')
+assert_eq "a confirmed order over 1 190 000 € and a draft: UStVA, aging, P&L, both dashboards, customer report, reminders, EÜR, DATEV, invoice list, customer list and summary unchanged" "${MOVED:-none moved}" "none moved"
+[[ -n "$MOVED" ]] && for f in "$FIG"/before/*; do cmp -s "$f" "$FIG/after/$(basename "$f")" || { echo "--- $(head -1 "$f")"; diff <(tail -n +2 "$f" | python3 -m json.tool 2>/dev/null || tail -n +2 "$f") <(tail -n +2 "$FIG/after/$(basename "$f")" | python3 -m json.tool 2>/dev/null || tail -n +2 "$FIG/after/$(basename "$f")") | head -20; }; done
+rm -rf "$FIG"
 AS GET "/api/v1/invoices?companyId=$C&limit=200&type=OC"
 assert_eq "the confirmations are listed when asked for" "$(field "sorted(set(x['type'] for x in d['data'])), len(d['data'])")" "(['OC'], 4)"
 AS POST "/api/v1/customer-portal/admin/create-session" '{"customerId":"'$K'"}'

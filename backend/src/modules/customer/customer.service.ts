@@ -274,7 +274,7 @@ export class CustomerService {
       // Most recent invoice (any status) for "last activity"
       this.prisma.invoice.findFirst({
         where: { companyId, customerId: id, type: { notIn: NON_FISCAL_TYPES } }, // Tier 612: the last invoice, not the last quote
-        orderBy: { issueDate: 'desc' },
+        orderBy: [{ issueDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }], // Tier 708b: one "last", every call
         select: { id: true, invoiceNumber: true, issueDate: true, total: true, status: true, type: true },
       }),
       // Most recent payment on any of this customer's
@@ -283,7 +283,7 @@ export class CustomerService {
       // relationship is healthy.
       this.prisma.payment.findFirst({
         where: { invoice: { customerId: id, companyId } },
-        orderBy: { paymentDate: 'desc' },
+        orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }], // Tier 708b
         select: {
           id: true,
           amount: true,
@@ -577,7 +577,7 @@ export class CustomerService {
     const [rows, total] = await Promise.all([
       this.prisma.emailSend.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], // Tier 708b: the same order on every call
         take,
         skip,
         select: {

@@ -150,7 +150,7 @@ export class InvoiceService {
           customer: true, items: true, payments: true, referenceInvoice: true,
           creditNotes: { where: CREDITING, select: { total: true } }, // Tier 696
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], // Tier 708b: the same order on every call
         skip,
         take: ps,
       }),
