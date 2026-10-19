@@ -2662,6 +2662,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 706 — the customer cards say what is so
+
+Further on in the walk (Kundenverwaltung, 1024 px, dark mode):
+
+- **Every customer was „Inaktiv“.** The badge read `customer.status` — customers have no such column (the field in the page's type was never filled). Its own hint says what is meant: „Letzte Rechnung älter als 90 Tage oder nie beauftragt“. `recentlyInvoiced(lastInvoiceDate)` (≤ 90 days) decides it now; the list already carried `lastInvoiceDate`. Measured: a customer invoiced the same day was „Inaktiv“.
+- **„Zahlungsfrist (Tage): Tage“** for a customer without its own term — it shows the company's default with „(Firmenstandard)“ (`customer.companyDefault`, de/en/zh), and no second „Tage“.
+- **The name was cut to „Kund…“** beside the badges; the title row wraps, so the badges go under a name that needs the width.
+- **The customer's page:** its header said „business · Zahlungsfrist (Tage): Tage“ (the invoice-type label function was used for the customer's kind) — „Geschäftskunde · Zahlungsfrist (Tage): Firmenstandard“; the invoice list's amount and status ran together („535,50 €Versendet“).
+- **Dark grey text on the dark page:** „Ausgangsrechnung“ in that list was `text-gray-600` with no `dark:` colour — **1.9 : 1**. `globals.css`: dark grey text (`text-gray-600…900`, `text-slate-600/700`) without `dark:text-` is light in dark mode, unless it stands on or inside one of the light boxes of Tier 704 (there dark is right — the grey hint in the VAT box stays dark). 23 such elements.
+
+Playwright `customer-card-tier706.spec.ts` (dark colour scheme: the badge by activity, the company's term, the whole name; the customer page's header, and the contrast of „Ausgangsrechnung“ ≥ 4.5 — 1.9 without the rule). On the code before it stops earlier (the badge had no test id); what it checks was seen there in the browser — both „Inaktiv“, „…: Tage“, „Kund…“.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 705 — every letter greets as the invoice e-mail does
 
 Found in the walk of Tier 704: the send dialog greeted a contact entered with its title, „Frau Weber“, „Sehr geehrte/r Frau Weber“. Following the greeting through the code: Tier 691 made the invoice e-mail greet a company „Sehr geehrte Damen und Herren“ — the **reminder e-mails, the Mahnung letter (PDF) and the account-statement e-mail** kept „Sehr geehrte/r <name>“: measured „Sehr geehrte/r Kunde AG,“ in all three, and the statement used the company name even with a contact person.

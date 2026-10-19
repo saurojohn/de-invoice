@@ -857,7 +857,9 @@ export default function CustomerDetailPage() {
             )}
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-            {getTypeLabel(customer.type, t)} · {t("customer.paymentTerms") || "Zahlungsziel"}: {customer.paymentTerms} {t("reminder.days")}
+            {/* Tier 706: the customer's kind (it said "business") and its term — or the company's (it said "…: Tage") */}
+            {customer.type === "business" ? t("customer.typeBusiness") : t("customer.typePrivate")} · {t("customer.paymentTerms")}:{" "}
+            {customer.paymentTerms != null ? customer.paymentTerms : t("customer.companyDefault")}
             {customer.vatId && (
               <span className="ml-3 font-mono">USt-ID: {customer.vatId}</span>
             )}
@@ -1451,7 +1453,7 @@ export default function CustomerDetailPage() {
                           <th className="py-2 font-medium">{t("invoice.dueDate") || "Fällig"}</th>
                           <th className="py-2 font-medium">{t("customerDetail.type") || "Art"}</th>
                           <th className="py-2 font-medium text-right">{t("invoice.total") || "Betrag"}</th>
-                          <th className="py-2 font-medium">{t("customerDetail.status") || "Status"}</th>
+                          <th className="py-2 pl-4 font-medium">{t("customerDetail.status") || "Status"}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1471,8 +1473,9 @@ export default function CustomerDetailPage() {
                             <td className="py-2">{fmtDateDE(inv.issueDate)}</td>
                             <td className="py-2">{fmtDateDE(inv.dueDate)}</td>
                             <td className="py-2 text-gray-600">{getTypeLabel(inv.type, t)}</td>
-                            <td className="py-2 text-right font-mono">{fmtEur(inv.total)}</td>
-                            <td className="py-2">
+                            <td className="py-2 text-right font-mono whitespace-nowrap">{fmtEur(inv.total)}</td>
+                            {/* Tier 706: room between the amount and the status ("535,50 €Versendet") */}
+                            <td className="py-2 pl-4">
                               {/* Tier 698: a Storno by credit note leaves the invoice "paid" (Tier 696) */}
                               {inv.fullyCredited ? (
                                 <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-700" data-testid="tab-invoices-credited">

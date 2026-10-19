@@ -27,11 +27,6 @@ interface Customer {
   address: { street?: string; city?: string; postalCode?: string; country?: string; leitwegId?: string }
   contact?: { email?: string; phone?: string; name?: string }
   paymentTerms: number | null
-  // "active" = usable, anything else = deactivated by admin.
-  // Match against the literal value, not truthiness, so an
-  // accidentally-set "inactive" / "suspended" string renders
-  // the same way as `status === 'inactive'`.
-  status: 'active' | 'inactive' | string
   createdAt: string
   // Backend-assigned per-company sequential customer number (K-00001...).
   // Auto-generated on create if not supplied by the importer.
@@ -46,6 +41,13 @@ interface Customer {
   // Filtered via `?tags=VIP,B2B` (AND semantics)
   // on the backend.
   tags?: string[]
+}
+
+/** Tier 706: the card's "Aktiv" — an invoice within the last 90 days (customer.inactiveHint) */
+function recentlyInvoiced(lastInvoiceDate?: string | null): boolean {
+  if (!lastInvoiceDate) return false
+  const t = new Date(lastInvoiceDate).getTime()
+  return Number.isFinite(t) && Date.now() - t <= 90 * 86_400_000
 }
 
 export default function CustomersPage() {
@@ -947,8 +949,9 @@ export default function CustomersPage() {
                   </button>
                 </div>
                 <CardHeader>
-                  <CardTitle className="flex justify-between items-center pr-6 gap-2">
-                    <div className="min-w-0">
+                  {/* Tier 706: the badges wrap below a name that needs the width — it was cut to "Kund…" */}
+                  <CardTitle className="flex flex-wrap justify-between items-start pr-6 gap-2">
+                    <div className="min-w-[8rem] flex-1">
                       <div className="truncate">
                         {/* Tier 28: render the highlighted
                             snippet from the tsvector search
@@ -979,17 +982,21 @@ export default function CustomersPage() {
                       )}
                     </div>
                     <div className="flex gap-1 shrink-0">
+                      {/* Tier 706: active = invoiced within the last 90 days, as the
+                          hint says. It read `customer.status`, a field customers do
+                          not have — every customer was "Inaktiv". */}
                       <span
                         className={`text-[10px] px-2 py-1 rounded font-medium ${
-                          customer.status === "active"
+                          recentlyInvoiced(customer.lastInvoiceDate)
                             ? "bg-emerald-100 text-emerald-700"
                             : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
                         }`}
-                        title={t("customer.inactiveHint") || (customer.status === "active" ? "" : "Inaktiv")}
+                        title={recentlyInvoiced(customer.lastInvoiceDate) ? "" : t("customer.inactiveHint")}
+                        data-testid="customer-activity"
                       >
-                        {customer.status === "active"
-                          ? (t("customer.statusActive") || "Aktiv")
-                          : (t("customer.statusInactive") || "Inaktiv")}
+                        {recentlyInvoiced(customer.lastInvoiceDate)
+                          ? t("customer.statusActive")
+                          : t("customer.statusInactive")}
                       </span>
                       <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">{getTypeLabel(customer.type)}</span>
                     </div>
@@ -1014,7 +1021,9 @@ export default function CustomersPage() {
                       <div className="text-gray-600 dark:text-gray-300 break-all">{customer.contact.email}</div>
                     )}
                     <div className="text-gray-500 dark:text-gray-400 text-xs">
-                      {t("customer.paymentTerms")}: {customer.paymentTerms} {t("reminder.days")}
+                      {/* Tier 706: a customer without its own term has the company's — it said "…: Tage" */}
+                      {t("customer.paymentTerms")}: {customer.paymentTerms ?? defaultPaymentTerms}
+                      {customer.paymentTerms == null && ` (${t("customer.companyDefault")})`}
                     </div>
                     {/* Last invoice + total count — surfaces inactive customers
                         at a glance and helps spot customers that haven't

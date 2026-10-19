@@ -747,6 +747,7 @@
     "statusActive": "Aktiv",
     "statusInactive": "Inaktiv",
     "inactiveHint": "Letzte Rechnung älter als 90 Tage oder nie beauftragt",
+    "companyDefault": "Firmenstandard",
     "countryPlaceholder": "z.B. Deutschland",
     "searchPlaceholder": "Name, USt-ID, Kundennummer, Stadt, PLZ suchen...",
     "noMatching": "Keine Kunden entsprechen der Suche.",

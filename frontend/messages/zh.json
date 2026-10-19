@@ -747,6 +747,7 @@
     "statusActive": "活跃",
     "statusInactive": "不活跃",
     "inactiveHint": "90天内无发票(或从未开过票)",
+    "companyDefault": "公司默认",
     "countryPlaceholder": "例如：德国",
     "searchPlaceholder": "按名称、税号、客户编号、城市、邮编搜索...",
     "noMatching": "没有符合搜索条件的客户。",

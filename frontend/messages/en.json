@@ -747,6 +747,7 @@
     "statusActive": "Active",
     "statusInactive": "Inactive",
     "inactiveHint": "No invoice in the last 90 days (or never invoiced)",
+    "companyDefault": "company default",
     "countryPlaceholder": "e.g. Germany",
     "searchPlaceholder": "Search by name, VAT ID, customer number, city, postal code...",
     "noMatching": "No customers match your search.",
