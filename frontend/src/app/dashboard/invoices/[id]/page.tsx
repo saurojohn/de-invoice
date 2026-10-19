@@ -1417,6 +1417,10 @@ export default function InvoiceDetailPage() {
     if (!contact && c?.type === "business" && lang !== "zh") {
       return { salutation: lang === "en" ? "Dear Sir or Madam" : "Sehr geehrte Damen und Herren", customerName: "" }
     }
+    // Tier 705: a name with its title — „Frau Weber“ — takes the matching form
+    const titled = /^(Frau|Herr)\s+\S/.exec(name)
+    if (titled && lang === "de") return { salutation: titled[1] === "Frau" ? "Sehr geehrte" : "Sehr geehrter", customerName: name }
+    if (titled && lang === "en") return { salutation: "Dear", customerName: name.replace(/^Frau\s+/, "Ms ").replace(/^Herr\s+/, "Mr ") }
     return { salutation: name ? (lang === "de" ? "Sehr geehrte/r" : lang === "en" ? "Dear" : "尊敬的") : "", customerName: name }
   }
 

@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 705 — every letter greets as the invoice e-mail does
+
+Found in the walk of Tier 704: the send dialog greeted a contact entered with its title, „Frau Weber“, „Sehr geehrte/r Frau Weber“. Following the greeting through the code: Tier 691 made the invoice e-mail greet a company „Sehr geehrte Damen und Herren“ — the **reminder e-mails, the Mahnung letter (PDF) and the account-statement e-mail** kept „Sehr geehrte/r <name>“: measured „Sehr geehrte/r Kunde AG,“ in all three, and the statement used the company name even with a contact person.
+
+- `greetingFor` (mail/templates/invoice-email.template.ts): a name beginning „Frau …“ / „Herr …“ takes „Sehr geehrte“ / „Sehr geehrter“ (English: „Dear Ms …“ / „Dear Mr …“). `greetingLine(lang, customer)` — the words before the comma — is used by the reminder texts (`{{greeting}}` in the defaults; a text stored before, opening „Sehr geehrte/r {{customerName}}“, is greeted the same way at rendering), the older built-in reminder texts, the Mahnung letter (its customer now carries `type`) and the statement e-mail. The send dialog's copy of the rule (`greetingOf`) follows.
+- Any other name keeps „Sehr geehrte/r <name>“.
+- Both reminder-text editors (Mahnungen → Vorlagen, Zahlungserinnerungen → Vorlagen bearbeiten) offer `{{greeting}}` („Anrede“; en/zh in `messages/literals`).
+
+Spec `427-tier705-anrede-in-jedem-brief.sh` (10 checks fail on the code before); spec 415 expected „Sehr geehrte/r Frau Petra Schmidt“ and expects „Sehr geehrte Frau Petra Schmidt“ now.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 704 — the invoice pages, read as a user reads them
 
 The owner, 19.10.2026: „继续找发票方面还要提升的“. The rules behind invoices being thorough, the invoice pages were walked through in the browser as a user (a fresh company, dark mode, German): form → list → invoice page.

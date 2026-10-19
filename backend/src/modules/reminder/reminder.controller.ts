@@ -542,6 +542,7 @@ export class ReminderController {
       currency: String((inv as any).currency || 'EUR'), // Tier 653
       customer: {
         name: customer.name,
+        type: customer.type, // Tier 705
         contact: customer.contact,
         address: customer.address,
       },

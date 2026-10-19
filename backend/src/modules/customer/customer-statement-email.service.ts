@@ -31,6 +31,7 @@
  *   - PDF render failure → propagates (caller
  *     surfaces the 500 in the UI).
  */
+import { greetingLine } from '../mail/templates/invoice-email.template' // Tier 705
 import {
   BadRequestException,
   Injectable,
@@ -145,7 +146,7 @@ export class CustomerStatementEmailService {
     })
     const subject = `Kontoauszug ${custNum || recipientName} ${fmtFrom}–${fmtTo}`.slice(0, 250)
     const text = [
-      `Sehr geehrte/r ${recipientName},`,
+      `${greetingLine('de', customer as any)},`, // Tier 705: „Sehr geehrte Damen und Herren“ for a company
       ``,
       `anbei erhalten Sie Ihren Kontoauszug für den Zeitraum ${fmtFrom} bis ${fmtTo}.`,
       ``,

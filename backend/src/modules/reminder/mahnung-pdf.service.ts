@@ -21,6 +21,7 @@
  *     attached to the email; the email body alone is
  *     legally weaker.
  */
+import { greetingLine } from "../mail/templates/invoice-email.template" // Tier 705
 import PDFDocument from "pdfkit"
 import { countWerktage } from "./werktage"
 
@@ -36,6 +37,8 @@ export interface MahnungPdfInput {
   totalVat?: number
   customer: {
     name: string
+    /** Tier 705: 'business' — greeted „Sehr geehrte Damen und Herren“ without a contact person */
+    type?: string | null
     contact?: { name?: string } | null
     address?: any
   }
@@ -228,7 +231,7 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     doc.fontSize(10).font("Helvetica")
 
     doc.text(
-      `Sehr geehrte/r ${empfaenger},`,
+      `${greetingLine("de", input.customer)},`, // Tier 705
       PAGE_MARGIN,
       y,
       { width: CONTENT_WIDTH },

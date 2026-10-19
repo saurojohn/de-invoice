@@ -58,6 +58,8 @@ interface Template {
 // reminder.service.renderForInvoice() — keep this
 // list in sync if the backend adds a new token.
 const PLACEHOLDERS: { key: string; label: string }[] = [
+  // Tier 705: „Sehr geehrte Damen und Herren“ / „Sehr geehrte Frau Weber“ …
+  { key: "greeting", label: "Anrede" },
   { key: "customerName", label: "Kundenname" },
   { key: "invoiceNumber", label: "Rechnungsnummer" },
   // Tier 638: what is still open — the invoice's total less payments and

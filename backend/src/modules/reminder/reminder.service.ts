@@ -1,4 +1,5 @@
 import { businessTodayDate } from '../../common/business-date';
+import { greetingLine } from '../mail/templates/invoice-email.template' // Tier 705
 import { NON_FISCAL_TYPES, isNonFiscal } from '../invoice/document-scope';
 import { daysOverdue as daysOverdueOf } from './days-overdue';
 import { verzugszinsen } from './basiszinssatz';
@@ -98,6 +99,7 @@ export interface OverdueInvoice {
   invoiceNumber: string;
   customer: {
     name: string;
+    type?: string | null;
     contact: {
       email?: string;
       name?: string;
@@ -240,6 +242,7 @@ export class ReminderService {
           select: {
             id: true,
             name: true,
+            type: true, // Tier 705: a company is greeted as one
             contact: true,
             address: true,
           },
@@ -359,6 +362,7 @@ export class ReminderService {
           // directly (line ~177).
           id: inv.customer.id,
           name: inv.customer.name,
+          type: inv.customer.type,
           contact: inv.customer.contact as any,
           address: inv.customer.address as any,
         },
@@ -395,7 +399,7 @@ export class ReminderService {
     company: { name: string; email?: string; address?: any; bankInfo?: any },
     level: 'first' | 'second' | 'final',
   ): ReminderTemplate {
-    const customerName = invoice.customer.contact?.name || invoice.customer.name;
+    const greeting = greetingLine('de', invoice.customer as any); // Tier 705
     const totalAmount = parseFloat(invoice.total).toFixed(2);
     const dueDateFormatted = new Date(invoice.dueDate).toLocaleDateString('de-DE', {
       day: '2-digit',
@@ -406,7 +410,7 @@ export class ReminderService {
     const templates: Record<'first' | 'second' | 'final', ReminderTemplate> = {
       first: {
         subject: `Zahlungserinnerung: Rechnung ${invoice.invoiceNumber} ist überfällig`,
-        body: `Sehr geehrte/r ${customerName},
+        body: `${greeting},
 
 hiermit möchten wir Sie freundlich daran erinnern, dass die Rechnung ${invoice.invoiceNumber} vom ${dueDateFormatted} mit einem Betrag von EUR ${totalAmount} bereits überfällig ist.
 
@@ -426,7 +430,7 @@ ${company.name}`,
       },
       second: {
         subject: `1. Mahnung: Rechnung ${invoice.invoiceNumber} - Zahlung sofort erforderlich`,
-        body: `Sehr geehrte/r ${customerName},
+        body: `${greeting},
 
 leider mussten wir feststellen, dass die Rechnung ${invoice.invoiceNumber} vom ${dueDateFormatted} trotz unserer ersten Erinnerung noch nicht beglichen wurde.
 
@@ -447,7 +451,7 @@ ${company.name}`,
       },
       final: {
         subject: `Letzte Mahnung: Rechnung ${invoice.invoiceNumber} - Außergerichtliches Inkasso`,
-        body: `Sehr geehrte/r ${customerName},
+        body: `${greeting},
 
 trotz mehrfacher Aufforderung bleibt die Rechnung ${invoice.invoiceNumber} vom ${dueDateFormatted} weiterhin unbeglichen.
 
@@ -558,7 +562,7 @@ ${company.name}`,
     return {
       first: {
         subject: 'Zahlungserinnerung: Rechnung {{invoiceNumber}} ist überfällig',
-        body: `Sehr geehrte/r {{customerName}},
+        body: `{{greeting}},
 
 hiermit möchten wir Sie freundlich daran erinnern, dass aus der Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, noch {{openAmount}} EUR offen sind.
 
@@ -575,7 +579,7 @@ Mit freundlichen Grüßen,
       },
       second: {
         subject: '1. Mahnung: Rechnung {{invoiceNumber}} - Zahlung sofort erforderlich',
-        body: `Sehr geehrte/r {{customerName}},
+        body: `{{greeting}},
 
 leider mussten wir feststellen, dass die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, trotz unserer ersten Erinnerung noch nicht beglichen wurde.
 
@@ -593,7 +597,7 @@ Mit freundlichen Grüßen,
       },
       final: {
         subject: 'Letzte Mahnung: Rechnung {{invoiceNumber}} - Außergerichtliches Inkasso',
-        body: `Sehr geehrte/r {{customerName}},
+        body: `{{greeting}},
 
 trotz mehrfacher Aufforderung bleibt die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, weiterhin unbeglichen.
 
@@ -687,6 +691,9 @@ Mit freundlichen Grüßen,
             .replace(new RegExp(`(?:EUR\\b|€)(\\s*)(${AMOUNT})`, 'g'), (_m, gap: string, amount: string) => `${amount}${gap || ' '}{{currency}}`)
     const ctx: Record<string, string | number> = {
       customerName,
+      // Tier 705: „Sehr geehrte Damen und Herren“ for a company without a
+      // contact person, „Sehr geehrte Frau Weber“ … (greetingLine)
+      greeting: greetingLine('de', invoice.customer as any),
       invoiceNumber: invoice.invoiceNumber,
       currency,
       totalAmount: germanAmount(open),
@@ -701,7 +708,9 @@ Mit freundlichen Grüßen,
 
     return {
       subject: this.renderTemplate(inCurrency(template.subject), ctx),
-      body: this.renderTemplate(inCurrency(template.body), ctx),
+      // Tier 705: the texts stored before (the defaults of their day) open
+      // with „Sehr geehrte/r {{customerName}}“ — that opener is the greeting
+      body: this.renderTemplate(inCurrency(template.body).replace(/Sehr geehrte\/r\s*\{\{\s*customerName\s*\}\}/g, '{{greeting}}'), ctx),
     }
   }
 

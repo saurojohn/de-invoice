@@ -55,7 +55,7 @@ PERSON=$(cust "Max Mustermann" individual)
 note "=== 1. the greeting ==="
 assert_eq "a company without a contact person (was: Sehr geehrte/r Kunde GmbH,)" "$(send "$FIRM")" "Sehr geehrte Damen und Herren,"
 assert_eq "…in English" "$(send "$FIRM" en)" "Dear Sir or Madam,"
-assert_eq "a company with a contact person: the person" "$(send "$FIRM_CONTACT")" "Sehr geehrte/r Frau Petra Schmidt,"
+assert_eq "a company with a contact person: the person" "$(send "$FIRM_CONTACT")" "Sehr geehrte Frau Petra Schmidt,"
 assert_eq "a private customer: by name, as before" "$(send "$PERSON")" "Sehr geehrte/r Max Mustermann,"
 AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$PERSON\",\"issueDate\":\"$(TZ=Europe/Berlin date +%F)\",\"items\":[{\"description\":\"Beratung\",\"quantity\":1,\"unit\":\"Std\",\"unitPrice\":100,\"vatRate\":0.19}]}"
 AS POST "/api/v1/invoices/$(P "d['id']")/send-email?companyId=$C" '{"salutation":"Sehr geehrter Herr"}'

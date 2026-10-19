@@ -343,7 +343,31 @@ export function greetingFor(
   if (!contact && customer?.type === 'business' && lang !== 'zh') {
     return { salutation: lang === 'en' ? 'Dear Sir or Madam' : 'Sehr geehrte Damen und Herren', customerName: '' }
   }
+  // Tier 705: a name entered with its title — „Frau Weber“ — was greeted
+  // „Sehr geehrte/r Frau Weber“. The title says which form is right.
+  const titled = /^(Frau|Herr)\s+\S/.exec(name)
+  if (titled && lang === 'de') {
+    return { salutation: titled[1] === 'Frau' ? 'Sehr geehrte' : 'Sehr geehrter', customerName: name }
+  }
+  if (titled && lang === 'en') {
+    return { salutation: 'Dear', customerName: name.replace(/^Frau\s+/, 'Ms ').replace(/^Herr\s+/, 'Mr ') }
+  }
   return { salutation: defaultSalutationFor(lang, !!name), customerName: name }
+}
+
+/**
+ * Tier 705: the words before the comma of a letter's first line — „Sehr
+ * geehrte Damen und Herren“, „Sehr geehrte Frau Weber“, „Sehr geehrte/r Max
+ * Muster“. The reminders, the Mahnung letter and the account statement wrote
+ * „Sehr geehrte/r <name>“ whatever the name was — „Sehr geehrte/r Kunde AG“
+ * for a company (the invoice e-mail stopped that in Tier 691).
+ */
+export function greetingLine(
+  lang: EmailLang,
+  customer: { name?: string | null; type?: string | null; contact?: unknown } | null | undefined,
+): string {
+  const { salutation, customerName } = greetingFor(lang, customer)
+  return [salutation, customerName].filter(Boolean).join(' ')
 }
 
 // BC helper for the old call site (single arg with no

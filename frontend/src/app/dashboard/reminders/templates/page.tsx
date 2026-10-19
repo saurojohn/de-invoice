@@ -29,6 +29,8 @@ const LEVEL_LABEL: Record<Level, { de: string; en: string; zh: string }> = {
 // was the one from before Tier 638 ("totalAmount: Gesamtbetrag (EUR)", no
 // open amount, no invoice total, no date of the invoice, no currency).
 const PLACEHOLDERS = [
+  // Tier 705: „Sehr geehrte Damen und Herren“ / „Sehr geehrte Frau Weber“ …
+  { key: "greeting", de: "Anrede" },
   { key: "customerName", de: "Kundenname" },
   { key: "invoiceNumber", de: "Rechnungsnummer" },
   { key: "openAmount", de: "Offener Betrag" },
