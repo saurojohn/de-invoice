@@ -102,7 +102,7 @@
     "correctReason": "Grund der Korrektur"
   },
   "aging": {
-    "title": "Altersstruktur (Aging Report)",
+    "title": "Altersstruktur der offenen Posten",
     "asOf": "Stand",
     "customers": "Kunden",
     "openTotal": "gesamt offen",

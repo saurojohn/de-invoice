@@ -102,7 +102,7 @@
     "correctReason": "更正原因"
   },
   "aging": {
-    "title": "账龄分析 (Aging Report)",
+    "title": "应收账款账龄分析",
     "asOf": "截止",
     "customers": "客户",
     "openTotal": "总未付",

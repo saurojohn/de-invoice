@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 722 — the aging report writes euros as a German page does
+
+Berichte → Altersstruktur: its figures were right (foreign currency in euros, the buckets by German days), but the euro amounts read „€ 2.866,82“ and the title „Altersstruktur (Aging Report)“. `formatMoney` for every euro amount (the bucket cells stay plain numbers in their columns); the title „Altersstruktur der offenen Posten“ (zh „应收账款账龄分析“; en stays „Aging Report“).
+
+Playwright `aging-german-amounts-tier722.spec.ts`.
+
+Note from this tier's checks (21.10.2026): the session's Playwright wrapper was called with an empty file list (a zsh `$(…)` that did not split), ran the whole suite, and 9 old specs with `http://localhost:3001` hard-coded sent requests to the owner's other project on that port (its frontend proxies `/api/*` to its backend; no route matched — all 404). Reported to the owner; the wrapper now refuses an empty or unknown list.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 721 — the invoice page says how long an invoice is overdue; „Mahnung senden“ from the day after
 
 - Under „Fälligkeitsdatum“: „N Tage überfällig“ (red) for an issued INV / RCV with money open past its due date, counted in German days (`pastDueDays`; as the list since Tier 712).

@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
+import { formatMoney } from "@/lib/money" // Tier 722: „2.866,82 €“ — it wrote „€ 2.866,82“
 
 type Bucket = 'current' | '1-30' | '31-60' | '61-90' | '90+'
 
@@ -137,13 +138,13 @@ export default function AgingReportPage() {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {t("aging.title") || "Altersstruktur (Aging Report)"}
+              {t("aging.title") || "Altersstruktur der offenen Posten"}
             </h1>
             {report && (
               <p className="text-gray-500 dark:text-gray-400 mt-1">
                 {t("aging.asOf") || "Stand"}: {fmtDate(report.asOf)} ·{" "}
                 {report.customerCount} {t("aging.customers") || "Kunden"} ·{" "}
-                <span className="font-mono font-medium">€ {fmt(report.grandTotal)}</span>{" "}
+                <span className="font-mono font-medium">{formatMoney(report.grandTotal)}</span>{" "}
                 {t("aging.openTotal") || "gesamt offen"}
                 {report.totalCreditBalance > 0.005 && (
                   <>
@@ -152,14 +153,14 @@ export default function AgingReportPage() {
                       className="font-mono font-medium text-blue-700"
                       data-testid="aging-total-credit"
                     >
-                      € {fmt(report.totalCreditBalance)} {t("aging.creditLabel") || "Guthaben"}
+                      {formatMoney(report.totalCreditBalance)} {t("aging.creditLabel") || "Guthaben"}
                     </span>
                     {" → "}
                     <span
                       className="font-mono font-semibold"
                       data-testid="aging-grand-net"
                     >
-                      € {fmt(report.grandNetTotal)} {t("aging.netOpen") || "netto offen"}
+                      {formatMoney(report.grandNetTotal)} {t("aging.netOpen") || "netto offen"}
                     </span>
                   </>
                 )}
@@ -249,7 +250,7 @@ export default function AgingReportPage() {
                             </td>
                           )
                         })}
-                        <td className="py-2 text-right font-mono font-medium">€ {fmt(r.totalOpen)}</td>
+                        <td className="py-2 text-right font-mono font-medium">{formatMoney(r.totalOpen)}</td>
                         <td
                           className="py-2 text-right font-mono"
                           data-testid="aging-row-credit"
@@ -260,7 +261,7 @@ export default function AgingReportPage() {
                               className="text-blue-700 hover:underline"
                               title={t("aging.openCreditPage") || "Zum Guthaben-Verlauf"}
                             >
-                              € {fmt(r.creditBalance)}
+                              {formatMoney(r.creditBalance)}
                             </Link>
                           ) : (
                             <span className="text-gray-300">—</span>
@@ -273,7 +274,7 @@ export default function AgingReportPage() {
                           }
                           data-testid="aging-row-net"
                         >
-                          € {fmt(r.netOpen)}
+                          {formatMoney(r.netOpen)}
                         </td>
                         <td className="py-2 text-right text-sm">
                           {r.oldestDaysOverdue > 0
@@ -297,20 +298,20 @@ export default function AgingReportPage() {
                           {fmt(report.totals[b])}
                         </td>
                       ))}
-                      <td className="py-3 text-right font-mono">€ {fmt(report.grandTotal)}</td>
+                      <td className="py-3 text-right font-mono">{formatMoney(report.grandTotal)}</td>
                       <td
                         className="py-3 text-right font-mono text-blue-700"
                         data-testid="aging-total-credit-row"
                       >
                         {report.totalCreditBalance > 0.005
-                          ? `€ ${fmt(report.totalCreditBalance)}`
+                          ? formatMoney(report.totalCreditBalance)
                           : "—"}
                       </td>
                       <td
                         className="py-3 text-right font-mono"
                         data-testid="aging-grand-net-row"
                       >
-                        € {fmt(report.grandNetTotal)}
+                        {formatMoney(report.grandNetTotal)}
                       </td>
                       <td></td>
                     </tr>
