@@ -11,6 +11,7 @@ import { CLAIM_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { ModuleRef } from '@nestjs/core'
 import { PaymentService } from '../invoice/payment.service'
 import { withKeyLock } from '../../common/key-lock'
+import { invoiceEurFactor } from '../invoice/tax-breakdown'
 
 // Tier 397: shared by the DTO (interactive create) and the importer.
 export const CUSTOMER_NAME_MAX = 200
@@ -265,6 +266,7 @@ export class CustomerService {
           id: true,
           invoiceNumber: true,
           total: true,
+          eurTotal: true, // Tier 720
           dueDate: true,
           issueDate: true,
           skontoPercent: true,
@@ -336,7 +338,9 @@ export class CustomerService {
         new Prisma.Decimal(0),
       ).toNumber()
       const open = Math.max(0, total - paid)
-      openBalance += open
+      // Tier 720: in euros, at the rate the invoice was booked at — the
+      // balance added 1 190 USD as 1 190 € (as the reminder stats did, Tier 653)
+      openBalance += open * invoiceEurFactor({ total: inv.total, totalVat: 0, eurTotal: inv.eurTotal })
       // Skonto-aware: skip invoices in their Skonto
       // window (Tier 57). The window is `issueDate +
       // skontoDays` (NOT dueDate + skontoDays — the

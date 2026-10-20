@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 720 — the customer page with a foreign-currency invoice
+
+On the UI test customer with a 1 190 USD invoice: „Offener Saldo 2.975,00 €“ added the dollars as euros, and the invoice tab wrote „1.190,00 €“. Measured on a fresh company with 2 380 USD and 1 190 € open: the balance said 3.570,00 €, at the booked rate it is 3.383,55 €.
+
+- `CustomerService.summary`: what is open of each invoice counts at the rate it was booked at (`invoiceEurFactor`, as the reminder stats since Tier 653). The credit limit check reads the same balance.
+- The invoice tab: amounts in the invoice's currency (`formatMoney`), and an „Offen“ column (`openAmount`, Tier 712).
+
+Playwright `customer-foreign-currency-tier720.spec.ts` (the API's balance 3570 on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 719 — a customer's address for invoices („E-Mail für Rechnungen“)
 
 A customer had one e-mail address, its contact's: invoices, reminders, statements and the invoices of a recurring template went there. Many firms take invoices at an address of their own (buchhaltung@, rechnungen@ — some insist on it), and there was no place for it.

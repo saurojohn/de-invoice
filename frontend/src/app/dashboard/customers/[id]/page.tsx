@@ -27,6 +27,7 @@
  */
 
 import { todayIso } from "@/lib/today"
+import { formatMoney } from "@/lib/money"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
@@ -98,6 +99,8 @@ interface InvoiceRow {
   status: string
   type: string
   fullyCredited?: boolean // Tier 698: cancelled by its credit notes (Tier 696)
+  currency?: string // Tier 720
+  openAmount?: number | null // Tier 720: what is still owed (Tier 712), null where nothing is
 }
 
 interface InstallmentPlanRow {
@@ -1453,6 +1456,7 @@ export default function CustomerDetailPage() {
                           <th className="py-2 font-medium">{t("invoice.dueDate") || "Fällig"}</th>
                           <th className="py-2 font-medium">{t("customerDetail.type") || "Art"}</th>
                           <th className="py-2 font-medium text-right">{t("invoice.total") || "Betrag"}</th>
+                          <th className="py-2 pl-4 font-medium text-right">{t("invoice.colOpen")}</th>
                           <th className="py-2 pl-4 font-medium">{t("customerDetail.status") || "Status"}</th>
                         </tr>
                       </thead>
@@ -1473,7 +1477,11 @@ export default function CustomerDetailPage() {
                             <td className="py-2">{fmtDateDE(inv.issueDate)}</td>
                             <td className="py-2">{fmtDateDE(inv.dueDate)}</td>
                             <td className="py-2 text-gray-600">{getTypeLabel(inv.type, t)}</td>
-                            <td className="py-2 text-right font-mono whitespace-nowrap">{fmtEur(inv.total)}</td>
+                            {/* Tier 720: in the invoice's currency (1 190 USD stood as 1.190,00 €), and what is open */}
+                            <td className="py-2 text-right font-mono whitespace-nowrap" data-testid="customer-invoice-total">{formatMoney(inv.total, inv.currency || "EUR")}</td>
+                            <td className="py-2 pl-4 text-right font-mono whitespace-nowrap" data-testid="customer-invoice-open">
+                              {inv.openAmount == null ? <span className="text-gray-400">—</span> : formatMoney(inv.openAmount, inv.currency || "EUR")}
+                            </td>
                             {/* Tier 706: room between the amount and the status ("535,50 €Versendet") */}
                             <td className="py-2 pl-4">
                               {/* Tier 698: a Storno by credit note leaves the invoice "paid" (Tier 696) */}
