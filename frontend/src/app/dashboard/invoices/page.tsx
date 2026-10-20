@@ -130,6 +130,8 @@ function InvoicesPageInner() {
     setPage(1)
   }
   const [total, setTotal] = useState(0)
+  // Tier 723: the sums of the whole filtered list (in euros), not of the page
+  const [sums, setSums] = useState<{ totalEur: number; openEur: number } | null>(null)
   const [totalPages, setTotalPages] = useState(1)
   // Multi-select for bulk actions (export, send, ...). Map<id, true> for O(1) lookup.
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -218,6 +220,7 @@ function InvoicesPageInner() {
         setInvoices(Array.isArray(data) ? data : (data.data || []))
         setTotal(data.total || 0)
         setTotalPages(data.totalPages || 1)
+        setSums(data.sums ?? null)
       })
       .catch((err: any) => {
         if (stale) return
@@ -275,6 +278,7 @@ function InvoicesPageInner() {
         setInvoices(Array.isArray(data) ? data : data.data || [])
         setTotal(data.total || 0)
         setTotalPages(data.totalPages || 1)
+        setSums(data.sums ?? null)
       })
       .catch(() => {
         /* ignore — initial useEffect already shows the error */
@@ -1140,7 +1144,13 @@ function InvoicesPageInner() {
 
         {hasActiveFilter && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            <span data-testid="invoices-showing">{t("common2.showingXofY", { shown: dateFiltered.length, total: invoices.length })}</span>
+            {/* Tier 723: of all that match (it said „50 von 50“ with 120 on three pages) */}
+            <span data-testid="invoices-showing">{t("common2.showingXofY", { shown: dateFiltered.length, total })}</span>
+          </p>
+        )}
+        {sums && total > 0 && (
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-3" data-testid="invoices-sums">
+            {t("invoices.sumsLine", { count: total, total: formatMoney(sums.totalEur), open: formatMoney(sums.openEur) })}
           </p>
         )}
 

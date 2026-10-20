@@ -2489,7 +2489,8 @@
     "bulkMahnungTooMany": "Maximal 100 Mahnungen pro Anfrage",
     "mahnungLevelFirst": "Zahlungserinnerung",
     "mahnungLevelSecond": "1. Mahnung",
-    "mahnungLevelFinal": "Letzte Mahnung"
+    "mahnungLevelFinal": "Letzte Mahnung",
+    "sumsLine": "{count} Dokumente · Summe {total} · davon offen {open}"
   },
   "mahnung": {
     "title": "Mahnhistorie",

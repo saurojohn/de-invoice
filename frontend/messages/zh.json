@@ -2489,7 +2489,8 @@
     "bulkMahnungTooMany": "每次请求最多 100 封催款",
     "mahnungLevelFirst": "付款提醒",
     "mahnungLevelSecond": "第一次催款",
-    "mahnungLevelFinal": "最后催款"
+    "mahnungLevelFinal": "最后催款",
+    "sumsLine": "{count} 张单据 · 合计 {total} · 其中未付 {open}"
   },
   "mahnung": {
     "title": "催收历史",

@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 723 — the invoice list states its sums
+
+The list had no figure for what it showed: with „Überfällig“ chosen, how much is that? And its counter „Zeige X von Y“ counted the rows of the page („50 von 50“ with 120 on three pages).
+
+- `GET /invoices` returns `sums: { totalEur, openEur }` over the whole filtered list (one more query without paging): the totals and what is open (`openAmountOf`, Tier 712), each at its booked rate (`invoiceEurFactor`).
+- The page: „3 Dokumente · Summe 3.978,55 € · davon offen 3.383,55 €“ (`invoices.sumsLine`, `invoices-sums`); the counter takes the server's count.
+
+Playwright `invoice-list-sums-tier723.spec.ts` (`sums` with a page of one; on the code before there is none).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 722 — the aging report writes euros as a German page does
 
 Berichte → Altersstruktur: its figures were right (foreign currency in euros, the buckets by German days), but the euro amounts read „€ 2.866,82“ and the title „Altersstruktur (Aging Report)“. `formatMoney` for every euro amount (the bucket cells stay plain numbers in their columns); the title „Altersstruktur der offenen Posten“ (zh „应收账款账龄分析“; en stays „Aging Report“).

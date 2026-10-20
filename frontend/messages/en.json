@@ -2489,7 +2489,8 @@
     "bulkMahnungTooMany": "Maximum 100 reminders per request",
     "mahnungLevelFirst": "Payment reminder",
     "mahnungLevelSecond": "1st dunning notice",
-    "mahnungLevelFinal": "Final dunning notice"
+    "mahnungLevelFinal": "Final dunning notice",
+    "sumsLine": "{count} documents · total {total} · of which open {open}"
   },
   "mahnung": {
     "title": "Dunning history",

@@ -35,6 +35,7 @@ import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 import { servicePeriodOf } from './service-period';
 import { assertInvoiceDetails } from './mandatory-details';
+import { invoiceEurFactor } from './tax-breakdown';
 
 /**
  * Tier 410 — a line's VAT rate, defaulting only when none was given.
@@ -165,7 +166,7 @@ export class InvoiceService {
         { customer: { name: { contains: q, mode: 'insensitive' } } },
       ]
     }
-    const [data, total] = await Promise.all([
+    const [data, total, all] = await Promise.all([
       this.prisma.invoice.findMany({
         where,
         include: {
@@ -178,7 +179,23 @@ export class InvoiceService {
         take: ps,
       }),
       this.prisma.invoice.count({ where }),
+      // Tier 723: the sums of the whole filtered list, not of the page
+      this.prisma.invoice.findMany({
+        where,
+        select: {
+          type: true, status: true, total: true, eurTotal: true,
+          payments: { select: { amount: true } },
+          creditNotes: { where: CREDITING, select: { total: true } },
+        },
+      }),
     ])
+    let totalEur = 0
+    let openEur = 0
+    for (const r of all) {
+      const f = invoiceEurFactor({ total: r.total, totalVat: 0, eurTotal: r.eurTotal })
+      totalEur += Number(r.total) * f
+      openEur += (openAmountOf(r, coversWhole(r, r.creditNotes)) ?? 0) * f
+    }
     // Tier 696: an invoice cancelled by a Storno credit note is settled by it
     // ("paid") — the list says what it is
     const rows = data.map(({ creditNotes, ...row }) => {
@@ -191,6 +208,7 @@ export class InvoiceService {
       page: pg,
       pageSize: ps,
       totalPages: Math.ceil(total / ps) || 1,
+      sums: { totalEur: Math.round(totalEur * 100) / 100, openEur: Math.round(openEur * 100) / 100 }, // Tier 723
     }
   }
 
