@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 721 — the invoice page says how long an invoice is overdue; „Mahnung senden“ from the day after
+
+- Under „Fälligkeitsdatum“: „N Tage überfällig“ (red) for an issued INV / RCV with money open past its due date, counted in German days (`pastDueDays`; as the list since Tier 712).
+- „Mahnung senden“ showed when `new Date(dueDate) < Date.now()` — the due date is midnight UTC, so the button was there on the due day itself and the send was refused („noch nicht überfällig“, bulk-reminder.service). It shows from the day after now, while money is open.
+
+Playwright `invoice-overdue-detail-tier721.spec.ts` (10 days past and part paid: the days and the button; due today: neither).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 720 — the customer page with a foreign-currency invoice
 
 On the UI test customer with a 1 190 USD invoice: „Offener Saldo 2.975,00 €“ added the dollars as euros, and the invoice tab wrote „1.190,00 €“. Measured on a fresh company with 2 380 USD and 1 190 € open: the balance said 3.570,00 €, at the booked rate it is 3.383,55 €.

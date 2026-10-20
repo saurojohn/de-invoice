@@ -594,6 +594,12 @@ export default function InvoiceDetailPage() {
 
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount), 0)
   const outstanding = invoice ? Math.max(0, Number(invoice.total) - totalPaid) : 0
+  // Tier 721: days past the due date of an issued claim with money open (0 otherwise)
+  const pastDueDays =
+    invoice && invoice.dueDate && (invoice.type === "INV" || invoice.type === "RCV")
+      && (invoice.status === "sent" || invoice.status === "overdue") && outstanding > 0.005 && !invoice.fullyCredited
+      ? Math.max(0, Math.round((Date.parse(todayIso()) - Date.parse(String(invoice.dueDate).slice(0, 10))) / 86_400_000))
+      : 0
   // Tier 413: `subtotal` is the line sum BEFORE the invoice discount, so a
   // discounted invoice read "1000,00 + 171,00 = 1071,00" here.
   const netAfterDiscount = invoice ? Number(invoice.total) - Number(invoice.totalVat) : 0
@@ -2304,7 +2310,11 @@ export default function InvoiceDetailPage() {
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.issueDate")}</div><div>{formatDate(invoice.issueDate)}</div></div>
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">{invoice.type === "QU" ? t("docs.validUntil") : t("invoicePage.dueDate")}</div><div data-testid="invoice-due-date">{formatDate(invoice.dueDate)}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">{invoice.type === "QU" ? t("docs.validUntil") : t("invoicePage.dueDate")}</div><div data-testid="invoice-due-date">{formatDate(invoice.dueDate)}</div>
+                  {/* Tier 721: how long past, while money is open (as in the list, Tier 712) */}
+                  {pastDueDays > 0 && (
+                    <div className="text-xs text-red-600 dark:text-red-400" data-testid="invoice-overdue-days">{t("invoice.overdueSince", { days: pastDueDays })}</div>
+                  )}</div>
                 {/* Tier 492: the Leistungsdatum (§ 14 UStG) — the issue date when none is recorded, as on the PDF */}
                 {invoice.servicePeriodStart && invoice.servicePeriodEnd ? (
                   <div data-testid="leistungszeitraum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.servicePeriod")}</div><div>{formatDate(invoice.servicePeriodStart)} – {formatDate(invoice.servicePeriodEnd)}</div></div>
@@ -2577,8 +2587,10 @@ export default function InvoiceDetailPage() {
               {/* Tier 476: claims only — not a Proforma or credit note. */}
               {(invoice.type === "INV" || invoice.type === "RCV") &&
                 (invoice.status === "sent" || invoice.status === "overdue") &&
-                invoice.dueDate &&
-                new Date(invoice.dueDate).getTime() < Date.now() && (
+                // Tier 721: past due from the day after the due date (German day) —
+                // the time compare showed the button on the due day, and the
+                // send was refused („noch nicht überfällig“)
+                pastDueDays > 0 && (
                   <Button
                     size="sm"
                     onClick={openSendMahnungModal}
