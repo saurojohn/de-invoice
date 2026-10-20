@@ -50,6 +50,7 @@ export function CashflowChart({ data, height = 220 }: CashflowChartProps) {
 
 
   return (
+    <div style={{ width: "100%" }}>
     <svg
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
@@ -108,22 +109,16 @@ export function CashflowChart({ data, height = 220 }: CashflowChartProps) {
           .join(" ")}
         data-testid="cashflow-cumulative-line"
       />
-      {/* Month labels (rotated for compactness) */}
-      {data.map((d, i) => {
-        const x = i * barWidth + barWidth / 2
-        return (
-          <text
-            key={`lbl-${d.month}`}
-            x={x}
-            y={99}
-            fontSize={3}
-            textAnchor="middle"
-            fill="#6b7280"
-          >
-            {d.label.split(" ")[0].slice(0, 3)}
-          </text>
-        )
-      })}
     </svg>
+      {/* Tier 710: the month labels in HTML under the chart — SVG text in a
+          viewBox stretched with preserveAspectRatio="none" was squashed */}
+      <div className="flex text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+        {data.map((d) => (
+          <div key={`lbl-${d.month}`} className="flex-1 text-center" data-testid="cashflow-chart-month">
+            {d.label.split(" ")[0].slice(0, 3)}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

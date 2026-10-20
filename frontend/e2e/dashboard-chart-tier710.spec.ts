@@ -3,7 +3,9 @@
  *
  * They were SVG text inside a viewBox stretched with
  * preserveAspectRatio="none": squashed into a grey line, on the dark page as
- * good as invisible. They are HTML over the chart now.
+ * good as invisible. They are HTML over the chart now. The USt chart's grid
+ * lines were at the pixel value read as a percentage (its zero line below the
+ * chart); the recent invoices showed "sent" / "€ 4.760,00".
  */
 import { test, expect } from "@playwright/test"
 
@@ -59,4 +61,29 @@ test("the revenue chart's labels: text of a readable size, light on the dark pag
   expect(look.height).toBeGreaterThan(8) // (was squashed into a line)
   expect(look.width).toBeGreaterThan(20)
   expect(look.color).not.toBe("rgb(107, 114, 128)") // gray-500 on the dark page: the dark variant applies
+
+  // the USt chart: its labels likewise, and its zero line in the middle, where the bars stand
+  // (the lines were placed at the pixel value read as a percentage — the zero line below the chart)
+  const ust = page.getByTestId("ustva-trend-tick")
+  await expect(ust).toHaveCount(5, { timeout: 60_000 })
+  const geo = await page.evaluate(() => {
+    const ticks = Array.from(document.querySelectorAll('[data-testid="ustva-trend-tick"]')).map((el) => {
+      const r = el.getBoundingClientRect(); return { text: el.textContent, y: r.top + r.height / 2 }
+    })
+    const bars = Array.from(document.querySelectorAll('[data-testid^="ustva-trend-bar-"]'))
+      .filter((el) => Number(el.getAttribute("data-zahllast")) > 0)
+      .map((el) => el.getBoundingClientRect().bottom)
+    return { ticks, bars }
+  })
+  const zero = geo.ticks.find((tk) => /^0\s€$/.test(tk.text ?? ""))!
+  const ys = geo.ticks.map((tk) => tk.y)
+  expect(zero.y).toBeGreaterThan(Math.min(...ys) + 10)
+  expect(zero.y).toBeLessThan(Math.max(...ys) - 10)
+  expect(geo.bars.length).toBeGreaterThan(0)
+  for (const bottom of geo.bars) expect(Math.abs(bottom - zero.y)).toBeLessThan(4)
+
+  // the recent invoices: the status in words, the amount as in German (was "sent", "€ 4.760,00")
+  const recent = page.getByTestId("recent-invoice-status").first()
+  await expect(recent).toHaveText("Versendet")
+  await expect(page.locator("body")).toContainText("4.760,00 €")
 })

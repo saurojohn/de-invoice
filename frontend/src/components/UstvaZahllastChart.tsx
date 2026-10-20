@@ -108,17 +108,33 @@ export function UstvaZahllastChart({ data, height = 200, locale = "de-DE" }: Ust
         </div>
       </div>
 
+      {/* Tier 710: the axis labels in HTML over the chart — SVG text in a viewBox
+          stretched with preserveAspectRatio="none" was squashed to a grey line */}
+      <div className="relative w-full" style={{ height: chartHeight }}>
+        {ticks.map((tick, i) => (
+          <div
+            key={i}
+            className="absolute left-0 -translate-y-1/2 text-[10px] leading-none text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-gray-900/70 pr-1"
+            style={{ top: `${((zeroY - (tick / maxAbs) * (chartHeight / 2)) / height) * 100}%` }}
+            data-testid="ustva-trend-tick"
+          >
+            {formatCurrency(tick)}
+          </div>
+        ))}
       <svg
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
         className="w-full"
         style={{ height: chartHeight }}
       >
-        {/* Horizontal grid lines + y-axis labels */}
+        {/* Horizontal grid lines */}
         {ticks.map((tick, i) => {
           // tick is in [-maxAbs, +maxAbs]
           // y = zeroY - (tick / maxAbs) * (chartHeight/2)
-          const yPct = zeroY - (tick / maxAbs) * (chartHeight / 2)
+          // Tier 710: in percent of the height, as the bars are — it was the
+          // pixel value read as a percentage (the zero line at 105 %, below the
+          // chart, and a refund month's bar drawn under a line that wasn't there)
+          const yPct = ((zeroY - (tick / maxAbs) * (chartHeight / 2)) / height) * 100
           const isZero = Math.abs(tick) < 0.01
           return (
             <g key={i}>
@@ -131,15 +147,6 @@ export function UstvaZahllastChart({ data, height = 200, locale = "de-DE" }: Ust
                 strokeWidth={isZero ? "0.3" : "0.2"}
                 strokeDasharray={isZero ? "" : "0.5,0.5"}
               />
-              <text
-                x="0"
-                y={`${yPct}%`}
-                fontSize="2.5"
-                fill="#6b7280"
-                dominantBaseline="middle"
-              >
-                {formatCurrency(tick)}
-              </text>
             </g>
           )
         })}
@@ -175,6 +182,7 @@ export function UstvaZahllastChart({ data, height = 200, locale = "de-DE" }: Ust
           )
         })}
       </svg>
+      </div>
 
       <div className="flex justify-between text-[10px] text-gray-500 mt-1 px-1">
         {rows.map((d) => (

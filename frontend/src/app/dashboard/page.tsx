@@ -1,6 +1,7 @@
 "use client"
 
 import { todayIso } from "@/lib/today"
+import { formatMoney } from "@/lib/money"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -91,6 +92,8 @@ interface RecentInvoice {
   issueDate: string
   total: string
   status: string
+  currency?: string | null
+  fullyCredited?: boolean // Tier 696
   customer?: { name: string; customerNumber?: string | null } | null
 }
 
@@ -983,7 +986,7 @@ export default function DashboardPage() {
                       <th>{t("invoice.customer") || "Kunde"}</th>
                       <th>{t("invoice.issueDate") || "Datum"}</th>
                       <th className="text-right">{t("common.amount") || "Betrag"}</th>
-                      <th>{t("common.status") || "Status"}</th>
+                      <th className="pl-4">{t("common.status") || "Status"}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -995,7 +998,7 @@ export default function DashboardPage() {
                         : status === "cancelled" ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
                         : "bg-yellow-100 text-yellow-800"
                       return (
-                        <tr key={inv.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
+                        <tr key={inv.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-900">
                           <td className="py-2 font-mono">
                             <Link
                               href={`/dashboard/invoices/${inv.id}`}
@@ -1013,10 +1016,12 @@ export default function DashboardPage() {
                             )}
                           </td>
                           <td className="font-mono text-xs">{fmtDate(inv.issueDate, dl)}</td>
-                          <td className="text-right font-mono">€ {fmtMoney(Number(inv.total))}</td>
-                          <td>
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${statusColor}`}>
-                              {status}
+                          {/* Tier 710: 1.190,00 € in the invoice's currency (was "€ 1.190,00"), and the
+                              status in words (it showed "sent", "paid", "cancelled") */}
+                          <td className="text-right font-mono whitespace-nowrap">{formatMoney(inv.total, inv.currency || "EUR")}</td>
+                          <td className="pl-4">
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${inv.fullyCredited ? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300" : statusColor}`} data-testid="recent-invoice-status">
+                              {inv.fullyCredited ? t("invoice.creditedFully") : t(`invoice.${status}`)}
                             </span>
                           </td>
                         </tr>
