@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 711 — an invoice marked „überfällig“ is still dunned
+
+Tier 710 said „the dunning itself goes by the due date and was not affected“ — wrong: `ReminderService.findOverdueInvoices` (the Mahnwesen list and the automatic run at 09:00) and `getReminderStats` asked for `status: 'sent'` only. From the first night of the new job on, a marked invoice left the list and was never dunned again. Measured with the test mailbox: after the job, „Jetzt ausführen“ sent 0 letters for two invoices overdue since August. (Found by grepping for every query that names `'sent'` without `'overdue'`; bank matching, direct debit, FinTS, portal, customer summary and the bulk send already took both.)
+
+- The three reminder queries take `status: { in: ['sent', 'overdue'] }`.
+- `invoice/open-status.ts` `refreshOpenStatus`: an issued INV / RCV with money open is `overdue` past its due date (German day) unless an active, unbroken installment plan holds it, else `sent`. Called after a payment is removed (it put a long overdue invoice back to „versendet“ until the next night), after a Ratenplan is created (the invoice stayed „überfällig“ under its Stundung) and after a plan is cancelled (it is overdue again at once).
+- Spec 248's Quittung of June, its payment removed, is now `overdue` (was `sent`).
+
+Spec `432-tier711-overdue-dunned.sh` (7 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 710 — an invoice past its due date is „überfällig“
 
 The owner, 20.10.2026: „继续找发票方面还要提升的“. On the dashboard of a test company with unpaid invoices from 2025 and January: **„Überfällige Rechnungen: 0“**. The status `overdue` is read by the invoice list's chip „Überfällig“, that dashboard tile, the customer report's overdue column and the customer page — and nothing set it: only a user choosing it by hand (installments have their own job; invoices had none). The dunning itself goes by the due date and was not affected.

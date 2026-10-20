@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { assertManualPaymentMethod } from '../invoice/payment-methods'
 import { PaymentService } from '../invoice/payment.service'
 import { syncInstallments, endPlanPause } from './installment-sync'
+import { refreshOpenStatus } from '../invoice/open-status'
 import {
   CreateInstallmentPlanDto,
   PayInstallmentDto,
@@ -449,7 +450,7 @@ export class InstallmentPlanService {
     // transaction. If any Raten insert fails, the
     // plan rollbacks and we don't end up with a
     // half-built schedule.
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const plan = await tx.installmentPlan.create({
         data: {
           companyId,
@@ -481,6 +482,9 @@ export class InstallmentPlanService {
         },
       })
     })
+    // Tier 711: under the plan the invoice is not overdue (it stayed „überfällig“)
+    await refreshOpenStatus(this.prisma, companyId, invoice.id)
+    return created
   }
 
   /**
@@ -538,7 +542,7 @@ export class InstallmentPlanService {
    */
   async cancel(id: string, companyId: string) {
     const plan = await this.findOne(id, companyId)
-    return this.prisma.$transaction(async (tx) => {
+    const cancelled = await this.prisma.$transaction(async (tx) => {
       await tx.installmentPlan.update({
         where: { id: plan.id },
         data: { status: 'cancelled' },
@@ -556,6 +560,9 @@ export class InstallmentPlanService {
         include: { installments: { orderBy: { sequenceNumber: 'asc' } } },
       })
     })
+    // Tier 711: without the plan, past its due date it is „überfällig“ at once
+    await refreshOpenStatus(this.prisma, companyId, plan.invoiceId)
+    return cancelled
   }
 
   /**

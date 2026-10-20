@@ -18,6 +18,7 @@ import { ReminderService } from '../reminder/reminder.service';
 // overage.
 import { CreditBalanceService } from '../customer/credit-balance.service';
 import { syncInstallments } from '../installment-plan/installment-sync';
+import { refreshOpenStatus } from './open-status';
 import { businessDayIso, businessTodayIso } from '../../common/business-date';
 
 @Injectable()
@@ -576,6 +577,8 @@ export class PaymentService {
     }
     // Tier 429: …and loses a Rate again when its payment is removed.
     await syncInstallments(this.prisma, payment.invoiceId);
+    // Tier 711: past its due date it is „überfällig“ again, not „versendet“
+    await refreshOpenStatus(this.prisma, companyId, payment.invoiceId);
     return { ok: true };
   }
 

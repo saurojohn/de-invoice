@@ -197,7 +197,7 @@ export class ReminderService {
 
   /**
    * Find all overdue invoices for a company.
-   * Overdue = status is 'sent' and dueDate < today
+   * Overdue = status is 'sent' or 'overdue' and dueDate < today
    * AND NOT (skontoDays > 0 AND today <= issueDate + skontoDays).
    *
    * Tier 57: invoices still in their Skonto window
@@ -215,7 +215,9 @@ export class ReminderService {
     const invoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
-        status: 'sent',
+        // Tier 711: and 'overdue' — the nightly job (Tier 710) sets it; with
+        // 'sent' alone a marked invoice left the list and the automatic run
+        status: { in: ['sent', 'overdue'] },
         dueDate: {
           lt: today,
         },
@@ -810,7 +812,7 @@ Mit freundlichen Grüßen,
       this.prisma.invoice.count({
         where: {
           companyId,
-          status: 'sent',
+          status: { in: ['sent', 'overdue'] }, // Tier 711
           dueDate: { lt: today },
           type: 'INV',
         },
@@ -821,7 +823,7 @@ Mit freundlichen Grüßen,
       this.prisma.invoice.findMany({
         where: {
           companyId,
-          status: 'sent',
+          status: { in: ['sent', 'overdue'] }, // Tier 711
           dueDate: { lt: today },
           type: 'INV',
         },

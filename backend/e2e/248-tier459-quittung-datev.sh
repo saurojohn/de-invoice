@@ -49,6 +49,6 @@ note "=== the payment taken back ==="
 AS DELETE "/api/v1/invoices/$R/payments/$P?companyId=$C"
 assert_eq "deleted" "$STATUS" "200"
 AS GET "/api/v1/invoices/$R?companyId=$C"
-assert_eq "the Quittung is open again" "$(json_field "$BODY" status)" "sent"
+assert_eq "the Quittung is open again (past its due date: überfällig, Tier 711)" "$(json_field "$BODY" status)" "overdue"
 
 summary
