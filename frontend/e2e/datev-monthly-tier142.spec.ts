@@ -57,7 +57,7 @@ test.describe('Tier 142 — DATEV monthly split', () => {
   test('the Per-Monat-aufteilen button renders in the DATEV tab', async ({ page }) => {
     await page.goto('/dashboard/reports')
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
-    // The default tab is "Umsatzbericht" — switch to DATEV.
+    // The default tab is "Rechnungsstatistik" (Tier 709b) — switch to DATEV.
     await page.getByTestId('tab-datev').click()
     const btn = page.getByTestId('datev-download-monthly-btn')
     await expect(btn).toBeVisible({ timeout: 10_000 })

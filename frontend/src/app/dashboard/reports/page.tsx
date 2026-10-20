@@ -14,28 +14,8 @@ import { OssTab } from "./OssTab"
 import { BwaTab } from "./BwaTab"
 import { InvoiceStatsTab } from "./InvoiceStatsTab"
 
-type TabType = "sales" | "invoiceStats" | "vat" | "customers" | "datev" | "pnl" | "oss" | "bwa"
+type TabType = "invoiceStats" | "vat" | "customers" | "datev" | "pnl" | "oss" | "bwa"
 
-interface SalesReport {
-  totalSales: number
-  totalVat: number
-  byCustomer: Array<{
-    customerId: string
-    customerName: string
-    totalAmount: number
-    invoiceCount: number
-  }>
-  byMonth: Array<{
-    month: string
-    totalAmount: number
-    invoiceCount: number
-  }>
-  yearOverYear: Array<{
-    year: number
-    totalAmount: number
-    growthPercent: number | null
-  }>
-}
 
 interface VatReport {
   byRate: Array<{
@@ -72,10 +52,10 @@ interface CustomerReport {
 
 export default function ReportsPage() {
   // Tier 601: the page was German in every language — 116 texts without a key.
-  const { t, getDateLocale } = useI18n()
+  const { t } = useI18n()
   const router = useRouter()
   const toast = useToast()
-  const [activeTab, setActiveTab] = useState<TabType>("sales")
+  const [activeTab, setActiveTab] = useState<TabType>("invoiceStats")
   const [loading, setLoading] = useState(true)
 
   // Date range state
@@ -86,7 +66,6 @@ export default function ReportsPage() {
   const [vatPeriod, setVatPeriod] = useState<"year" | "q1" | "q2" | "q3" | "q4" | "m1" | "m2" | "m3" | "m4" | "m5" | "m6" | "m7" | "m8" | "m9" | "m10" | "m11" | "m12">("year")
 
   // Report data state
-  const [salesReport, setSalesReport] = useState<SalesReport | null>(null)
   const [vatReport, setVatReport] = useState<VatReport | null>(null)
   const [customerReport, setCustomerReport] = useState<CustomerReport | null>(null)
 
@@ -107,13 +86,8 @@ export default function ReportsPage() {
       // returns 401 and res.json() throws — the page
       // would have shown nothing. This was the same bug
       // the dashboard had before commit 8b696b0.
-      // Load sales report
-      const salesRes = await apiFetch(
-        `/api/v1/reports/sales?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`,
-        { throwOnError: false }
-      )
-      const salesData = salesRes.ok ? await salesRes.json() : null
-      setSalesReport(salesData)
+      // Tier 709b: the Umsatzbericht is replaced by the Rechnungsstatistik
+      // (InvoiceStatsTab, its own data) — the owner, 20.10.2026: „用新页面替代“
 
       // Load VAT report
       let vatPath = `/api/v1/reports/vat?companyId=${companyId}&year=${vatYear}`
@@ -153,11 +127,6 @@ export default function ReportsPage() {
     return new Date(dateStr).toLocaleDateString("de-DE")
   }
 
-  const formatMonth = (monthStr: string) => {
-    const [year, month] = monthStr.split("-")
-    const date = new Date(parseInt(year), parseInt(month) - 1)
-    return date.toLocaleDateString(getDateLocale(), { month: "long", year: "numeric" })
-  }
 
   const exportToCSV = (data: any[], filename: string, headers: string[]) => {
     // Tier 648: a customer's name with a semicolon in it split its row
@@ -182,15 +151,6 @@ export default function ReportsPage() {
     document.body.removeChild(a)
   }
 
-  const getSalesByCustomerCSV = () => {
-    if (!salesReport?.byCustomer) return
-    const data = salesReport.byCustomer.map((c) => ({
-      Kunde: c.customerName,
-      "Anzahl Rechnungen": c.invoiceCount,
-      "Gesamtbetrag": formatCurrency(c.totalAmount)
-    }))
-    exportToCSV(data, "umsatzbericht_nach_kunde", Object.keys(data[0] || {}))
-  }
 
   /**
    * Download the DATEV Buchungsstapel for the current
@@ -286,15 +246,6 @@ export default function ReportsPage() {
     }
   }
 
-  const getSalesByMonthCSV = () => {
-    if (!salesReport?.byMonth) return
-    const data = salesReport.byMonth.map((m) => ({
-      Monat: formatMonth(m.month),
-      "Anzahl Rechnungen": m.invoiceCount,
-      "Gesamtbetrag": formatCurrency(m.totalAmount)
-    }))
-    exportToCSV(data, "umsatzbericht_nach_monat", Object.keys(data[0] || {}))
-  }
 
   const getVatCSV = () => {
     if (!vatReport?.byRate) return
@@ -359,16 +310,6 @@ export default function ReportsPage() {
             scroll horizontally on a 375px phone
             instead of pushing the page out of bounds. */}
         <div className="flex border-b mb-6 overflow-x-auto">
-          <button
-            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
-              activeTab === "sales"
-                ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200"
-            }`}
-            onClick={() => setActiveTab("sales")}
-          >
-            {t("reports.tabRevenue")}
-          </button>
           {/* Tier 709: per month and per year, amounts, numbers, quantities */}
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
@@ -535,153 +476,6 @@ export default function ReportsPage() {
           </div>
         ) : (
           <>
-            {/* Sales Report */}
-            {activeTab === "sales" && salesReport && (
-              <div className="space-y-6">
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                        {formatCurrency(salesReport.totalSales)}
-                      </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.totalRevenue")}</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                        {formatCurrency(salesReport.totalVat)}
-                      </div>
-                      <div className="text-gray-500 dark:text-gray-400 mt-1">{t("reports.totalVat")}</div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* By Month Table */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <CardTitle>{t("reports.revenueByMonth")}</CardTitle>
-                      <Button size="sm" variant="outline" onClick={getSalesByMonthCSV}>
-                        {t("reports.csvExport")}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px]">
-                        <thead className="bg-gray-50 dark:bg-gray-900 border-b">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.month")}</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.invoiceCount")}</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.totalAmount")}</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {(salesReport.byMonth || []).map((month) => (
-                            <tr key={month.month} className="hover:bg-gray-50 dark:bg-gray-900">
-                              <td className="px-4 py-3">{formatMonth(month.month)}</td>
-                              <td className="px-4 py-3 text-right">{month.invoiceCount}</td>
-                              <td className="px-4 py-3 text-right">{formatCurrency(month.totalAmount)}</td>
-                            </tr>
-                          ))}
-                          {(salesReport.byMonth || []).length === 0 && (
-                            <tr>
-                              <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                {t("reports.noData")}
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* By Customer Table */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <CardTitle>{t("reports.revenueByCustomer")}</CardTitle>
-                      <Button size="sm" variant="outline" onClick={getSalesByCustomerCSV}>
-                        {t("reports.csvExport")}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px]">
-                        <thead className="bg-gray-50 dark:bg-gray-900 border-b">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.customer")}</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.invoiceCount")}</th>
-                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.totalAmount")}</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {(salesReport.byCustomer || []).map((customer) => (
-                            <tr key={customer.customerId} className="hover:bg-gray-50 dark:bg-gray-900">
-                              <td className="px-4 py-3">{customer.customerName}</td>
-                              <td className="px-4 py-3 text-right">{customer.invoiceCount}</td>
-                              <td className="px-4 py-3 text-right">{formatCurrency(customer.totalAmount)}</td>
-                            </tr>
-                          ))}
-                          {(salesReport.byCustomer || []).length === 0 && (
-                            <tr>
-                              <td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                {t("reports.noData")}
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Year over Year */}
-                {(salesReport.yearOverYear || []).length > 1 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>{t("reports.yearComparison")}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[640px]">
-                          <thead className="bg-gray-50 dark:bg-gray-900 border-b">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.year")}</th>
-                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.totalAmount")}</th>
-                              <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("reports.growth")}</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {(salesReport.yearOverYear || []).map((year) => (
-                              <tr key={year.year} className="hover:bg-gray-50 dark:bg-gray-900">
-                                <td className="px-4 py-3">{year.year}</td>
-                                <td className="px-4 py-3 text-right">{formatCurrency(year.totalAmount)}</td>
-                                <td className="px-4 py-3 text-right">
-                                  {year.growthPercent !== null ? (
-                                    <span className={year.growthPercent >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
-                                      {year.growthPercent >= 0 ? "+" : ""}{year.growthPercent.toFixed(1)}%
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            )}
-
-            {/* VAT Report */}
             {activeTab === "vat" && vatReport && (
               <div className="space-y-6">
                 {/* Summary Cards */}
