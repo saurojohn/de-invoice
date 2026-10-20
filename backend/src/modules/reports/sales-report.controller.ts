@@ -17,12 +17,13 @@
  * any changes.
  */
 import { businessTodayEnd, businessYearStart } from '../../common/business-date';
-import { queryDate } from '../../common/query';
+import { queryDate, queryInt, requiredQueryInt } from '../../common/query';
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 
 import { Auth, Require } from '../../auth/roles.decorator';
 import { AgingService } from './aging.service';
 import { ReportsService } from './reports.service';
+import { InvoiceStatisticsService } from './invoice-statistics.service';
 
 @Auth()
 @Controller('reports')
@@ -30,7 +31,25 @@ export class SalesReportController {
   constructor(
     private readonly reportsService: ReportsService,
     private readonly agingService: AgingService,
+    private readonly invoiceStatistics: InvoiceStatisticsService,
   ) {}
+
+  /**
+   * Tier 709: what was invoiced in a year — month by month, the years
+   * before, and the quantities sold by article (of the year, or of `month`).
+   */
+  @Get('invoice-statistics')
+  @Require('reports.read')
+  async getInvoiceStatistics(
+    @Query('companyId') companyId: string,
+    @Query('year') year: string,
+    @Query('month') month?: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const y = requiredQueryInt(year, 'year', { min: 2000, max: 2100 })
+    const m = queryInt(month, 'month', { min: 1, max: 12 })
+    return this.invoiceStatistics.statistics(companyId, y, m ?? undefined)
+  }
 
   @Get('sales')
   @Require('reports.read')

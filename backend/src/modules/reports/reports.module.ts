@@ -20,6 +20,7 @@ import { ReportsService } from './reports.service';
 import { UstvaService } from './ustva.service';
 import { UstjaService } from './ustja.service';
 import { AgingService } from './aging.service';
+import { InvoiceStatisticsService } from './invoice-statistics.service'; // Tier 709
 import { CashFlowService } from './cashflow.service';
 import { PnlService } from './pnl.service';
 import { OssService } from './oss.service';
@@ -66,6 +67,7 @@ import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
     UstvaService,
     UstjaService,
     AgingService,
+    InvoiceStatisticsService,
     CashFlowService,
     PnlService,
     OssService,

@@ -2662,6 +2662,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 709 — Rechnungsstatistik: per month and per year, amounts, numbers, quantities sold
+
+The owner, 20.10.2026: „发票方面实现每个月和年度能看开出去的金额数据和数量销售功能“ — per month and per year, what was invoiced (amounts, how many) and the quantities sold. The Umsatzbericht (GET /reports/sales) listed only the months that had an invoice, put a net total above a table of gross amounts, counted a credit note as one more invoice, and had no quantities.
+
+- `GET /reports/invoice-statistics?year=&month=` (`invoice-statistics.service.ts`, `reports.read`): the year's total and its twelve months (invoices, of them cancelled by a Storno credit note, credit notes, net, VAT, gross), the years up to this one (at most ten, with the change of the net), and the articles sold in the year — or in `month`.
+- The rules: issued INV / RCV and CN by issue date, in euros at the booked rate; not drafts, cancelled ones, Proforma, quotes, delivery notes, order confirmations; a credit note in its own month (§ 17 UStG). An invoice cancelled by its Storno is counted as written (and as „storniert“), its amount and its credit note's cancel out. Quantities from the lines of the invoices that stand, by product (or description) and unit; a line's amount is its share of its invoice's net after the discount. Two rows make the articles add up to the net of the period: the invoices of the period cancelled by a credit note (+) and the credit notes of the period (−); the cents the shares leave go to the largest row.
+- Berichte → „Rechnungsstatistik“ (`InvoiceStatsTab.tsx`): the year, five figures, the twelve months with a bar each (a click on a month shows its quantities), the years compared, the quantities sold; CSV of the months and of the quantities; de/en/zh (`invoiceStats.*`).
+- The Umsatzbericht is left as it was.
+
+Spec `430-tier709-rechnungsstatistik.sh` (404 on the code before) — a fixture of 2025 and 2026 with a discount, a USD invoice, a Storno, a partial credit note, a draft, a quote and a status-cancelled invoice, every figure worked out by hand. Playwright `invoice-statistics-tier709.spec.ts` (the tab, twelve months, a month's quantities, the phone width).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 708 — a credit note over the whole amount takes the invoice's lines
 
 Walk, invoice page → „Gutschrift“: the dialog fills in the open amount (535,50 €); its hint says an empty field credits everything with the invoice's lines 1:1. Sent as it opened, the credit note had **one line** — the reason as its text („Erstattung“ without one), quantity 1, „Stück“ — the lines, quantities and units of the invoice gone from the document that corrects it (Tier 695 had made the full credit note keep them).

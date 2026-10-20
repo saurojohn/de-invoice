@@ -12,8 +12,9 @@ import { useToast } from "@/components/useToast"
 import { PnlTab } from "./PnlTab"
 import { OssTab } from "./OssTab"
 import { BwaTab } from "./BwaTab"
+import { InvoiceStatsTab } from "./InvoiceStatsTab"
 
-type TabType = "sales" | "vat" | "customers" | "datev" | "pnl" | "oss" | "bwa"
+type TabType = "sales" | "invoiceStats" | "vat" | "customers" | "datev" | "pnl" | "oss" | "bwa"
 
 interface SalesReport {
   totalSales: number
@@ -368,6 +369,18 @@ export default function ReportsPage() {
           >
             {t("reports.tabRevenue")}
           </button>
+          {/* Tier 709: per month and per year, amounts, numbers, quantities */}
+          <button
+            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+              activeTab === "invoiceStats"
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            }`}
+            onClick={() => setActiveTab("invoiceStats")}
+            data-testid="tab-invoice-stats"
+          >
+            {t("reports.tabInvoiceStats")}
+          </button>
           <button
             className={`px-6 py-3 font-medium border-b-2 transition-colors ${
               activeTab === "vat"
@@ -435,7 +448,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Date Range Selection */}
-        {activeTab !== "vat" && (
+        {activeTab !== "vat" && activeTab !== "invoiceStats" && (
           <Card className="mb-6">
             <CardContent className="pt-6">
               <div className="flex flex-wrap gap-4 items-end">
@@ -854,6 +867,7 @@ export default function ReportsPage() {
 
             {/* Tier 86: BWA (Betriebswirtschaftliche Auswertung) */}
             {activeTab === "bwa" && <BwaTab />}
+            {activeTab === "invoiceStats" && <InvoiceStatsTab />}
           </>
         )}
       </div>
