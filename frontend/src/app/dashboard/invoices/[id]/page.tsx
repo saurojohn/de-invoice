@@ -2719,18 +2719,27 @@ export default function InvoiceDetailPage() {
                 </thead>
                 <tbody>
                   {payments.map((p) => (
-                    <tr key={p.id} className="border-b hover:bg-gray-50 dark:bg-gray-900">
+                    <tr key={p.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-900" data-testid="payment-row">
                       <td className="px-4 py-2">{formatDate(p.paymentDate)}</td>
                       <td className="px-4 py-2">{paymentMethodLabel(p.paymentMethod)}</td>
                       <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{p.reference || "—"}</td>
                       <td className="px-4 py-2 text-right font-medium">{money(Number(p.amount))}</td>
                       <td className="px-4 py-2 text-right">
-                        <button
-                          onClick={() => deletePayment(p.id)}
-                          className="text-red-600 dark:text-red-400 hover:underline text-xs"
-                        >
-                          {t("invoicePage.delete")}
-                        </button>
+                        {/* Tier 713: the settlement by a credit note (or of an advance)
+                            belongs to that document — it is not deleted here */}
+                        {p.paymentMethod === "Gutschrift" || p.paymentMethod === "Anzahlung" ? (
+                          <span className="text-xs text-gray-500 dark:text-gray-400" title={t("invoicePage.settlementKept")} data-testid="payment-kept">
+                            —
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => deletePayment(p.id)}
+                            className="text-red-600 dark:text-red-400 hover:underline text-xs"
+                            data-testid="payment-delete"
+                          >
+                            {t("invoicePage.delete")}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -2762,10 +2771,11 @@ export default function InvoiceDetailPage() {
               <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
                 {(
                   t("invoice.ratensplanSuggestDesc") ||
-                  "Diese Rechnung über {amount} liegt über dem Schwellenwert von {threshold}. Sie können dem Kunden einen Ratenplan anbieten."
+                  "Offen sind {amount} — über dem Schwellenwert von {threshold}. Sie können dem Kunden einen Ratenplan anbieten."
                 )
-                  // Tier 704: 535,50 € — it said "535.50 EUR"
-                  .replace("{amount}", money(invoice?.total || 0))
+                  // Tier 704: 535,50 € — it said "535.50 EUR"; Tier 713: what is open, which the plan
+                  // divides (it named the total: „über 1.071,00 €“ with 952,00 € open)
+                  .replace("{amount}", money(ratensplanSuggestion.totalAmount ?? Number(invoice?.total || 0)))
                   .replace("{threshold}", formatMoney(ratensplanSuggestion.threshold))}
               </p>
             </div>

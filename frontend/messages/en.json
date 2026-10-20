@@ -1309,7 +1309,7 @@
     "costCenter": "Cost center (DATEV)",
     "costObject": "Cost object (DATEV)",
     "ratensplanSuggestTitle": "Offer installment plan?",
-    "ratensplanSuggestDesc": "This invoice for {amount} is above the {threshold} threshold. You can offer the customer an installment plan — reminders will be auto-paused.",
+    "ratensplanSuggestDesc": "{amount} is open — above the {threshold} threshold. You can offer the customer an installment plan — reminders will be auto-paused.",
     "ratensplanSuggestButton": "Create installment plan",
     "ratensplanModalTitle": "Create installment plan from invoice",
     "ratensplanModalSubtitle": "The customer's reminders are auto-paused while the plan runs.",
@@ -4158,7 +4158,8 @@
     "rateEcb": "ECB reference rate of {date}",
     "rateManual": "entered by hand",
     "rateUnknown": "origin of the rate not recorded",
-    "eurEquivalent": "In euros"
+    "eurEquivalent": "In euros",
+    "settlementKept": "Belongs to the credit note or final invoice — corrected there"
   },
   "booksClosing": {
     "title": "Close the books (Festschreibung)",

@@ -535,6 +535,23 @@ export class PaymentService {
         'Die verrechnete Anzahlung gehört zur Schlussrechnung und kann nicht gelöscht werden. Korrigieren Sie mit einer Gutschrift.',
       );
     }
+    // Tier 713: the settlement of an issued credit note stays — the credit
+    // note is in the books (UStVA, EÜR, DATEV) and cannot be cancelled once
+    // settled (Tier 461). Measured: the payment deleted, the credit note
+    // stayed at −119 € and its invoice was open for the full 1 190 € again
+    // (and dunned for it).
+    if (payment.paymentMethod === 'Gutschrift' && /^CN /.test(payment.reference ?? '')) {
+      const cn = await this.prisma.invoice.findFirst({
+        where: { companyId, type: 'CN', invoiceNumber: (payment.reference ?? '').slice(3), status: { not: 'cancelled' } },
+        select: { invoiceNumber: true },
+      });
+      if (cn) {
+        throw new BadRequestException(
+          `Die Verrechnung gehört zur Gutschrift ${cn.invoiceNumber} und kann nicht gelöscht werden — die Gutschrift ist ausgestellt. ` +
+          'Ist sie falsch, stellen Sie eine neue Rechnung über den Betrag aus.',
+        );
+      }
+    }
     if (payment.invoice.type === 'PI') {
       const final = await settlingInvoice(this.prisma, companyId, payment.invoiceId);
       if (final) {

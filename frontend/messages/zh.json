@@ -1309,7 +1309,7 @@
     "costCenter": "成本中心 (DATEV)",
     "costObject": "成本对象 (DATEV)",
     "ratensplanSuggestTitle": "提供分期计划?",
-    "ratensplanSuggestDesc": "此发票金额 {amount} 超过 {threshold} 阈值。您可以为客户提供分期计划 — 催款将自动暂停。",
+    "ratensplanSuggestDesc": "未付金额 {amount} 超过 {threshold} 阈值。您可以为客户提供分期计划 — 催款将自动暂停。",
     "ratensplanSuggestButton": "创建分期计划",
     "ratensplanModalTitle": "从发票创建分期计划",
     "ratensplanModalSubtitle": "分期计划执行期间,客户的催款将自动暂停。",
@@ -4158,7 +4158,8 @@
     "rateEcb": "{date} 的欧洲央行参考汇率",
     "rateManual": "手工填写",
     "rateUnknown": "未记录汇率来源",
-    "eurEquivalent": "折合欧元"
+    "eurEquivalent": "折合欧元",
+    "settlementKept": "属于贷项通知单或最终发票——请在那里更正"
   },
   "booksClosing": {
     "title": "账簿结账 (Festschreibung)",

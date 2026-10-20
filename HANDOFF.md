@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 713 — a credit note's settlement is not deleted; the Ratenplan hint names what is open
+
+A credit note books a payment „Gutschrift“ (reference „CN <number>“) on the invoice it corrects. The invoice page offered „Löschen“ on it and `DELETE /invoices/:id/payments/:pid` took it. Measured on a fresh company: the payment deleted, the credit note stayed issued at −119 € (UStVA, EÜR, DATEV) and the invoice was open for the full 1 190 € again — the Mahnung would ask for it. A settled credit note cannot be cancelled either (Tier 461).
+
+- `PaymentService.delete` refuses a „Gutschrift“ payment whose credit note is not cancelled (400, naming the credit note: „Ist sie falsch, stellen Sie eine neue Rechnung über den Betrag aus.“). The Skonto path (`cancelSkontoOf`, which cancels its own credit note with the bank payment) is unchanged.
+- The invoice page: no „Löschen“ on a „Gutschrift“ or „Anzahlung“ row (a dash with a tooltip, `invoicePage.settlementKept`); the row hover is `dark:hover:` (it was dark grey always).
+- The Ratenplan hint said „Diese Rechnung über 1.071,00 €“ with 952,00 € open; it names what is open — what the plan divides (`ratensplanSuggestion.totalAmount`): „Offen sind 952,00 € — über dem Schwellenwert von 500,00 €“.
+
+Spec `433-tier713-credit-settlement-kept.sh` (3 checks fail on the code before); Playwright `invoice-credit-settlement-tier713.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 712 — the invoice list: due date, open amount, sorted by a column
 
 The owner, 20.10.2026: „继续找发票方面还要提升的“. The list showed number, customer, total, date and status in the order the invoices were created: not when each is due, not what is still to be paid (a part-paid invoice said „Versendet“ and its full total), and no way to put the oldest debts first.
