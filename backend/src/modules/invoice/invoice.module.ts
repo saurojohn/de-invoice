@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { OverdueStatusScheduler } from './overdue-status.scheduler';
+import { OverdueStatusController } from './overdue-status.controller';
+import { AdminModule } from '../admin/admin.module';
 import { InvoiceController } from './invoice.controller';
 import { InvoiceService } from './invoice.service';
 import { PaymentService } from './payment.service';
@@ -34,8 +37,8 @@ import { AttachmentsModule } from '../attachment/attachments.module';
 import { SigningModule } from '../signing/signing.module';
 
 @Module({
-  controllers: [InvoiceController],
-  providers: [InvoiceService, PaymentService, InvoiceEmailService],
+  controllers: [InvoiceController, OverdueStatusController],
+  providers: [InvoiceService, PaymentService, InvoiceEmailService, OverdueStatusScheduler], // Tier 710
   imports: [
     PrismaModule,
     StorageModule,
@@ -53,6 +56,8 @@ import { SigningModule } from '../signing/signing.module';
     CustomerModule,
     // Tier 118: see comment above.
     ExchangeRateModule,
+    // Tier 710: the overdue job reports to the cron health table
+    AdminModule,
   ],
   exports: [InvoiceService, PaymentService, InvoiceEmailService],
 })

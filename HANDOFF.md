@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 710 — an invoice past its due date is „überfällig“
+
+The owner, 20.10.2026: „继续找发票方面还要提升的“. On the dashboard of a test company with unpaid invoices from 2025 and January: **„Überfällige Rechnungen: 0“**. The status `overdue` is read by the invoice list's chip „Überfällig“, that dashboard tile, the customer report's overdue column and the customer page — and nothing set it: only a user choosing it by hand (installments have their own job; invoices had none). The dunning itself goes by the due date and was not affected.
+
+- `OverdueStatusScheduler` (`invoice-overdue-status`, 00:05 German time, off with `DISABLE_CRON`, in the cron health registry): an issued INV / RCV with `status: 'sent'`, its due date before today (German day) and money open becomes `overdue`; one held by an active installment plan stays (its Raten are its due dates, as for the reminders — `invoicesHeldByPlan`). A payment that settles it makes it „bezahlt“ as before. Test-only `POST /invoice-status/_test/mark-overdue` runs it for one company (404 in production).
+- The dashboard: the tile's amount is what is open of the overdue invoices, in euros (it added their totals — a part-paid one in full, USD as euros); the YTD / month „Rechnungen“ counts no credit note (it said „7 Rechnungen“ for 5 invoices and 2 credit notes).
+- Spec 143 and Playwright `cron-history-tier124` pin 10 jobs now.
+
+Spec `431-tier710-ueberfaellig.sh` (5 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 709 — Rechnungsstatistik: per month and per year, amounts, numbers, quantities sold
 
 The owner, 20.10.2026: „发票方面实现每个月和年度能看开出去的金额数据和数量销售功能“ — per month and per year, what was invoiced (amounts, how many) and the quantities sold. The Umsatzbericht (GET /reports/sales) listed only the months that had an invoice, put a net total above a table of gross amounts, counted a credit note as one more invoice, and had no quantities.

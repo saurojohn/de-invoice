@@ -89,7 +89,7 @@ export class DashboardController {
           type: { in: SALES_TYPES },
         },
         // Tier 658: with the euros the invoice was booked at
-        select: { issueDate: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
+        select: { issueDate: true, type: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
       }),
       this.prisma.expense.findMany({
         where: { companyId, invoiceDate: { gte: spanStart, lte: todayEnd }, ...NOT_AFA_BOOKING },
@@ -104,7 +104,10 @@ export class DashboardController {
         // Tier 658: in euros — 11 900 USD and 1 190 EUR were shown as 13 090 € of
         // revenue (they are 12 157,74 €). A row from before the EUR amounts
         // were stored is an EUR invoice.
-        total += cents(r.eurTotal ?? r.total); vat += cents(r.eurTotalVat ?? r.totalVat); count++
+        total += cents(r.eurTotal ?? r.total); vat += cents(r.eurTotalVat ?? r.totalVat)
+        // Tier 710: the invoices written — a credit note lowers the revenue but is no invoice
+        // („7 Rechnungen“ for 5 invoices and 2 credit notes; the Rechnungsstatistik counts them apart)
+        if (r.type !== 'CN') count++
       }
       return { revenue: total / 100, ust: vat / 100, count }
     }

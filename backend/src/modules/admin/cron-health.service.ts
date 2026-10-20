@@ -95,6 +95,8 @@ export class CronHealthService {
     { name: 'daily-auto-backup', schedule: '0 4 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
     // Tier 403: drops session rows older than SESSION_RETENTION_DAYS.
     { name: 'session-cleanup', schedule: '30 3 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
+    // Tier 710: invoices past their due date become „überfällig“.
+    { name: 'invoice-overdue-status', schedule: '5 0 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
   ]
 
   /**

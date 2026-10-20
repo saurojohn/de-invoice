@@ -46,12 +46,12 @@ test.describe('Tier 124 — Cron health history drilldown', () => {
     await page.goto('/dashboard/system-health')
     // The cron table renders
     await expect(page.getByTestId('system-health-table')).toBeVisible({ timeout: 15_000 })
-    // One row per registered cron: 9 since Tier 403 added session-cleanup
-    // (was 8, which was 7 + daily-auto-backup). The count is pinned rather
+    // One row per registered cron: 10 since Tier 710 added invoice-overdue-status
+    // (9 since Tier 403 added session-cleanup, 8 = 7 + daily-auto-backup). The count is pinned rather
     // than >= on purpose — the same deliberate-edit gate as the EXPECTED
     // registry in cron-health.service.ts and e2e/143.
     const rows = page.locator('[data-testid^="cron-row-"]')
-    await expect(rows).toHaveCount(9)
+    await expect(rows).toHaveCount(10)
 
     // Click webhook-retry-worker (most likely to
     // have history — it runs every minute)

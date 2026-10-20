@@ -270,9 +270,17 @@ export default function DashboardPage() {
         const pending = invoices
           .filter((inv: any) => inv.status === "sent" || inv.status === "draft" || inv.status === "overdue")
           .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0)
+        // Tier 710: what is open of them, in euros — it added the totals (a part-paid
+        // invoice in full, an invoice in USD as if in euros)
+        const openEurOf = (inv: any) => {
+          const total = Number(inv.total || 0)
+          const paid = (inv.payments || []).reduce((p: number, x: any) => p + Number(x.amount || 0), 0)
+          const toEur = inv.eurTotal != null && total !== 0 ? Number(inv.eurTotal) / total : 1
+          return Math.max(0, Math.round((total - paid) * toEur * 100) / 100)
+        }
         const overdue = invoices
           .filter((inv: any) => inv.status === "overdue")
-          .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0)
+          .reduce((sum: number, inv: any) => Math.round((sum + openEurOf(inv)) * 100) / 100, 0)
         const paid = invoices
           .filter((inv: any) => inv.status === "paid")
           .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0)
