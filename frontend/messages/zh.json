@@ -1332,7 +1332,8 @@
     "colDue": "到期",
     "colOpen": "未付",
     "overdueSince": "逾期 {days} 天",
-    "sortBy": "按{column}排序"
+    "sortBy": "按{column}排序",
+    "colDate": "日期"
   },
   "invoiceTemplates": {
     "title": "发票模板",

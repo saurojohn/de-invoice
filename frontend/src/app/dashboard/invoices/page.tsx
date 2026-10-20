@@ -10,6 +10,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
+import { statusBadgeClass } from "@/lib/status-badge"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC'
 // Tier 610 / 614: the types that are no invoices, each with its own list
@@ -376,21 +377,7 @@ function InvoicesPageInner() {
     )
   }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200",
-      sent: "bg-blue-100 text-blue-700 dark:text-blue-300",
-      paid: "bg-green-100 text-green-700 dark:text-green-300",
-      overdue: "bg-red-100 text-red-700 dark:text-red-300",
-      cancelled: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
-      offered: "bg-blue-100 text-blue-700 dark:text-blue-300",
-      accepted: "bg-green-100 text-green-700 dark:text-green-300",
-      declined: "bg-red-100 text-red-700 dark:text-red-300",
-      delivered: "bg-green-100 text-green-700 dark:text-green-300",
-      confirmed: "bg-green-100 text-green-700 dark:text-green-300",
-    }
-    return colors[status] || colors.draft
-  }
+  const getStatusColor = statusBadgeClass // Tier 718
 
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
@@ -1215,7 +1202,7 @@ function InvoicesPageInner() {
             <table className="w-full min-w-[880px]">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                 <tr>
-                  <th className="px-4 py-3 w-10">
+                  <th className="px-3 py-3 w-10">
                     <input
                       type="checkbox"
                       checked={invoices.length > 0 && selected.size === invoices.length}
@@ -1232,12 +1219,12 @@ function InvoicesPageInner() {
                     ["invoiceNumber", t("invoice.number")],
                     ["customer", t("invoice.customer")],
                     ["total", t("invoice.total")],
-                    ["issueDate", t("invoice.date")],
+                    ["issueDate", t("invoice.colDate")], // Tier 718: „Datum“ — „Ausstellungsdatum“ took 169 px for a date
                     ["dueDate", t("invoice.colDue")],
                   ] as [SortKey, string][]).map(([key, label]) => (
                     <th
                       key={key}
-                      className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300"
+                      className="px-3 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300"
                       aria-sort={sort?.by === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                     >
                       <button
@@ -1254,15 +1241,15 @@ function InvoicesPageInner() {
                       </button>
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.colOpen")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.status")}</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("common.actions")}</th>
+                  <th className="px-3 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.colOpen")}</th>
+                  <th className="px-3 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.status")}</th>
+                  <th className="px-3 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
 {dateFiltered.map((invoice) => (
                   <tr key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-900" data-testid="invoice-row" data-invoice-number={invoice.invoiceNumber}>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <input
                         type="checkbox"
                         checked={selected.has(invoice.id)}
@@ -1271,21 +1258,22 @@ function InvoicesPageInner() {
                         aria-label={`Rechnung ${invoice.invoiceNumber} auswählen`}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    {/* Tier 718: number, amounts, dates and buttons on one line (the number broke after „INV-2026-“) */}
+                    <td className="px-3 py-3 whitespace-nowrap">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${getTypeColor(invoice.type)}`}>
                         {invoice.type}
                       </span>
                       <span className="ml-2">{invoice.invoiceNumber}</span>
                     </td>
-                    <td className="px-4 py-3">{invoice.customer?.name || "-"}</td>
+                    <td className="px-3 py-3">{invoice.customer?.name || "-"}</td>
                     {/* Tier 653: an invoice in another currency stood here with "€" */}
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 whitespace-nowrap">
                       {/* Tier 704: 1.190,00 € — it was "€1190.00" */}
                       {formatMoney(invoice.total, invoice.currency || "EUR")}
                     </td>
-                    <td className="px-4 py-3">{formatDateDE(invoice.issueDate)}</td>
+                    <td className="px-3 py-3 whitespace-nowrap">{formatDateDE(invoice.issueDate)}</td>
                     {/* Tier 712: when it is due — and how long past, while money is open */}
-                    <td className="px-4 py-3" data-testid="invoice-due">
+                    <td className="px-3 py-3 whitespace-nowrap" data-testid="invoice-due">
                       {invoice.dueDate && invoice.type !== "CN" ? formatDateDE(invoice.dueDate) : "—"}
                       {invoice.dueDate && (invoice.openAmount ?? 0) > 0 && daysPast(invoice.dueDate) > 0 && (
                         <div className="text-xs text-red-600 dark:text-red-400" data-testid="invoice-overdue-days">
@@ -1293,7 +1281,7 @@ function InvoicesPageInner() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap" data-testid="invoice-open">
+                    <td className="px-3 py-3 whitespace-nowrap" data-testid="invoice-open">
                       {invoice.openAmount == null ? (
                         <span className="text-gray-400">—</span>
                       ) : (
@@ -1302,7 +1290,7 @@ function InvoicesPageInner() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       {/* Tier 696: a Storno by credit note leaves the invoice settled ("paid");
                           it is shown as what it is */}
                       {invoice.fullyCredited ? (
@@ -1324,9 +1312,9 @@ function InvoicesPageInner() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right">
                       <div className="flex flex-col items-end gap-1">
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex gap-2 justify-end whitespace-nowrap">
                           <Button size="sm" variant="ghost" onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}>{t("common2.view")}</Button>
                           <Button
                             size="sm"

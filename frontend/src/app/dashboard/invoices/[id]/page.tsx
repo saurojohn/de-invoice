@@ -13,6 +13,7 @@ import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 import { substitute } from "@/lib/substitute"
 import PdfSignaturePanel from "@/components/PdfSignaturePanel"
+import { statusBadgeClass } from "@/lib/status-badge"
 
 interface InvoiceItem {
   id: string
@@ -613,21 +614,7 @@ export default function InvoiceDetailPage() {
     return labels[status] || status
   }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200",
-      sent: "bg-blue-100 text-blue-700 dark:text-blue-300",
-      paid: "bg-green-100 text-green-700 dark:text-green-300",
-      overdue: "bg-red-100 text-red-700 dark:text-red-300",
-      cancelled: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
-      offered: "bg-blue-100 text-blue-700 dark:text-blue-300",
-      accepted: "bg-green-100 text-green-700 dark:text-green-300",
-      declined: "bg-red-100 text-red-700 dark:text-red-300",
-      delivered: "bg-green-100 text-green-700 dark:text-green-300",
-      confirmed: "bg-green-100 text-green-700 dark:text-green-300",
-    }
-    return colors[status] || colors.draft
-  }
+  const getStatusColor = statusBadgeClass // Tier 718
 
   const getVatLabel = (rate: string) => {
     const r = parseFloat(rate)

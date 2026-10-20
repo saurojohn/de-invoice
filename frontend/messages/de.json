@@ -1332,7 +1332,8 @@
     "colDue": "Fällig",
     "colOpen": "Offen",
     "overdueSince": "{days} Tage überfällig",
-    "sortBy": "Sortieren nach {column}"
+    "sortBy": "Sortieren nach {column}",
+    "colDate": "Datum"
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",

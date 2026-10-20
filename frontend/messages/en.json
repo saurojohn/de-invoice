@@ -1332,7 +1332,8 @@
     "colDue": "Due",
     "colOpen": "Open",
     "overdueSince": "{days} days overdue",
-    "sortBy": "Sort by {column}"
+    "sortBy": "Sort by {column}",
+    "colDate": "Date"
   },
   "invoiceTemplates": {
     "title": "Invoice templates",

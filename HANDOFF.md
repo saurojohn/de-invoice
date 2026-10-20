@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 718 — the invoice list fits 1 280 px; the status badges show in dark mode
+
+Looked at with Tier 712's two new columns at 1 280 px in dark mode: the number broke after „INV-2026-“, „Per E-Mail“ took three lines, the table was 1 329 px in a 1 248 px box; „Entwurf“ and „Storniert“ were a grey-800 box on the grey-800 table (only the text showed), the other badges light boxes on the dark page.
+
+- Number, amounts, dates and the buttons keep to one line; the cells' padding is `px-3`; the date column is headed „Datum“ (`invoice.colDate` — „Ausstellungsdatum“ took 169 px for a date). The table now fits 1 248 px.
+- `lib/status-badge.ts` `statusBadgeClass`: one colour table, with a dark variant for every status, for the list and the invoice page (both had their own copy).
+
+Playwright `invoice-list-dark-tier718.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 717 — the new-invoice form finds the 201st customer and article; customers created at once get their numbers
 
 The create page loaded the first 200 customers (by name), products and invoices and filtered them in the browser. A company with more did not find the 201st: „Zimmermann“ typed — „Keine Kunden gefunden“ and „+ Kunden anlegen“, a duplicate in the making; the same for an article by name or number and for the invoice a credit note refers to.
