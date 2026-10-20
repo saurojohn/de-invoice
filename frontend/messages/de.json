@@ -1328,7 +1328,11 @@
     "cloneTitle": "Als neuen Entwurf kopieren",
     "exchangeRate": "Umrechnungskurs",
     "exchangeRatePlaceholder": "leer = EZB-Referenzkurs des Rechnungsdatums",
-    "exchangeRateHint": "Leer lassen: Es gilt der EZB-Referenzkurs vom Rechnungsdatum (Tageskurs). Für die Umsatzsteuer nennt § 16 Abs. 6 UStG den Monatsdurchschnittskurs des BMF; der Tageskurs braucht die Gestattung des Finanzamts. Ohne Gestattung den Monatsdurchschnittskurs hier eintragen."
+    "exchangeRateHint": "Leer lassen: Es gilt der EZB-Referenzkurs vom Rechnungsdatum (Tageskurs). Für die Umsatzsteuer nennt § 16 Abs. 6 UStG den Monatsdurchschnittskurs des BMF; der Tageskurs braucht die Gestattung des Finanzamts. Ohne Gestattung den Monatsdurchschnittskurs hier eintragen.",
+    "colDue": "Fällig",
+    "colOpen": "Offen",
+    "overdueSince": "{days} Tage überfällig",
+    "sortBy": "Sortieren nach {column}"
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",

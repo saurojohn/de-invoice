@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 712 — the invoice list: due date, open amount, sorted by a column
+
+The owner, 20.10.2026: „继续找发票方面还要提升的“. The list showed number, customer, total, date and status in the order the invoices were created: not when each is due, not what is still to be paid (a part-paid invoice said „Versendet“ and its full total), and no way to put the oldest debts first.
+
+- `GET /invoices` takes `sort` (`createdAt` (default), `issueDate`, `dueDate` (no due date last), `invoiceNumber`, `customer`, `total`) and `dir` (`asc` / `desc`; default A→Z for customer and number, else newest/largest first); anything else is a 400. The id still breaks ties (Tier 708b). Each row carries `openAmount`: total less payments (credit notes are booked as payments) for an issued INV / RCV, `null` for drafts, cancelled and fully credited ones and other document types.
+- The page: the headers number, customer, total, date and „Fällig“ sort (a second click turns the order, `aria-sort`); a „Fällig“ column with „N Tage überfällig“ in red while money is open past the due date (German day), „—“ for credit notes; an „Offen“ column. i18n `invoice.colDue`, `colOpen`, `overdueSince`, `sortBy`.
+- The date filter „bis“ dropped the invoices of its last day: the page filtered the server's answer again and compared „2026-08-01T00:00:00.000Z“ with „2026-08-01“ as text. It compares the day now.
+
+Playwright `invoice-list-columns-tier712.spec.ts` (the API refuses an unknown sort on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 711 — an invoice marked „überfällig“ is still dunned
 
 Tier 710 said „the dunning itself goes by the due date and was not affected“ — wrong: `ReminderService.findOverdueInvoices` (the Mahnwesen list and the automatic run at 09:00) and `getReminderStats` asked for `status: 'sent'` only. From the first night of the new job on, a marked invoice left the list and was never dunned again. Measured with the test mailbox: after the job, „Jetzt ausführen“ sent 0 letters for two invoices overdue since August. (Found by grepping for every query that names `'sent'` without `'overdue'`; bank matching, direct debit, FinTS, portal, customer summary and the bulk send already took both.)

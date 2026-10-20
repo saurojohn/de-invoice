@@ -15,6 +15,8 @@ type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC'
 // Tier 610 / 614: the types that are no invoices, each with its own list
 const NON_FISCAL = ['QU', 'OC', 'DN']
 
+type SortKey = "invoiceNumber" | "customer" | "total" | "issueDate" | "dueDate"
+
 interface Invoice {
   id: string
   invoiceNumber: string
@@ -23,6 +25,9 @@ interface Invoice {
   total: string
   status: string
   issueDate: string
+  dueDate?: string | null
+  currency?: string
+  openAmount?: number | null // Tier 712: what is still to be paid (null where nothing is owed)
   progress?: Record<string, string> // Tier 621
   fullyCredited?: boolean // Tier 696: credit notes cover the whole invoice (a Storno)
 }
@@ -117,6 +122,12 @@ function InvoicesPageInner() {
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize] = useState(50)
+  // Tier 712: sorted by a column (the list was in the order of creation only)
+  const [sort, setSort] = useState<{ by: SortKey; dir: "asc" | "desc" } | null>(null)
+  const sortBy = (by: SortKey) => {
+    setSort((cur) => (cur?.by === by ? { by, dir: cur.dir === "asc" ? "desc" : "asc" } : { by, dir: by === "customer" || by === "invoiceNumber" || by === "dueDate" ? "asc" : "desc" }))
+    setPage(1)
+  }
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   // Multi-select for bulk actions (export, send, ...). Map<id, true> for O(1) lookup.
@@ -192,6 +203,7 @@ function InvoicesPageInner() {
     if (search.trim()) params.append('search', search.trim())
     if (dateFrom) params.append('dateFrom', dateFrom)
     if (dateTo) params.append('dateTo', dateTo)
+    if (sort) { params.append('sort', sort.by); params.append('dir', sort.dir) }
     setLoading(true)
     setListError(null)
     // Tier 614: only the answer to the latest question counts. A filter read
@@ -234,7 +246,7 @@ function InvoicesPageInner() {
       stale = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, typeFilter, statusFilters, page, search, dateFrom, dateTo])
+  }, [router, typeFilter, statusFilters, page, search, dateFrom, dateTo, sort])
 
   // Tier 32: refetch helper used by the bulk-send
   // modal's "Schließen" button to refresh the table
@@ -256,6 +268,7 @@ function InvoicesPageInner() {
     if (search.trim()) params.append("search", search.trim())
     if (dateFrom) params.append("dateFrom", dateFrom)
     if (dateTo) params.append("dateTo", dateTo)
+    if (sort) { params.append("sort", sort.by); params.append("dir", sort.dir) }
     apiGet<any>(`/api/v1/invoices?${params}`)
       .then((data) => {
         setInvoices(Array.isArray(data) ? data : data.data || [])
@@ -277,14 +290,19 @@ function InvoicesPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
 
-  // Date range is still applied client-side because the backend doesn't
-  // (yet) support date filters on /invoices. With paginated server-side
-  // results, date filtering is just an extra in-memory step.
+  // The backend filters by the date range; this only keeps a late answer to
+  // an earlier range out. Tier 712: by the day — "2026-08-01T00:00:00.000Z"
+  // compared as text is after "2026-08-01", so an invoice of the last day
+  // of the range was dropped.
   const dateFiltered = invoices.filter((inv) => {
-    if (dateFrom && inv.issueDate < dateFrom) return false
-    if (dateTo && inv.issueDate > dateTo) return false
+    const day = (inv.issueDate || "").slice(0, 10)
+    if (dateFrom && day < dateFrom) return false
+    if (dateTo && day > dateTo) return false
     return true
   })
+  // Tier 712: today in Germany, as the due dates are kept
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
+  const daysPast = (due: string) => Math.round((Date.parse(today) - Date.parse(due.slice(0, 10))) / 86_400_000)
 
   const hasActiveFilter = !!search || !!dateFrom || !!dateTo || statusFilters.length > 0 || !!typeFilter
   const clearFilters = () => {
@@ -1048,6 +1066,7 @@ function InvoicesPageInner() {
           </div>
           <input
             type="date"
+            data-testid="invoice-date-from"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             placeholder={t("common2.from") || "Von"}
@@ -1056,6 +1075,7 @@ function InvoicesPageInner() {
           <div className="flex gap-2">
             <input
               type="date"
+              data-testid="invoice-date-to"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               placeholder={t("common2.to") || "Bis"}
@@ -1192,7 +1212,7 @@ function InvoicesPageInner() {
           // a 375px phone.
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]">
+            <table className="w-full min-w-[880px]">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                 <tr>
                   <th className="px-4 py-3 w-10">
@@ -1207,10 +1227,34 @@ function InvoicesPageInner() {
                       aria-label={L("Alle auswählen")}
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.number")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.customer")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.total")}</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.date")}</th>
+                  {/* Tier 712: a click sorts by the column, a second click turns the order */}
+                  {([
+                    ["invoiceNumber", t("invoice.number")],
+                    ["customer", t("invoice.customer")],
+                    ["total", t("invoice.total")],
+                    ["issueDate", t("invoice.date")],
+                    ["dueDate", t("invoice.colDue")],
+                  ] as [SortKey, string][]).map(([key, label]) => (
+                    <th
+                      key={key}
+                      className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300"
+                      aria-sort={sort?.by === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => sortBy(key)}
+                        className="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white"
+                        title={t("invoice.sortBy", { column: label })}
+                        data-testid={`invoice-sort-${key}`}
+                      >
+                        {label}
+                        <span aria-hidden="true" className={sort?.by === key ? "" : "opacity-30"}>
+                          {sort?.by === key && sort.dir === "asc" ? "▲" : "▼"}
+                        </span>
+                      </button>
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.colOpen")}</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-gray-300">{t("invoice.status")}</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-gray-300">{t("common.actions")}</th>
                 </tr>
@@ -1237,9 +1281,27 @@ function InvoicesPageInner() {
                     {/* Tier 653: an invoice in another currency stood here with "€" */}
                     <td className="px-4 py-3">
                       {/* Tier 704: 1.190,00 € — it was "€1190.00" */}
-                      {formatMoney(invoice.total, (invoice as { currency?: string }).currency || "EUR")}
+                      {formatMoney(invoice.total, invoice.currency || "EUR")}
                     </td>
                     <td className="px-4 py-3">{formatDateDE(invoice.issueDate)}</td>
+                    {/* Tier 712: when it is due — and how long past, while money is open */}
+                    <td className="px-4 py-3" data-testid="invoice-due">
+                      {invoice.dueDate && invoice.type !== "CN" ? formatDateDE(invoice.dueDate) : "—"}
+                      {invoice.dueDate && (invoice.openAmount ?? 0) > 0 && daysPast(invoice.dueDate) > 0 && (
+                        <div className="text-xs text-red-600 dark:text-red-400" data-testid="invoice-overdue-days">
+                          {t("invoice.overdueSince", { days: daysPast(invoice.dueDate) })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap" data-testid="invoice-open">
+                      {invoice.openAmount == null ? (
+                        <span className="text-gray-400">—</span>
+                      ) : (
+                        <span className={invoice.openAmount > 0 ? "font-medium" : "text-gray-400"}>
+                          {formatMoney(invoice.openAmount, invoice.currency || "EUR")}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {/* Tier 696: a Storno by credit note leaves the invoice settled ("paid");
                           it is shown as what it is */}

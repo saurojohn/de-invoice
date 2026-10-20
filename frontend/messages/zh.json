@@ -1328,7 +1328,11 @@
     "cloneTitle": "复制为新草稿",
     "exchangeRate": "汇率",
     "exchangeRatePlaceholder": "留空 = 发票日期当天的欧洲央行参考汇率",
-    "exchangeRateHint": "留空：采用开票日的欧洲央行参考汇率（日汇率）。增值税方面，§ 16 Abs. 6 UStG 规定用 BMF 公布的月平均汇率；用日汇率须经税务局许可。没有许可时，请在此填入月平均汇率。"
+    "exchangeRateHint": "留空：采用开票日的欧洲央行参考汇率（日汇率）。增值税方面，§ 16 Abs. 6 UStG 规定用 BMF 公布的月平均汇率；用日汇率须经税务局许可。没有许可时，请在此填入月平均汇率。",
+    "colDue": "到期",
+    "colOpen": "未付",
+    "overdueSince": "逾期 {days} 天",
+    "sortBy": "按{column}排序"
   },
   "invoiceTemplates": {
     "title": "发票模板",

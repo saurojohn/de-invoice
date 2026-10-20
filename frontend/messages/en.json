@@ -1328,7 +1328,11 @@
     "cloneTitle": "Duplicate as new draft",
     "exchangeRate": "Exchange rate",
     "exchangeRatePlaceholder": "empty = ECB reference rate of the invoice date",
-    "exchangeRateHint": "Leave empty: the ECB reference rate of the invoice date applies (daily rate). For VAT, § 16 para. 6 UStG names the monthly average rate of the BMF; the daily rate needs the tax office's permission. Without that permission, enter the monthly average rate here."
+    "exchangeRateHint": "Leave empty: the ECB reference rate of the invoice date applies (daily rate). For VAT, § 16 para. 6 UStG names the monthly average rate of the BMF; the daily rate needs the tax office's permission. Without that permission, enter the monthly average rate here.",
+    "colDue": "Due",
+    "colOpen": "Open",
+    "overdueSince": "{days} days overdue",
+    "sortBy": "Sort by {column}"
   },
   "invoiceTemplates": {
     "title": "Invoice templates",

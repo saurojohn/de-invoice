@@ -2,6 +2,7 @@ import { csvCell, csvNumber } from '../../common/csv';
 import { businessTodayIso } from '../../common/business-date'
 import { strictFlag } from '../../common/strict-boolean'
 import { queryInt } from '../../common/query';
+import { INVOICE_SORTS, type InvoiceSort } from './invoice.service';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
 import { assertManualPaymentMethod } from './payment-methods';
 import { Throttle } from '@nestjs/throttler';
@@ -217,7 +218,12 @@ export class InvoiceController {
     @Query('search') search?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('sort') sort?: string,
+    @Query('dir') dir?: string,
   ) {
+    // Tier 712: the list sorted by a column (it was by creation only)
+    if (sort && !INVOICE_SORTS.includes(sort)) throw new BadRequestException(`Unbekannte Sortierung „${sort}“`);
+    if (dir && dir !== 'asc' && dir !== 'desc') throw new BadRequestException('dir: asc oder desc');
     return this.invoiceService.findAll(companyId, {
       status,
       customerId,
@@ -227,6 +233,8 @@ export class InvoiceController {
       search,
       dateFrom,
       dateTo,
+      sort: sort as InvoiceSort | undefined,
+      dir: dir as 'asc' | 'desc' | undefined,
     });
   }
 

@@ -65,6 +65,17 @@ export interface StockWarning {
   required: number;
 }
 
+/** Tier 712: the columns the invoice list can be sorted by */
+export const INVOICE_SORTS = ['createdAt', 'issueDate', 'dueDate', 'invoiceNumber', 'customer', 'total'];
+export type InvoiceSort = 'createdAt' | 'issueDate' | 'dueDate' | 'invoiceNumber' | 'customer' | 'total';
+
+/** Tier 712: what is still to be paid on a claim — total less payments (credit notes are booked as payments); null where nothing is owed */
+function openAmountOf(row: { type: string; status: string; total: unknown; payments: { amount: unknown }[] }, fullyCredited: boolean): number | null {
+  if (!CLAIM_TYPES.includes(row.type) || ['draft', 'cancelled'].includes(row.status) || fullyCredited) return null;
+  const paid = row.payments.reduce((s, p) => s + Math.round(Number(p.amount ?? 0) * 100), 0);
+  return Math.max(0, Math.round(Number(row.total) * 100) - paid) / 100;
+}
+
 @Injectable()
 export class InvoiceService {
   constructor(
@@ -100,9 +111,20 @@ export class InvoiceService {
       search?: string;
       dateFrom?: string;
       dateTo?: string;
+      sort?: InvoiceSort;
+      dir?: 'asc' | 'desc';
     } = {},
   ) {
     const { status, customerId, type, page, pageSize, search, dateFrom, dateTo } = filters
+    const dir = filters.dir ?? (filters.sort === 'customer' || filters.sort === 'invoiceNumber' ? 'asc' : 'desc')
+    const sortBy: Record<InvoiceSort, any[]> = {
+      createdAt: [{ createdAt: dir }],
+      issueDate: [{ issueDate: dir }, { invoiceNumber: dir }],
+      dueDate: [{ dueDate: { sort: dir, nulls: 'last' } }, { invoiceNumber: dir }],
+      invoiceNumber: [{ invoiceNumber: dir }],
+      customer: [{ customer: { name: dir } }, { issueDate: 'desc' }],
+      total: [{ total: dir }],
+    }
     const pg = Math.max(1, page ?? 1)
     const ps = Math.min(200, Math.max(1, pageSize ?? 50))
     const skip = (pg - 1) * ps
@@ -150,7 +172,8 @@ export class InvoiceService {
           customer: true, items: true, payments: true, referenceInvoice: true,
           creditNotes: { where: CREDITING, select: { total: true } }, // Tier 696
         },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], // Tier 708b: the same order on every call
+        // Tier 708b: the same order on every call (the id breaks ties); Tier 712: by a column
+        orderBy: [...sortBy[filters.sort ?? 'createdAt'], { id: dir }],
         skip,
         take: ps,
       }),
@@ -158,7 +181,10 @@ export class InvoiceService {
     ])
     // Tier 696: an invoice cancelled by a Storno credit note is settled by it
     // ("paid") — the list says what it is
-    const rows = data.map(({ creditNotes, ...row }) => ({ ...row, fullyCredited: coversWhole(row, creditNotes) }))
+    const rows = data.map(({ creditNotes, ...row }) => {
+      const fullyCredited = coversWhole(row, creditNotes)
+      return { ...row, fullyCredited, openAmount: openAmountOf(row, fullyCredited) } // Tier 712
+    })
     return {
       data: await this.withProgress(companyId, rows),
       total,
