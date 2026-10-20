@@ -63,8 +63,9 @@ test("USD on the invoice page, in the list, on the reminders page and in the sta
 
   // the list
   await page.goto("/dashboard/invoices")
-  await expect(page.getByText("2.380,00 USD")).toBeVisible({ timeout: 90_000 })
-  await expect(page.getByText("1.190,00 €")).toBeVisible()
+  // (.first(): Tier 712's „Offen“ column repeats an unpaid total)
+  await expect(page.getByText("2.380,00 USD").first()).toBeVisible({ timeout: 90_000 })
+  await expect(page.getByText("1.190,00 €").first()).toBeVisible()
   await expect(page.getByText("2.380,00 €")).toHaveCount(0)
 
   // the reminders page: each invoice in its own currency, the sum in euros
