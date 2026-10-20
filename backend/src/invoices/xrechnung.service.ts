@@ -35,6 +35,7 @@
 
 import { zeroRatedGround } from '../modules/invoice/zero-rated'
 import { invoiceTaxBreakdown } from '../modules/invoice/tax-breakdown'
+import { invoiceRecipientOf } from '../modules/customer/invoice-recipient'
 
 export interface XRechnungSupplier {
   name: string
@@ -1180,7 +1181,8 @@ export function transformToXRechnungData(
       name: invoice.customer?.name || '',
       address: invoice.customer?.address || {},
       vatId: invoice.customer?.vatId || undefined,
-      email: (invoice.customer?.contact as any)?.email || undefined,
+      // Tier 719b: BT-49 is where the invoice is delivered — the address for invoices, else the contact's
+      email: invoiceRecipientOf(invoice.customer) || undefined,
       leitwegId: customerAddress.leitwegId || undefined,
     },
     items: invoice.items.map(item => {

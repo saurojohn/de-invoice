@@ -1406,7 +1406,7 @@ export class InvoiceController {
               try {
                 const invoice = await this.invoiceService.findOne(invoiceId, companyId);
                 const customer = invoice.customer;
-                const defaultRecipient = (customer?.contact as any)?.email;
+                const defaultRecipient = invoiceRecipientOf(customer); // Tier 719b
                 const recipient = (defaultRecipient || '').trim();
                 if (!recipient) {
                   results.push({
