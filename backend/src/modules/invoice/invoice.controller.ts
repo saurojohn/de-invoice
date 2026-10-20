@@ -2,7 +2,8 @@ import { csvCell, csvNumber } from '../../common/csv';
 import { businessTodayIso } from '../../common/business-date'
 import { strictFlag } from '../../common/strict-boolean'
 import { queryInt } from '../../common/query';
-import { INVOICE_SORTS, type InvoiceSort } from './invoice.service';
+import { INVOICE_SORTS, type InvoiceSort, openAmountOf } from './invoice.service';
+import { coversWhole } from './stock';
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, Res, Header, BadRequestException, HttpCode, Req, NotFoundException, HttpException } from '@nestjs/common';
 import { assertManualPaymentMethod } from './payment-methods';
 import { Throttle } from '@nestjs/throttler';
@@ -507,14 +508,19 @@ export class InvoiceController {
           // code read `inv.netAmount` / `inv.vatAmount` (always
           // undefined) and the CSV always exported 0.00 for Netto and
           // USt. Use the correct column names here.
-          csvNumber(Number(inv.subtotal || 0)),
+          // Tier 715: the net is the total less the tax — `subtotal` is the
+          // lines' sum before the invoice's discount (it said 1 000 € net
+          // beside 171 € tax and 1 071 € total)
+          csvNumber(Math.round((total - Number(inv.totalVat || 0)) * 100) / 100),
           csvNumber(Number(inv.totalVat || 0)),
           csvNumber(total),
           inv.currency || 'EUR',
           inv.referenceInvoice?.invoiceNumber || '',
           (inv.items || []).length,
           csvNumber(paid),
-          csvNumber(Math.max(0, total - paid)),
+          // Tier 715: what is owed, as in the list — nothing for a draft, a
+          // cancelled or fully credited invoice, a credit note (it said the total)
+          (() => { const open = openAmountOf(inv, coversWhole(inv, inv.creditNotes ?? [])); return open == null ? '' : csvNumber(open) })(),
           inv.createdAt ? new Date(inv.createdAt).toISOString() : '',
           inv.updatedAt ? new Date(inv.updatedAt).toISOString() : '',
         ].map(esc).join(';')

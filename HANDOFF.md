@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 715 — the invoice CSV: the net after the discount, nothing open where nothing is owed
+
+`GET /invoices/export/csv` (Rechnungen → CSV) wrote `subtotal` as „Netto“ — the lines' sum before the invoice's discount. Measured: 1 000 € less 10 % → „1000,00;171,00;1071,00“, a net that with its tax does not make the total. „Offen“ was total less payments for every row: a draft said 833,00 open; a credit note and an invoice cancelled by its Storno said 0,00, as if paid.
+
+- „Netto“ = total − USt; „Offen“ = `openAmountOf` (Tier 712, the list's column), empty for drafts, cancelled and fully credited invoices and other document types. `findForExport` loads the crediting credit notes. The status column stays the code (spec 162 reads it).
+- Checked the other `subtotal` reads: the GoBD archive already takes total − tax; DATEV / UStVA use it only for the exchange-rate factor (its ratio to `eurSubtotal`); the XRechnung's Skonto base is not written.
+
+Spec `435-tier715-csv-net-and-open.sh` (4 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 714 — an issued invoice does not become a draft again
 
 The status selector on the invoice page offered „Entwurf“ to every invoice, and `PUT /invoices/:id/status {"status":"draft"}` took it on any day. A draft is in no return (UStVA, EÜR, DATEV) and in no list of what is owed. Measured on a fresh company: an invoice of 01.08.2026, issued, set back to „Entwurf“ in October — 200, and the August UStVA lost its 190 € (the hole Tier 694 closed for „Storniert“).

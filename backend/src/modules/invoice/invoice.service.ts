@@ -70,7 +70,7 @@ export const INVOICE_SORTS = ['createdAt', 'issueDate', 'dueDate', 'invoiceNumbe
 export type InvoiceSort = 'createdAt' | 'issueDate' | 'dueDate' | 'invoiceNumber' | 'customer' | 'total';
 
 /** Tier 712: what is still to be paid on a claim — total less payments (credit notes are booked as payments); null where nothing is owed */
-function openAmountOf(row: { type: string; status: string; total: unknown; payments: { amount: unknown }[] }, fullyCredited: boolean): number | null {
+export function openAmountOf(row: { type: string; status: string; total: unknown; payments: { amount: unknown }[] }, fullyCredited: boolean): number | null {
   if (!CLAIM_TYPES.includes(row.type) || ['draft', 'cancelled'].includes(row.status) || fullyCredited) return null;
   const paid = row.payments.reduce((s, p) => s + Math.round(Number(p.amount ?? 0) * 100), 0);
   return Math.max(0, Math.round(Number(row.total) * 100) - paid) / 100;
@@ -395,7 +395,10 @@ export class InvoiceService {
     }
     return this.prisma.invoice.findMany({
       where,
-      include: { customer: true, items: true, payments: true, referenceInvoice: true },
+      include: {
+        customer: true, items: true, payments: true, referenceInvoice: true,
+        creditNotes: { where: CREDITING, select: { total: true } }, // Tier 715: a Storno owes nothing
+      },
       orderBy: { issueDate: 'asc' },
     })
   }
