@@ -1832,7 +1832,11 @@ export default function InvoiceDetailPage() {
     invoice.type === "QU" ? ["draft", "offered", "accepted", "declined", "cancelled"]
     : invoice.type === "DN" ? ["draft", "delivered", "cancelled"]
     : invoice.type === "OC" ? ["draft", "confirmed", "cancelled"]
-    : ["draft", "sent", "paid", "overdue", "cancelled"]
+    : ["draft", "sent", "paid", "overdue", "cancelled"].filter(
+      // Tier 714: an issued invoice goes back to draft only on its day, untouched
+      (st) => st !== "draft" || invoice.status === "draft"
+        || (invoice.type !== "CN" && isToday && payments.length === 0 && !invoice.sentToCustomer && !(invoice.creditNotes ?? []).length),
+    )
   const docTypeLabel = (ty: string) =>
     ty === "QU" ? t("docs.typeQuote") : ty === "DN" ? t("docs.typeDeliveryNote") : ty === "OC" ? t("docs.typeOrderConfirmation") : ty === "INV" ? t("invoice.typeInvoice") : ty
   // Tier 614: what can be made from this document

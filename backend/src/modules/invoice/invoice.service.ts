@@ -1698,6 +1698,32 @@ export class InvoiceService {
       );
     }
 
+    // Tier 714: an issued document does not become a draft again — a draft is
+    // in no return (UStVA, EÜR, DATEV) and no list of what is owed. Measured:
+    // an invoice of August, issued, set back to „Entwurf“ in October left the
+    // August UStVA without a word. On its issue day it may, as it may be
+    // edited then (Tier 477 / 697): nothing paid, no credit note, not e-mailed
+    // to the customer. An issued credit note has settled its invoice at once.
+    if (status === 'draft' && before.status !== 'draft') {
+      const [payments, creditNotes] = await Promise.all([
+        this.prisma.payment.count({ where: { invoiceId: id } }),
+        this.prisma.invoice.count({ where: { companyId, referenceInvoiceId: id, type: 'CN', status: { not: 'cancelled' } } }),
+      ]);
+      const sent = await this.sentToCustomer(before);
+      if (before.type === 'CN' || !this.isToday(before.issueDate) || payments > 0 || creditNotes > 0 || sent) {
+        throw new BadRequestException(
+          'Eine ausgestellte Rechnung wird nicht wieder zum Entwurf — sie steht in der Buchhaltung und in der Umsatzsteuer-Voranmeldung. ' +
+          (before.type === 'CN'
+            ? 'Eine Gutschrift ist mit ihrer Rechnung verrechnet.'
+            : sent
+              ? `Sie wurde bereits an ${sent.to} gesendet. Korrigieren Sie mit einer Gutschrift (Storno) und, wenn nötig, einer neuen Rechnung.`
+              : payments > 0 || creditNotes > 0
+                ? 'Auf sie sind bereits Zahlungen oder Gutschriften gebucht. Korrigieren Sie mit einer Gutschrift.'
+                : 'Nur am Ausstellungstag geht das noch. Korrigieren Sie mit einer Gutschrift (Storno) und, wenn nötig, einer neuen Rechnung.'),
+        );
+      }
+    }
+
     // Tier 461: a cancelled document leaves every return (UStVA, EÜR, DATEV —
     // with its payments). An invoice that was paid, or that a credit note
     // corrects, cannot just leave: measured, a paid 1 190 € invoice cancelled

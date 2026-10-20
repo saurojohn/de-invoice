@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 714 — an issued invoice does not become a draft again
+
+The status selector on the invoice page offered „Entwurf“ to every invoice, and `PUT /invoices/:id/status {"status":"draft"}` took it on any day. A draft is in no return (UStVA, EÜR, DATEV) and in no list of what is owed. Measured on a fresh company: an invoice of 01.08.2026, issued, set back to „Entwurf“ in October — 200, and the August UStVA lost its 190 € (the hole Tier 694 closed for „Storniert“).
+
+- `updateStatusLocked`: back to draft only on the issue day with nothing paid, no credit note and not e-mailed to the customer — the conditions under which it may be edited (Tier 477 / 697); an issued credit note never (it settled its invoice when it was issued). Otherwise 400 with the reason and the correction (credit note, new invoice).
+- The page offers „Entwurf“ under the same conditions.
+- Not changed: „Bezahlt“ without a recorded payment stays possible — invoices paid before the app was used; the EÜR counts them at their issue date (spec 243).
+
+Spec `434-tier714-issued-not-draft-again.sh` (5 checks fail on the code before); Playwright `invoice-status-draft-tier714.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 713 — a credit note's settlement is not deleted; the Ratenplan hint names what is open
 
 A credit note books a payment „Gutschrift“ (reference „CN <number>“) on the invoice it corrects. The invoice page offered „Löschen“ on it and `DELETE /invoices/:id/payments/:pid` took it. Measured on a fresh company: the payment deleted, the credit note stayed issued at −119 € (UStVA, EÜR, DATEV) and the invoice was open for the full 1 190 € again — the Mahnung would ask for it. A settled credit note cannot be cancelled either (Tier 461).
