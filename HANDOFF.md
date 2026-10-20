@@ -2672,6 +2672,8 @@ The owner, 20.10.2026: „继续找发票方面还要提升的“. On the dashbo
 
 Spec `431-tier710-ueberfaellig.sh` (5 checks fail on the code before).
 
+Tier 710b: the dashboard chart „Umsatz- und Aufwandsentwicklung“ — its axis labels were SVG text inside a viewBox stretched with `preserveAspectRatio="none"`: squashed into a grey line, on the dark page as good as invisible. They are HTML over the chart now (`revenue-chart-tick`, 10 px, a dark-mode colour); the legend's „Aufwand“ goes through `L()` like „Umsatz“ (en/zh in `messages/literals`). Playwright `dashboard-chart-tier710.spec.ts` (dark colour scheme: five labels, readable size and colour; on the code before there are none to find).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 709 — Rechnungsstatistik: per month and per year, amounts, numbers, quantities sold
 
 The owner, 20.10.2026: „发票方面实现每个月和年度能看开出去的金额数据和数量销售功能“ — per month and per year, what was invoiced (amounts, how many) and the quantities sold. The Umsatzbericht (GET /reports/sales) listed only the months that had an invoice, put a net total above a table of gross amounts, counted a credit note as one more invoice, and had no quantities.

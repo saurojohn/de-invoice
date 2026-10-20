@@ -61,17 +61,31 @@ export function RevenueChart({ data, height = 200, currency = "EUR" }: RevenueCh
         // Legend — only show when there are actually
         // expenses to draw. Saves vertical space and
         // avoids confusion for sales-only companies.
-        <div className="flex gap-4 text-xs text-gray-600 mb-2">
+        <div className="flex gap-4 text-xs text-gray-600 dark:text-gray-300 mb-2">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-blue-500 rounded-sm" />
             <span>{L("Umsatz")}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-red-400 rounded-sm" />
-            <span>Aufwand</span>
+            <span>{L("Aufwand")}</span>
           </div>
         </div>
       )}
+      {/* Tier 710: the axis labels in HTML over the chart — as SVG text in a
+          viewBox stretched with preserveAspectRatio="none" they were squashed
+          to an unreadable line (and grey on the dark page) */}
+      <div className="relative w-full" style={{ height: chartHeight }} data-testid="revenue-chart">
+        {ticks.map((tick, i) => (
+          <div
+            key={i}
+            className="absolute left-0 -translate-y-1/2 text-[10px] leading-none text-gray-500 dark:text-gray-400 bg-white/70 dark:bg-gray-900/70 pr-1"
+            style={{ top: `${chartTop + ((1 - tick / max) * chartHeight) / height * 100}%` }}
+            data-testid="revenue-chart-tick"
+          >
+            {formatCurrency(tick)}
+          </div>
+        ))}
       <svg
         viewBox={`0 0 100 100`}
         preserveAspectRatio="none"
@@ -92,15 +106,6 @@ export function RevenueChart({ data, height = 200, currency = "EUR" }: RevenueCh
                 strokeWidth="0.2"
                 strokeDasharray="0.5,0.5"
               />
-              <text
-                x="0"
-                y={`${yPct}%`}
-                fontSize="2.5"
-                fill="#6b7280"
-                dominantBaseline="middle"
-              >
-                {formatCurrency(tick)}
-              </text>
             </g>
           )
         })}
@@ -159,8 +164,9 @@ export function RevenueChart({ data, height = 200, currency = "EUR" }: RevenueCh
           )
         })}
       </svg>
+      </div>
 
-      <div className="flex justify-between text-[10px] text-gray-500 mt-1 px-1">
+      <div className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400 mt-1 px-1">
         {rows.map((d) => (
           <div key={d.month} className="flex-1 text-center">
             {formatMonth(d.month)}
