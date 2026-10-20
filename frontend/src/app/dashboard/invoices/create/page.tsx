@@ -88,6 +88,13 @@ interface InvoiceItem {
   vatRate: number
 }
 
+/** Tier 717: the rows of `cur`, then those of `more` not in it */
+function mergeById<T extends { id: string }>(cur: T[], more: T[]): T[] {
+  const have = new Set(cur.map((r) => r.id))
+  const add = more.filter((r) => !have.has(r.id))
+  return add.length ? [...cur, ...add] : cur
+}
+
 function CreateInvoicePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -106,6 +113,7 @@ function CreateInvoicePageInner() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [truncated, setTruncated] = useState({ customers: false, products: false, invoices: false }) // Tier 717
   // Tier 39: distinct cost centers the company has stamped
   // on past invoices. Drives the datalist for the
   // cost-center input above. Loaded once on mount —
@@ -424,9 +432,14 @@ function CreateInvoicePageInner() {
         `/api/v1/note-templates?companyId=${companyId}`,
       ).catch(() => [] as any),
     ]).then(([c, p, inv, cc, nt]) => {
-      setCustomers(Array.isArray(c) ? c : (c.data || []))
-      setProducts(Array.isArray(p) ? p : (p.data || []))
-      setInvoices(Array.isArray(inv) ? inv : (inv.data || []))
+      const cs = Array.isArray(c) ? c : (c.data || [])
+      const ps = Array.isArray(p) ? p : (p.data || [])
+      const is = Array.isArray(inv) ? inv : (inv.data || [])
+      setCustomers(cs)
+      setProducts(ps)
+      setInvoices(is)
+      // Tier 717: more than the first page — the pickers ask the server as one types
+      setTruncated({ customers: (c?.total ?? 0) > cs.length, products: (p?.total ?? 0) > ps.length, invoices: (inv?.total ?? 0) > is.length })
       setCostCenters(Array.isArray(cc?.costCenters) ? cc!.costCenters : [])
       setNoteTemplates(Array.isArray(nt) ? nt : [])
     }).catch((err) => {
@@ -584,6 +597,29 @@ function CreateInvoicePageInner() {
   // postalCodeText as STORED GENERATED columns specifically
   // so this kind of cross-field search can read them
   // without parsing the address JSON each keystroke.
+  // Tier 717: the pickers hold the first 200 customers, products and
+  // invoices (by name / newest). A company with more did not find the 201st:
+  // „Zimmermann“ typed, nothing found — and the form offered to create the
+  // customer anew. Beyond the first page a search asks the server and adds
+  // what it finds.
+  useEffect(() => {
+    const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+    if (!companyId) return
+    const asks: Array<{ q: string; on: boolean; path: string; add: (rows: any[]) => void }> = [
+      { q: customerSearch, on: truncated.customers, path: "customers", add: (rows) => setCustomers((cur) => mergeById(cur, rows)) },
+      { q: productSearch || productNumberSearch, on: truncated.products, path: "products", add: (rows) => setProducts((cur) => mergeById(cur, rows)) },
+      { q: invoiceSearch, on: truncated.invoices, path: "invoices", add: (rows) => setInvoices((cur) => mergeById(cur, rows)) },
+    ]
+    const timers = asks
+      .filter((a) => a.on && a.q.trim().length >= 2)
+      .map((a) => setTimeout(() => {
+        apiGet<any>(`/api/v1/${a.path}?companyId=${companyId}&pageSize=50&search=${encodeURIComponent(a.q.trim())}`)
+          .then((r) => a.add(Array.isArray(r) ? r : (r?.data || [])))
+          .catch(() => { /* the loaded list stays */ })
+      }, 250))
+    return () => timers.forEach(clearTimeout)
+  }, [customerSearch, productSearch, productNumberSearch, invoiceSearch, truncated])
+
   const filteredCustomers = customers.filter(c => {
     const q = customerSearch.trim().toLowerCase()
     if (!q) return true

@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 717 — the new-invoice form finds the 201st customer and article; customers created at once get their numbers
+
+The create page loaded the first 200 customers (by name), products and invoices and filtered them in the browser. A company with more did not find the 201st: „Zimmermann“ typed — „Keine Kunden gefunden“ and „+ Kunden anlegen“, a duplicate in the making; the same for an article by name or number and for the invoice a credit note refers to.
+
+- The first load notes when a list was cut off (`total` > loaded); then a search of two letters or more asks the server (`?search=…&pageSize=50`, 250 ms after typing) and the rows found are added (`mergeById`). Below 200 nothing changes.
+- Found on the way, writing the spec's fixture: 25 customers created at once answered 500 — the auto-number (`K-0001`) was read and taken in two statements, and the eight retries on P2002 were not enough. Reading and taking the number now runs under `withKeyLock('customer-number:<companyId>')` (Tier 534); the retry stays for a second instance.
+
+Playwright `invoice-pickers-beyond-200-tier717.spec.ts` (202 customers, 202 articles, created 25 at a time).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 716 — a copied invoice is dated today
 
 „Als Entwurf kopieren“ (`/dashboard/invoices/create?cloneFrom=<id>`, Tier 160) set the issue date to today and cleared the due date, but took over the source's Leistungsdatum and Leistungszeitraum: a March invoice copied in October stated a March supply (§ 14 Abs. 4 Nr. 6 UStG asks for the date of this one). The copy now starts as a new invoice does — Leistungsdatum today, no Leistungszeitraum; the lines, customer and discounts are taken over as before. (The edit path keeps the stored dates.) Test id `invoice-delivery-date`.

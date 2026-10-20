@@ -10,6 +10,7 @@ import { WebhookService } from '../webhook/webhook.service';
 import { CLAIM_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { ModuleRef } from '@nestjs/core'
 import { PaymentService } from '../invoice/payment.service'
+import { withKeyLock } from '../../common/key-lock'
 
 // Tier 397: shared by the DTO (interactive create) and the importer.
 export const CUSTOMER_NAME_MAX = 200
@@ -976,12 +977,17 @@ export class CustomerService {
       let lastError: any = null
       for (let attempt = 0; attempt < 8; attempt++) {
         try {
-          safeData.customerNumber = await this.nextCustomerNumber(companyId)
           // Don't `return` inside the try — let the
           // for-loop own the control flow so a thrown
           // P2002 lands in the catch below.
-          const created = await this.prisma.customer.create({
-            data: { ...safeData, companyId },
+          // Tier 717: the number is read and taken under the company's lock —
+          // 25 customers created at once answered 500 (eight retries were not
+          // enough). The retry stays for a second backend instance.
+          const created = await withKeyLock(`customer-number:${companyId}`, async () => {
+            safeData.customerNumber = await this.nextCustomerNumber(companyId)
+            return this.prisma.customer.create({
+              data: { ...safeData, companyId },
+            })
           })
           // Fire customer.created webhook for the
           // auto-numbered path too. Same event, same
