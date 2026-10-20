@@ -38,6 +38,7 @@ import { invoicesHeldByPlan, PLAN_HOLD_MESSAGE } from "./installment-hold"
 import { activePause, pauseHoldMessage } from "./pause-hold"
 import { daysOverdue as daysOverdueOf } from "./days-overdue"
 import { businessDayIso, businessTodayIso } from "../../common/business-date"
+import { invoiceRecipientOf } from "../customer/invoice-recipient"
 
 const LEVEL_TITLE_FILENAME: Record<"first" | "second" | "final", string> = {
   first: "Zahlungserinnerung",
@@ -241,7 +242,7 @@ export class BulkReminderService {
       }
     }
 
-    const customerEmail = (invoice.customer.contact as any)?.email
+    const customerEmail = invoiceRecipientOf(invoice.customer) // Tier 719
     if (!customerEmail) {
       return {
         invoiceId,

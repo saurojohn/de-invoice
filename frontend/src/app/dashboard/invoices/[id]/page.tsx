@@ -14,6 +14,7 @@ import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/ap
 import { substitute } from "@/lib/substitute"
 import PdfSignaturePanel from "@/components/PdfSignaturePanel"
 import { statusBadgeClass } from "@/lib/status-badge"
+import { invoiceRecipientOf } from "@/lib/invoice-recipient"
 
 interface InvoiceItem {
   id: string
@@ -1434,7 +1435,7 @@ export default function InvoiceDetailPage() {
       salutation,
     }
     setEmailLang(lang)
-    setEmailTo(invoice.customer.contact?.email || "")
+    setEmailTo(invoiceRecipientOf(invoice.customer)) // Tier 719
     setEmailExtraCc("")
     setEmailSubject(substitute(tpl.subject, vars))
     setEmailBody(substitute(tpl.body, vars).replace(/ +,/g, ","))
@@ -3347,6 +3348,7 @@ export default function InvoiceDetailPage() {
                   </label>
                   <Input
                     type="email"
+                    data-testid="invoice-email-to"
                     value={emailTo}
                     onChange={(e) => setEmailTo(e.target.value)}
                     placeholder="kunde@firma.de"

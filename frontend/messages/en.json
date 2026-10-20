@@ -772,7 +772,9 @@
     "defaultHourlyRate": "Default hourly rate (€, net)",
     "defaultHourlyRateHint": "What a new time entry for this customer starts with",
     "timeRounding": "Rounding of logged time",
-    "timeRoundingInherit": "as the company"
+    "timeRoundingInherit": "as the company",
+    "invoiceEmail": "E-mail for invoices",
+    "invoiceEmailHint": "Invoices, reminders and statements go to this address (e.g. the customer’s accounts department). Empty: to the e-mail above."
   },
   "dashboard": {
     "title": "Dashboard",

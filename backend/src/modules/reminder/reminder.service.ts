@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MahnungspauseService } from './mahnungspause.service';
 import { invoicesHeldByPlan } from './installment-hold';
 import { invoiceEurFactor } from '../invoice/tax-breakdown'
+import { invoiceRecipientOf } from '../customer/invoice-recipient';
 
 /**
  * Tier 123: per-company dunning config.
@@ -786,7 +787,7 @@ Mit freundlichen Grüßen,
     // for the placeholder context.
     const rendered = await this.renderForInvoice(invoiceId, companyId, level);
 
-    const recipientEmail = (invoice.customer.contact as any)?.email || '';
+    const recipientEmail = invoiceRecipientOf(invoice.customer); // Tier 719
     const recipientName = (invoice.customer.contact as any)?.name || invoice.customer.name;
 
     return {

@@ -65,6 +65,13 @@ export class CustomerContactDto {
   @IsOptional()
   phone?: string;
 
+  // Tier 719: the address for invoices (buchhaltung@ …) — invoices, reminders
+  // and statements go there; empty: to `email`
+  @IsOptional()
+  @ValidateIf((o) => o.invoiceEmail !== '' && o.invoiceEmail != null)
+  @IsEmail({}, { message: 'Ungültige E-Mail-Adresse für Rechnungen' })
+  invoiceEmail?: string;
+
   // Tier 691: the contact person (Ansprechpartner). The reminders read it
   // since Tier 388 and the e-mail greeting since Tier 691 — but the DTO
   // refused it, so no form could set it.

@@ -15,6 +15,7 @@ import { nextInvoiceNumber, releaseInvoiceNumber } from '../invoice/invoice-numb
 import { resolveDueDate } from '../invoice/due-date';
 import { assertInvoiceDetails } from '../invoice/mandatory-details'
 import { igLVatIdProblem } from '../invoice/ust-behandlung-detector'
+import { invoiceRecipientOf } from '../customer/invoice-recipient';
 
 /**
  * Recurring invoice (Abo-Rechnung) service.
@@ -1504,7 +1505,7 @@ export class RecurringService {
       | 'zh-CN'
     const emailLang: 'de' | 'en' | 'zh' =
       lang === 'en-US' ? 'en' : lang === 'zh-CN' ? 'zh' : 'de'
-    const recipient = (tpl.customer?.contact as any)?.email || null
+    const recipient = invoiceRecipientOf(tpl.customer) || null // Tier 719
     // The company "salutation" in the email template
     // is locale-aware; we use the salutation helper
     // from the template module to keep this in sync.

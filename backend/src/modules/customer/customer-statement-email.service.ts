@@ -41,6 +41,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { CustomerStatementService } from './customer-statement.service';
 import { generateStatementPdf } from './customer-statement-pdf.service';
+import { invoiceRecipientOf } from './invoice-recipient'
 
 export interface SendStatementEmailOptions {
   /** 'desc' (newest first) or 'asc' (oldest first).
@@ -103,7 +104,7 @@ export class CustomerStatementEmailService {
     }
 
     // Resolve recipient
-    const defaultRecipient = (customer.contact as any)?.email
+    const defaultRecipient = invoiceRecipientOf(customer) // Tier 719
     const recipientEmail = (options.overrideTo || defaultRecipient || '').trim()
     if (!recipientEmail) {
       throw new BadRequestException(

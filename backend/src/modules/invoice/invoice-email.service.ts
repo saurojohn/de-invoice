@@ -50,6 +50,7 @@ import { MailService } from '../mail/mail.service';
 import { InvoiceService } from './invoice.service';
 import { ISSUED_AS, isNonFiscal } from './document-scope';
 import { generateTimesheetPdf } from '../time-tracking/timesheet-pdf';
+import { invoiceRecipientOf } from '../customer/invoice-recipient';
 import {
   renderInvoiceEmail,
   greetingFor,
@@ -128,7 +129,7 @@ export class InvoiceEmailService {
     if (invoice.status === 'cancelled') {
       throw new BadRequestException(isNonFiscal(invoice.type) ? 'Ein storniertes Dokument wird nicht versendet.' : 'Eine stornierte Rechnung wird nicht versendet.');
     }
-    const recipientCheck = ((options.overrideTo || (invoice.customer?.contact as any)?.email || '') as string).trim();
+    const recipientCheck = ((options.overrideTo || invoiceRecipientOf(invoice.customer)) as string).trim(); // Tier 719
     if (invoice.status === 'draft' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientCheck)) {
       // Tier 610: a quote goes out as "offered", a delivery note as "delivered"
       const issued = ISSUED_AS[invoice.type] ?? 'sent';
@@ -139,7 +140,7 @@ export class InvoiceEmailService {
     const customer = invoice.customer;
 
     // Recipient resolution
-    const defaultRecipient = (customer?.contact as any)?.email;
+    const defaultRecipient = invoiceRecipientOf(customer); // Tier 719: the address for invoices, else the contact's
     const recipientEmail = (options.overrideTo || defaultRecipient || '').trim();
     if (!recipientEmail) {
       // Tier 129: the manual "Per E-Mail senden" button

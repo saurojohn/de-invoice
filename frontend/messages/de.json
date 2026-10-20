@@ -772,7 +772,9 @@
     "defaultHourlyRate": "Standard-Stundensatz (€, netto)",
     "defaultHourlyRateHint": "Vorbelegung für neue Zeiteinträge dieses Kunden",
     "timeRounding": "Rundung erfasster Zeiten",
-    "timeRoundingInherit": "wie in der Firma"
+    "timeRoundingInherit": "wie in der Firma",
+    "invoiceEmail": "E-Mail für Rechnungen",
+    "invoiceEmailHint": "Rechnungen, Mahnungen und Kontoauszüge gehen an diese Adresse (z. B. die Buchhaltung des Kunden). Leer: an die E-Mail oben."
   },
   "dashboard": {
     "title": "Dashboard",

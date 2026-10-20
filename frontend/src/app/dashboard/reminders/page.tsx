@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
+import { invoiceRecipientOf } from "@/lib/invoice-recipient"
 
 interface OverdueInvoice {
   id: string
@@ -347,7 +348,7 @@ export default function RemindersPage() {
                         <span data-testid="reminder-overdue-days">{t("reminder.daysOverdue")}: {getDaysOverdueLabel(invoice.daysOverdue)}</span>
                       </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {invoice.customer.contact?.email || (t("reminder.noEmail"))}
+                        {invoiceRecipientOf(invoice.customer) || (t("reminder.noEmail"))}
                       </div>
                       </div>
                     </div>

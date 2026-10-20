@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 719 — a customer's address for invoices („E-Mail für Rechnungen“)
+
+A customer had one e-mail address, its contact's: invoices, reminders, statements and the invoices of a recurring template went there. Many firms take invoices at an address of their own (buchhaltung@, rechnungen@ — some insist on it), and there was no place for it.
+
+- `contact.invoiceEmail` (in the contact JSON — no migration; `CustomerContactDto` validates it as an e-mail, empty allowed). `customer/invoice-recipient.ts` `invoiceRecipientOf` = that address, else `contact.email`; used by the invoice e-mail (and its issue-on-send check), the manual, bulk and automatic Mahnung, the statement e-mail, the recurring run and the e-mail data route. Not changed: the XRechnung's buyer contact (BT-58 is the contact person's), the portal (its link goes to the contact; the portal's own edit merges and keeps the field).
+- The customer form: „E-Mail für Rechnungen“ under e-mail / phone, with a hint (`customer.invoiceEmail`, `invoiceEmailHint`); „Per E-Mail senden“ starts with it (`lib/invoice-recipient.ts`); the Mahnwesen list shows it.
+
+Spec `436-tier719-rechnungs-email.sh` (6 checks fail on the code before — it refused the field); Playwright `customer-invoice-email-tier719.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 718 — the invoice list fits 1 280 px; the status badges show in dark mode
 
 Looked at with Tier 712's two new columns at 1 280 px in dark mode: the number broke after „INV-2026-“, „Per E-Mail“ took three lines, the table was 1 329 px in a 1 248 px box; „Entwurf“ and „Storniert“ were a grey-800 box on the grey-800 table (only the text showed), the other badges light boxes on the dark page.

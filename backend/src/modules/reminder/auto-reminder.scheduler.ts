@@ -52,6 +52,7 @@ import { CronHealthService } from "../admin/cron-health.service"
 import { countWerktage } from "./werktage"
 import { businessDayIso, businessTodayIso } from "../../common/business-date"
 import { ErrorTrackingService } from "../system/error-tracking.service"
+import { invoiceRecipientOf } from "../customer/invoice-recipient"
 
 @Injectable()
 export class AutoReminderService {
@@ -155,7 +156,7 @@ export class AutoReminderService {
     for (const inv of overdue) {
       try {
         const customerEmail =
-          inv.customer?.contact?.email || (inv.customer as any)?.email
+          invoiceRecipientOf(inv.customer) || (inv.customer as any)?.email // Tier 719
         if (!customerEmail) {
           this.logger.debug(
             `[AUTO-REMINDER] invoice ${inv.invoiceNumber}: no customer email, skipping`,

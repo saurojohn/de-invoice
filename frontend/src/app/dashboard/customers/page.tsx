@@ -25,7 +25,7 @@ interface Customer {
   timeRoundingMode?: string | null
   type: string
   address: { street?: string; city?: string; postalCode?: string; country?: string; leitwegId?: string }
-  contact?: { email?: string; phone?: string; name?: string }
+  contact?: { email?: string; invoiceEmail?: string; phone?: string; name?: string }
   paymentTerms: number | null
   createdAt: string
   // Backend-assigned per-company sequential customer number (K-00001...).
@@ -221,6 +221,7 @@ export default function CustomersPage() {
     country: "DE",
     leitwegId: "",
     email: "",
+    invoiceEmail: "", // Tier 719
     phone: "",
     contactName: "",
     // Tier 428: the customer's Zahlungsziel now decides the due date of
@@ -275,6 +276,7 @@ export default function CustomersPage() {
         country: customer.address?.country || "DE",
         leitwegId: customer.address?.leitwegId || "",
         email: customer.contact?.email || "",
+        invoiceEmail: customer.contact?.invoiceEmail || "", // Tier 719
         phone: customer.contact?.phone || "",
         contactName: customer.contact?.name || "", // Tier 691
         // Tier 428: NULL means "the company's default" — show that value.
@@ -297,6 +299,7 @@ export default function CustomersPage() {
         country: "DE",
         leitwegId: "",
         email: "",
+        invoiceEmail: "",
         phone: "",
         contactName: "",
         // Reopening the modal gives the same fresh state as the first open.
@@ -367,6 +370,8 @@ export default function CustomersPage() {
       },
       contact: {
         email: form.email,
+        // Tier 719: invoices, reminders and statements go here (empty: to `email`)
+        invoiceEmail: form.invoiceEmail.trim(),
         phone: form.phone,
         // Tier 691: the Ansprechpartner — greeted in e-mails, named in reminders
         name: form.contactName.trim(),
@@ -1443,6 +1448,19 @@ export default function CustomersPage() {
                       placeholder="+49 123 456789"
                     />
                   </div>
+                 </div>
+                 {/* Tier 719: the address the customer takes invoices at */}
+                 <div>
+                   <label className="block text-sm font-medium mb-1" htmlFor="customer-invoice-email">{t("customer.invoiceEmail")}</label>
+                   <Input
+                     id="customer-invoice-email"
+                     type="email"
+                     value={form.invoiceEmail}
+                     onChange={(e) => setForm({ ...form, invoiceEmail: e.target.value })}
+                     placeholder="buchhaltung@example.de"
+                     data-testid="customer-invoice-email"
+                   />
+                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("customer.invoiceEmailHint")}</p>
                  </div>
 
                  {/* Inline error / success feedback inside the modal */}

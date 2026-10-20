@@ -61,6 +61,7 @@ import { SigningService } from '../signing/signing.service';
 // + OCR + content-hash pipeline is shared.
 import { AttachmentsService } from '../attachment/attachments.service';
 import { BulkSendInvoiceEmailDto, SendInvoiceEmailDto } from './dto/send-invoice-email.dto';
+import { invoiceRecipientOf } from '../customer/invoice-recipient';
 
 @Auth()
 @Controller('invoices')
@@ -1141,7 +1142,7 @@ export class InvoiceController {
     const customer = invoice.customer;
 
     // Build email content in German
-    const recipientEmail = (customer?.contact as any)?.email || '';
+    const recipientEmail = invoiceRecipientOf(customer); // Tier 719
     const recipientName = customer?.name || '';
     const invoiceNumber = invoice.invoiceNumber;
     const totalAmount = parseFloat(invoice.total.toString()).toFixed(2);
