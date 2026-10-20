@@ -329,11 +329,14 @@ function CreateInvoicePageInner() {
         dueDate: opts.isClone
           ? ""
           : (inv.dueDate ? String(inv.dueDate).slice(0, 10) : ""),
-        deliveryDate: inv.deliveryDate
+        // Tier 716: a copy is a new supply — its date is today's, as on a new
+        // invoice (it kept the source's: a March invoice copied in October
+        // stated a March Leistungsdatum or Leistungszeitraum, § 14 Abs. 4 Nr. 6 UStG)
+        deliveryDate: !opts.isClone && inv.deliveryDate
           ? String(inv.deliveryDate).slice(0, 10)
           : todayIso(),
-        servicePeriodStart: inv.servicePeriodStart ? String(inv.servicePeriodStart).slice(0, 10) : "",
-        servicePeriodEnd: inv.servicePeriodEnd ? String(inv.servicePeriodEnd).slice(0, 10) : "",
+        servicePeriodStart: !opts.isClone && inv.servicePeriodStart ? String(inv.servicePeriodStart).slice(0, 10) : "",
+        servicePeriodEnd: !opts.isClone && inv.servicePeriodEnd ? String(inv.servicePeriodEnd).slice(0, 10) : "",
         notes: inv.notes || '',
         discountPercent: Number(inv.discountPercent || 0),
         discountAmount: Number(inv.discountAmount || 0),
@@ -1835,6 +1838,7 @@ function CreateInvoicePageInner() {
                   </label>
                   <Input
                     type="date"
+                    data-testid="invoice-delivery-date"
                     value={form.deliveryDate}
                     onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })}
                     title={t("invoice.deliveryDateHint")}

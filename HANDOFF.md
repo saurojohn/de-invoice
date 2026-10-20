@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 716 — a copied invoice is dated today
+
+„Als Entwurf kopieren“ (`/dashboard/invoices/create?cloneFrom=<id>`, Tier 160) set the issue date to today and cleared the due date, but took over the source's Leistungsdatum and Leistungszeitraum: a March invoice copied in October stated a March supply (§ 14 Abs. 4 Nr. 6 UStG asks for the date of this one). The copy now starts as a new invoice does — Leistungsdatum today, no Leistungszeitraum; the lines, customer and discounts are taken over as before. (The edit path keeps the stored dates.) Test id `invoice-delivery-date`.
+
+Playwright `invoice-clone-dates-tier716.spec.ts` (fails with the old date logic, the test id kept).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 715 — the invoice CSV: the net after the discount, nothing open where nothing is owed
 
 `GET /invoices/export/csv` (Rechnungen → CSV) wrote `subtotal` as „Netto“ — the lines' sum before the invoice's discount. Measured: 1 000 € less 10 % → „1000,00;171,00;1071,00“, a net that with its tax does not make the total. „Offen“ was total less payments for every row: a draft said 833,00 open; a credit note and an invoice cancelled by its Storno said 0,00, as if paid.
