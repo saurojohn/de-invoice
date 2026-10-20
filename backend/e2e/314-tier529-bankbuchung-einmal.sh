@@ -84,7 +84,7 @@ assert_eq "received in all: 419 € — what the account shows (was 595)" "$(rec
 note "=== a match taken back frees the amount ==="
 R=$(q "select id from \"BankReconciliation\" where \"invoiceId\"='$I4' and status='confirmed'")
 AS POST "/api/v1/bank-statements/reconciliations/$R/reopen?companyId=$C" '{}'
-assert_eq "the 62 € match is taken back" "$([[ "$STATUS" == 20* ]] && echo ok || echo "$STATUS $BODY")/$(paid "$I4")" "ok/0.00/sent"
+assert_eq "the 62 € match is taken back (open again, past due: überfällig)" "$([[ "$STATUS" == 20* ]] && echo ok || echo "$STATUS $BODY")/$(paid "$I4")" "ok/0.00/overdue"
 match 300 "$I5"
 assert_eq "…now the 62 € go to the fifth invoice" "$STATUS/$(paid "$I5")" "201/62.00/sent"
 

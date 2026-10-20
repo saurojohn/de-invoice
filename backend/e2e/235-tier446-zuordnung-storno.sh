@@ -89,7 +89,7 @@ assert_eq "…and paid in DATEV too: the Debitor owes nothing (was 119 while the
 note "=== the reconciliation undo does it all ==="
 AS POST "/api/v1/bank-statements/reconciliations/$RECON/reopen?companyId=$C"
 assert_eq "reopen" "$STATUS" "201"
-assert_eq "invoice open again" "$(inv_status "$I1")" "sent"
+assert_eq "invoice open again (past its due date: überfällig, Tier 711)" "$(inv_status "$I1")" "overdue"
 assert_eq "one Storno voucher" "$(voucher_count)" "$((N0 + 1))"
 curl -sS -o /tmp/t446.csv -H "x-user-id: $U" -H "x-company-id: $C" \
   "$API/api/v1/reports/datev-export?companyId=$C&startDate=$Y-01-01&endDate=$Y-12-31"
@@ -129,7 +129,7 @@ q "insert into \"Voucher\" (id, \"companyId\", \"voucherNumber\", date, descript
    values (gen_random_uuid()::text, '$C', 'LEGACY-S1', now(), 'Storno: alt', 'VoucherReversal', 'posted', '$V3', now())" >/dev/null
 N3=$(voucher_count)
 AS POST "/api/v1/bank-statements/reconciliations/$RECON3/reopen?companyId=$C"
-assert_eq "reopen still takes the payment back" "$STATUS/$(inv_status "$I3")" "201/sent"
+assert_eq "reopen still takes the payment back (open, past due: überfällig)" "$STATUS/$(inv_status "$I3")" "201/overdue"
 assert_eq "…without a second Storno of the same voucher (was one more)" "$(voucher_count)" "$N3"
 
 summary

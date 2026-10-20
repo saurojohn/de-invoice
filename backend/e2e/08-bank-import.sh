@@ -465,7 +465,7 @@ assert_eq "recon status after reopen" "$RECON_AFTER" "suggested"
 
 INV_AFTER_REOPEN=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT status FROM \"Invoice\" WHERE id = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')
-assert_eq "invoice status after reopen" "$INV_AFTER_REOPEN" "sent"
+assert_eq "invoice status after reopen (due 12.06.: überfällig, Tier 711)" "$INV_AFTER_REOPEN" "overdue"
 
 PAY_AFTER_REOPEN=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT count(*) FROM \"Payment\" WHERE \"invoiceId\" = '$AUTO_INV_ID';" 2>/dev/null | tr -d ' ')

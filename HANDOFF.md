@@ -2702,6 +2702,8 @@ Tier 710 said „the dunning itself goes by the due date and was not affected“
 
 Spec `432-tier711-overdue-dunned.sh` (7 checks fail on the code before).
 
+Tier 711b: the CI run of Tier 711 (39482206865) failed 3 backend specs I had not run — a bank match taken back („reopen“) removes its payment through `PaymentService.delete`, and their fixtures are past due: 08 (bank import), 235 (Zuordnung-Storno), 314 (Bankbuchung einmal) now expect `overdue`. (I had looked for specs that delete a payment by its route only.)
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 710 — an invoice past its due date is „überfällig“
 
 The owner, 20.10.2026: „继续找发票方面还要提升的“. On the dashboard of a test company with unpaid invoices from 2025 and January: **„Überfällige Rechnungen: 0“**. The status `overdue` is read by the invoice list's chip „Überfällig“, that dashboard tile, the customer report's overdue column and the customer page — and nothing set it: only a user choosing it by hand (installments have their own job; invoices had none). The dunning itself goes by the due date and was not affected.
