@@ -2685,7 +2685,7 @@ Walking the new-invoice form with a customer whose Zahlungsziel is 21 days (the 
 - `components/PaymentTermSelect.tsx`: 0 / 7 / 10 / 14 / 21 / 30 / 45 / 60 / 90 days and the current value whatever it is (`paymentTerm.daysN`); used by the new-invoice form (`invoice-payment-terms`), the customer form (`customer-payment-terms`) and the settings (`settings-default-payment-days`).
 - `ust-behandlung-detector.ts`, path without a USt-IdNr.: a customer in the company's own country is „Inland (DE) — Standard-Versteuerung“; another EU country: „… ohne USt-IdNr. — Standard-Versteuerung (ohne USt-IdNr. des Kunden keine steuerfreie innergemeinschaftliche Lieferung)“. The suggestion itself (standard) is unchanged.
 
-Playwright `payment-term-21-days-tier724.spec.ts` (the select read „0“ on the code before). Spec 89 checked the word „B2C“ in that hint; it checks „Inland (DE)“ now.
+Playwright `payment-term-21-days-tier724.spec.ts` (the select read „0“ on the code before). Spec 89 checked the word „B2C“ in that hint; it checks „Inland (DE)“ now. Tier 724b: so did Playwright `ust-suggestion.spec.ts` (it cannot run locally — it names :3001 — and I had searched only the local ones; CI run 39603634716 failed on it).
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 723 — the invoice list states its sums
 

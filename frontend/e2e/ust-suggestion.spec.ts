@@ -285,7 +285,7 @@ test.describe("Tier 62 — USt-Behandlung auto-Erkennung on invoice create", () 
     ).toBeChecked()
   })
 
-  test("DE without VAT ID → standard + no VAT-ID badge, B2C reason", async ({
+  test("DE without VAT ID → standard + no VAT-ID badge, Inland reason", async ({
     page,
     context,
   }) => {
@@ -301,9 +301,10 @@ test.describe("Tier 62 — USt-Behandlung auto-Erkennung on invoice create", () 
     await expect(
       page.locator('[data-testid="invoice-ust-suggestion-eub2b-badge"]'),
     ).toHaveCount(0)
-    // Hint mentions B2C.
+    // Tier 724: the hint says Inland (it said „Kunde in EU (DE) … (B2C)“ — a
+    // customer without a USt-IdNr. may be a business all the same)
     const hint = page.locator('[data-testid="invoice-ust-suggestion-hint"]')
-    await expect(hint).toContainText(/B2C/i)
+    await expect(hint).toContainText("Inland (DE)")
     // Radio: standard.
     await expect(
       page.locator('[data-testid="invoice-tax-standard"]'),
