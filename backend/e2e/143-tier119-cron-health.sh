@@ -49,18 +49,18 @@ test "$TABLE_EXISTS" = "1" && pass "CronHealth table exists" \
   || fail "CronHealth table missing — did prisma db push run?"
 
 # ───── 1. Fresh endpoint → all "grey" ─────
-note "=== 1. Fresh state: all 10 crons grey ==="
+note "=== 1. Fresh state: all 12 crons grey ==="
 api_get "/api/v1/admin/cron-health"
 COUNT=$(echo "$BODY" | python3 -c "import json,sys;print(len(json.load(sys.stdin)))")
-test "$COUNT" = "10" && pass "endpoint returns 10 crons (Tier 710: invoice-overdue-status)" \
-  || fail "expected 10 crons, got $COUNT"
+test "$COUNT" = "12" && pass "endpoint returns 12 crons (Tier 727: hourly-files-backup, backup-freshness-check)" \
+  || fail "expected 12 crons, got $COUNT"
 GREY_COUNT=$(echo "$BODY" | python3 -c "
 import json,sys
 d = json.load(sys.stdin)
 print(sum(1 for c in d if c.get('health') == 'grey'))
 ")
-test "$GREY_COUNT" = "10" && pass "all 10 crons are grey (fresh DB)" \
-  || fail "expected 10 grey, got $GREY_COUNT"
+test "$GREY_COUNT" = "12" && pass "all 12 crons are grey (fresh DB)" \
+  || fail "expected 12 grey, got $GREY_COUNT"
 
 # Verify the schedule info is present
 SCHEDULES=$(echo "$BODY" | python3 -c "

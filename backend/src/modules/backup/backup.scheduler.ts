@@ -24,7 +24,9 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { CronHealthService } from '../admin/cron-health.service'
+import { ErrorTrackingService } from '../system/error-tracking.service'
 import { BackupService } from './backup.service'
+import { ProductionBackupsService } from './production-backups.service'
 
 @Injectable()
 export class BackupScheduler {
@@ -33,7 +35,61 @@ export class BackupScheduler {
   constructor(
     private readonly backup: BackupService,
     private readonly health: CronHealthService,
+    private readonly production: ProductionBackupsService,
+    private readonly errors: ErrorTrackingService,
   ) {}
+
+  /**
+   * Tier 727: the files of the storage volume, every hour, into the mirror
+   * (production-backups.service.ts). Off where BACKUP_FILES_DIR is not set.
+   */
+  @Cron('20 * * * *', { name: 'hourly-files-backup', timeZone: 'Europe/Berlin' })
+  async hourlyFiles() {
+    if (process.env.DISABLE_CRON === '1' || !this.production.filesDir) return
+    return this.health.wrap('hourly-files-backup', async () => {
+      const r = await this.production.mirrorFiles()
+      return `${r.files} files, ${r.copied} copied, ${r.versioned} earlier versions kept`
+    })
+  }
+
+  /**
+   * Tier 727: every hour, whether the database dumps and the file mirror are
+   * fresh. A backup that stopped turns this scheduler red and is reported as
+   * an error event — which goes to the notification channels (Slack / e-mail,
+   * Einstellungen → System). Off where neither is configured.
+   */
+  @Cron('40 * * * *', { name: 'backup-freshness-check', timeZone: 'Europe/Berlin' })
+  async freshness() {
+    if (process.env.DISABLE_CRON === '1') return
+    if (!this.production.dbDir && !this.production.filesDir) return
+    return this.health.wrap('backup-freshness-check', async () => this.checkFreshness())
+  }
+
+  /** the check itself — also behind POST /admin/backups/status/check */
+  async checkFreshness(): Promise<string> {
+    const db = this.production.dbStatus()
+    const files = this.production.filesStatus()
+    const problems: string[] = []
+    // a backup that has not happened yet is no alarm while the app has been
+    // up for less than the age allowed (a fresh deploy, a restart)
+    const upHours = process.uptime() / 3600
+    if (db.configured && !db.ok && !(db.latestAt == null && upHours < db.maxAgeHours)) {
+      problems.push(db.latestAt
+        ? `Letzte Datenbanksicherung vor ${db.ageHours} Std. (${db.latestAt}) — erwartet höchstens ${db.maxAgeHours} Std.`
+        : `Keine Datenbanksicherung in ${db.dir} gefunden`)
+    }
+    if (files.configured && !files.ok && !(files.lastRunAt == null && upHours < files.maxAgeHours)) {
+      problems.push(files.lastRunAt
+        ? `Letzte Dateisicherung vor ${files.ageHours} Std. (${files.lastRunAt}) — erwartet höchstens ${files.maxAgeHours} Std.`
+        : `Noch keine Dateisicherung in ${files.dir}`)
+    }
+    if (problems.length) {
+      const message = `Datensicherung: ${problems.join('; ')}`
+      await this.errors.capture({ source: 'backend', kind: 'manual', message, context: { db, files } }).catch(() => {})
+      throw new Error(message)
+    }
+    return `db ${db.configured ? `${db.ageHours} h` : '—'}, files ${files.configured ? `${files.ageHours} h` : '—'}`
+  }
 
   @Cron('0 4 * * *', {
     name: 'daily-auto-backup',

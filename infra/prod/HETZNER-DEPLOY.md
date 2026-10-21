@@ -342,67 +342,74 @@ Wait 5 minutes, then `docker compose restart caddy`.
 
 ## 9. Set up off-site backups
 
-`scripts/backup-prod.sh` is the upgraded backup script (Tier 114).
-It runs `pg_dump`, optionally encrypts the result, and uploads
-to either S3-compatible storage (via `rclone`) or a local
-directory. Schedule it via cron on the host.
+The backups run by themselves (Tier 727, RUNBOOK §4): the database every hour
+(the `backup` container), the files of `storage` every hour (the backend's
+mirror), a check every hour that both are fresh. They are on **this** server
+— a lost server takes them along. The `offsite-backup` service copies both,
+every hour, to a place outside it. It is off until set up:
 
-### Install rclone (one-time)
+### 1. A Hetzner Storage Box
 
-```bash
-curl https://rclone.org/install.sh | sudo bash
-```
+Order one in Hetzner Robot (BX11 is plenty — a year of hourly dumps of this
+database is a few GB), enable **SSH support** and note host, user and
+password (`u123456.your-storagebox.de`, `u123456`). It is in Germany, under a
+contract with Hetzner — the processor agreement (AVV) you already have.
 
-### Configure the Hetzner Storage Box remote
-
-Hetzner Storage Box supports SFTP. rclone handles it natively:
-
-```bash
-rclone config
-# n) New remote
-# name> hetzner-storagebox
-# Storage> sftp
-# host> u<username>.your-storagebox.de   (find this in Hetzner Robot)
-# user> u<username>
-# pass> <your storage box password>
-# Edit advanced config> n
-# y) Yes this is OK
-# q) Quit config
-```
-
-Test it:
+### 2. rclone.conf next to the compose file
 
 ```bash
-rclone lsd hetzner-storagebox:
-# Expect: list of directories in your storage box
+cd /opt/de-invoice/infra/prod
+OBSCURED=$(docker run --rm rclone/rclone:1.68.2 obscure '<storage box password>')
+cat > rclone.conf <<CONF
+[storagebox]
+type = sftp
+host = u123456.your-storagebox.de
+user = u123456
+pass = $OBSCURED
+
+# optional, recommended: everything encrypted before it leaves the server
+[storagebox-crypt]
+type = crypt
+remote = storagebox:de-invoice
+password = $(docker run --rm rclone/rclone:1.68.2 obscure '<a long passphrase>')
+CONF
+chmod 600 rclone.conf
 ```
 
-### Wire it into .env
+Keep the passphrase in the password manager, **not only on this server** — a
+restore from the Storage Box needs it.
+
+### 3. .env and start
 
 ```bash
-# /opt/de-invoice/infra/prod/.env
-BACKUP_RCLONE_REMOTE=hetzner-storagebox:de-invoice-backups
-BACKUP_WEBHOOK_URL=https://hooks.slack.com/services/...   # optional
-BACKUP_ENCRYPTION_PASSPHRASE=<openssl rand -base64 24>    # optional but recommended
+# infra/prod/.env
+BACKUP_OFFSITE_REMOTE=storagebox-crypt:      # or storagebox:de-invoice without encryption
 ```
-
-The encrypted-backup passphrase is needed to restore. Store
-it somewhere SAFE AND OFFSITE (a password manager is fine;
-do NOT store it on the VPS).
-
-### Schedule the backup
 
 ```bash
-sudo -u deploy crontab -e
-# Add:
-0 3 * * * cd /opt/de-invoice && bash scripts/backup-prod.sh >> /var/log/de-invoice-backup.log 2>&1
+docker compose --profile offsite up -d offsite-backup
+docker compose logs -f offsite-backup        # "offsite: ok" within a minute or two
 ```
 
-The `0 3 * * *` matches the in-container `prodrigestivill/postgres-backup-local`
-schedule. Pick one — we recommend the host cron with the
-upgraded `backup-prod.sh` over the container (you get
-encryption, S3, and the webhook). To disable the in-container
-one, remove the `backup` service from the compose file.
+The backup page then shows the remote under „Kopie außer Haus“. The dumps are
+mirrored there (their retention applies off-site too); the files are only ever
+added.
+
+### Restore from the Storage Box
+
+```bash
+docker run --rm -v "$PWD/rclone.conf:/config/rclone/rclone.conf:ro" -v /tmp/restore:/restore \
+  rclone/rclone:1.68.2 copy "storagebox-crypt:db/last" /restore/db
+# into the backups volume, where restore.sh looks
+docker run --rm -v de-invoice-prod_backups:/backups -v /tmp/restore/db:/from:ro alpine \
+  cp /from/de_invoice-YYYYMMDD-HHMMSS.sql.gz /backups/last/
+bash infra/prod/restore.sh last/de_invoice-YYYYMMDD-HHMMSS.sql.gz
+# the files: rclone copy "storagebox-crypt:files/mirror" into the storage volume the same way
+```
+
+(`scripts/backup-prod.sh` — Tier 114, pg_dump + files + gpg + rclone from a
+host cron job — still works and can be used instead; the compose services
+above need no host cron.)
 
 ---
 

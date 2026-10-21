@@ -21,14 +21,16 @@
  */
 import { Module } from '@nestjs/common'
 import { AdminModule } from '../admin/admin.module'
+import { SystemModule } from '../system/system.module'
 import { BackupController } from './backup.controller'
 import { BackupScheduler } from './backup.scheduler'
 import { BackupService } from './backup.service'
+import { ProductionBackupsService } from './production-backups.service'
 
 @Module({
-  imports: [AdminModule],
+  imports: [AdminModule, SystemModule],
   controllers: [BackupController],
-  providers: [BackupService, BackupScheduler],
-  exports: [BackupService],
+  providers: [BackupService, BackupScheduler, ProductionBackupsService],
+  exports: [BackupService, ProductionBackupsService],
 })
 export class BackupModule {}

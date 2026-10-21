@@ -94,6 +94,13 @@ function healthBg(health: "green" | "amber" | "red" | "grey"): string {
   }
 }
 
+// Tier 727: the installation's automatic backups (GET /admin/backups/status)
+interface AutoStatus {
+  db: { configured: boolean; latestAt: string | null; ageHours: number | null; latestSizeBytes: number; counts: { hourly: number; daily: number; weekly: number; monthly: number }; maxAgeHours: number; ok: boolean }
+  files: { configured: boolean; lastRunAt: string | null; ageHours: number | null; files: number; bytes: number; versions: number; maxAgeHours: number; ok: boolean }
+  offsite: { configured: boolean; remote: string | null }
+}
+
 export default function BackupsPage() {
   const { t, getDateLocale } = useI18n()
   const toast = useToast()
@@ -104,11 +111,14 @@ export default function BackupsPage() {
   const [verifyResults, setVerifyResults] = useState<Record<string, VerifyResult>>({})
   const [deleting, setDeleting] = useState<string | null>(null)
   const [lastRun, setLastRun] = useState<RunResult | null>(null)
+  const [auto, setAuto] = useState<AutoStatus | null>(null)
+  const [mirroring, setMirroring] = useState(false)
 
   const load = useCallback(async () => {
     try {
       const res = await apiGet<BackupListResponse>("/api/v1/admin/backups")
       setData(res)
+      setAuto(await apiGet<AutoStatus>("/api/v1/admin/backups/status").catch(() => null))
     } catch (e: any) {
       toast.error(t("backup.loadingError") + ": " + (e?.message || e))
     } finally {
@@ -199,6 +209,20 @@ export default function BackupsPage() {
   const items = data?.items ?? []
   const health = data?.health ?? "grey"
 
+  const runFiles = async () => {
+    setMirroring(true)
+    try {
+      const r = await apiPost<{ files: number; copied: number }>("/api/v1/admin/backups/files/run", {})
+      toast.success(t("backup.autoFilesDone", { files: r.files, copied: r.copied }))
+      await load()
+    } catch (e: any) {
+      toast.error(e?.message || String(e))
+    } finally {
+      setMirroring(false)
+    }
+  }
+  const tone = (ok: boolean) => (ok ? healthBg("green") : healthBg("red"))
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
@@ -226,6 +250,46 @@ export default function BackupsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Tier 727: what runs by itself in this installation */}
+      {auto && (auto.db.configured || auto.files.configured) && (
+        <div className="rounded-lg border p-4 space-y-3" data-testid="backup-auto">
+          <h2 className="font-semibold">{t("backup.autoTitle")}</h2>
+          <p className="text-xs text-gray-600 dark:text-gray-400">{t("backup.autoHint")}</p>
+          <div className="grid gap-3 md:grid-cols-3 text-sm">
+            <div className="space-y-1" data-testid="backup-auto-db">
+              <div className="font-medium">{t("backup.autoDb")}</div>
+              <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${tone(auto.db.ok)}`}>
+                {auto.db.ageHours == null ? t("backup.never") : t("backup.ageLabel").replace("{n}", formatAge(auto.db.ageHours))}
+              </span>
+              <div className="text-xs text-gray-600 dark:text-gray-400">
+                {t("backup.autoKept", { hourly: auto.db.counts.hourly, daily: auto.db.counts.daily, weekly: auto.db.counts.weekly, monthly: auto.db.counts.monthly })}
+              </div>
+            </div>
+            <div className="space-y-1" data-testid="backup-auto-files">
+              <div className="font-medium">{t("backup.autoFiles")}</div>
+              <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${tone(auto.files.ok)}`}>
+                {auto.files.ageHours == null ? t("backup.never") : t("backup.ageLabel").replace("{n}", formatAge(auto.files.ageHours))}
+              </span>
+              <div className="text-xs text-gray-600 dark:text-gray-400">
+                {t("backup.autoFilesCount", { files: auto.files.files, size: formatBytes(auto.files.bytes), versions: auto.files.versions })}
+              </div>
+              {auto.files.configured && (
+                <Button size="sm" variant="outline" onClick={runFiles} disabled={mirroring} data-testid="backup-auto-files-run">
+                  {mirroring ? t("backup.triggerRunning") : t("backup.autoFilesRun")}
+                </Button>
+              )}
+            </div>
+            <div className="space-y-1" data-testid="backup-auto-offsite">
+              <div className="font-medium">{t("backup.autoOffsite")}</div>
+              <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${auto.offsite.configured ? healthBg("green") : healthBg("amber")}`}>
+                {auto.offsite.configured ? auto.offsite.remote : t("backup.autoOffsiteNone")}
+              </span>
+              {!auto.offsite.configured && <div className="text-xs text-gray-600 dark:text-gray-400">{t("backup.autoOffsiteHint")}</div>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Health chip + newest summary */}
       <div className="flex flex-wrap gap-3 text-sm">

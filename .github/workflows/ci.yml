@@ -180,6 +180,10 @@ jobs:
       # the e2e tests don't upload large files
       # — the temp dir is fine.
       STORAGE_PATH: /tmp/de-invoice-storage
+      # Tier 727: the backups as production has them — spec 438 fills these
+      # throwaway directories (database dumps, the file mirror) itself.
+      BACKUP_DB_DIR: /tmp/de-invoice-prod-backups/db
+      BACKUP_FILES_DIR: /tmp/de-invoice-prod-backups/files
       # VIES mock — VIES is the EU's VAT validation
       # SOAP service. It's frequently offline and
       # has rate limits; the e2e suite uses the

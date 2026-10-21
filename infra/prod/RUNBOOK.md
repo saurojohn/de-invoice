@@ -281,11 +281,40 @@ docker compose -f infra/prod/docker-compose.yml exec postgres \
 
 ## 4. Backups
 
+### What runs by itself (Tier 727)
+
+| What | When | Kept | Where |
+|---|---|---|---|
+| Database (`pg_dump`, the `backup` container) | every hour (`BACKUP_SCHEDULE`, default `@hourly`) | every dump 48 h · one a day 30 days · one a week 12 weeks · one a month 10 years | volume `backups`: `last/ daily/ weekly/ monthly/` |
+| Files of `storage` — kept invoice copies, receipts, attachments (the backend) | every hour at :20 | everything; nothing is deleted, a changed file keeps its earlier version | volume `backup_files`: `mirror/`, `versions/`, `last-run.json` |
+| Freshness check (the backend) | every hour at :40 | — | the scheduler `backup-freshness-check` turns red and an error event goes to the notification channels when the newest dump or the file mirror is older than 3 hours |
+| Off-site copy (optional, `offsite-backup`) | every hour | the dumps mirrored, the files only added | the rclone remote in `BACKUP_OFFSITE_REMOTE` (Hetzner Storage Box, HETZNER-DEPLOY.md §9) |
+
+The law sets no interval (GoBD Rz. 103 ff.: the records must be protected
+against loss and readable for 8 / 10 years, § 147 AO); hourly is what keeps
+the loss of a failure to an hour of work — an invoice issued and sent and then
+lost would be a gap in the numbering. The app shows all of it under
+**Backups** (`/dashboard/backups`, card „Automatische Sicherung“).
+
 ### Confirm a backup ran
 
 ```bash
-bash infra/prod/restore.sh --list      # the newest in last/ should be < 26 h old
+bash infra/prod/restore.sh --list      # the newest in last/ should be < 3 h old
+docker compose -f infra/prod/docker-compose.yml exec backend cat /data/backup-files/last-run.json
 ```
+
+### Restore the files
+
+The mirror is a plain copy of `storage`. Put it back (the backend stopped):
+
+```bash
+docker compose -f infra/prod/docker-compose.yml stop backend
+docker run --rm -v de-invoice-prod_backup_files:/from:ro -v de-invoice-prod_storage:/to alpine \
+  sh -c 'cp -a /from/mirror/. /to/'
+docker compose -f infra/prod/docker-compose.yml start backend
+```
+
+An earlier version of a file is under `versions/<path>.<time>`.
 
 ### Restore from backup
 

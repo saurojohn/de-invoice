@@ -2662,6 +2662,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 727 — automatic backups: the database and the files every hour, checked every hour, off-site prepared
+
+The owner, 21.10.2026: „数据要实现能自动备份数据，按要求多久备份一次“. What the law asks: GoBD Rz. 103 ff. / § 146 Abs. 4, § 147 AO — the records protected against loss and readable for 8 / 10 years; no interval is prescribed. The interval follows from what may be lost (an invoice issued, sent and then lost is a gap in the numbering): every hour.
+
+Before: the compose file's backup container dumped the database once a day (03:00, 30 daily + the image's 4 weekly / 6 monthly); the files of `storage` (kept invoice copies, receipts, attachments — GoBD documents) were backed up by nothing unless `scripts/backup-prod.sh` was put into a host crontab by hand; the app's backup page read `~/data/backups` (the development script's directory) and showed nothing of production; a backup that stopped went unnoticed.
+
+- **Database** (`infra/prod/docker-compose.yml`, `backup`): `SCHEDULE: ${BACKUP_SCHEDULE:-@hourly}`; kept every dump 48 h (`BACKUP_KEEP_MINS` 2880), daily 30, weekly 12, monthly 120 (10 years). (The image reads exactly these names — checked in the image's own `/backup.sh`; it writes as root with umask 022, so the backend can read the dumps.)
+- **Files** (`backup/production-backups.service.ts`, scheduler `hourly-files-backup` at :20): the backend mirrors `STORAGE_PATH` into `BACKUP_FILES_DIR` (`backup_files` volume, `/data/backup-files`; the image creates and owns the mount point): new and changed files copied (temp name + rename), nothing deleted, a changed file's earlier version kept under `versions/<path>.<time>`; `last-run.json`.
+- **Check** (scheduler `backup-freshness-check` at :40): newest dump and last file run at most 3 h old (`BACKUP_DB_MAX_AGE_HOURS`, `BACKUP_FILES_MAX_AGE_HOURS`); otherwise the run fails (red) and an error event goes to the notification channels. No alarm before the first backup while the app has been up for less than that (a deploy, a restart — and CI, which runs the schedulers).
+- **Routes**: `GET /admin/backups/status`, `POST /admin/backups/files/run`, `POST /admin/backups/status/check` (409 with the problems). The backup page: a card „Automatische Sicherung“ (database, files, off-site).
+- **Off-site**: compose service `offsite-backup` (rclone/rclone:1.68.2, profile `offsite`, hardened like the others): every hour `rclone sync` of the dumps and `rclone copy` of the files to `BACKUP_OFFSITE_REMOTE`. Needs the owner's Hetzner Storage Box (HETZNER-DEPLOY.md §9, optionally encrypted with an rclone crypt remote). RUNBOOK §4: what runs, how to check, how to restore the files.
+- Cron registry: 12 jobs (specs 143, `cron-history-tier124`); spec 388 knows six services; both `.env.example` name the new variables; CI's backend job has throwaway `BACKUP_DB_DIR` / `BACKUP_FILES_DIR`.
+
+Not verified here: the compose file was only rendered (`docker compose config`, both profiles) — the prod stack is not started on this machine; the rclone service has not run (no Storage Box).
+
+Spec `438-tier727-automatische-datensicherung.sh` (17 checks fail on the code before); Playwright `backups-automatic-tier727.spec.ts` (the card, with a given status).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 726 — the invoice PDF writes „1.071,00 €“
 
 The PDF the customer gets wrote every amount with the sign first — „€ 1.000,00“, „Rabatt 10 %: € -100,00“, „Gesamtbetrag: € 1.071,00“ — while the pages have written „1.071,00 €“ since Tier 704 (the usual form on a German invoice). `formatMoney` in invoice-pdf.service (used only by the invoice PDF) puts the amount first; another currency was already „1.190,00 USD“. Kept copies of issued invoices keep their old text (§ 147 AO — they are not re-rendered). Specs 258 and 387 read the old order; updated.

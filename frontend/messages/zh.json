@@ -1960,7 +1960,18 @@
     "delete": "删除",
     "deleting": "删除中…",
     "deleteConfirm": "确认删除备份 {id}?",
-    "deleted": "已删除备份 {id}"
+    "deleted": "已删除备份 {id}",
+    "autoTitle": "自动备份",
+    "autoHint": "数据库每小时备份一次（每份保留 48 小时，每天一份保留 30 天，每周一份保留 12 周，每月一份保留 10 年）；文件（发票副本、凭证）每小时镜像一次。备份超过 3 小时未更新会发出提醒。",
+    "autoDb": "数据库（每小时）",
+    "autoKept": "现有：{hourly} 份每小时 · {daily} 份每日 · {weekly} 份每周 · {monthly} 份每月",
+    "autoFiles": "文件（每小时）",
+    "autoFilesCount": "{files} 个文件（{size}）· {versions} 个旧版本",
+    "autoFilesRun": "立即备份文件",
+    "autoFilesDone": "文件已备份：{files} 个，其中 {copied} 个新增或修改",
+    "autoOffsite": "异地备份",
+    "autoOffsiteNone": "未设置",
+    "autoOffsiteHint": "没有服务器以外的副本时，服务器故障会连同备份一起丢失 —— 设置方法：HETZNER-DEPLOY.md 第 9 节（Hetzner Storage Box）。"
   },
   "systemHealth": {
     "title": "系统健康",

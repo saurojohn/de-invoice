@@ -177,7 +177,8 @@ COPY --from=kosit / /infra/kosit/
 # directory it is mounted over — so the directory is made here, owned by
 # `app`, and the volume comes up as `app`'s. A volume that an earlier image
 # left root-owned is handed over by the entrypoint (see there).
-RUN mkdir -p /data/invoice-system && chown app:app /data/invoice-system /app
+# Tier 727: the file mirror of the backups — a new volume takes this owner too
+RUN mkdir -p /data/invoice-system /data/backup-files && chown app:app /data/invoice-system /data/backup-files /app
 COPY --chown=app:app docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod 0555 /app/docker-entrypoint.sh
 EXPOSE 3001

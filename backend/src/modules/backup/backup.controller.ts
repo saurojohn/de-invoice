@@ -38,16 +38,59 @@
  * to Berater + Mandant in users.service.ts.
  */
 import { SystemAuth } from '../../auth/system-admin.guard';
-import { Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common'
+import { BadRequestException, ConflictException, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import { Require } from '../../auth/roles.decorator'
 import { BackupService } from './backup.service'
+import { ProductionBackupsService } from './production-backups.service'
+import { BackupScheduler } from './backup.scheduler'
 
 // Tier 548: the installation's operator only (auth/system-admin.guard.ts)
 @SystemAuth()
 @Controller('admin/backups')
 export class BackupController {
-  constructor(private readonly backup: BackupService) {}
+  constructor(
+    private readonly backup: BackupService,
+    private readonly production: ProductionBackupsService,
+    private readonly scheduler: BackupScheduler,
+  ) {}
+
+  /**
+   * Tier 727: the installation's backups — the database dumps of the backup
+   * container (hourly / daily / weekly / monthly) and the app's file mirror,
+   * each with its age and whether it is fresh enough.
+   */
+  @Get('status')
+  @Require('admin.read')
+  async status() {
+    const db = this.production.dbStatus()
+    const files = this.production.filesStatus()
+    return { db, files, offsite: { configured: !!process.env.BACKUP_OFFSITE_REMOTE?.trim(), remote: process.env.BACKUP_OFFSITE_REMOTE?.trim() || null } }
+  }
+
+  /** Tier 727: the file backup now (it runs every hour) */
+  @Post('files/run')
+  @HttpCode(200)
+  @Require('admin.read')
+  @Throttle({ default: { limit: 10, ttl: 3_600_000 } })
+  async runFiles() {
+    if (!this.production.filesDir) {
+      throw new BadRequestException('Keine Dateisicherung in dieser Installation (BACKUP_FILES_DIR ist nicht gesetzt).')
+    }
+    return this.production.mirrorFiles()
+  }
+
+  /** Tier 727: the freshness check now — 200 with the result, 409 with the problems */
+  @Post('status/check')
+  @HttpCode(200)
+  @Require('admin.read')
+  async check() {
+    try {
+      return { ok: true, summary: await this.scheduler.checkFreshness() }
+    } catch (e: any) {
+      throw new ConflictException(e?.message || String(e))
+    }
+  }
 
   @Get()
   @Require('admin.read')

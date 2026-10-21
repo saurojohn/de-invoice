@@ -30,7 +30,7 @@ note "=== 1. the backend image ==="
 awk '/^FROM .* AS runtime/{on=1} on' "$DF" | grep -v '^\s*#' > "$TMP/runtime.txt"
 assert_eq "the runtime stage's last USER is app (was: root, three times)" "$(grep '^USER ' "$TMP/runtime.txt" | tail -1)" "USER app"
 assert_eq "it never switches to root" "$(grep -c '^USER root' "$TMP/runtime.txt")" "0"
-grep -q 'mkdir -p /data/invoice-system && chown app:app /data/invoice-system' "$TMP/runtime.txt" \
+grep -q 'mkdir -p /data/invoice-system /data/backup-files && chown app:app /data/invoice-system /data/backup-files' "$TMP/runtime.txt" \
   && pass "the storage directory is app's in the image — a new volume takes that owner" || fail "the image does not hand /data/invoice-system to app"
 assert_eq "the entrypoint is the script" "$(grep '^ENTRYPOINT' "$TMP/runtime.txt")" 'ENTRYPOINT ["/app/docker-entrypoint.sh"]'
 assert_eq "the command is the compiled program" "$(grep '^CMD' "$TMP/runtime.txt")" 'CMD ["node", "--enable-source-maps", "dist/main.js"]'
@@ -78,11 +78,11 @@ for b in blocks:
           (add.group(1).replace(' ', '') if add else '-'),
           'user:' + (re.search(r'^    user: (.*)', t, re.M).group(1) if re.search(r'^    user: ', t, re.M) else '-'))
 PY
-assert_eq "five services" "$(wc -l < "$TMP/services.txt" | tr -d ' ')" "5"
+assert_eq "six services (Tier 727: offsite-backup, profile offsite)" "$(wc -l < "$TMP/services.txt" | tr -d ' ')" "6"
 assert_eq "each read-only, without capabilities, without new privileges, /tmp in memory (was: none of it)" \
   "$(awk '{print $2, $3, $4, $5}' "$TMP/services.txt" | sort -u)" "ro drop nnp tmp"
 assert_eq "what is added back: binding ports for Caddy, the data directory for PostgreSQL — nothing for the others" \
-  "$(awk '{print $1":"$6}' "$TMP/services.txt" | sort | tr '\n' ' ')" "backend:- backup:- caddy:NET_BIND_SERVICE frontend:- postgres:CHOWN,DAC_OVERRIDE,FOWNER,SETGID,SETUID "
+  "$(awk '{print $1":"$6}' "$TMP/services.txt" | sort | tr '\n' ' ')" "backend:- backup:- caddy:NET_BIND_SERVICE frontend:- offsite-backup:- postgres:CHOWN,DAC_OVERRIDE,FOWNER,SETGID,SETUID "
 assert_eq "no service asks for root or another user" "$(awk '{print $7}' "$TMP/services.txt" | sort -u)" "user:-"
 grep -q '^    privileged: true' "$DC" && fail "a privileged service" || pass "none is privileged"
 grep -A12 '^  frontend:' "$DC" >/dev/null; grep -q '^      - /app/.next/cache$' "$DC" && pass "the frontend's cache is in memory" || fail "no tmpfs for .next/cache"

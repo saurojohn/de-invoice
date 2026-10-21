@@ -97,6 +97,9 @@ export class CronHealthService {
     { name: 'session-cleanup', schedule: '30 3 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
     // Tier 710: invoices past their due date become „überfällig“.
     { name: 'invoice-overdue-status', schedule: '5 0 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
+    // Tier 727: the files every hour; whether the backups are fresh, every hour
+    { name: 'hourly-files-backup', schedule: '20 * * * *', timeZone: 'Europe/Berlin', intervalMinutes: 60 },
+    { name: 'backup-freshness-check', schedule: '40 * * * *', timeZone: 'Europe/Berlin', intervalMinutes: 60 },
   ]
 
   /**

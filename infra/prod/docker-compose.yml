@@ -93,6 +93,11 @@ volumes:
   backups:
     # pg_dump output. The backup container writes here.
     # The host can also mount this volume to copy backups offsite.
+    # Tier 727: the backend reads it (read-only) to show and check the dumps.
+  backup_files:
+    # Tier 727: the backend's hourly mirror of `storage` (kept invoice copies,
+    # receipts, attachments) — nothing is deleted here, changed files keep
+    # their earlier version under versions/.
   caddy_data:
     # Caddy's data dir — stores issued certs, ACME account
     # state, and on-demand TLS state. Without this volume
@@ -245,8 +250,16 @@ services:
       # expose this as a "real" env var — the
       # code reads `process.env.VIES_MOCK` and the
       # compose file just doesn't set it.
+      # Tier 727: the backups as the app sees them (Einstellungen → Datensicherung,
+      # the hourly check) and where it mirrors the files of `storage`.
+      BACKUP_DB_DIR: /backups
+      BACKUP_FILES_DIR: /data/backup-files
+      BACKUP_OFFSITE_REMOTE: ${BACKUP_OFFSITE_REMOTE:-}
     volumes:
       - storage:/data/invoice-system
+      # Tier 727: the dumps (read only) and the file mirror
+      - backups:/backups:ro
+      - backup_files:/data/backup-files
     # Tier 654: the image runs as `app` (it ran as root). Read-only root
     # filesystem — uploads and PDFs go to the volume, temporary files (the
     # validator's reports, npm's cache for `npx prisma migrate deploy`) to
@@ -375,18 +388,21 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-de_invoice}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-de_invoice}
-      # Run at 03:00 Europe/Berlin every day
-      # (off-peak — server is idle at night
-      # for SH Leder's 8-18 CET business hours).
-      SCHEDULE: "0 3 * * *"
+      # Tier 727: every hour (it was once a day at 03:00) — an invoice issued,
+      # sent and then lost leaves a gap in the numbering and a document the
+      # customer holds that the books do not. A dump takes seconds.
+      SCHEDULE: ${BACKUP_SCHEDULE:-@hourly}
       # Europe/Berlin so the schedule matches
       # the customer's timezone, not UTC.
       TZ: Europe/Berlin
-      # Keep 30 daily dumps (plus the image's defaults: 4 weekly, 6 monthly).
-      # This is how far back a restore can reach — it is NOT the statutory
-      # retention of the records themselves (§ 147 AO: 8 / 10 years), which
-      # is about the data in the database and the files in `storage`.
-      BACKUP_KEEP_DAYS: "30"
+      # Tier 727: every dump 48 hours (/backups/last), one a day for 30 days,
+      # one a week for 12 weeks, one a month for 10 years. The records
+      # themselves are kept in the database for their 8 / 10 years (§ 147 AO);
+      # the monthly dumps are the copy of them should the database be lost.
+      BACKUP_KEEP_MINS: ${BACKUP_KEEP_MINS:-2880}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-30}
+      BACKUP_KEEP_WEEKS: ${BACKUP_KEEP_WEEKS:-12}
+      BACKUP_KEEP_MONTHS: ${BACKUP_KEEP_MONTHS:-120}
       # Tier 562: BACKUP_COMPRESS, BACKUP_FILE_PREFIX, HEALTHCHECK_URL and
       # HEALTHCHECK_PING_URL stood here; this image reads none of them. Dumps
       # are gzip'd and named <database>-<timestamp>.sql.gz by default, under
@@ -395,6 +411,56 @@ services:
     volumes:
       - backups:/backups
     # Tier 654: it writes dumps into its volume and nothing else.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  # ─── Off-site copy (optional, profile "offsite") ────────────
+  # Tier 727: both backups — the dumps and the file mirror — copied every hour
+  # to a place outside this server (a Hetzner Storage Box, or any rclone
+  # remote). Off until set up: rclone.conf next to this file (see
+  # HETZNER-DEPLOY.md §9), BACKUP_OFFSITE_REMOTE in .env, then
+  #   docker compose --profile offsite up -d offsite-backup
+  # The dumps are mirrored (their retention applies there too); the files are
+  # only ever added (`copy`, never deleted off-site).
+  offsite-backup:
+    image: rclone/rclone:1.68.2
+    container_name: de-invoice-offsite-backup
+    profiles: ["offsite"]
+    restart: unless-stopped
+    depends_on:
+      - backup
+    networks: [deinvoicenet]
+    labels:
+      de-invoice.observability: "true"
+      de-invoice.service: "offsite-backup"
+    environment:
+      # (empty unless the offsite profile is used — the loop below refuses then)
+      REMOTE: ${BACKUP_OFFSITE_REMOTE:-}
+      INTERVAL_SECONDS: ${BACKUP_OFFSITE_INTERVAL_SECONDS:-3600}
+      RCLONE_CONFIG: /config/rclone/rclone.conf
+      RCLONE_CACHE_DIR: /tmp/rclone-cache
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -z "$$REMOTE" ]; then
+          echo "offsite: BACKUP_OFFSITE_REMOTE is not set in .env — nothing is copied"; exit 1
+        fi
+        while true; do
+          date -u +"%Y-%m-%dT%H:%M:%SZ offsite: start"
+          rclone sync /backups "$$REMOTE/db" --create-empty-src-dirs \
+            && rclone copy /data/backup-files "$$REMOTE/files" \
+            && date -u +"%Y-%m-%dT%H:%M:%SZ offsite: ok" \
+            || date -u +"%Y-%m-%dT%H:%M:%SZ offsite: FAILED"
+          sleep "$$INTERVAL_SECONDS"
+        done
+    volumes:
+      - backups:/backups:ro
+      - backup_files:/data/backup-files:ro
+      - ./rclone.conf:/config/rclone/rclone.conf:ro
     read_only: true
     tmpfs:
       - /tmp

@@ -1960,7 +1960,18 @@
     "delete": "Löschen",
     "deleting": "Lösche…",
     "deleteConfirm": "Backup {id} wirklich löschen?",
-    "deleted": "Backup {id} gelöscht"
+    "deleted": "Backup {id} gelöscht",
+    "autoTitle": "Automatische Sicherung",
+    "autoHint": "Die Datenbank wird stündlich gesichert (jede Sicherung 48 Stunden, eine pro Tag 30 Tage, eine pro Woche 12 Wochen, eine pro Monat 10 Jahre), die Dateien (Rechnungskopien, Belege) stündlich gespiegelt. Ist eine Sicherung älter als 3 Stunden, wird das gemeldet.",
+    "autoDb": "Datenbank (stündlich)",
+    "autoKept": "Vorhanden: {hourly} stündlich · {daily} täglich · {weekly} wöchentlich · {monthly} monatlich",
+    "autoFiles": "Dateien (stündlich)",
+    "autoFilesCount": "{files} Dateien ({size}) · {versions} frühere Versionen",
+    "autoFilesRun": "Dateien jetzt sichern",
+    "autoFilesDone": "Dateien gesichert: {files}, davon {copied} neu oder geändert",
+    "autoOffsite": "Kopie außer Haus",
+    "autoOffsiteNone": "nicht eingerichtet",
+    "autoOffsiteHint": "Ohne Kopie außerhalb des Servers gehen bei dessen Ausfall auch die Sicherungen verloren — Einrichtung: HETZNER-DEPLOY.md §9 (Hetzner Storage Box)."
   },
   "systemHealth": {
     "title": "System-Gesundheit",
