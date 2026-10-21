@@ -1054,6 +1054,8 @@ function CreateInvoicePageInner() {
   // Uses Intl.NumberFormat for the per-currency symbol
   // placement; falls back to "<amount> <CCY>" for codes
   // Intl doesn't recognise (rare in practice).
+  // Tier 725: the column and discount labels in the invoice's currency (they said „(€)“ on a USD invoice)
+  const currencyLabel = form.currency && form.currency !== "EUR" ? form.currency : "€"
   const fmtCurrency = (n: number, ccy: string): string => {
     try {
       return new Intl.NumberFormat("de-DE", {
@@ -1981,7 +1983,7 @@ function CreateInvoicePageInner() {
                 <div className="col-span-2">{t("invoice.productNumber")}</div>
                 <div className="col-span-4">{t("invoice.description")}</div>
                 <div className="col-span-2">{t("invoice.quantity")}</div>
-                <div className="col-span-1">{t("invoice.unitPrice")} (€)</div>
+                <div className="col-span-1" data-testid="items-unit-price-label">{t("invoice.unitPrice")} ({currencyLabel})</div>
                 <div className="col-span-1">{t("invoice.vatRate")}</div>
                 <div className="col-span-1"></div>
                 <div className="col-span-1"></div>
@@ -2283,7 +2285,7 @@ function CreateInvoicePageInner() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">{t("invoice.discountAmount")} (€)</label>
+                  <label className="block text-sm font-medium mb-1" data-testid="discount-amount-label">{t("invoice.discountAmount")} ({currencyLabel})</label>
                   <Input
                     type="number"
                     step="0.01"

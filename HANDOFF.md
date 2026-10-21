@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 725 — the new-invoice form names the invoice's currency in its labels
+
+With USD chosen, the item header said „Einzelpreis (€)“ and the discount field „Rabattbetrag (€)“ — the summary below was already in USD. Both name the currency now (`currencyLabel`: „€“ for EUR, else the code, as `formatMoney`). The product form's „Preis (€)“ stays: articles are priced in euros.
+
+Playwright `create-form-currency-labels-tier725.spec.ts` (fails with the old labels, the test ids kept).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 724 — a payment term of 21 days is shown as 21 days; a German firm without USt-IdNr. is „Inland“
 
 Walking the new-invoice form with a customer whose Zahlungsziel is 21 days (the API and the CSV import take any number): „Zahlungsbedingungen“ showed „Sofort fällig“ while the invoice was computed due in 21 days — the list had only 0 / 7 / 14 / 30 / 60 (the DOM fell back to the first option). The customer form and the company settings had the same fixed lists. And the tax hint for that customer (DE, business, no USt-IdNr.) read „Kunde in EU (DE) ohne USt-ID — Standard-Versteuerung (B2C)“.
