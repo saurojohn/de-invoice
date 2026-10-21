@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 726 — the invoice PDF writes „1.071,00 €“
+
+The PDF the customer gets wrote every amount with the sign first — „€ 1.000,00“, „Rabatt 10 %: € -100,00“, „Gesamtbetrag: € 1.071,00“ — while the pages have written „1.071,00 €“ since Tier 704 (the usual form on a German invoice). `formatMoney` in invoice-pdf.service (used only by the invoice PDF) puts the amount first; another currency was already „1.190,00 USD“. Kept copies of issued invoices keep their old text (§ 147 AO — they are not re-rendered). Specs 258 and 387 read the old order; updated.
+
+Also: `ReminderService.generateReminderEmail` (Tier 37's hard-coded letters, unused since the templates of `renderForInvoice`) was dead code — and said „die Rechnung … vom <Fälligkeitsdatum>“. Removed.
+
+Spec `437-tier726-pdf-betrag-vor-dem-euro.sh` (6 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 725 — the new-invoice form names the invoice's currency in its labels
 
 With USD chosen, the item header said „Einzelpreis (€)“ and the discount field „Rabattbetrag (€)“ — the summary below was already in USD. Both name the currency now (`currencyLabel`: „€“ for EUR, else the code, as `formatMoney`). The product form's „Preis (€)“ stays: articles are priced in euros.

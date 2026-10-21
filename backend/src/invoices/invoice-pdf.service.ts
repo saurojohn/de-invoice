@@ -1206,7 +1206,9 @@ function formatNumber(val: number): string {
 export function formatMoney(val: number, currency?: string | null): string {
   const amount = val.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const code = String(currency || "EUR").toUpperCase()
-  return code === "EUR" ? "€\u00A0" + amount : amount + "\u00A0" + code
+  // Tier 726: the amount first, as a German invoice writes it — „1.071,00 €“
+  // (it was „€ 1.071,00“; the pages write it so since Tier 704)
+  return amount + "\u00A0" + (code === "EUR" ? "€" : code)
 }
 
 /**
@@ -1251,8 +1253,8 @@ export function paymentTermsLine(
   return days != null && days <= 0 ? "Zahlbar sofort ohne Abzug." : `Zahlbar bis zum ${formatDate(due)} ohne Abzug.`
 }
 
-// Tier 653: "Umsatzsteuer in Euro: € 1.695,52 · Gesamtbetrag in Euro:
-// € 10.619,31" and, on a second line, "Umrechnungskurs: 1 EUR = 1,1206 USD
+// Tier 653: "Umsatzsteuer in Euro: 1.695,52 € · Gesamtbetrag in Euro:
+// 10.619,31 €" and, on a second line, "Umrechnungskurs: 1 EUR = 1,1206 USD
 // (EZB-Referenzkurs vom 09.10.2026)" — null
 // for an EUR invoice and for one without a rate.
 export function euroNoteOf(invoice: {

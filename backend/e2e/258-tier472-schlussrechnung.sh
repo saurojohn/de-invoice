@@ -88,7 +88,7 @@ curl -sS -o /tmp/t472.pdf -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/
 pdf_text() { node "$(dirname "$0")/fixtures/pdf-text.mjs" "$1" --lines; }
 TXT=$(pdf_text /tmp/t472.pdf)
 assert_eq "abzgl. Anzahlung with the Proforma's number and date, on one line" "$(echo "$TXT" | grep -c "^abzgl. Anzahlung PI-.* vom 10.12.2025:$")" "1"
-assert_eq "…its net and tax: darin netto € 1.000,00, USt 19 %" "$(echo "$TXT" | grep -c "darin netto .*1.000,00, USt 19 %")" "1"
+assert_eq "…its net and tax: darin netto 1.000,00 €, USt 19 %" "$(echo "$TXT" | grep -c "darin netto 1.000,00 €, USt 19 %")" "1"
 assert_eq "…and Zahlbetrag" "$(echo "$TXT" | grep -c "^Zahlbetrag:")" "1"
 assert_eq "no GiroCode for 0,00 € to pay" "$(grep -c "/Subtype /Image" /tmp/t472.pdf)" "0"
 

@@ -66,15 +66,15 @@ assert_eq "the PDF of the USD invoice" "$(GETF "/api/v1/invoices/$I1/pdf?company
 TEXT "$TMP/usd.pdf" > "$TMP/usd.txt"
 grep -q "11.900,00 USD" "$TMP/usd.txt" && pass "its total is 11.900,00 USD" || fail "no '11.900,00 USD' in the PDF"
 assert_eq "no amount with a euro sign but the euro note (was: € 10.000,00, € 1.900,00, € 11.900,00)" "$(grep -c "€" "$TMP/usd.txt")" "1"
-grep -q "Umsatzsteuer in Euro: € 1.751,15" "$TMP/usd.txt" && pass "the VAT in euros: 1 900 / 1,0850 = 1 751,15" || fail "no VAT in euros: $(grep -i euro "$TMP/usd.txt")"
-grep -q "Gesamtbetrag in Euro: € 10.967,74" "$TMP/usd.txt" && pass "the total in euros: 10 967,74" || fail "no total in euros"
+grep -q "Umsatzsteuer in Euro: 1.751,15 €" "$TMP/usd.txt" && pass "the VAT in euros: 1 900 / 1,0850 = 1 751,15" || fail "no VAT in euros: $(grep -i euro "$TMP/usd.txt")"
+grep -q "Gesamtbetrag in Euro: 10.967,74 €" "$TMP/usd.txt" && pass "the total in euros: 10 967,74" || fail "no total in euros"
 grep -q "1 EUR = 1,0850 USD (EZB-Referenzkurs vom" "$TMP/usd.txt" && pass "the rate and where it is from" || fail "no rate: $(grep -i kurs "$TMP/usd.txt")"
 assert_eq "no GiroCode for dollars (it paid 11 900 EUR)" "$(GETF "/api/v1/invoices/$I1/girocode.png?companyId=$C" "$TMP/giro.out")" "404"
 grep -q "in Euro" "$TMP/giro.out" && grep -q "USD" "$TMP/giro.out" && pass "… and the answer says why" || fail "GiroCode answer: $(cat "$TMP/giro.out")"
 grep -aq "/Subtype */Image" "$TMP/usd.pdf" && fail "the USD invoice's PDF carries an image (a GiroCode?)" || pass "the PDF carries no code either"
 assert_eq "the EUR invoice keeps its GiroCode" "$(GETF "/api/v1/invoices/$I3/girocode.png?companyId=$C" "$TMP/giro.png")" "200"
 GETF "/api/v1/invoices/$I3/pdf?companyId=$C" "$TMP/eur.pdf" >/dev/null; TEXT "$TMP/eur.pdf" > "$TMP/eur.txt"
-grep -q "€ 1.190,00" "$TMP/eur.txt" && ! grep -q "Umsatzsteuer in Euro\|USD" "$TMP/eur.txt" \
+grep -q "1.190,00 €" "$TMP/eur.txt" && ! grep -q "Umsatzsteuer in Euro\|USD" "$TMP/eur.txt" \
   && pass "an EUR invoice is as it was: € 1.190,00, no euro note" || fail "EUR invoice PDF changed"
 
 note "=== 2. the e-invoice ==="
