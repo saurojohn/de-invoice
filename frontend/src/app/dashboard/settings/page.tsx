@@ -15,6 +15,7 @@ import { apiGet, apiGetBlob, apiPost, apiPut, apiDelete, apiFetch, ApiError } fr
 import { FeatureFlagsCard } from "./FeatureFlagsCard"
 import CompanyCarsCard from "./CompanyCarsCard"
 import HomeOfficeCard from "./HomeOfficeCard"
+import { PaymentTermSelect } from "@/components/PaymentTermSelect"
 
 interface StorageSettings {
   localPath: string
@@ -1163,20 +1164,11 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium mb-1">
                     {t("settings.defaultPaymentDays")}
                   </label>
-                  <select
-                    className="w-full h-10 border rounded-md px-3"
+                  <PaymentTermSelect
                     value={form.defaultPaymentDays}
-                    onChange={(e) =>
-                      setForm({ ...form, defaultPaymentDays: Number(e.target.value) })
-                    }
-                  >
-                    <option value={0}>{t("paymentTerm.immediate")}</option>
-                    <option value={7}>{t("paymentTerm.days7")}</option>
-                    <option value={14}>{t("paymentTerm.days14")}</option>
-                    <option value={30}>{t("paymentTerm.days30")}</option>
-                    <option value={60}>{t("paymentTerm.days60")}</option>
-                    <option value={90}>{t("paymentTerm.days90")}</option>
-                  </select>
+                    onChange={(days) => setForm({ ...form, defaultPaymentDays: days })}
+                    testId="settings-default-payment-days"
+                  />
                 </div>
                 <div>
                   {/* Tier 176: default VAT treatment. The empty

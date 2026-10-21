@@ -15,6 +15,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { apiGet, apiPost, apiPut, apiFetch, ApiError } from "@/lib/api"
 import { computeInvoiceAmounts } from "@/lib/invoice-amounts"
 import { usePicker, PICKED } from "@/lib/picker"
+import { PaymentTermSelect } from "@/components/PaymentTermSelect"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC'
 type InvoiceTemplateType = 'standard' | 'simplified' | 'compact'
@@ -1568,21 +1569,11 @@ function CreateInvoicePageInner() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">{invoiceType === 'QU' ? t("docs.validFor") : t("invoice.paymentTerms")}</label>
-                  <select
-                    className="w-full h-10 border rounded-md px-3"
+                  <PaymentTermSelect
                     value={form.paymentTerms}
-                    onChange={(e) => {
-                      const terms = Number(e.target.value)
-                      setForm({ ...form, paymentTerms: terms, dueDate: dueFrom(form.issueDate, terms) })
-                    }}
-                    data-testid="invoice-payment-terms"
-                  >
-                    <option value={0}>{t("paymentTerm.immediate")}</option>
-                    <option value={7}>{t("paymentTerm.days7")}</option>
-                    <option value={14}>{t("paymentTerm.days14")}</option>
-                    <option value={30}>{t("paymentTerm.days30")}</option>
-                    <option value={60}>{t("paymentTerm.days60")}</option>
-                  </select>
+                    onChange={(terms) => setForm({ ...form, paymentTerms: terms, dueDate: dueFrom(form.issueDate, terms) })}
+                    testId="invoice-payment-terms"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">

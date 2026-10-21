@@ -1439,7 +1439,8 @@
     "days14": "14 days",
     "days30": "30 days",
     "days60": "60 days",
-    "days90": "90 days"
+    "days90": "90 days",
+    "daysN": "{days} days"
   },
   "costCenterReport": {
     "title": "Cost-Center Annual Report {year}",

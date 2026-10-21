@@ -1439,7 +1439,8 @@
     "days14": "14天",
     "days30": "30天",
     "days60": "60天",
-    "days90": "90天"
+    "days90": "90天",
+    "daysN": "{days}天"
   },
   "costCenterReport": {
     "title": "成本中心年度报表 {year}",

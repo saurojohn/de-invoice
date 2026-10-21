@@ -85,10 +85,12 @@ assert_eq "DE no-VAT → standard" "$(jsf_str suggested "$TMP")" "standard"
 assert_eq "DE no-VAT → customerHasVatId=false" "$(jsf_str customerHasVatId "$TMP")" "False"
 assert_eq "DE no-VAT → isEuB2b=false" "$(jsf_str isEuB2b "$TMP")" "False"
 REASON=$(jsf_str reason "$TMP")
-if echo "$REASON" | grep -q "B2C"; then
-  pass "reason mentions B2C: $REASON"
+# Tier 724: a customer in the company's country is „Inland“ (it said „Kunde
+# in EU (DE) … (B2C)“ — a firm without a USt-IdNr. is no B2C customer)
+if echo "$REASON" | grep -q "Inland (DE)"; then
+  pass "reason says Inland: $REASON"
 else
-  fail "reason missing B2C hint: $REASON"
+  fail "reason missing Inland: $REASON"
 fi
 rm -f "$TMP"
 

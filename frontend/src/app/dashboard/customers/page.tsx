@@ -13,6 +13,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
+import { PaymentTermSelect } from "@/components/PaymentTermSelect"
 
 interface Customer {
   id: string
@@ -1341,19 +1342,11 @@ export default function CustomersPage() {
                     <label className="block text-sm font-medium mb-1">
                       {t("customer.paymentTerms")}
                     </label>
-                    <select
-                      className="w-full h-10 border rounded-md px-3"
+                    <PaymentTermSelect
                       value={form.paymentTerms}
-                      onChange={(e) =>
-                        setForm({ ...form, paymentTerms: Number(e.target.value) })
-                      }
-                    >
-                      <option value={0}>{t("paymentTerm.immediate")}</option>
-                      <option value={7}>{t("paymentTerm.days7")}</option>
-                      <option value={14}>{t("paymentTerm.days14")}</option>
-                      <option value={30}>{t("paymentTerm.days30")}</option>
-                      <option value={60}>{t("paymentTerm.days60")}</option>
-                    </select>
+                      onChange={(days) => setForm({ ...form, paymentTerms: days })}
+                      testId="customer-payment-terms"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

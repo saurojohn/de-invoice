@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 724 — a payment term of 21 days is shown as 21 days; a German firm without USt-IdNr. is „Inland“
+
+Walking the new-invoice form with a customer whose Zahlungsziel is 21 days (the API and the CSV import take any number): „Zahlungsbedingungen“ showed „Sofort fällig“ while the invoice was computed due in 21 days — the list had only 0 / 7 / 14 / 30 / 60 (the DOM fell back to the first option). The customer form and the company settings had the same fixed lists. And the tax hint for that customer (DE, business, no USt-IdNr.) read „Kunde in EU (DE) ohne USt-ID — Standard-Versteuerung (B2C)“.
+
+- `components/PaymentTermSelect.tsx`: 0 / 7 / 10 / 14 / 21 / 30 / 45 / 60 / 90 days and the current value whatever it is (`paymentTerm.daysN`); used by the new-invoice form (`invoice-payment-terms`), the customer form (`customer-payment-terms`) and the settings (`settings-default-payment-days`).
+- `ust-behandlung-detector.ts`, path without a USt-IdNr.: a customer in the company's own country is „Inland (DE) — Standard-Versteuerung“; another EU country: „… ohne USt-IdNr. — Standard-Versteuerung (ohne USt-IdNr. des Kunden keine steuerfreie innergemeinschaftliche Lieferung)“. The suggestion itself (standard) is unchanged.
+
+Playwright `payment-term-21-days-tier724.spec.ts` (the select read „0“ on the code before). Spec 89 checked the word „B2C“ in that hint; it checks „Inland (DE)“ now.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 723 — the invoice list states its sums
 
 The list had no figure for what it showed: with „Überfällig“ chosen, how much is that? And its counter „Zeige X von Y“ counted the rows of the page („50 von 50“ with 120 on three pages).

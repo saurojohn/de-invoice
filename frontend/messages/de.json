@@ -1439,7 +1439,8 @@
     "days14": "14 Tage",
     "days30": "30 Tage",
     "days60": "60 Tage",
-    "days90": "90 Tage"
+    "days90": "90 Tage",
+    "daysN": "{days} Tage"
   },
   "costCenterReport": {
     "title": "Kostenstellen-Jahresauswertung {year}",

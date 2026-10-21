@@ -329,10 +329,22 @@ export function suggestUstBehandlung(input: {
   }
 
   // Path 2: customer has NO VAT ID.
+  // Tier 724: a customer in the company's own country is Inland — a German
+  // firm without a USt-IdNr. was labelled „Kunde in EU (DE) ohne USt-ID —
+  // Standard-Versteuerung (B2C)“ (a business is no B2C customer).
+  const homeCountry = companyVatId ? extractVatCountry(companyVatId) || companyCountry : companyCountry
+  if (customerCountry && homeCountry && customerCountry === homeCountry) {
+    return {
+      suggested: 'standard',
+      reason: `Inland (${customerCountry}) — Standard-Versteuerung`,
+      customerHasVatId: false,
+      isEuB2b: false,
+    }
+  }
   if (customerCountry && EU_COUNTRY_CODES.has(customerCountry)) {
     return {
       suggested: 'standard',
-      reason: `Kunde in EU (${customerCountry}) ohne USt-ID — Standard-Versteuerung (B2C)`,
+      reason: `Kunde in der EU (${customerCountry}) ohne USt-IdNr. — Standard-Versteuerung (ohne USt-IdNr. des Kunden keine steuerfreie innergemeinschaftliche Lieferung)`,
       customerHasVatId: false,
       isEuB2b: false,
     }
