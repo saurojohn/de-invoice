@@ -2668,7 +2668,9 @@ The PDF the customer gets wrote every amount with the sign first — „€ 1.00
 
 Also: `ReminderService.generateReminderEmail` (Tier 37's hard-coded letters, unused since the templates of `renderForInvoice`) was dead code — and said „die Rechnung … vom <Fälligkeitsdatum>“. Removed.
 
-Spec `437-tier726-pdf-betrag-vor-dem-euro.sh` (6 checks fail on the code before).
+Tier 726b: the customer statement PDF wrote „€ 1.071,00“ too (`fmtMoney` in customer-statement-pdf.service); now „1.071,00 €“ like the invoice and the Mahnung (which already did).
+
+Spec `437-tier726-pdf-betrag-vor-dem-euro.sh` (6 checks fail on the code before; the statement's check fails with the old statement format).
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 725 — the new-invoice form names the invoice's currency in its labels
 

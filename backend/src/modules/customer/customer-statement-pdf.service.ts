@@ -43,7 +43,7 @@ const PAGE_WIDTH = 595.28
 const PAGE_HEIGHT = 841.89
 const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN * 2
 
-// Standard German formatting: € 1.234,56 — another currency by its code,
+// Standard German formatting: 1.234,56 € — another currency by its code,
 // after the amount: 1.234,56 USD (Tier 653)
 function fmtMoney(n: number, currency: string): string {
   const sign = n < 0 ? '-' : ''
@@ -52,7 +52,8 @@ function fmtMoney(n: number, currency: string): string {
   const [intPart, fracPart] = fixed.split('.')
   // Insert thousands separator dots
   const intWithDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  return currency === 'EUR' ? `${sign}€ ${intWithDots},${fracPart}` : `${sign}${intWithDots},${fracPart} ${currency}`
+  // Tier 726: the amount first, as the invoice and the Mahnung write it (it was „€ 1.190,00“)
+  return `${sign}${intWithDots},${fracPart} ${currency === 'EUR' ? '€' : currency}`
 }
 
 function fmtDateDE(d: Date | string): string {
