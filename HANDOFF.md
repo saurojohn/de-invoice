@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 728d — the template preview shows the company's own invoice with the template's settings; „Logo anzeigen“ is honoured
+
+The owner, 22.10.2026: „继续发票公司打印界面后台信息输入功能完善“ — the invoice templates (Rechnungsvorlagen), measured:
+
+- **The preview** (`POST /invoice-templates/:id/preview`) drew an invented „Beispiel-Unternehmen GmbH“ through a renderer of its own; colours, font, density, footer text, payment terms and logo were, in its own words, „recorded but not yet visually applied“. It now renders a sample invoice through the real `generateInvoicePDF` with the company's own letterhead, logo, register details and bank (`issuerContext`, moved to `invoice/issuer-context.ts` so the template module can use it without the invoice module's graph) and the template's settings. The Kleinunternehmer note only for a Kleinunternehmer.
+- **A template not saved yet** could not be previewed: `POST /invoice-templates/preview` (`{ configJson, name }`, validated like a save — an unknown font is 400) and a „Vorschau (PDF)“ button in the editor (`template-preview-draft`), which opens the PDF without saving.
+- **„Logo anzeigen“** was read nowhere: switched off, the invoice still carried the logo. The invoice PDF now leaves the logo out when the template says so.
+
+Spec `441-tier728d-vorlagen-vorschau.sh` (6 checks fail on the code before); Playwright `template-preview-tier728d.spec.ts` (the editor sends what is typed and opens the PDF; nothing is saved).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 728b / 728c — every business letter carries the company's details; the logo fits beside them
 
 The owner, 22.10.2026: „继续发票公司打印界面后台信息输入功能完善“. § 35a GmbHG, § 37a / § 125a / § 177a HGB, § 80 AktG apply to every business letter — an invoice, a reminder, a statement, an e-mail — not only the invoice (Tier 728).

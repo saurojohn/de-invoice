@@ -1,4 +1,5 @@
 import {
+  HttpCode,
   Controller,
   Get,
   Post,
@@ -74,6 +75,24 @@ export class InvoiceTemplateController {
    * to have a real invoice to see the
    * template.
    */
+  /**
+   * Tier 728d: the preview of the editor's current settings, before they are
+   * saved — body: { configJson, name? }.
+   */
+  @Post('preview')
+  @HttpCode(200)
+  @Require('company.update')
+  async previewDraft(
+    @Query('companyId') companyId: string,
+    @Body() body: { configJson?: any; name?: string },
+    @Res() res: Response,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    const buf = await this.svc.renderDraftPreview(companyId, body?.configJson ?? {}, body?.name)
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="vorlage-vorschau.pdf"' })
+    res.end(buf)
+  }
+
   @Post(':id/preview')
   @Require('company.update')
   async preview(

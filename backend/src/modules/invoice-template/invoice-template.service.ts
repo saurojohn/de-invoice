@@ -1,6 +1,7 @@
 import { IGL_NOTE, IGL_NOTE_BEFORE_688 } from '../invoice/zero-rated'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Injectable, BadRequestException } from '@nestjs/common'
+import { issuerContext } from '../invoice/issuer-context'
 import { generateInvoicePDF } from '../../invoices/invoice-pdf.service'
 
 /**
@@ -287,36 +288,29 @@ export class InvoiceTemplateService {
   ): Promise<Buffer> {
     const t = await this.getOne(id, companyId)
     const config = { ...DEFAULT_CONFIG, ...(t.configJson as TemplateConfig) }
-    return this.renderWithConfig(config, t.name)
+    return this.renderWithConfig(config, t.name, companyId)
   }
 
   /**
-   * Shared renderer. We don't call the
-   * real `generateInvoicePDF` here
-   * because that function takes the
-   * existing templateType ('standard' |
-   * 'simplified' | 'compact') and a
-   * fixed color palette. The Tier 7 path
-   * reads colors from the config and
-   * applies them. For now the preview
-   * uses the standard template with the
-   * custom color overrides applied via
-   * the `accentColor` extension on
-   * standard.
-   *
-   * For a full refactor, the
-   * invoice-pdf.service.ts would need
-   * a `generateInvoicePDFWithConfig(invoice,
-   * company, config)` overload. Until
-   * that lands, the preview here
-   * produces a PDF with the standard
-   * layout + sample data; the custom
-   * color/font features are recorded
-   * but not yet visually applied.
+   * Tier 728d: the preview of a template that is not saved yet — what the
+   * editor shows before „Speichern“.
+   */
+  async renderDraftPreview(companyId: string, configJson: TemplateConfig, name?: string): Promise<Buffer> {
+    this.validateConfig(configJson)
+    const config = { ...DEFAULT_CONFIG, ...(configJson || {}) }
+    return this.renderWithConfig(config, name || 'Entwurf', companyId)
+  }
+
+  /**
+   * Shared renderer: a sample invoice through the real `generateInvoicePDF`,
+   * with the company's own letterhead, logo, footer and bank, and the
+   * template's colours, font, density, footer text and payment terms
+   * (Tier 728d — it rendered an invented company without them).
    */
   private async renderWithConfig(
     config: Required<TemplateConfig>,
     templateName: string,
+    companyId: string,
   ): Promise<Buffer> {
     // Sample invoice for the preview
     const sampleInvoice = {
@@ -362,20 +356,14 @@ export class InvoiceTemplateService {
       currency: 'EUR',
       templateType: 'standard',
     }
-    const sampleCompany = {
-      name: 'Beispiel-Unternehmen GmbH',
-      address: {
-        street: 'Musterstraße 1',
-        postalCode: '12345',
-        city: 'Musterstadt',
-        country: 'Deutschland',
-      },
-      vatId: 'DE987654321',
-      taxId: '123/456/789',
-      email: 'info@example.de',
-      phone: '+49 123 456789',
-    }
-    return generateInvoicePDF(sampleInvoice, sampleCompany, 'standard')
+    // Tier 728d: the company's own letterhead, footer and bank — the preview
+    // showed an invented „Beispiel-Unternehmen GmbH“ — and the template's
+    // colours, font, density, texts and logo setting, which it ignored (the
+    // renderer has taken them since Tier 7.5).
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+    const rendered = { ...config }
+    if ((company as any)?.defaultVatMode !== 'kleinunternehmer') rendered.kleineUnternehmerNote = '' // as resolveConfig (Tier 480)
+    return generateInvoicePDF(sampleInvoice as any, issuerContext(company, rendered as any), 'standard', rendered as any)
   }
 
   /**

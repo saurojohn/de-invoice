@@ -318,24 +318,39 @@ function TemplateModal({
   )
   const [isDefault, setIsDefault] = useState(template?.isDefault || false)
 
+  const configJson = {
+    primaryColor,
+    accentColor,
+    fontFamily,
+    layoutDensity,
+    showLogo,
+    footerText,
+    paymentTermsText,
+    showAbsenderzeile: true,
+  }
   const handleSave = () => {
-    onSubmit(
-      {
-        name,
-        isDefault,
-        configJson: {
-          primaryColor,
-          accentColor,
-          fontFamily,
-          layoutDensity,
-          showLogo,
-          footerText,
-          paymentTermsText,
-          showAbsenderzeile: true,
-        },
-      },
-      isNew,
-    )
+    onSubmit({ name, isDefault, configJson }, isNew)
+  }
+  // Tier 728d: what the settings look like before they are saved — with the
+  // company's own letterhead, logo, footer and bank (POST /invoice-templates/preview)
+  const toast = useToast()
+  const [previewing, setPreviewing] = useState(false)
+  const previewDraft = () => {
+    const companyId = localStorage.getItem("companyId") || ""
+    setPreviewing(true)
+    apiFetch(`/api/v1/invoice-templates/preview?companyId=${companyId}`, {
+      method: "POST",
+      body: JSON.stringify({ configJson, name }),
+      headers: { "Content-Type": "application/json" },
+    })
+      .then((r) => r.blob())
+      .then((b) => {
+        const url = URL.createObjectURL(b)
+        window.open(url, "_blank")
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      })
+      .catch((e) => toast.error(e?.message || t("invoiceTemplates.previewError")))
+      .finally(() => setPreviewing(false))
   }
 
   return (
@@ -489,6 +504,9 @@ function TemplateModal({
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={previewDraft} disabled={previewing} data-testid="template-preview-draft">
+              {t("invoiceTemplates.preview")}
+            </Button>
             <Button variant="outline" onClick={onClose}>
               {t("common.cancel")}
             </Button>

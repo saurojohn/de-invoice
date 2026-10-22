@@ -19,6 +19,7 @@
 // Every outlet calls renderInvoiceDocument now.
 import { Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { issuerContext } from './issuer-context'
 import { generateInvoicePDF, InvoiceRenderConfig } from '../../invoices/invoice-pdf.service'
 import { generateZUGFeRD } from '../../invoices/zugferd.service'
 import { generateXRechnung, transformToXRechnungData } from '../../invoices/xrechnung.service'
@@ -30,27 +31,8 @@ import { PDFDocument, PDFDict, PDFName, PDFRawStream, PDFRef, PDFStream } from '
 
 const logger = new Logger('InvoiceDocument')
 
-/** The company as the renderer reads it: letterhead, Impressum, bank. */
-export function issuerContext(company: any, templateConfig?: InvoiceRenderConfig) {
-  return {
-    name: company?.name || '',
-    defaultVatMode: company?.defaultVatMode ?? null, // Tier 482
-    legalName: company?.legalName || undefined,
-    address: company?.address || {},
-    vatId: company?.vatId || undefined,
-    taxId: company?.taxId || undefined,
-    email: company?.email || undefined,
-    phone: company?.phone || undefined,
-    fax: company?.fax || undefined,
-    website: company?.website || undefined,
-    registerEntry: company?.registerEntry || undefined,
-    managingDirector: company?.managingDirector || undefined,
-    otherInfo: company?.otherInfo || undefined,
-    bankInfo: company?.bankInfo || undefined,
-    logoPath: company?.logoPath || undefined,
-    templateConfig,
-  } as any
-}
+// Tier 728d: in issuer-context.ts (the template preview uses it too)
+export { issuerContext } from './issuer-context'
 
 /** The texts, colour and density of the invoice's template (Tier 7.5), or the company's default. */
 export async function templateConfigFor(

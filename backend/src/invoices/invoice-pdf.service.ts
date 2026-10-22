@@ -265,7 +265,9 @@ export async function generateInvoicePDF(
     // (standard → comfortable, compact →
     // compact, simplified → comfortable).
     const isCompact = renderConfig?.layoutDensity === 'compact' || (template === "compact" && !renderConfig)
-    const showLogo = template !== "simplified" && company.logoPath
+    // Tier 728d: the template's „Logo anzeigen“ counts too (it was read
+    // nowhere — the checkbox changed nothing); „Vereinfacht“ stays without
+    const showLogo = template !== "simplified" && renderConfig?.showLogo !== false && company.logoPath
 
     // Header area Y positions. The header now uses FIXED Y
     // coordinates per the latest user request — the layout is no
