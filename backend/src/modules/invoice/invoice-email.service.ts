@@ -259,6 +259,7 @@ export class InvoiceEmailService {
       cc: ccList.length ? ccList : undefined,
       subject,
       text,
+      companySignature: true, // Tier 728c: the company's details below it
       attachments,
     });
 

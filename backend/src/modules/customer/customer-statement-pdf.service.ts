@@ -35,6 +35,7 @@
  *   - Lazy-imported by the controller so PDF deps
  *     (pdfkit ~600KB) only load on demand.
  */
+import { businessLetterFooter, countryCode, countryLine } from '../../common/business-letter'
 import PDFDocument from 'pdfkit'
 import type { CustomerStatement } from './customer-statement.service'
 
@@ -96,8 +97,9 @@ function renderAddress(
     doc.text(`${plz} ${city}`.trim(), x, cursorY)
     cursorY = doc.y + 1
   }
-  if (address?.country && address.country !== 'DE') {
-    doc.text(address.country, x, cursorY)
+  // Tier 728b: in full, in capitals (DIN 5008) — it printed the code („AT“)
+  if (address?.country && countryCode(address.country) !== 'DE') {
+    doc.text(countryLine(address.country), x, cursorY)
     cursorY = doc.y + 1
   }
   return cursorY
@@ -142,10 +144,15 @@ export async function generateStatementPdf(
     // Tier 646: the sending company's, from its record (it was one company's
     // name and address, written here, on every company's statement)
     const sender = data.company
+    // Tier 728b: the country only where sender and customer differ, in full
+    // (DIN 5008) — it said „· DE“ on a German statement to a German customer
+    const ownCountry = countryCode(sender.address?.country)
+    const custCountry = countryCode(data.customer.address?.country)
+    const showCountries = !!ownCountry && !!custCountry && ownCountry !== custCountry
     const senderAddress = [
       sender.address?.street,
       [sender.address?.postalCode, sender.address?.city].filter(Boolean).join(' '),
-      sender.address?.country,
+      showCountries ? countryLine(sender.address?.country) : '',
     ].filter(Boolean)
     doc.text(
       [sender.name, ...senderAddress].filter(Boolean).join(' · '),
@@ -162,8 +169,8 @@ export async function generateStatementPdf(
 
     doc.font('Helvetica').fontSize(8).fillColor('#444444')
     doc.text(
-      'Customer Statement — ' +
-        `Zeitraum ${fmtDateDE(data.period.from)} – ${fmtDateDE(data.period.to)}`,
+      // Tier 728b: in German (it began „Customer Statement — “), with the day it was made
+      `Zeitraum ${fmtDateDE(data.period.from)} – ${fmtDateDE(data.period.to)} · erstellt am ${fmtDateDE(data.generatedAt)}`,
       PAGE_MARGIN,
       y,
     )
@@ -175,7 +182,7 @@ export async function generateStatementPdf(
     doc.text('Kunde', PAGE_MARGIN, y)
     doc.font('Helvetica').fontSize(10)
     doc.text(
-      data.customer.name + (data.customer.vatId ? `  ·  USt-ID ${data.customer.vatId}` : ''),
+      data.customer.name + (data.customer.vatId ? `  ·  USt-IdNr. ${data.customer.vatId}` : ''),
       PAGE_MARGIN + 72,
       y,
     )
@@ -481,17 +488,18 @@ export async function generateStatementPdf(
     // stands below the bottom margin: pdfkit starts a new page for text
     // written there, and every statement ended with a page that held this
     // one line. Written with the margin lifted, it stays on its page.
-    const bank = sender.bankInfo || {}
-    const footer = [
-      `Erstellt am ${fmtDateDE(data.generatedAt)}`,
-      sender.name,
-      sender.taxId ? `Steuer-Nr. ${sender.taxId}` : '',
-      sender.vatId ? `USt-ID ${sender.vatId}` : '',
-      bank.bankName ? `Bank ${bank.bankName}` : '',
-      bank.iban ? `IBAN ${bank.iban}` : '',
-    ].filter(Boolean).join(' · ')
+    // Tier 728b: what a business letter carries (§ 35a GmbHG, § 37a HGB) —
+    // the register, the directors, the seat were missing — in lines of their
+    // own; label and value joined by a no-break space (the line broke between
+    // „IBAN“ and the number).
+    const footerLines = businessLetterFooter(sender)
     doc.page.margins.bottom = 0
-    doc.text(footer, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH, align: 'left', height: PAGE_MARGIN - 12 })
+    const heights = footerLines.map((line) => doc.heightOfString(line, { width: CONTENT_WIDTH }))
+    let fy = Math.min(footerY, PAGE_HEIGHT - 14 - heights.reduce((a, b) => a + b, 0))
+    footerLines.forEach((line, i) => {
+      doc.text(line, PAGE_MARGIN, fy, { width: CONTENT_WIDTH, align: 'left' })
+      fy += heights[i]
+    })
 
     doc.end()
   })

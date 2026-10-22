@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { isSealed, openSecret, sealSecret, secretEncryptionAvailable } from '../../common/secret-crypto';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../../prisma/prisma.service';
+import { businessLetterFooter } from '../../common/business-letter';
 
 export interface SendMailOptions {
   to: string;
@@ -14,6 +15,13 @@ export interface SendMailOptions {
     content: Buffer;
     contentType?: string;
   }>;
+  /**
+   * Tier 728c: a letter of the company to a customer — the company's details
+   * are appended as a signature (§ 35a GmbHG / § 37a HGB apply to business
+   * e-mails as to paper): full name, address, contact, seat, register,
+   * directors, tax numbers, bank. Not for system mails (password, invites).
+   */
+  companySignature?: boolean;
 }
 
 interface ResolvedConfig {
@@ -107,6 +115,7 @@ export class MailService implements OnModuleInit {
   }
 
   async send(companyId: string, options: SendMailOptions): Promise<{ messageId: string }> {
+    if (options.companySignature) options = { ...options, text: await this.withSignature(companyId, options.text) };
     const cfg = await this.resolveConfig(companyId);
     if (!cfg) {
       this.logger.warn(
@@ -145,6 +154,20 @@ export class MailService implements OnModuleInit {
     });
     this.logger.log(`Email sent: ${info.messageId} → ${options.to}`);
     return { messageId: info.messageId };
+  }
+
+  /** Tier 728c: the text with the company's details below a signature separator */
+  async withSignature(companyId: string, text: string): Promise<string> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        name: true, legalName: true, address: true, phone: true, fax: true, email: true, website: true,
+        taxId: true, vatId: true, bankInfo: true, registerEntry: true, managingDirector: true, otherInfo: true,
+      },
+    });
+    if (!company) return text;
+    const lines = businessLetterFooter(company as any);
+    return lines.length ? `${String(text ?? '').replace(/\s+$/, '')}\n\n-- \n${lines.join('\n')}\n` : text;
   }
 
   async testConnection(companyId: string): Promise<{ ok: boolean; error?: string; from: string }> {

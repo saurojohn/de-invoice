@@ -2662,6 +2662,20 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 728b / 728c — every business letter carries the company's details; the logo fits beside them
+
+The owner, 22.10.2026: „继续发票公司打印界面后台信息输入功能完善“. § 35a GmbHG, § 37a / § 125a / § 177a HGB, § 80 AktG apply to every business letter — an invoice, a reminder, a statement, an e-mail — not only the invoice (Tier 728).
+
+- **The logo** (invoice PDF): drawn by its height alone, centred — a wide logo (a word mark, 400 × 120 px) ran 227 pt wide over the company name and the phone line; the 220 pt cap only entered the centring. It now fits the room left of the company block (measured with `widthOfString`): at most 68 pt high, 220 pt wide; centred where that fits, else at the left margin.
+- **`common/business-letter.ts`**: `businessLetterFooter(company)` — the lines of a business letter (name and address and contact; seat, register, directors; other details; tax numbers and bank), label and value joined by a no-break space; `countryCode` / `countryLine` moved here (the invoice PDF re-exports them).
+- **The Mahnung PDF**: its footer was one line that ran off the page — name, address, e-mail, tax numbers; no register, directors, seat, phone; „USt-ID“; countries as codes. Now the shared lines, wrapping, ending above the page's foot; countries per DIN 5008 where sender and customer differ. Both callers (manual send, bulk / automatic) pass fax, website, register entry, directors, other details.
+- **The statement PDF**: the same lines in its footer (it broke between „IBAN“ and the number); its heading in German (it began „Customer Statement — “) with the day it was made; „USt-IdNr.“; the customer's country in full; and the PDF — single, batch ZIP, e-mailed — chronological by default (it listed the newest first under „Anfangsbestand“). The API's JSON keeps newest first by default (spec 382 reads it); the statement page now starts chronological, so what is shown, printed and e-mailed from it agree.
+- **E-mails (728c)**: `MailService.send(…, { companySignature: true })` appends the company's details below a signature separator „-- “ — for the invoice e-mail (and the recurring run, which uses it), the reminder e-mail, the statement e-mail and the portal link. Not for system mails (password reset, invitations, notifications). The texts themselves stay the company's (templates).
+
+Found on the way: the test backend restarts on edits of `backend/src`; a batch run while editing reported ~100 specs with status 000 — the backend had crashed on a half-applied edit. Re-run with the backend up.
+
+Spec `440-tier728b-geschaeftsbrief-angaben.sh` (8 checks fail on the code before; the e-mail check added with 728c).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 728 — the company's details on the invoice: entered as what they are, printed as the law asks
 
 The owner, 22.10.2026: „发票公司打印界面后台信息输入功能是否完善？“ Measured with every field of Einstellungen → Firmeninformationen filled in and an invoice rendered without a logo (the usual case at the start):

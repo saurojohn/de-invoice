@@ -556,6 +556,12 @@ export class ReminderController {
         taxId: company.taxId,
         vatId: company.vatId,
         logoPath: company.logoPath,
+        // Tier 728b: the register details and the rest of the letterhead
+        fax: company.fax,
+        website: company.website,
+        registerEntry: company.registerEntry,
+        managingDirector: company.managingDirector,
+        otherInfo: company.otherInfo,
       },
       daysOverdue,
       werktageOverdue,

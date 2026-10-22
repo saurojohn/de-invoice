@@ -90,6 +90,14 @@ export interface CustomerStatement {
     taxId: string | null
     vatId: string | null
     bankInfo: Record<string, any>
+    /** Tier 728b: what a business letter carries besides (§ 35a GmbHG, § 37a HGB) */
+    phone?: string | null
+    fax?: string | null
+    email?: string | null
+    website?: string | null
+    registerEntry?: string | null
+    managingDirector?: string | null
+    otherInfo?: string | null
   }
   customer: {
     id: string
@@ -513,7 +521,10 @@ export class CustomerStatementService {
     lines.splice(0, lines.length, ...(order === 'asc' ? sortedForBalance : [...sortedForBalance].reverse()))
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { name: true, legalName: true, address: true, taxId: true, vatId: true, bankInfo: true },
+      select: {
+        name: true, legalName: true, address: true, taxId: true, vatId: true, bankInfo: true,
+        phone: true, fax: true, email: true, website: true, registerEntry: true, managingDirector: true, otherInfo: true, // Tier 728b
+      },
     })
 
     return {
@@ -523,6 +534,13 @@ export class CustomerStatementService {
         taxId: company?.taxId ?? null,
         vatId: company?.vatId ?? null,
         bankInfo: (company?.bankInfo as Record<string, any>) ?? {},
+        phone: company?.phone ?? null,
+        fax: company?.fax ?? null,
+        email: company?.email ?? null,
+        website: company?.website ?? null,
+        registerEntry: company?.registerEntry ?? null,
+        managingDirector: company?.managingDirector ?? null,
+        otherInfo: company?.otherInfo ?? null,
       },
       customer: {
         id: customer.id,

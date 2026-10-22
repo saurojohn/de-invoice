@@ -5,6 +5,7 @@ import PDFKit from "pdfkit"
 import * as fs from "fs"
 import QRCode from "qrcode"
 import { invoiceTaxBreakdown } from "../modules/invoice/tax-breakdown"
+import { countryCode, countryLine } from '../common/business-letter'
 
 interface Customer {
   name: string
@@ -292,11 +293,31 @@ export async function generateInvoicePDF(
       const logoPath = resolveLogoPath(company.logoPath)
       if (logoPath && fs.existsSync(logoPath)) {
         try {
-          const imgHeight = 68
+          // Tier 728b: the logo fits the room left of the company block on
+          // the right (name 20 pt, address 9 pt, contacts 8 pt). It was
+          // centred and drawn by its height alone — a wide logo (a word
+          // mark, 400 × 120 px) ran 227 pt wide, over the company's name and
+          // phone line; the 220 pt cap only entered the centring.
           const img = doc.openImage(logoPath)
-          const imgWidth = Math.min(img.width * (imgHeight / img.height), 220)
-          const imgX = (pageWidth - imgWidth) / 2
-          doc.image(logoPath, imgX, headerStartY, { height: imgHeight })
+          const a = (company.address || {}) as any
+          const widest = (size: number, bold: boolean, lines: string[]) => {
+            doc.font(fontFor(bold ? 'bold' : 'regular')).fontSize(size)
+            return Math.max(0, ...lines.filter(Boolean).map((l) => doc.widthOfString(l)))
+          }
+          const phoneFaxLine = [company.phone ? `Tel.: ${company.phone}` : "", (company as any).fax ? `Fax: ${(company as any).fax}` : ""].filter(Boolean).join("  ·  ")
+          const textW = Math.max(
+            widest(20, true, [String(company.name || "")]),
+            widest(9, false, [a.street, `${a.postalCode || ""} ${a.city || ""}`.trim()]),
+            widest(8, false, [phoneFaxLine, company.email || "", (company as any).website || ""]),
+          )
+          const textLeft = rightMargin - textW - 16
+          const room = Math.max(40, textLeft - leftMargin)
+          const scale = Math.min(68 / img.height, 220 / img.width, room / img.width)
+          const imgWidth = img.width * scale
+          const imgHeight = img.height * scale
+          const centred = (pageWidth - imgWidth) / 2
+          const imgX = centred + imgWidth <= textLeft ? centred : leftMargin
+          doc.image(logoPath, imgX, headerStartY, { width: imgWidth, height: imgHeight })
         } catch (err) {
           console.warn("Failed to load logo:", err)
         }
@@ -1385,22 +1406,5 @@ export function buildEpcQrPayload(
   ].join('\n')
 }
 
-/** Tier 728: an address's country as an ISO code ("DE"), whatever was stored ("DE", "Deutschland") */
-export function countryCode(value: unknown): string {
-  const v = String(value ?? "").trim()
-  if (/^[A-Za-z]{2}$/.test(v)) return v.toUpperCase()
-  const names: Record<string, string> = { deutschland: "DE", germany: "DE", österreich: "AT", austria: "AT", schweiz: "CH", switzerland: "CH" }
-  return names[v.toLowerCase()] ?? v.toUpperCase()
-}
-
-/** Tier 728: the country line of an address, in German capitals (DIN 5008): "ÖSTERREICH" */
-export function countryLine(value: unknown): string {
-  const code = countryCode(value)
-  if (!/^[A-Z]{2}$/.test(code)) return String(value ?? "").trim().toUpperCase()
-  try {
-    const name = new Intl.DisplayNames(["de"], { type: "region" }).of(code)
-    return (name || code).toUpperCase()
-  } catch {
-    return code
-  }
-}
+// Tier 728b: shared with the reminder and the statement
+export { countryCode, countryLine } from '../common/business-letter'

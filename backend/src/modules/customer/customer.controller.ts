@@ -81,7 +81,7 @@ export class CustomerController {
   ) {
     this.assertCompanyId(companyId)
     const { from, to } = this.parseStatementRange(fromStr, toStr)
-    const dir = this.parseOrder(order)
+    const dir = order ? this.parseOrder(order) : 'asc' // Tier 728b: PDFs chronologically
 
     const result = await this.batchStatementService.generateBatch({
       companyId,
@@ -686,7 +686,7 @@ export class CustomerController {
     const { from, to } = this.parseStatementRange(fromStr, toStr)
     const data = await this.statementService.generate(
       companyId, id, from, to,
-      this.parseOrder(order),
+      order ? this.parseOrder(order) : 'asc', // Tier 728b: a printed statement reads from the opening balance down
       currency,
     )
     const { generateStatementPdf } = await import(

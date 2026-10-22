@@ -24,6 +24,7 @@
 import { greetingLine } from "../mail/templates/invoice-email.template" // Tier 705
 import PDFDocument from "pdfkit"
 import { countWerktage } from "./werktage"
+import { businessLetterFooter, countryCode, countryLine } from '../../common/business-letter'
 
 export interface MahnungPdfInput {
   level: "first" | "second" | "final"
@@ -52,6 +53,12 @@ export interface MahnungPdfInput {
     taxId?: string | null
     vatId?: string | null
     logoPath?: string | null
+    /** Tier 728b: what a business letter carries besides (§ 35a GmbHG, § 37a HGB) */
+    fax?: string | null
+    website?: string | null
+    registerEntry?: string | null
+    managingDirector?: string | null
+    otherInfo?: string | null
   }
   daysOverdue: number
   werktageOverdue: number
@@ -162,11 +169,14 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     // (matches invoice PDF style: "Name · Straße ·
     // PLZ Ort · Land" in one line, 5pt font).
     const addr = input.company.address || {}
+    // Tier 728b: a country only where sender and customer differ, in full (DIN 5008)
+    const showCountries = !!countryCode(addr.country) && !!countryCode(input.customer.address?.country)
+      && countryCode(addr.country) !== countryCode(input.customer.address?.country)
     const absenderParts = [
       input.company.legalName || input.company.name,
       addr.street,
       [addr.postalCode, addr.city].filter(Boolean).join(" "),
-      addr.country,
+      showCountries ? countryLine(addr.country) : "",
     ].filter(Boolean)
     doc
       .fontSize(5)
@@ -195,8 +205,8 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
       doc.text(line, PAGE_MARGIN, y)
       y = doc.y
     }
-    if (input.customer.address?.country) {
-      doc.text(input.customer.address.country, PAGE_MARGIN, y)
+    if (showCountries) {
+      doc.text(countryLine(input.customer.address.country), PAGE_MARGIN, y)
       y = doc.y + 12
     } else {
       y += 12
@@ -538,22 +548,20 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     const range = doc.bufferedPageRange()
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i)
-      const footerY = PAGE_HEIGHT - 30
       // Tier 646: below the bottom margin pdfkit starts a new page for the
       // text — every reminder letter had a second page with this line on it.
       doc.page.margins.bottom = 0
-      doc
-        .fontSize(7)
-        .fillColor("#666666")
-        .text(
-          `${input.company.legalName || input.company.name} · ${absenderParts.slice(1).join(" · ")}` +
-            (input.company.email ? ` · ${input.company.email}` : "") +
-            (input.company.taxId ? ` · Steuernummer ${input.company.taxId}` : "") +
-            (input.company.vatId ? ` · USt-ID ${input.company.vatId}` : ""),
-          PAGE_MARGIN,
-          footerY,
-          { width: CONTENT_WIDTH, lineBreak: false },
-        )
+      // Tier 728b: what a business letter carries (§ 35a GmbHG, § 37a HGB) —
+      // register, directors, seat, phone were missing — in lines that wrap
+      // (the one line ran off the page) and end above the page's foot
+      doc.fontSize(7).fillColor("#666666").font("Helvetica")
+      const lines = businessLetterFooter(input.company)
+      const heights = lines.map((l) => doc.heightOfString(l, { width: CONTENT_WIDTH }))
+      let footerY = PAGE_HEIGHT - 16 - heights.reduce((a, b) => a + b, 0)
+      lines.forEach((l, k) => {
+        doc.text(l, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH })
+        footerY += heights[k]
+      })
     }
 
     doc.end()

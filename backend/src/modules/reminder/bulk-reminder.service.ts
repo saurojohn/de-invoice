@@ -392,6 +392,12 @@ export class BulkReminderService {
         taxId: company.taxId,
         vatId: company.vatId,
         logoPath: company.logoPath,
+        // Tier 728b: the register details and the rest of the letterhead
+        fax: company.fax,
+        website: company.website,
+        registerEntry: company.registerEntry,
+        managingDirector: company.managingDirector,
+        otherInfo: company.otherInfo,
       },
       daysOverdue,
       werktageOverdue: daysOverdue, // the cron counts Werktage but
@@ -413,6 +419,7 @@ export class BulkReminderService {
       to: customerEmail,
       subject: rendered.subject,
       text: rendered.body,
+      companySignature: true, // Tier 728c
       attachments: [
         {
           filename: `${LEVEL_TITLE_FILENAME[level]}-${invoice.invoiceNumber}.pdf`,

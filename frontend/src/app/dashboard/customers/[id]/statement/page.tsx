@@ -124,10 +124,11 @@ export default function CustomerStatementPage() {
     if (f && /^\d{4}-\d{2}-\d{2}$/.test(f)) setFrom(f)
     if (t && /^\d{4}-\d{2}-\d{2}$/.test(t)) setTo(t)
   }, [])
-  // Display order. Default DESC = newest first (customer's
-  // natural reading order — see latest activity at the top).
+  // Display order (newest first on request).
   // ASC is the accountant's chronological paper-trail view.
-  const [order, setOrder] = useState<"desc" | "asc">("desc")
+  // Tier 728b: chronological — a statement reads from the opening balance down
+  // to the closing one (the PDF and the e-mail too)
+  const [order, setOrder] = useState<"desc" | "asc">("asc")
   // Tier 653: "" = the server's choice (EUR when the customer has EUR documents)
   const [currency, setCurrency] = useState("")
 

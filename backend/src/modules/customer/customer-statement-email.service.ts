@@ -115,7 +115,8 @@ export class CustomerStatementEmailService {
       throw new BadRequestException(`Ungültige Empfänger-E-Mail: ${recipientEmail}`)
     }
 
-    const order: 'asc' | 'desc' = (options.order === 'asc' ? 'asc' : 'desc')
+    // Tier 728b: the statement a customer gets reads from the opening balance down
+    const order: 'asc' | 'desc' = (options.order === 'desc' ? 'desc' : 'asc')
 
     // The service expects Date objects. The
     // controller validates the from/to strings
@@ -165,6 +166,7 @@ export class CustomerStatementEmailService {
       to: recipientEmail,
       subject,
       text,
+      companySignature: true, // Tier 728c: the company's details below it
       attachments: [
         {
           filename,

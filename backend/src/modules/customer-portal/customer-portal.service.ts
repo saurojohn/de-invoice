@@ -279,6 +279,7 @@ export class CustomerPortalService {
         to: normalized,
         subject,
         text: body,
+        companySignature: true, // Tier 728c
       })
     } catch (err: any) {
       // Don't fail the request — the session is
