@@ -12,7 +12,7 @@
  * So:
  *
  *   - the database every hour (the backup container, compose `backup`):
- *     every dump kept 48 hours, one a day for 30 days, one a week for
+ *     every dump kept 24 hours, one a day for 30 days, one a week for
  *     12 weeks, one a month for 10 years;
  *   - the files (kept invoice copies, receipts, attachments — the storage
  *     volume) every hour, into a mirror of their own (`BACKUP_FILES_DIR`):
@@ -41,8 +41,20 @@ export interface DbBackupStatus {
   latestSizeBytes: number
   ageHours: number | null
   counts: { hourly: number; daily: number; weekly: number; monthly: number }
+  /** Tier 727b: what the dumps take on disk — a hard-linked dump counted once */
+  totalBytes: number
+  disk: DiskSpace | null
   maxAgeHours: number
   ok: boolean
+}
+
+/** Tier 727b: the disk the backups are on */
+export interface DiskSpace {
+  totalBytes: number
+  freeBytes: number
+  freePercent: number
+  /** below BACKUP_MIN_FREE_GB (default 2) or BACKUP_MIN_FREE_PERCENT (default 10) */
+  low: boolean
 }
 
 export interface FilesBackupStatus {
@@ -54,6 +66,10 @@ export interface FilesBackupStatus {
   bytes: number
   copiedLastRun: number
   versions: number
+  /** Tier 727b: the mirror and the earlier versions on disk */
+  mirrorBytes: number
+  versionsBytes: number
+  disk: DiskSpace | null
   maxAgeHours: number
   ok: boolean
 }
@@ -103,9 +119,11 @@ export class ProductionBackupsService {
     const dir = this.dbDir
     const counts = { hourly: 0, daily: 0, weekly: 0, monthly: 0 }
     if (!dir || !fs.existsSync(dir)) {
-      return { configured: !!dir, dir, latestAt: null, latestFile: null, latestSizeBytes: 0, ageHours: null, counts, maxAgeHours, ok: false }
+      return { configured: !!dir, dir, latestAt: null, latestFile: null, latestSizeBytes: 0, ageHours: null, counts, totalBytes: 0, disk: null, maxAgeHours, ok: false }
     }
     let latest: { file: string; mtime: Date; size: number } | null = null
+    const seen = new Set<string>()
+    let totalBytes = 0
     for (const [key, sub] of TIERS) {
       const d = path.join(dir, sub)
       if (!fs.existsSync(d)) continue
@@ -114,6 +132,8 @@ export class ProductionBackupsService {
         if (!/\.sql\.gz$/.test(name) || /-latest\.sql\.gz$/.test(name)) continue
         counts[key] += 1
         const st = fs.statSync(path.join(d, name))
+        const inode = `${st.dev}:${st.ino}`
+        if (!seen.has(inode)) { seen.add(inode); totalBytes += st.size }
         if (st.size > 0 && (!latest || st.mtime > latest.mtime)) latest = { file: `${sub}/${name}`, mtime: st.mtime, size: st.size }
       }
     }
@@ -126,6 +146,8 @@ export class ProductionBackupsService {
       latestSizeBytes: latest?.size ?? 0,
       ageHours: ageHours == null ? null : Math.round(ageHours * 100) / 100,
       counts,
+      totalBytes,
+      disk: diskSpace(dir),
       maxAgeHours,
       ok: ageHours != null && ageHours <= maxAgeHours,
     }
@@ -134,13 +156,13 @@ export class ProductionBackupsService {
   filesStatus(now = new Date()): FilesBackupStatus {
     const maxAgeHours = hoursEnv('BACKUP_FILES_MAX_AGE_HOURS', 3)
     const dir = this.filesDir
-    const empty = { lastRunAt: null, ageHours: null, files: 0, bytes: 0, copiedLastRun: 0, versions: 0 }
-    if (!dir) return { configured: false, dir, ...empty, maxAgeHours, ok: false }
-    let run: { at?: string; files?: number; bytes?: number; copied?: number; versions?: number } = {}
+    const empty = { lastRunAt: null, ageHours: null, files: 0, bytes: 0, copiedLastRun: 0, versions: 0, mirrorBytes: 0, versionsBytes: 0 }
+    if (!dir) return { configured: false, dir, ...empty, disk: null, maxAgeHours, ok: false }
+    let run: { at?: string; files?: number; bytes?: number; copied?: number; versions?: number; mirrorBytes?: number; versionsBytes?: number } = {}
     try {
       run = JSON.parse(fs.readFileSync(path.join(dir, 'last-run.json'), 'utf8'))
     } catch {
-      return { configured: true, dir, ...empty, maxAgeHours, ok: false }
+      return { configured: true, dir, ...empty, disk: diskSpace(dir), maxAgeHours, ok: false }
     }
     const at = run.at ? new Date(run.at) : null
     const ageHours = at && !isNaN(at.getTime()) ? (now.getTime() - at.getTime()) / 3_600_000 : null
@@ -153,6 +175,9 @@ export class ProductionBackupsService {
       bytes: run.bytes ?? 0,
       copiedLastRun: run.copied ?? 0,
       versions: run.versions ?? 0,
+      mirrorBytes: run.mirrorBytes ?? 0,
+      versionsBytes: run.versionsBytes ?? 0,
+      disk: diskSpace(dir),
       maxAgeHours,
       ok: ageHours != null && ageHours <= maxAgeHours,
     }
@@ -210,9 +235,10 @@ export class ProductionBackupsService {
       }
     }
     walk('')
-    const allVersions = countFiles(versions)
+    const v = sizeOf(versions)
+    const m = sizeOf(mirror)
     const result: MirrorResult = { files, copied, versioned, bytes, durationMs: Date.now() - t0 }
-    const record = { at: now.toISOString(), files, bytes, copied, versioned, versions: allVersions, source: src }
+    const record = { at: now.toISOString(), files, bytes, copied, versioned, versions: v.files, versionsBytes: v.bytes, mirrorBytes: m.bytes, source: src }
     const tmp = path.join(dir, `last-run.json.part-${process.pid}`)
     fs.writeFileSync(tmp, JSON.stringify(record, null, 2))
     fs.renameSync(tmp, path.join(dir, 'last-run.json'))
@@ -221,16 +247,32 @@ export class ProductionBackupsService {
   }
 }
 
-function countFiles(dir: string): number {
-  let n = 0
+function sizeOf(dir: string): { files: number; bytes: number } {
+  let files = 0, bytes = 0
   const walk = (d: string) => {
     let entries: fs.Dirent[]
     try { entries = fs.readdirSync(d, { withFileTypes: true }) } catch { return }
     for (const e of entries) {
-      if (e.isDirectory()) walk(path.join(d, e.name))
-      else if (e.isFile()) n += 1
+      const p = path.join(d, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (e.isFile()) { files += 1; bytes += fs.statSync(p).size }
     }
   }
   walk(dir)
-  return n
+  return { files, bytes }
+}
+
+/** Tier 727b: free space of the disk `dir` is on; null where it cannot be read */
+export function diskSpace(dir: string): DiskSpace | null {
+  try {
+    const st = fs.statfsSync(dir)
+    const totalBytes = st.blocks * st.bsize
+    const freeBytes = st.bavail * st.bsize
+    const freePercent = totalBytes > 0 ? Math.round((freeBytes / totalBytes) * 1000) / 10 : 0
+    const minGb = hoursEnv('BACKUP_MIN_FREE_GB', 2)
+    const minPct = hoursEnv('BACKUP_MIN_FREE_PERCENT', 10)
+    return { totalBytes, freeBytes, freePercent, low: freeBytes < minGb * 1024 ** 3 || freePercent < minPct }
+  } catch {
+    return null
+  }
 }

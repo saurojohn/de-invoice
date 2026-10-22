@@ -36,11 +36,11 @@ P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[
 stamp() { date -u -v-"$1"H +%Y%m%d-%H%M%S 2>/dev/null || date -u -d "-$1 hours" +%Y%m%d-%H%M%S; }
 ago() { python3 -c "import os,sys,time;t=time.time()-float(sys.argv[1])*3600;[os.utime(f,(t,t)) for f in sys.argv[2:]]" "$@"; }
 
-note "=== 1. the compose file: hourly, kept 48 h / 30 days / 12 weeks / 10 years ==="
+note "=== 1. the compose file: hourly, kept 24 h / 30 days / 12 weeks / 10 years ==="
 C="$ROOT/infra/prod/docker-compose.yml"
 assert_eq "the database every hour (was once a day, 03:00)" "$(grep -c 'SCHEDULE: ${BACKUP_SCHEDULE:-@hourly}' "$C")" "1"
-assert_eq "kept: every dump 48 h, daily 30, weekly 12, monthly 120" \
-  "$(grep -cE 'BACKUP_KEEP_MINS: \$\{BACKUP_KEEP_MINS:-2880\}|BACKUP_KEEP_DAYS: \$\{BACKUP_KEEP_DAYS:-30\}|BACKUP_KEEP_WEEKS: \$\{BACKUP_KEEP_WEEKS:-12\}|BACKUP_KEEP_MONTHS: \$\{BACKUP_KEEP_MONTHS:-120\}' "$C")" "4"
+assert_eq "kept: every dump 24 h, daily 30, weekly 12, monthly 120" \
+  "$(grep -cE 'BACKUP_KEEP_MINS: \$\{BACKUP_KEEP_MINS:-1440\}|BACKUP_KEEP_DAYS: \$\{BACKUP_KEEP_DAYS:-30\}|BACKUP_KEEP_WEEKS: \$\{BACKUP_KEEP_WEEKS:-12\}|BACKUP_KEEP_MONTHS: \$\{BACKUP_KEEP_MONTHS:-120\}' "$C")" "4"
 assert_eq "the backend sees the dumps (read only) and keeps the file mirror" \
   "$(grep -c -- '- backups:/backups:ro' "$C")/$(grep -c -- '- backup_files:/data/backup-files$' "$C")/$(grep -c 'BACKUP_DB_DIR: /backups' "$C")/$(grep -c 'BACKUP_FILES_DIR: /data/backup-files' "$C")" "2/1/1/1"
 assert_eq "the off-site copy: a profile of its own, off by default" "$(grep -c 'profiles: \["offsite"\]' "$C")" "1"
@@ -52,7 +52,7 @@ rm -rf "$DB"; mkdir -p "$DB/last" "$DB/daily" "$DB/weekly" "$DB/monthly"
 D0="$DB/last/de_invoice-$(stamp 0).sql.gz"; D1="$DB/last/de_invoice-$(stamp 1).sql.gz"; D2="$DB/last/de_invoice-$(stamp 2).sql.gz"
 for f in "$D0" "$D1" "$D2"; do echo "dump" | gzip > "$f"; done
 ago 1 "$D1"; ago 2 "$D2"
-echo daily | gzip > "$DB/daily/de_invoice-$(date -u +%Y%m%d).sql.gz"
+ln "$D0" "$DB/daily/de_invoice-$(date -u +%Y%m%d).sql.gz"   # as the image does: a hard link
 echo weekly | gzip > "$DB/weekly/de_invoice-$(date -u +%G%V).sql.gz"
 echo monthly | gzip > "$DB/monthly/de_invoice-$(date -u +%Y%m).sql.gz"
 ln -sf "$(basename "$D0")" "$DB/last/de_invoice-latest.sql.gz"
@@ -60,8 +60,21 @@ AS GET "/api/v1/admin/backups/status"
 assert_eq "the status: 3 hourly, 1 daily, 1 weekly, 1 monthly (the -latest link not counted)" \
   "$STATUS/$(P "d['db']['counts']['hourly'], d['db']['counts']['daily'], d['db']['counts']['weekly'], d['db']['counts']['monthly']")" "200/(3, 1, 1, 1)"
 assert_eq "…the newest minutes old: fresh" "$(P "d['db']['ok'] and d['db']['ageHours'] < 0.5 and d['db']['latestSizeBytes'] > 0")" "True"
+UNIQUE=$(python3 -c "
+import os,sys
+seen=set();n=0
+for root,_,fs in os.walk(sys.argv[1]):
+  for f in fs:
+    p=os.path.join(root,f)
+    if os.path.islink(p) or '-latest' in f: continue
+    st=os.stat(p)
+    if (st.st_dev,st.st_ino) not in seen: seen.add((st.st_dev,st.st_ino)); n+=st.st_size
+print(n)" "$DB")
+assert_eq "what they take: a hard-linked dump counted once (Tier 727b)" "$(P "d['db']['totalBytes']")" "$UNIQUE"
+assert_eq "…and the disk they are on: total, free, not low" "$(P "d['db']['disk']['totalBytes'] > d['db']['disk']['freeBytes'] > 0 and d['db']['disk']['low'] is False")" "True"
+rm -rf "$FILES"; AS POST "/api/v1/admin/backups/files/run" '{}'   # (the files fresh too — a mirror of an earlier run may be old)
 AS POST "/api/v1/admin/backups/status/check" '{}'
-assert_eq "the check: fine" "$STATUS/$(P "d['ok']")" "200/True"
+assert_eq "the check: fine" "$STATUS/$(P "d.get('ok', d.get('message'))")" "200/True"
 
 ago 5 "$DB"/last/*.sql.gz "$DB"/daily/* "$DB"/weekly/* "$DB"/monthly/*
 AS GET "/api/v1/admin/backups/status"
@@ -90,6 +103,7 @@ assert_eq "a changed file: copied, its earlier version kept" \
 assert_eq "a file deleted in storage: still in the mirror" "$(cat "$FILES/mirror/$TAG/belege/b.jpg" 2>/dev/null)" "beleg"
 AS GET "/api/v1/admin/backups/status"
 assert_eq "the status: the files fresh, the run counted" "$(P "d['files']['ok'] and d['files']['files'] >= 1 and d['files']['versions'] >= 1")" "True"
+assert_eq "…the mirror's and the versions' size (Tier 727b)" "$(P "d['files']['mirrorBytes'] > 0 and d['files']['versionsBytes'] >= len('rechnung v1')")" "True"
 rm -rf "$S"
 
 summary

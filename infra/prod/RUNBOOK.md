@@ -285,7 +285,7 @@ docker compose -f infra/prod/docker-compose.yml exec postgres \
 
 | What | When | Kept | Where |
 |---|---|---|---|
-| Database (`pg_dump`, the `backup` container) | every hour (`BACKUP_SCHEDULE`, default `@hourly`) | every dump 48 h · one a day 30 days · one a week 12 weeks · one a month 10 years | volume `backups`: `last/ daily/ weekly/ monthly/` |
+| Database (`pg_dump`, the `backup` container) | every hour (`BACKUP_SCHEDULE`, default `@hourly`) | every dump 24 h · one a day 30 days · one a week 12 weeks · one a month 10 years | volume `backups`: `last/ daily/ weekly/ monthly/` |
 | Files of `storage` — kept invoice copies, receipts, attachments (the backend) | every hour at :20 | everything; nothing is deleted, a changed file keeps its earlier version | volume `backup_files`: `mirror/`, `versions/`, `last-run.json` |
 | Freshness check (the backend) | every hour at :40 | — | the scheduler `backup-freshness-check` turns red and an error event goes to the notification channels when the newest dump or the file mirror is older than 3 hours |
 | Off-site copy (optional, `offsite-backup`) | every hour | the dumps mirrored, the files only added | the rclone remote in `BACKUP_OFFSITE_REMOTE` (Hetzner Storage Box, HETZNER-DEPLOY.md §9) |

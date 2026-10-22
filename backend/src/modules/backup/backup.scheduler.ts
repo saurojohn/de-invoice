@@ -83,6 +83,13 @@ export class BackupScheduler {
         ? `Letzte Dateisicherung vor ${files.ageHours} Std. (${files.lastRunAt}) — erwartet höchstens ${files.maxAgeHours} Std.`
         : `Noch keine Dateisicherung in ${files.dir}`)
     }
+    // Tier 727b: the disk the backups are on — before it is full, not after
+    for (const disk of [db.disk, files.disk]) {
+      if (disk?.low) {
+        problems.push(`Wenig Speicherplatz für die Sicherungen: ${(disk.freeBytes / 1024 ** 3).toFixed(1)} GB frei (${disk.freePercent} %)`)
+        break
+      }
+    }
     if (problems.length) {
       const message = `Datensicherung: ${problems.join('; ')}`
       await this.errors.capture({ source: 'backend', kind: 'manual', message, context: { db, files } }).catch(() => {})

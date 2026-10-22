@@ -33,8 +33,8 @@ test("the automatic backups: database, files, off-site", async ({ context, page 
   await page.route("**/api/v1/admin/backups/status", (route) =>
     route.fulfill({
       json: {
-        db: { configured: true, latestAt: new Date(now - 20 * 60_000).toISOString(), ageHours: 0.33, latestSizeBytes: 123456, counts: { hourly: 48, daily: 30, weekly: 12, monthly: 7 }, maxAgeHours: 3, ok: true },
-        files: { configured: true, lastRunAt: new Date(now - 5 * 3_600_000).toISOString(), ageHours: 5, files: 1234, bytes: 52_428_800, versions: 3, maxAgeHours: 3, ok: false },
+        db: { configured: true, latestAt: new Date(now - 20 * 60_000).toISOString(), ageHours: 0.33, latestSizeBytes: 12_582_912, counts: { hourly: 24, daily: 30, weekly: 12, monthly: 7 }, totalBytes: 524_288_000, disk: { totalBytes: 40 * 1024 ** 3, freeBytes: 1024 ** 3, freePercent: 2.5, low: true }, maxAgeHours: 3, ok: true },
+        files: { configured: true, lastRunAt: new Date(now - 5 * 3_600_000).toISOString(), ageHours: 5, files: 1234, bytes: 52_428_800, versions: 3, mirrorBytes: 52_428_800, versionsBytes: 300_000, disk: { totalBytes: 40 * 1024 ** 3, freeBytes: 1024 ** 3, freePercent: 2.5, low: true }, maxAgeHours: 3, ok: false },
         offsite: { configured: false, remote: null },
       },
     }),
@@ -47,10 +47,15 @@ test("the automatic backups: database, files, off-site", async ({ context, page 
   await page.goto("/dashboard/backups")
   const card = page.getByTestId("backup-auto")
   await expect(card).toBeVisible({ timeout: 60_000 })
-  await expect(page.getByTestId("backup-auto-db")).toContainText("48 stündlich · 30 täglich · 12 wöchentlich · 7 monatlich")
+  await expect(page.getByTestId("backup-auto-db")).toContainText("24 stündlich · 30 täglich · 12 wöchentlich · 7 monatlich")
   await expect(page.getByTestId("backup-auto-files")).toContainText("1234 Dateien")
   await expect(page.getByTestId("backup-auto-files")).toContainText("3 frühere Versionen")
   await expect(page.getByTestId("backup-auto-offsite")).toContainText("nicht eingerichtet")
+  // Tier 727b: what the backups take, and the disk — 2,5 % free is too little
+  await expect(page.getByTestId("backup-auto-db-size")).toContainText("alle zusammen 500,0 MB")
+  await expect(page.getByTestId("backup-auto-disk")).toContainText("1,00 GB frei von 40,00 GB (2,5 %)")
+  await expect(page.getByTestId("backup-auto-disk")).toContainText("zu wenig")
+  expect(await page.getByTestId("backup-auto-disk").getAttribute("class")).toContain("red")
   // the files 5 hours old: marked (red), the database fresh (green)
   const tones = await page.evaluate(() => [
     document.querySelector('[data-testid="backup-auto-db"] span')?.className ?? "",

@@ -395,14 +395,20 @@ services:
       # Europe/Berlin so the schedule matches
       # the customer's timezone, not UTC.
       TZ: Europe/Berlin
-      # Tier 727: every dump 48 hours (/backups/last), one a day for 30 days,
+      # Tier 727: every dump 24 hours (/backups/last), one a day for 30 days,
       # one a week for 12 weeks, one a month for 10 years. The records
       # themselves are kept in the database for their 8 / 10 years (§ 147 AO);
       # the monthly dumps are the copy of them should the database be lost.
-      BACKUP_KEEP_MINS: ${BACKUP_KEEP_MINS:-2880}
+      # The daily / weekly / monthly entries are hard links to an hourly dump —
+      # they take no space of their own until that one is rotated away.
+      # Tier 727b: 24 hours (it was 48) — the daily dumps cover the day before.
+      BACKUP_KEEP_MINS: ${BACKUP_KEEP_MINS:-1440}
       BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-30}
       BACKUP_KEEP_WEEKS: ${BACKUP_KEEP_WEEKS:-12}
       BACKUP_KEEP_MONTHS: ${BACKUP_KEEP_MONTHS:-120}
+      # Tier 727b: gzip level 6 (the image's default is 1) — measured on the
+      # test database: 90 MB instead of 106 MB per dump, seconds of CPU.
+      POSTGRES_EXTRA_OPTS: "-Z6"
       # Tier 562: BACKUP_COMPRESS, BACKUP_FILE_PREFIX, HEALTHCHECK_URL and
       # HEALTHCHECK_PING_URL stood here; this image reads none of them. Dumps
       # are gzip'd and named <database>-<timestamp>.sql.gz by default, under

@@ -2662,6 +2662,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 727c — how much the hourly backups take
+
+The owner, 22.10.2026: „每小时备份，一段时间后数据体积会不会太大了？“ Measured on the test database (22 700 invoices, 511 000 audit rows, 10 700 test companies; 832 MB): the AuditLog is 618 MB of it; a dump is 106 MB with the image's gzip level 1, 90 MB with level 6. The daily / weekly / monthly dumps are hard links to an hourly one (the image's `/backup.sh`: `ln -vf`), so what is kept is about 24 hourly + 29 daily + 8 weekly full dumps at today's size plus the monthly ones at the size they had then. The files are one mirror (only changes copied), not a copy per hour.
+
+- `POSTGRES_EXTRA_OPTS: "-Z6"` (−15 %); every dump kept 24 h (`BACKUP_KEEP_MINS` 1440, was 2880) — the daily dumps cover the day before.
+- `GET /admin/backups/status`: `db.totalBytes` (each inode once), `files.mirrorBytes` / `versionsBytes` (written by the run into last-run.json), `disk` (statfs: total, free, %, `low`); the hourly check also reports a disk below `BACKUP_MIN_FREE_GB` (2) or `BACKUP_MIN_FREE_PERCENT` (10). The backup card shows the sizes and the disk, red when low; sizes with a decimal comma.
+
+Estimate given to the owner (≈2 000 invoices a year; to be replaced by the real figures once live): a dump grows ~8 MB a year → about 0,5 GB of database backups after a year, ~4 GB after five, ~10 GB after ten; the file mirror is as large as the stored documents themselves.
+
+Specs 438 (sizes, the disk; the files made fresh before the check — a mirror left by an earlier local run was a day old) and `backups-automatic-tier727.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 727 — automatic backups: the database and the files every hour, checked every hour, off-site prepared
 
 The owner, 21.10.2026: „数据要实现能自动备份数据，按要求多久备份一次“. What the law asks: GoBD Rz. 103 ff. / § 146 Abs. 4, § 147 AO — the records protected against loss and readable for 8 / 10 years; no interval is prescribed. The interval follows from what may be lost (an invoice issued, sent and then lost is a gap in the numbering): every hour.

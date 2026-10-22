@@ -1962,7 +1962,7 @@
     "deleteConfirm": "Really delete backup {id}?",
     "deleted": "Backup {id} deleted",
     "autoTitle": "Automatic backups",
-    "autoHint": "The database is backed up every hour (each backup kept 48 hours, one a day for 30 days, one a week for 12 weeks, one a month for 10 years); the files (invoice copies, receipts) are mirrored every hour. A backup older than 3 hours is reported.",
+    "autoHint": "The database is backed up every hour (each backup kept 24 hours, one a day for 30 days, one a week for 12 weeks, one a month for 10 years); the files (invoice copies, receipts) are mirrored every hour. A backup older than 3 hours is reported.",
     "autoDb": "Database (hourly)",
     "autoKept": "Kept: {hourly} hourly · {daily} daily · {weekly} weekly · {monthly} monthly",
     "autoFiles": "Files (hourly)",
@@ -1971,7 +1971,11 @@
     "autoFilesDone": "Files backed up: {files}, {copied} new or changed",
     "autoOffsite": "Off-site copy",
     "autoOffsiteNone": "not set up",
-    "autoOffsiteHint": "Without a copy outside the server, its failure takes the backups with it — set-up: HETZNER-DEPLOY.md §9 (Hetzner Storage Box)."
+    "autoOffsiteHint": "Without a copy outside the server, its failure takes the backups with it — set-up: HETZNER-DEPLOY.md §9 (Hetzner Storage Box).",
+    "autoDbSize": "Latest backup {latest} · all together {total}",
+    "autoFilesSize": "Mirror {mirror} · earlier versions {versions}",
+    "autoDisk": "Disk: {free} free of {total} ({percent} %)",
+    "autoDiskLow": "too little — please add space or move older backups off the server"
   },
   "systemHealth": {
     "title": "System Health",

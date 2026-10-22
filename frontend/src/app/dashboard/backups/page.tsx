@@ -67,11 +67,13 @@ interface RunResult {
   log: string
 }
 
+// Tier 727b: with a decimal comma, as the rest of the page („500,0 MB“)
+const dec = (n: number, digits: number) => n.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits })
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+  if (bytes < 1024 * 1024) return `${dec(bytes / 1024, 1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${dec(bytes / 1024 / 1024, 1)} MB`
+  return `${dec(bytes / 1024 / 1024 / 1024, 2)} GB`
 }
 
 function formatAge(hours: number): string {
@@ -95,9 +97,10 @@ function healthBg(health: "green" | "amber" | "red" | "grey"): string {
 }
 
 // Tier 727: the installation's automatic backups (GET /admin/backups/status)
+interface DiskSpace { totalBytes: number; freeBytes: number; freePercent: number; low: boolean }
 interface AutoStatus {
-  db: { configured: boolean; latestAt: string | null; ageHours: number | null; latestSizeBytes: number; counts: { hourly: number; daily: number; weekly: number; monthly: number }; maxAgeHours: number; ok: boolean }
-  files: { configured: boolean; lastRunAt: string | null; ageHours: number | null; files: number; bytes: number; versions: number; maxAgeHours: number; ok: boolean }
+  db: { configured: boolean; latestAt: string | null; ageHours: number | null; latestSizeBytes: number; counts: { hourly: number; daily: number; weekly: number; monthly: number }; totalBytes?: number; disk?: DiskSpace | null; maxAgeHours: number; ok: boolean }
+  files: { configured: boolean; lastRunAt: string | null; ageHours: number | null; files: number; bytes: number; versions: number; mirrorBytes?: number; versionsBytes?: number; disk?: DiskSpace | null; maxAgeHours: number; ok: boolean }
   offsite: { configured: boolean; remote: string | null }
 }
 
@@ -265,6 +268,10 @@ export default function BackupsPage() {
               <div className="text-xs text-gray-600 dark:text-gray-400">
                 {t("backup.autoKept", { hourly: auto.db.counts.hourly, daily: auto.db.counts.daily, weekly: auto.db.counts.weekly, monthly: auto.db.counts.monthly })}
               </div>
+              {/* Tier 727b: what they take — the latest dump and all together */}
+              <div className="text-xs text-gray-600 dark:text-gray-400" data-testid="backup-auto-db-size">
+                {t("backup.autoDbSize", { latest: formatBytes(auto.db.latestSizeBytes), total: formatBytes(auto.db.totalBytes ?? 0) })}
+              </div>
             </div>
             <div className="space-y-1" data-testid="backup-auto-files">
               <div className="font-medium">{t("backup.autoFiles")}</div>
@@ -273,6 +280,9 @@ export default function BackupsPage() {
               </span>
               <div className="text-xs text-gray-600 dark:text-gray-400">
                 {t("backup.autoFilesCount", { files: auto.files.files, size: formatBytes(auto.files.bytes), versions: auto.files.versions })}
+              </div>
+              <div className="text-xs text-gray-600 dark:text-gray-400" data-testid="backup-auto-files-size">
+                {t("backup.autoFilesSize", { mirror: formatBytes(auto.files.mirrorBytes ?? 0), versions: formatBytes(auto.files.versionsBytes ?? 0) })}
               </div>
               {auto.files.configured && (
                 <Button size="sm" variant="outline" onClick={runFiles} disabled={mirroring} data-testid="backup-auto-files-run">
@@ -288,6 +298,16 @@ export default function BackupsPage() {
               {!auto.offsite.configured && <div className="text-xs text-gray-600 dark:text-gray-400">{t("backup.autoOffsiteHint")}</div>}
             </div>
           </div>
+          {/* Tier 727b: the disk the backups are on */}
+          {(auto.db.disk || auto.files.disk) && (() => {
+            const disk = (auto.db.disk ?? auto.files.disk)!
+            return (
+              <div className={`text-sm px-3 py-2 rounded ${disk.low ? healthBg("red") : "bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300"}`} data-testid="backup-auto-disk">
+                {t("backup.autoDisk", { free: formatBytes(disk.freeBytes), total: formatBytes(disk.totalBytes), percent: dec(disk.freePercent, 1) })}
+                {disk.low && <> — {t("backup.autoDiskLow")}</>}
+              </div>
+            )
+          })()}
         </div>
       )}
 

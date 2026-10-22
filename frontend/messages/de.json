@@ -1962,7 +1962,7 @@
     "deleteConfirm": "Backup {id} wirklich löschen?",
     "deleted": "Backup {id} gelöscht",
     "autoTitle": "Automatische Sicherung",
-    "autoHint": "Die Datenbank wird stündlich gesichert (jede Sicherung 48 Stunden, eine pro Tag 30 Tage, eine pro Woche 12 Wochen, eine pro Monat 10 Jahre), die Dateien (Rechnungskopien, Belege) stündlich gespiegelt. Ist eine Sicherung älter als 3 Stunden, wird das gemeldet.",
+    "autoHint": "Die Datenbank wird stündlich gesichert (jede Sicherung 24 Stunden, eine pro Tag 30 Tage, eine pro Woche 12 Wochen, eine pro Monat 10 Jahre), die Dateien (Rechnungskopien, Belege) stündlich gespiegelt. Ist eine Sicherung älter als 3 Stunden, wird das gemeldet.",
     "autoDb": "Datenbank (stündlich)",
     "autoKept": "Vorhanden: {hourly} stündlich · {daily} täglich · {weekly} wöchentlich · {monthly} monatlich",
     "autoFiles": "Dateien (stündlich)",
@@ -1971,7 +1971,11 @@
     "autoFilesDone": "Dateien gesichert: {files}, davon {copied} neu oder geändert",
     "autoOffsite": "Kopie außer Haus",
     "autoOffsiteNone": "nicht eingerichtet",
-    "autoOffsiteHint": "Ohne Kopie außerhalb des Servers gehen bei dessen Ausfall auch die Sicherungen verloren — Einrichtung: HETZNER-DEPLOY.md §9 (Hetzner Storage Box)."
+    "autoOffsiteHint": "Ohne Kopie außerhalb des Servers gehen bei dessen Ausfall auch die Sicherungen verloren — Einrichtung: HETZNER-DEPLOY.md §9 (Hetzner Storage Box).",
+    "autoDbSize": "Letzte Sicherung {latest} · alle zusammen {total}",
+    "autoFilesSize": "Spiegel {mirror} · frühere Versionen {versions}",
+    "autoDisk": "Speicherplatz: {free} frei von {total} ({percent} %)",
+    "autoDiskLow": "zu wenig — bitte Speicher erweitern oder ältere Sicherungen auslagern"
   },
   "systemHealth": {
     "title": "System-Gesundheit",
