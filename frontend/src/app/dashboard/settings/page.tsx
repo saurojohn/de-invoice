@@ -104,6 +104,46 @@ const RECHTSFORMEN = [
   "GmbH & Co. KG", "GmbH", "UG (haftungsbeschränkt)", "AG", "KGaA",
 ]
 
+/**
+ * Tier 728 — the details an invoice and a business letter must carry, for the
+ * legal form chosen (or read from the name, as the backend's resolveRechtsform).
+ */
+function companyMandatoryChecks(form: {
+  name: string; legalName: string; taxId: string; vatId: string
+  address: { street: string; postalCode: string; city: string }
+  registerEntry: string; managingDirector: string; rechtsform: string | null
+}): Array<{ key: string; ok: boolean; law: string }> {
+  const filled = (v: string | null | undefined) => !!v && v.trim() !== ""
+  const fullName = (form.legalName || form.name || "").trim()
+  const fromName = (n: string): string | null => {
+    if (/GmbH\s*&\s*Co\.?\s*KG\b/i.test(n)) return "GmbH & Co. KG"
+    if (/\bKGaA\b/.test(n)) return "KGaA"
+    if (/\bUG\b/.test(n)) return "UG (haftungsbeschränkt)"
+    if (/\bg?GmbH\b/.test(n)) return "GmbH"
+    if (/\bAG\b/.test(n)) return "AG"
+    if (/\bOHG\b/.test(n)) return "OHG"
+    if (/\bKG\b/.test(n)) return "KG"
+    return null
+  }
+  const rf = form.rechtsform || fromName(fullName)
+  const checks = [
+    { key: "name", ok: filled(fullName), law: "§ 14 Abs. 4 Nr. 1 UStG" },
+    { key: "address", ok: filled(form.address?.street) && filled(form.address?.postalCode) && filled(form.address?.city), law: "§ 14 Abs. 4 Nr. 1 UStG" },
+    { key: "taxNumber", ok: filled(form.taxId) || filled(form.vatId), law: "§ 14 Abs. 4 Nr. 2 UStG" },
+  ]
+  const registered = ["GmbH", "UG (haftungsbeschränkt)", "AG", "KGaA", "GmbH & Co. KG", "OHG", "KG"]
+  if (rf && registered.includes(rf)) {
+    // the legal form in the name: „UG (haftungsbeschränkt)“ in full (§ 5a GmbHG)
+    const token = rf === "UG (haftungsbeschränkt)" ? /UG \(haftungsbeschränkt\)/ : rf === "GmbH & Co. KG" ? /GmbH\s*&\s*Co\.?\s*KG/i : new RegExp(`\\b${rf}\\b`)
+    checks.push({ key: "legalForm", ok: token.test(fullName), law: "§ 35a GmbHG, § 37a HGB" })
+    checks.push({ key: "register", ok: filled(form.registerEntry), law: "§ 35a GmbHG, § 125a HGB" })
+    if (rf !== "OHG" && rf !== "KG") {
+      checks.push({ key: rf === "AG" || rf === "KGaA" ? "board" : "directors", ok: filled(form.managingDirector), law: rf === "AG" || rf === "KGaA" ? "§ 80 AktG" : "§ 35a GmbHG" })
+    }
+  }
+  return checks
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
@@ -855,6 +895,30 @@ export default function SettingsPage() {
               <CardTitle>{t("settings.companyInfo")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Tier 728: what an invoice and a business letter must carry — checked
+                  as you type (§ 14 Abs. 4 UStG for every invoice; § 35a GmbHG,
+                  § 37a / § 125a / § 177a HGB, § 80 AktG for registered companies) */}
+              {(() => {
+                const checks = companyMandatoryChecks(form)
+                const missing = checks.filter((c) => !c.ok)
+                return (
+                  <div
+                    className={`rounded-md border p-3 text-sm ${missing.length ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100"}`}
+                    data-testid="company-mandatory"
+                  >
+                    <div className="font-medium mb-1">
+                      {missing.length ? t("settings.mandatoryMissing", { n: missing.length }) : t("settings.mandatoryComplete")}
+                    </div>
+                    <ul className="space-y-0.5">
+                      {checks.map((c) => (
+                        <li key={c.key} data-testid={`company-mandatory-${c.key}`} data-ok={c.ok ? "true" : "false"}>
+                          {c.ok ? "✓" : "✗"} {t(`settings.mandatory_${c.key}`)} <span className="opacity-70">({c.law})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })()}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -875,7 +939,12 @@ export default function SettingsPage() {
                     value={form.legalName}
                     onChange={(e) => setForm({ ...form, legalName: e.target.value })}
                     placeholder={t("settings.placeholderLegalName")}
+                    data-testid="settings-legal-name"
                   />
+                  {/* Tier 728: this is the full name as registered — the field was
+                      labelled „Rechtsform“, and „GmbH“ typed into it became the
+                      seller's name in the XRechnung */}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("settings.legalNameHint")}</p>
                 </div>
               </div>
 
@@ -965,8 +1034,10 @@ export default function SettingsPage() {
                   <Input
                     value={form.registerEntry}
                     onChange={(e) => setForm({ ...form, registerEntry: e.target.value })}
-                    placeholder="HRB 12345 Amtsgericht Musterstadt"
+                    placeholder="Amtsgericht Berlin-Charlottenburg, HRB 123456 B"
+                    data-testid="settings-register-entry"
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("settings.registerEntryHint")}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -975,8 +1046,10 @@ export default function SettingsPage() {
                   <Input
                     value={form.managingDirector}
                     onChange={(e) => setForm({ ...form, managingDirector: e.target.value })}
-                    placeholder="Max Mustermann"
+                    placeholder="Anna Beispiel, Max Mustermann"
+                    data-testid="settings-managing-director"
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("settings.managingDirectorHint")}</p>
                 </div>
               </div>
 
@@ -1018,24 +1091,30 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium mb-1">
                     {t("settings.postalCode")}
                   </label>
+                  {/* Tier 728: the widths on wrappers — the input's own w-full won over
+                      w-28 / flex-1, and the city was a stub beside a wide postcode */}
                   <div className="flex gap-2">
-                    <Input
-                      value={form.address.postalCode}
-                      onChange={(e) =>
-                        setForm({ ...form, address: { ...form.address, postalCode: e.target.value } })
-                      }
-                      placeholder="12345"
-                      className="w-28"
-                    />
-                    <Input
-                      value={form.address.city}
-                      onChange={(e) =>
-                        setForm({ ...form, address: { ...form.address, city: e.target.value } })
-                      }
-                      placeholder={t("settings.placeholderCity")}
-                      aria-label={t("settings.city")}
-                      className="flex-1"
-                    />
+                    <div className="w-28 shrink-0">
+                      <Input
+                        value={form.address.postalCode}
+                        onChange={(e) =>
+                          setForm({ ...form, address: { ...form.address, postalCode: e.target.value } })
+                        }
+                        placeholder="12345"
+                        data-testid="settings-postal-code"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Input
+                        value={form.address.city}
+                        onChange={(e) =>
+                          setForm({ ...form, address: { ...form.address, city: e.target.value } })
+                        }
+                        placeholder={t("settings.placeholderCity")}
+                        aria-label={t("settings.city")}
+                        data-testid="settings-city"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

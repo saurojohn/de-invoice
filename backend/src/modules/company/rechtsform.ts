@@ -36,6 +36,13 @@ export function isKapitalgesellschaft(rechtsform: string | null | undefined): bo
 const valid = (v: unknown): Rechtsform | null =>
   typeof v === 'string' && (RECHTSFORMEN as readonly string[]).includes(v) ? (v as Rechtsform) : null
 
+/** Tier 728: a legal form alone („GmbH“, „e.K.“) — not a company's name */
+export function isBareLegalForm(value: string): boolean {
+  const v = value.trim().toLowerCase().replace(/\s+/g, ' ')
+  const forms = [...RECHTSFORMEN, 'UG', 'e.K.', 'e.Kfm.', 'e.Kfr.', 'gGmbH', 'Ltd.', 'GmbH & Co KG', 'Gesellschaft mit beschränkter Haftung', 'Aktiengesellschaft']
+  return forms.some((f) => f.toLowerCase() === v)
+}
+
 /** The legal form a company name ends in, if it names one. */
 export function rechtsformFromName(name: string | null | undefined): Rechtsform | null {
   const n = (name || '').trim()

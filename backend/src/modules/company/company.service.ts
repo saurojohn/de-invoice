@@ -1,4 +1,5 @@
 import { withCheckedVatId } from '../../common/vat-id';
+import { isBareLegalForm } from './rechtsform';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertIban } from '../../common/iban';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -19,6 +20,18 @@ export class CompanyService {
       throw new BadRequestException('Der Name des Unternehmens darf nicht leer sein.');
     }
     if (typeof data.name === 'string') data = { ...data, name: data.name.trim() };
+    // Tier 728: the full name as registered — not the legal form alone. The
+    // settings labelled this field „Rechtsform“; „GmbH“ entered there became
+    // the seller's registered name in the XRechnung (BT-27) and ZUGFeRD.
+    if (typeof data.legalName === 'string') {
+      const legal = data.legalName.trim()
+      if (legal && isBareLegalForm(legal)) {
+        throw new BadRequestException(
+          `„${legal}“ ist eine Rechtsform, kein Firmenname. Tragen Sie den vollständigen Namen laut Handelsregister ein, z. B. „Muster Werkstatt GmbH“ — die Rechtsform selbst wählen Sie unter „Rechnungseinstellungen“.`,
+        );
+      }
+      data = { ...data, legalName: legal };
+    }
     const taxId = typeof data.taxId === 'string' ? data.taxId.trim() : '';
     if (taxId) {
       const digits = taxId.replace(/[\s/]/g, '');

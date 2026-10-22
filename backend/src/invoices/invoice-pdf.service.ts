@@ -309,6 +309,13 @@ export async function generateInvoicePDF(
     // the page's right margin.
     const compAddr = company.address || {}
     const rightBlockWidth = rightMargin - leftMargin
+    // Tier 728: a country only where sender and recipient are in different
+    // countries — in full and in capitals, as DIN 5008 writes it („ÖSTERREICH“).
+    // A German letter to a German customer said „DE“ under both addresses.
+    const custCountry = countryCode((invoice.customer?.address || {}).country)
+    const ownCountry = countryCode(compAddr.country)
+    const showCountries = !!custCountry && !!ownCountry && custCountry !== ownCountry
+    const ownCountryLine = showCountries ? countryLine(compAddr.country) : ""
 
     if (showLogo) {
       // Top-right: company name + address stack, right-aligned.
@@ -325,8 +332,8 @@ export async function generateInvoicePDF(
         doc.text(`${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim(), leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
         cy += 12
       }
-      if (compAddr.country) {
-        doc.text(compAddr.country, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
+      if (ownCountryLine) {
+        doc.text(ownCountryLine, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
         cy += 12
       }
       // Optional contact line under the address. We pack up to
@@ -342,7 +349,7 @@ export async function generateInvoicePDF(
       let contactY = cy + 2
       // Row 1: phone · fax
       const phoneFax: string[] = []
-      if (company.phone) phoneFax.push(company.phone)
+      if (company.phone) phoneFax.push(`Tel.: ${company.phone}`) // Tier 728: as „Fax:“ beside it
       if ((company as any).fax) phoneFax.push(`Fax: ${(company as any).fax}`)
       if (phoneFax.length) {
         doc.text(phoneFax.join("  ·  "), leftMargin, contactY, { width: rightBlockWidth, align: "right", lineBreak: false })
@@ -371,8 +378,21 @@ export async function generateInvoicePDF(
         doc.text(`${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim(), leftMargin, cy, { lineBreak: false })
         cy += 12
       }
-      if (compAddr.country) {
-        doc.text(compAddr.country, leftMargin, cy, { lineBreak: false })
+      if (ownCountryLine) {
+        doc.text(ownCountryLine, leftMargin, cy, { lineBreak: false })
+      }
+      // Tier 728: the contact details — phone, fax, e-mail, website — stood
+      // only in the letterhead WITH a logo; without one (every company until
+      // it uploads one) they were nowhere. Top right, as in that layout.
+      doc.fontSize(8).font(fontFor('regular'))
+      let contactY = headerStartY + 4
+      const phoneFax: string[] = []
+      if (company.phone) phoneFax.push(`Tel.: ${company.phone}`)
+      if ((company as any).fax) phoneFax.push(`Fax: ${(company as any).fax}`)
+      for (const line of [phoneFax.join("  ·  "), company.email || "", (company as any).website || ""]) {
+        if (!line) continue
+        doc.text(line, leftMargin, contactY, { width: rightBlockWidth, align: "right", lineBreak: false })
+        contactY += 10
       }
     }
 
@@ -412,7 +432,7 @@ export async function generateInvoicePDF(
     if (compAddr.street) senderParts.push(compAddr.street)
     const pcCity = `${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim()
     if (pcCity) senderParts.push(pcCity)
-    if (compAddr.country) senderParts.push(compAddr.country)
+    if (ownCountryLine) senderParts.push(ownCountryLine)
     doc.fontSize(5).font(fontFor('regular')).text(senderParts.join(" · "), leftMargin, custY, { lineBreak: false })
     custY += 10
     // Customer block — font 11pt (was 10pt; +10% per user request).
@@ -432,8 +452,8 @@ export async function generateInvoicePDF(
       doc.text(`${custAddr.postalCode || ""} ${custAddr.city || ""}`.trim(), leftMargin, custY, { lineBreak: false })
       custY += 14
     }
-    if (custAddr.country) {
-      doc.text(custAddr.country, leftMargin, custY, { lineBreak: false })
+    if (showCountries) {
+      doc.text(countryLine(custAddr.country), leftMargin, custY, { lineBreak: false })
       custY += 14
     }
     if (invoice.customer.vatId) {
@@ -1046,39 +1066,36 @@ export async function generateInvoicePDF(
     const md = (company as any).managingDirector
     const other = (company as any).otherInfo
     const rightFooterWidth = rightMargin - leftMargin
-    let rightFooterY = footerY
-    if (reg) {
-      doc.text(`Handelsregister: ${reg}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
-      rightFooterY += 12
+    // Tier 728: the lines of the block, then where it starts — with the full
+    // name and the seat it can be taller than the four lines it was laid out
+    // for; it moves up rather than past the page's foot (which would start a
+    // page of its own).
+    const impressum: Array<{ text: string; step: number }> = []
+    // the full name as registered („… Lederwaren GmbH“) when the letterhead
+    // carries a shorter one — § 14 Abs. 4 Nr. 1 UStG asks for the full name,
+    // § 35a GmbHG / § 37a HGB for the legal form. It was entered in the
+    // settings and printed nowhere (only the e-invoices had it).
+    const legal = String((company as any).legalName || "").trim()
+    if (legal && legal !== String(company.name || "").trim()) impressum.push({ text: legal, step: 10 })
+    // …a registered company's seat (§ 35a GmbHG, § 125a / § 177a HGB, § 80
+    // AktG) — the city of its address unless „Sonstige Angaben“ say it
+    if (reg && compAddr.city && !/\bsitz\b/i.test(String(other || ""))) {
+      impressum.push({ text: `Sitz der Gesellschaft: ${compAddr.city}`, step: 10 })
     }
-    if (md) {
-      doc.text(`Geschäftsführer: ${md}`, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
-      rightFooterY += 12
-    }
+    if (reg) impressum.push({ text: `Handelsregister: ${reg}`, step: 10 })
+    if (md) impressum.push({ text: `Geschäftsführer: ${md}`, step: 10 })
+    // „Sonstige Angaben“ line by line, each at its own fixed Y: PDFKit's
+    // `lineBreak: true` with `align: "right"` drew the user's lines on top
+    // of each other.
     if (other) {
-      // Render the otherInfo block line-by-line. We split on
-      // the user-typed newlines and write each line with
-      // lineBreak:false + a fixed Y offset, instead of passing
-      // the whole multi-line string to doc.text with
-      // lineBreak:true.
-      //
-      // Why: PDFKit's `lineBreak: true` + `align: "right"` can
-      // collapse user-typed \n separators when the text width
-      // interacts with the right-alignment bounding box,
-      // causing the second and following lines to draw on top
-      // of the first line. Writing each line as a separate
-      // fixed-Y doc.text call is more predictable — each line
-      // has its own Y, right-edge, and no wrap logic to fight
-      // with the user's \n.
-      //
-      // 9pt per line keeps the right block at the same visual
-      // density as the left bank-info block (both 4 lines
-      // tall with 12pt reg/md + 9pt otherInfo).
-      const otherLines = other.split(/\r?\n/).filter((l: string) => l.length > 0)
-      for (const line of otherLines) {
-        doc.text(line, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
-        rightFooterY += 9
-      }
+      for (const line of String(other).split(/\r?\n/).filter((l: string) => l.length > 0)) impressum.push({ text: line, step: 9 })
+    }
+    const impressumHeight = impressum.reduce((h, l) => h + l.step, 0)
+    // the last line has to end above the page number band (page height − 22)
+    let rightFooterY = Math.min(footerY, doc.page.height - 24 - impressumHeight)
+    for (const line of impressum) {
+      doc.text(line.text, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
+      rightFooterY += line.step
     }
 
     // Tier 224: GiroCode (EPC QR code, EPC069-12 v2)
@@ -1116,7 +1133,9 @@ export async function generateInvoicePDF(
     // still print cleanly.
     if (qrBuffer && !noGiroCode) {
       const qrSize = 56
-      const qrX = 240
+      // Tier 728: left of the page number („Seite 1 von 1“, centred), which
+      // it overlapped at x = 240 — the bank lines end at about 175 pt
+      const qrX = 196
       const qrY = footerY
       doc.image(qrBuffer, qrX, qrY, { width: qrSize, height: qrSize })
     }
@@ -1364,4 +1383,24 @@ export function buildEpcQrPayload(
     unstructured,    // Unstructured remittance info
     '',              // Trailing empty line
   ].join('\n')
+}
+
+/** Tier 728: an address's country as an ISO code ("DE"), whatever was stored ("DE", "Deutschland") */
+export function countryCode(value: unknown): string {
+  const v = String(value ?? "").trim()
+  if (/^[A-Za-z]{2}$/.test(v)) return v.toUpperCase()
+  const names: Record<string, string> = { deutschland: "DE", germany: "DE", österreich: "AT", austria: "AT", schweiz: "CH", switzerland: "CH" }
+  return names[v.toLowerCase()] ?? v.toUpperCase()
+}
+
+/** Tier 728: the country line of an address, in German capitals (DIN 5008): "ÖSTERREICH" */
+export function countryLine(value: unknown): string {
+  const code = countryCode(value)
+  if (!/^[A-Z]{2}$/.test(code)) return String(value ?? "").trim().toUpperCase()
+  try {
+    const name = new Intl.DisplayNames(["de"], { type: "region" }).of(code)
+    return (name || code).toUpperCase()
+  } catch {
+    return code
+  }
 }

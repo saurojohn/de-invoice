@@ -2662,6 +2662,22 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 728 — the company's details on the invoice: entered as what they are, printed as the law asks
+
+The owner, 22.10.2026: „发票公司打印界面后台信息输入功能是否完善？“ Measured with every field of Einstellungen → Firmeninformationen filled in and an invoice rendered without a logo (the usual case at the start):
+
+- **The full legal name was printed nowhere.** `Company.legalName` — used by XRechnung (BT-27) and ZUGFeRD — was labelled „Rechtsform“ in the settings (`settings.legalName`), so a user would type „GmbH“ there and make that the e-invoice's seller name; the PDF printed only `name`. Now: label „Vollständiger Firmenname (laut Handelsregister)“ with a hint; `CompanyService.update` refuses a bare legal form (`isBareLegalForm`, rechtsform.ts); the PDF's right footer starts with it when it differs from the letterhead name (§ 14 Abs. 4 Nr. 1 UStG, § 35a GmbHG / § 37a HGB).
+- **The seat of a registered company** (§ 35a GmbHG, § 125a / § 177a HGB, § 80 AktG): printed as „Sitz der Gesellschaft: <city of the address>“ when there is a register entry, unless „Sonstige Angaben“ already say „Sitz“.
+- **Phone, fax, e-mail, website** were printed only in the letterhead with a logo; without one they are now top right (with a logo too: „Tel.:“ beside „Fax:“).
+- **Country lines**: „DE“ under both addresses of a domestic letter. A country is printed only where sender and recipient differ — in full and in capitals, DIN 5008 („ÖSTERREICH“, `countryLine`, `Intl.DisplayNames('de')`), in the letterhead, the sender line and the recipient block.
+- The GiroCode moved left (x 196): it sat under „Seite 1 von 1“. The right footer block is laid out from its lines and starts higher when they are many — below the page's foot it would start a page of its own.
+- **Settings**: a box „Pflichtangaben auf Rechnungen“ checked as you type (`companyMandatoryChecks`): name, address, Steuernummer/USt-IdNr. for every company; for GmbH, UG, AG, KGaA, GmbH & Co. KG, OHG, KG also the legal form in the name, the register entry and (not OHG/KG) the directors / the board. Hints and examples under register entry and directors. Not an issue block — the issue check (Tier 494) stays the UStG one.
+- Found on the way: `Input` always carried `w-full`, so a width passed in (`w-28` for the postcode, `w-16`, `w-24`, `w-44` elsewhere) lost in the stylesheet — the postcode took the row and the city was a stub. A passed `w-*` now replaces `w-full` (`max-w-*` keeps it).
+
+Not changed: a hydration warning on the invoice form (label ids set by the field-label helper, Tier 637) — older, unrelated.
+
+Spec `439-tier728-firmenangaben-auf-der-rechnung.sh` (7 checks fail on the code before); Playwright `company-details-tier728.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 727c — how much the hourly backups take
 
 The owner, 22.10.2026: „每小时备份，一段时间后数据体积会不会太大了？“ Measured on the test database (22 700 invoices, 511 000 audit rows, 10 700 test companies; 832 MB): the AuditLog is 618 MB of it; a dump is 106 MB with the image's gzip level 1, 90 MB with level 6. The daily / weekly / monthly dumps are hard links to an hourly one (the image's `/backup.sh`: `ln -vf`), so what is kept is about 24 hourly + 29 daily + 8 weekly full dumps at today's size plus the monthly ones at the size they had then. The files are one mirror (only changes copied), not a copy per hour.
