@@ -37,16 +37,36 @@ const lv = (label: string, value: unknown) => (value ? `${label}\u00A0${String(v
 export function businessLetterFooter(c: LetterCompany): string[] {
   const a = c.address || {}
   const name = String(c.legalName || c.name || '').trim()
-  const seat = c.registerEntry && a.city && !/\bsitz\b/i.test(String(c.otherInfo || '')) ? lv('Sitz der Gesellschaft:', a.city) : ''
   const bank = c.bankInfo || {}
   return [
     [name, a.street, [a.postalCode, a.city].filter(Boolean).join(' '), lv('Tel.', c.phone), lv('Fax', c.fax), c.email, c.website],
-    [seat, lv('Handelsregister:', c.registerEntry), lv('Geschäftsführer:', c.managingDirector)],
+    registerDetails(c),
     String(c.otherInfo || '').split(/\r?\n/),
     [lv('Steuer-Nr.', c.taxId), lv('USt-IdNr.', c.vatId), lv('Bank', bank.bankName), lv('IBAN', bank.iban), lv('BIC', bank.bic)],
   ]
     .map((parts) => parts.map((p) => String(p || '').trim()).filter(Boolean).join(' · '))
     .filter(Boolean)
+}
+
+/** Seat (for a registered company, unless the other details name it), register, directors */
+function registerDetails(c: LetterCompany): string[] {
+  const city = c.address?.city
+  const seat = c.registerEntry && city && !/\bsitz\b/i.test(String(c.otherInfo || '')) ? lv('Sitz der Gesellschaft:', city) : ''
+  return [seat, lv('Handelsregister:', c.registerEntry), lv('Geschäftsführer:', c.managingDirector)]
+}
+
+/**
+ * Tier 728g — the same details in the e-invoice: BT-33 „Seller additional
+ * legal information“ (UBL `CompanyLegalForm`, CII `Description`). Since 2025
+ * the e-invoice is the invoice a business receives; its XML prevails over
+ * the PDF it may be embedded in. Plain spaces (a no-break space is for a
+ * page's line breaks). Empty when there is nothing to state.
+ */
+export function sellerLegalInformation(c: LetterCompany): string {
+  return [...registerDetails(c), ...String(c.otherInfo || '').split(/\r?\n/)]
+    .map((p) => String(p || '').replace(/\u00A0/g, ' ').trim())
+    .filter(Boolean)
+    .join(' · ')
 }
 
 /** An address's country as an ISO code ("DE"), whatever was stored ("DE", "Deutschland") */

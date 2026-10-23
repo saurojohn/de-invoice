@@ -345,7 +345,7 @@ function postalAddress(a: { street?: string; postalCode?: string; city?: string;
 }
 
 /**
- * Seller (BG-4). TradePartyType order: ID, Name, SpecifiedLegalOrganization,
+ * Seller (BG-4). TradePartyType order: ID, Name, Description (BT-33), SpecifiedLegalOrganization,
  * DefinedTradeContact, PostalTradeAddress, URIUniversalCommunication,
  * SpecifiedTaxRegistration. Identifiers as in the UBL (Tier 412): register
  * entry as BT-30, a Steuernummer as BT-32 (FC) and — with no VAT id and no
@@ -360,6 +360,7 @@ function generateSellerParty(s: XRechnungData['supplier']): string {
   return `<ram:SellerTradeParty>
         ${!s.vatId && !s.registerEntry && s.taxId ? `<ram:ID>${escapeXml(s.taxId)}</ram:ID>` : ''}
         <ram:Name>${escapeXml(s.legalName || s.name)}</ram:Name>
+        ${s.legalInformation ? `<ram:Description>${escapeXml(s.legalInformation)}</ram:Description>` : ''}
         ${s.registerEntry ? `<ram:SpecifiedLegalOrganization>
           <ram:ID>${escapeXml(s.registerEntry)}</ram:ID>
           ${s.legalName && s.legalName !== s.name ? `<ram:TradingBusinessName>${escapeXml(s.name)}</ram:TradingBusinessName>` : ''}

@@ -36,6 +36,7 @@
 import { zeroRatedGround } from '../modules/invoice/zero-rated'
 import { invoiceTaxBreakdown } from '../modules/invoice/tax-breakdown'
 import { invoiceRecipientOf } from '../modules/customer/invoice-recipient'
+import { sellerLegalInformation } from '../common/business-letter'
 
 export interface XRechnungSupplier {
   name: string
@@ -51,6 +52,8 @@ export interface XRechnungSupplier {
   legalName?: string
   /** Tier 412: Handelsregister entry (BT-30) */
   registerEntry?: string
+  /** Tier 728g: seat, register, directors, other details (BT-33) */
+  legalInformation?: string
   /** German Leitweg-ID for B2G invoices (e.g. "04011000-1234512345-06") */
   leitwegId?: string
   /** Electronic address (Peppol-ID or email-as-EM) */
@@ -374,6 +377,7 @@ function generateSupplierParty(s: XRechnungSupplier): string {
       <cac:PartyLegalEntity>
         <cbc:RegistrationName>${escapeXml(s.legalName || s.name)}</cbc:RegistrationName>
         ${s.registerEntry ? `<cbc:CompanyID>${escapeXml(s.registerEntry)}</cbc:CompanyID>` : ''}
+        ${s.legalInformation ? `<cbc:CompanyLegalForm>${escapeXml(s.legalInformation)}</cbc:CompanyLegalForm>` : ''}
       </cac:PartyLegalEntity>
       <!-- BR-DE-2/6/7 (XRechnung Pflicht): Seller Contact (BG-6).
            Pflicht: Name + Telefon (BT-42) + E-Mail (BT-43).
@@ -1089,6 +1093,8 @@ export function transformToXRechnungData(
     taxId?: string | null
     legalName?: string | null
     registerEntry?: string | null
+    managingDirector?: string | null
+    otherInfo?: string | null
     address: any
     bankInfo?: any
     /** v2: Leitweg-ID stored in settings (B2G use) */
@@ -1172,6 +1178,7 @@ export function transformToXRechnungData(
       taxId: company.taxId || undefined,
       legalName: company.legalName || undefined,
       registerEntry: company.registerEntry || undefined,
+      legalInformation: sellerLegalInformation(company) || undefined,
       leitwegId: company.leitwegId || undefined,
       bankInfo: company.bankInfo || undefined,
       email: company.email || undefined,

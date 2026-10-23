@@ -2662,6 +2662,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 728g — the e-invoice carries the company's register details (BT-33)
+
+Since 2025 the e-invoice is the invoice a business receives, and its XML prevails over the PDF it may sit in. The PDF stated seat, register court and number, managing directors and the other details (Tier 728); the XRechnung (UBL) and the ZUGFeRD XML (CII) carried the register number as an identifier (BT-30) and nothing else — BT-33 „Seller additional legal information“ was empty.
+
+- `common/business-letter.ts`: `sellerLegalInformation(company)` — seat (for a registered company, unless the other details name it), register, directors, other details, joined by „ · “, plain spaces; the PDF footer and BT-33 share `registerDetails()`.
+- UBL: `cac:PartyLegalEntity/cbc:CompanyLegalForm` (after `CompanyID`); CII: `ram:SellerTradeParty/ram:Description` (after `Name`). Left out when there is nothing to state.
+- Both pass KoSIT (UBL: XSD + EN 16931 + XRechnung; CII: EN 16931) and Mustang (spec 417).
+
+Found on the way: the local test backend no longer reloads on `backend/src` edits — after an edit, `up.sh` before a spec run, or the spec tests the old code.
+
+Spec `442-tier728g-e-rechnung-rechtliche-angaben.sh` (the 2 BT-33 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 728e / 728f — the statement order test; the settings preview an invoice
 
 - **728e**: CI run 39857043891 (Tier 728b/c) — 1 failed, 1089 passed: `customer-statement.spec.ts` still expected the statement page's newest-first default that Tier 728b changed to chronological (the memory rule „changed text: grep every spec“ applies to changed defaults too). The spec now expects ASC by default and DESC on request, waits for the re-sorted table instead of a fixed 500 ms, and reads the API from `E2E_API_URL` (it had `localhost:3001` written in, so it could only run in CI).
