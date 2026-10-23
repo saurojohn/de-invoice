@@ -44,6 +44,9 @@ interface Invoice {
   exchangeRateSource?: string | null
   /** Tier 729: bank_transfer when unset */
   paymentMethod?: string | null
+  /** Tier 729b */
+  orderReference?: string | null
+  buyerReference?: string | null
   eurTotal?: string | number | null
   subtotal: string
   totalVat: string
@@ -2324,6 +2327,13 @@ export default function InvoiceDetailPage() {
                   <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.deliveryDate")}</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div>{nonFiscal ? docTypeLabel(invoice.type) : invoice.type}</div></div>
+                {/* Tier 729b: the customer's references */}
+                {invoice.orderReference && (
+                  <div data-testid="invoice-order-reference"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoice.orderReference").replace(/\s*[(（][^()（）]*[)）]$/, "")}</div><div>{invoice.orderReference}</div></div>
+                )}
+                {invoice.buyerReference && (
+                  <div data-testid="invoice-buyer-reference"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoice.buyerReference").replace(/\s*[(（][^()（）]*[)）]$/, "")}</div><div>{invoice.buyerReference}</div></div>
+                )}
                 {/* Tier 729: how the customer pays — kept since then, a transfer when unset */}
                 {!["QU", "DN"].includes(invoice.type) && (
                   <div data-testid="invoice-payment-method">

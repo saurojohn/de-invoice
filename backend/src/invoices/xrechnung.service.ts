@@ -164,6 +164,8 @@ export interface XRechnungData {
   creditNote?: boolean
   /** Tier 729: how the customer pays (invoice/payment-method.ts); a transfer when unset */
   paymentMethod?: string | null
+  /** Tier 729b: the customer's order number (BT-13) */
+  orderReference?: string
   /** BG-3: the invoice a credit note refers to */
   precedingInvoice?: { number: string; issueDate?: string }
 }
@@ -266,6 +268,11 @@ export function generateXRechnung(data: XRechnungData): string {
     <cbc:StartDate>${formatXRechnungDate(data.servicePeriodStart ?? data.deliveryDate ?? data.issueDate)}</cbc:StartDate>
     <cbc:EndDate>${formatXRechnungDate(data.servicePeriodEnd ?? data.deliveryDate ?? data.issueDate)}</cbc:EndDate>
   </cac:InvoicePeriod>
+${data.orderReference ? `
+  <!-- Tier 729b: BT-13, the customer's order number -->
+  <cac:OrderReference>
+    <cbc:ID>${escapeXml(data.orderReference)}</cbc:ID>
+  </cac:OrderReference>` : ''}
 ${data.precedingInvoice ? `
   <!-- BG-3: the invoice this document refers to -->
   <cac:BillingReference>
@@ -1082,6 +1089,8 @@ export function transformToXRechnungData(
     buyerReference?: string | null
     /** Tier 729 */
     paymentMethod?: string | null
+    /** Tier 729b */
+    orderReference?: string | null
     /** v2: per-invoice Skonto (cash discount) */
     skontoPercent?: any
     skontoDays?: any
@@ -1200,6 +1209,7 @@ export function transformToXRechnungData(
       ? { taxCurrency: { code: 'EUR', taxTotal: Math.round(Math.abs(Number((invoice as any).eurTotalVat)) * 100) / 100 } }
       : {}),
     buyerReference,
+    orderReference: invoice.orderReference?.trim() || undefined,
     supplier: {
       name: company.name,
       address: company.address || {},

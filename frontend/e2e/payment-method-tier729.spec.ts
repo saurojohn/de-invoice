@@ -2,13 +2,14 @@
  * Tier 729 — the invoice form's „Zahlungsart“ is kept: chosen on the form,
  * shown on the invoice's page, opened again in the editor.
  * It was dropped by the service; every invoice was a transfer.
- * (The PDF and the e-invoices: backend spec 444.)
+ * Tier 729b — „Ihre Bestellnummer“ and „Ihre Referenz“: there were no fields.
+ * (The PDF and the e-invoices: backend specs 444, 445.)
  */
 import { test, expect } from "@playwright/test"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
-test("payment method: chosen, kept, shown", async ({ page, request }) => {
+test("payment method and the customer references: entered, kept, shown", async ({ page, request }) => {
   const tag = `t729-${Date.now()}`
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {
     data: { email: `${tag}@example.test`, password: "Tier729-e2e", companyName: `${tag} GmbH` },
@@ -46,6 +47,8 @@ test("payment method: chosen, kept, shown", async ({ page, request }) => {
   await page.getByTestId("item-quantity").first().fill("1")
   await page.getByTestId("item-unit-price").first().fill("100")
   await page.getByTestId("invoice-payment-method").selectOption("cash")
+  await page.getByTestId("invoice-order-reference").fill("4500012345")
+  await page.getByTestId("invoice-buyer-reference").fill("Projekt Nord")
   await page.getByRole("button", { name: "Rechnung erstellen", exact: true }).click()
   await page.waitForURL(/\/dashboard\/invoices(\?|$)/, { timeout: 30_000 })
 
@@ -56,10 +59,14 @@ test("payment method: chosen, kept, shown", async ({ page, request }) => {
   const id: string = rows[0].id
   const saved = await (await request.get(`${API}/api/v1/invoices/${id}?${q}`, { headers: H })).json()
   expect(saved.paymentMethod).toBe("cash")
+  expect([saved.orderReference, saved.buyerReference]).toEqual(["4500012345", "Projekt Nord"])
   await page.goto(`/dashboard/invoices/${id}`)
   await expect(page.getByTestId("invoice-payment-method")).toContainText("Barzahlung", { timeout: 60_000 })
+  await expect(page.getByTestId("invoice-order-reference")).toContainText("4500012345")
+  await expect(page.getByTestId("invoice-buyer-reference")).toContainText("Projekt Nord")
 
   // the editor opens with it
   await page.goto(`/dashboard/invoices/create?id=${id}`)
   await expect(page.getByTestId("invoice-payment-method")).toHaveValue("cash", { timeout: 60_000 })
+  await expect(page.getByTestId("invoice-order-reference")).toHaveValue("4500012345")
 })

@@ -564,6 +564,20 @@ export async function generateInvoicePDF(
       doc.text("Kundennummer:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
       detailsRow++
     }
+    // Tier 729b: the customer's references — many pay only an invoice that
+    // names their order
+    // A value wider than the room right of the labels (≈ 76 pt) gets a row of
+    // its own below its label, across the whole block.
+    const references = [
+      { label: "Ihre Bestellnr.:", value: String((invoice as any).orderReference || "").trim() },
+      { label: "Ihre Referenz:", value: String((invoice as any).buyerReference || "").trim() },
+    ]
+      .filter((r) => r.value)
+      .map((r) => ({ ...r, ownRow: doc.fontSize(10).widthOfString(r.value) > 76 }))
+    for (const r of references) {
+      doc.text(r.label, detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
+      detailsRow += r.ownRow ? 2 : 1
+    }
     doc.text("Ausstellungsdatum:", detailsLabelX, detailsY + detailsRow * 15, { width: 100, align: "right", lineBreak: false })
     detailsRow++
     // Tier 492 — the Leistungsdatum is a mandatory invoice field (§ 14 Abs. 4
@@ -608,6 +622,21 @@ export async function generateInvoicePDF(
     detailsRow = 0
     if (customerNumber) {
       doc.text(customerNumber, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+      detailsRow++
+    }
+    for (const r of references) {
+      if (!r.ownRow) {
+        doc.text(r.value, detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })
+        detailsRow++
+        continue
+      }
+      // its own row: up to 230 pt wide, smaller where that is not enough
+      detailsRow++
+      const room = 230
+      let size = 10
+      while (size > 7 && doc.fontSize(size).widthOfString(r.value) > room) size -= 0.5
+      doc.text(r.value, rightMargin - room, detailsY + detailsRow * 15 + (10 - size) / 2, { width: room, align: "right", lineBreak: false, ellipsis: true })
+      doc.fontSize(10)
       detailsRow++
     }
     doc.text(formatDate(invoice.issueDate), detailsValueX, detailsY + detailsRow * 15, { width: detailsValueWidth, align: "right", lineBreak: false })

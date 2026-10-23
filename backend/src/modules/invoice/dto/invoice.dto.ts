@@ -141,6 +141,12 @@ export class CreateInvoiceDto {
   @IsIn(INVOICE_PAYMENT_METHODS, { message: `paymentMethod muss eines von ${INVOICE_PAYMENT_METHODS.join(', ')} sein` })
   @IsOptional()
   paymentMethod?: string;
+
+  // Tier 729b: „Ihre Bestellnummer“ (BT-13) and „Ihre Referenz“ (BT-10)
+  @IsString() @IsOptional() @MaxLength(100, { message: 'orderReference: höchstens 100 Zeichen' })
+  orderReference?: string;
+  @IsString() @IsOptional() @MaxLength(100, { message: 'buyerReference: höchstens 100 Zeichen' })
+  buyerReference?: string;
   
   @IsString()
   @IsOptional()
@@ -245,6 +251,9 @@ export class UpdateInvoiceDto {
   @StrictNumber() @IsNumber() @IsOptional() @Min(-99999999.9999) @Max(99999999.9999) discountAmount?: number;
   @StrictNumber() @IsNumber() @IsOptional() paymentTerms?: number;
   @IsIn(INVOICE_PAYMENT_METHODS, { message: `paymentMethod muss eines von ${INVOICE_PAYMENT_METHODS.join(', ')} sein` }) @IsOptional() paymentMethod?: string;
+  // Tier 729b: see CreateInvoiceDto
+  @IsString() @IsOptional() @MaxLength(100, { message: 'orderReference: höchstens 100 Zeichen' }) orderReference?: string;
+  @IsString() @IsOptional() @MaxLength(100, { message: 'buyerReference: höchstens 100 Zeichen' }) buyerReference?: string;
   @IsString() @IsOptional() templateType?: string;
   // Tier 52: Skonto (cash discount for early payment).
   // Both fields are optional; if both are set the PDF

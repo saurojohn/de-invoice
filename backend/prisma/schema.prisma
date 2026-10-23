@@ -904,6 +904,11 @@ model Invoice {
   // cash, ec_card, credit_card, paypal (invoice/payment-method.ts). The form
   // offered it and the service dropped it.
   paymentMethod    String?
+  // Tier 729b: the customer's references — „Ihre Bestellnummer“ (BT-13) and
+  // „Ihre Referenz“ (BT-10, a public client's Leitweg-ID). The XRechnung read
+  // invoice.buyerReference, which did not exist: BT-10 was the customer's name.
+  orderReference   String?
+  buyerReference   String?
   // DATEV Kostenstelle 1 + Kostenträger. Optional. The
   // user can stamp each invoice with a cost center
   // (e.g. "100" = Vertrieb, "200" = Werkstatt) and an

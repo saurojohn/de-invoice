@@ -249,6 +249,9 @@ function CreateInvoicePageInner() {
     // distinct values the company has ever stamped). The user
     // can also type a new value; the e2e 67 covers that path.
     costCenter: "",
+    // Tier 729b: the customer's references (BT-13 / BT-10)
+    orderReference: "",
+    buyerReference: "",
     costObject: "",
     // Tier 118: multi-currency. The invoice can be
     // issued in any ISO 4217 currency the company has
@@ -355,6 +358,8 @@ function CreateInvoicePageInner() {
         paymentTerms: inv.paymentTerms ?? 0,
         language: inv.language || getDateLocale(),
         costCenter: inv.costCenter || '',
+        orderReference: inv.orderReference || '',
+        buyerReference: inv.buyerReference || '',
         costObject: inv.costObject || '',
         reverseCharge: Boolean(inv.reverseCharge),
         euTransaction: Boolean(inv.euTransaction),
@@ -1650,6 +1655,34 @@ function CreateInvoicePageInner() {
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("invoice.exchangeRateHint")}</p>
                   </div>
                 )}
+
+                {/* Tier 729b: the customer's order number and reference — on the
+                    PDF and in the e-invoice (BT-13 / BT-10) */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("invoice.orderReference")}</label>
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={form.orderReference}
+                    onChange={(e) => setForm({ ...form, orderReference: e.target.value })}
+                    placeholder={t("invoice.orderReferencePlaceholder")}
+                    className="w-full h-10 border rounded-md px-3 dark:bg-gray-800 dark:border-gray-700"
+                    data-testid="invoice-order-reference"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("invoice.buyerReference")}</label>
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={form.buyerReference}
+                    onChange={(e) => setForm({ ...form, buyerReference: e.target.value })}
+                    placeholder={t("invoice.buyerReferencePlaceholder")}
+                    className="w-full h-10 border rounded-md px-3 dark:bg-gray-800 dark:border-gray-700"
+                    data-testid="invoice-buyer-reference"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("invoice.buyerReferenceHint")}</p>
+                </div>
 
                 {/* Tier 39: DATEV Kostenstelle 1 + Kostenträger
                     stamps. The costCenter dropdown is populated

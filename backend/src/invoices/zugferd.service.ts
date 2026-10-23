@@ -310,7 +310,10 @@ export function generateZUGFeRDXml(
     <ram:ApplicableHeaderTradeAgreement>
       <ram:BuyerReference>${escapeXml(data.buyerReference)}</ram:BuyerReference>
       ${generateSellerParty(data.supplier)}
-      ${generateBuyerParty(data.customer)}
+      ${generateBuyerParty(data.customer)}${data.orderReference ? `
+      <ram:BuyerOrderReferencedDocument>
+        <ram:IssuerAssignedID>${escapeXml(data.orderReference)}</ram:IssuerAssignedID>
+      </ram:BuyerOrderReferencedDocument>` : ''}
     </ram:ApplicableHeaderTradeAgreement>
     <ram:ApplicableHeaderTradeDelivery>${shipTo}
       <!-- BT-72 Leistungsdatum; the issue date when none was recorded, as the

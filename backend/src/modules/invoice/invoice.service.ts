@@ -792,6 +792,8 @@ export class InvoiceService {
         notes: dto.notes,
         templateType: dto.templateType || 'standard',
         paymentMethod: storedPaymentMethod(dto.paymentMethod), // Tier 729
+        orderReference: dto.orderReference?.trim() || null, // Tier 729b
+        buyerReference: dto.buyerReference?.trim() || null,
         subtotal: finalSubtotal,
         totalVat: finalTotalVat,
         total: finalTotal,
@@ -1293,6 +1295,8 @@ export class InvoiceService {
         language: dto.language ?? undefined,
         templateType: dto.templateType ?? undefined,
         paymentMethod: dto.paymentMethod === undefined ? undefined : storedPaymentMethod(dto.paymentMethod), // Tier 729
+        orderReference: dto.orderReference === undefined ? undefined : dto.orderReference.trim() || null, // Tier 729b
+        buyerReference: dto.buyerReference === undefined ? undefined : dto.buyerReference.trim() || null,
         // Tier 39: costCenter + costObject. Trim + coerce
         // empty strings to null so the column reads "null"
         // rather than "" (matches the create flow).
@@ -1663,6 +1667,8 @@ export class InvoiceService {
       notes: src.notes ?? undefined,
       templateType: src.templateType ?? undefined,
       paymentMethod: src.paymentMethod ?? undefined, // Tier 729
+      orderReference: src.orderReference ?? undefined, // Tier 729b
+      buyerReference: src.buyerReference ?? undefined,
       ...(to === 'INV' || to === 'OC'
         ? {
             discountPercent: percent > 0 ? percent : undefined,

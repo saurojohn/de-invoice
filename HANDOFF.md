@@ -2662,6 +2662,17 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 729b — the customer's order number and reference on the invoice
+
+Measured on the invoice form: no field for „Ihre Bestellnummer“ or „Ihre Referenz“ — many businesses pay only an invoice that names their order. The XRechnung read `invoice.buyerReference`, a column that did not exist: BT-10 was the customer's name; BT-13 was never written.
+
+- `Invoice.orderReference` (BT-13) and `Invoice.buyerReference` (BT-10), migration `20261023000002_invoice_references`; trimmed, empty = none, at most 100 characters (400); create, update and conversions keep them.
+- PDF: „Ihre Bestellnr.:“ / „Ihre Referenz:“ under the customer number. The details' value column has ≈ 76 pt beside the labels; a wider value gets a row of its own below its label (up to 230 pt, smaller font, then an ellipsis) — at first a long order number ran over its label.
+- UBL `cac:OrderReference/cbc:ID` (after `InvoicePeriod`); CII `BuyerOrderReferencedDocument/IssuerAssignedID` (after the buyer). BT-10 falls back as before (the customer's Leitweg-ID, else the name) when the invoice has none. KoSIT accepts both.
+- The form (`invoice-order-reference`, `invoice-buyer-reference`, in „Grundinformationen“) and the invoice page show them.
+
+Spec `445-tier729b-bestellnummer-und-referenz.sh` (10 checks fail on the code before); Playwright `payment-method-tier729.spec.ts` fills both.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 729 — the invoice's „Zahlungsart“ is kept and printed
 
 The owner, 23.10.2026: „开发票端界面功能是否完善？“ Measured on the invoice form: „Zahlungsart“ (Überweisung, Barzahlung, EC-Karte, Kreditkarte, PayPal) was dropped by the service („paymentMethod is on Payment“). A cash sale printed a GiroCode to transfer the money and went out as a SEPA transfer (code 58, the IBAN) in its e-invoice.
