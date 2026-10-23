@@ -42,6 +42,8 @@ interface Invoice {
   // Tier 652: the rate (1 EUR = … of the currency), where it is from, the total in euros
   exchangeRate?: string | number | null
   exchangeRateSource?: string | null
+  /** Tier 729: bank_transfer when unset */
+  paymentMethod?: string | null
   eurTotal?: string | number | null
   subtotal: string
   totalVat: string
@@ -2322,6 +2324,23 @@ export default function InvoiceDetailPage() {
                   <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.deliveryDate")}</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
                 <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div>{nonFiscal ? docTypeLabel(invoice.type) : invoice.type}</div></div>
+                {/* Tier 729: how the customer pays — kept since then, a transfer when unset */}
+                {!["QU", "DN"].includes(invoice.type) && (
+                  <div data-testid="invoice-payment-method">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{t("invoice.paymentMethod")}</div>
+                    <div>
+                      {invoice.paymentMethod === "cash"
+                        ? t("paymentMethod.cash")
+                        : invoice.paymentMethod === "ec_card"
+                          ? "EC-Karte (girocard)"
+                          : invoice.paymentMethod === "credit_card"
+                            ? t("paymentMethod.creditCard")
+                            : invoice.paymentMethod === "paypal"
+                              ? t("paymentMethod.paypal")
+                              : t("paymentMethod.bankTransfer")}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.currency")}</div>
                   <div>{invoice.currency}</div>

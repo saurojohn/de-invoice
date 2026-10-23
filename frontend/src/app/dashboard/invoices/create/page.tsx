@@ -2371,6 +2371,7 @@ function CreateInvoicePageInner() {
                   <select
                     className="w-full h-10 border rounded-md px-3"
                     value={form.paymentMethod}
+                    data-testid="invoice-payment-method"
                     onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
                   >
                     <option value="bank_transfer">{t("paymentMethod.bankTransfer")}</option>

@@ -37,6 +37,7 @@ import { zeroRatedGround } from '../modules/invoice/zero-rated'
 import { invoiceTaxBreakdown } from '../modules/invoice/tax-breakdown'
 import { invoiceRecipientOf } from '../modules/customer/invoice-recipient'
 import { sellerLegalInformation } from '../common/business-letter'
+import { storedPaymentMethod } from '../modules/invoice/payment-method'
 
 export interface XRechnungSupplier {
   name: string
@@ -161,6 +162,8 @@ export interface XRechnungData {
    * with a negative unit price, which EN 16931 does not allow (BR-27).
    */
   creditNote?: boolean
+  /** Tier 729: how the customer pays (invoice/payment-method.ts); a transfer when unset */
+  paymentMethod?: string | null
   /** BG-3: the invoice a credit note refers to */
   precedingInvoice?: { number: string; issueDate?: string }
 }
@@ -278,7 +281,7 @@ ${data.precedingInvoice ? `
 
   ${t.categories.includes('K') ? generateDelivery(data.customer) : ''}
 
-  ${generatePaymentMeans(data.supplier)}
+  ${generatePaymentMeans(data.supplier, data.paymentMethod)}
 
   ${generatePaymentTerms(data)}
 
@@ -474,7 +477,30 @@ function generateDelivery(c: XRechnungCustomer): string {
   </cac:Delivery>`
 }
 
-function generatePaymentMeans(s: XRechnungSupplier): string {
+/**
+ * Tier 729: BT-81 / BT-82 by how the customer pays (UNTDID 4461). A transfer
+ * names the account (BG-17); cash, a card or PayPal name only the means. A
+ * card is „ZZZ“ (mutually defined) with its name: 54 / 55 require the card's
+ * number (BG-18, BR-DE-24), which an invoice does not know.
+ */
+export function paymentMeansOf(method: string | null | undefined): { code: string; text: string } | null {
+  switch (storedPaymentMethod(method)) {
+    case 'cash': return { code: '10', text: 'Barzahlung' }
+    case 'ec_card': return { code: 'ZZZ', text: 'EC-Karte (girocard)' }
+    case 'credit_card': return { code: 'ZZZ', text: 'Kreditkarte' }
+    case 'paypal': return { code: '68', text: 'PayPal' }
+    default: return null
+  }
+}
+
+function generatePaymentMeans(s: XRechnungSupplier, method?: string | null): string {
+  const other = paymentMeansOf(method)
+  if (other) {
+    return `<!-- Zahlungsmittel / Payment Means (Tier 729: no transfer) -->
+  <cac:PaymentMeans>
+    <cbc:PaymentMeansCode name="${escapeXml(other.text)}">${other.code}</cbc:PaymentMeansCode>
+  </cac:PaymentMeans>`
+  }
   if (!s.bankInfo?.iban) return ''
   return `<!-- Zahlungsmittel / Payment Means (BR-16: gültiges IBAN-Format) -->
   <cac:PaymentMeans>
@@ -1054,6 +1080,8 @@ export function transformToXRechnungData(
     notes?: string | null
     /** v2: customer-supplied buyer reference (Leitweg-ID for B2G) */
     buyerReference?: string | null
+    /** Tier 729 */
+    paymentMethod?: string | null
     /** v2: per-invoice Skonto (cash discount) */
     skontoPercent?: any
     skontoDays?: any
@@ -1224,6 +1252,7 @@ export function transformToXRechnungData(
     reverseCharge: invoice.reverseCharge === true,
     hasDocumentDiscount:
       Number(invoice.discountPercent ?? 0) > 0 || Number(invoice.discountAmount ?? 0) > 0,
+    paymentMethod: storedPaymentMethod(invoice.paymentMethod),
     taxBreakdown: invoiceTaxBreakdown({
       total: invoice.total,
       totalVat: invoice.totalVat,

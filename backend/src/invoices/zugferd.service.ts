@@ -5,6 +5,7 @@ import {
   generateXRechnung,
   mapUnitToUNECE,
   normalizeCountryCode,
+  paymentMeansOf,
   transformToXRechnungData,
   vatEasScheme,
   XRechnungData,
@@ -256,7 +257,13 @@ export function generateZUGFeRDXml(
       </ram:ActualDeliverySupplyChainEvent>` : '';
 
   const iban = data.supplier.bankInfo?.iban?.replace(/\s+/g, '');
-  const paymentMeans = iban ? `
+  // Tier 729: cash, a card or PayPal name only the means (BT-81 / BT-82)
+  const otherMeans = paymentMeansOf(data.paymentMethod);
+  const paymentMeans = otherMeans ? `
+      <ram:SpecifiedTradeSettlementPaymentMeans>
+        <ram:TypeCode>${otherMeans.code}</ram:TypeCode>
+        <ram:Information>${escapeXml(otherMeans.text)}</ram:Information>
+      </ram:SpecifiedTradeSettlementPaymentMeans>` : iban ? `
       <ram:SpecifiedTradeSettlementPaymentMeans>
         <ram:TypeCode>58</ram:TypeCode>
         <ram:PayeePartyCreditorFinancialAccount>

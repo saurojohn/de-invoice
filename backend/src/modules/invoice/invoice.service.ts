@@ -1,4 +1,5 @@
 import { assertPeriodOpen } from '../reports/filed-period';
+import { storedPaymentMethod } from './payment-method'
 import { withKeyLock } from '../../common/key-lock';
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -790,6 +791,7 @@ export class InvoiceService {
         eurTotal,
         notes: dto.notes,
         templateType: dto.templateType || 'standard',
+        paymentMethod: storedPaymentMethod(dto.paymentMethod), // Tier 729
         subtotal: finalSubtotal,
         totalVat: finalTotalVat,
         total: finalTotal,
@@ -1290,6 +1292,7 @@ export class InvoiceService {
         currency: dto.currency ? effectiveCurrency : undefined,
         language: dto.language ?? undefined,
         templateType: dto.templateType ?? undefined,
+        paymentMethod: dto.paymentMethod === undefined ? undefined : storedPaymentMethod(dto.paymentMethod), // Tier 729
         // Tier 39: costCenter + costObject. Trim + coerce
         // empty strings to null so the column reads "null"
         // rather than "" (matches the create flow).
@@ -1297,11 +1300,11 @@ export class InvoiceService {
           dto.costCenter === undefined ? undefined : (dto.costCenter.trim() || null),
         costObject:
           dto.costObject === undefined ? undefined : (dto.costObject.trim() || null),
-        // paymentTerms is on Customer, paymentMethod is on Payment
-        // — neither lives on Invoice. The frontend form keeps them
-        // for UX continuity with the create flow, but Invoice's
-        // checked UpdateInput rejects them with "Unknown argument".
-        // Drop them here so the update actually persists.
+        // paymentTerms is on Customer — not on Invoice. The frontend form
+        // keeps it for UX continuity with the create flow, but Invoice's
+        // checked UpdateInput rejects it with "Unknown argument". Drop it
+        // here so the update actually persists. (paymentMethod is the
+        // invoice's own since Tier 729, above.)
         discountPercent: dto.discountPercent ?? undefined,
         discountAmount: dto.discountAmount ?? undefined,
         // Tier 52: Skonto (cash discount for early
@@ -1659,6 +1662,7 @@ export class InvoiceService {
       language: src.language ?? undefined,
       notes: src.notes ?? undefined,
       templateType: src.templateType ?? undefined,
+      paymentMethod: src.paymentMethod ?? undefined, // Tier 729
       ...(to === 'INV' || to === 'OC'
         ? {
             discountPercent: percent > 0 ? percent : undefined,

@@ -6,6 +6,7 @@ import * as fs from "fs"
 import QRCode from "qrcode"
 import { invoiceTaxBreakdown } from "../modules/invoice/tax-breakdown"
 import { countryCode, countryLine, directorsLabel } from '../common/business-letter'
+import { paymentMethodLabel } from '../modules/invoice/payment-method'
 
 interface Customer {
   name: string
@@ -513,7 +514,9 @@ export async function generateInvoicePDF(
     const noPayment = docType === "QU" || docType === "DN"
     // Tier 614: an order confirmation states the agreed terms (payment terms,
     // Skonto) but asks for no money yet — no GiroCode
-    const noGiroCode = noPayment || docType === "OC"
+    // Tier 729: paid in cash, by card or PayPal — no transfer code to scan
+    const paidOtherwise = paymentMethodLabel((invoice as any).paymentMethod)
+    const noGiroCode = noPayment || docType === "OC" || paidOtherwise != null
     const money = (n: number) => (hidePrices ? "" : formatCurrency(n))
     const titleOffsetY = 42  // 3 rows down
     const titleY = middleRowY + titleOffsetY
@@ -990,7 +993,9 @@ export async function generateInvoicePDF(
     // with Skonto a second line named another date. A credit note asked to
     // be paid.
     const hasSkonto = (invoice as any).skontoPercent != null && (invoice as any).skontoDays != null
-    const paymentLine = noPayment ? null : paymentTermsLine(invoice, renderConfig?.paymentTermsText, docType, hasSkonto)
+    const termsLine = noPayment ? null : paymentTermsLine(invoice, renderConfig?.paymentTermsText, docType, hasSkonto)
+    // Tier 729: how the customer pays, when not by transfer
+    const paymentLine = noPayment || !paidOtherwise ? termsLine : [termsLine, `Zahlungsart: ${paidOtherwise}.`].filter(Boolean).join(" ")
     if (paymentLine) {
       doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
         .text(paymentLine, leftMargin, footerY - 42, { lineBreak: false })

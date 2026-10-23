@@ -1,6 +1,7 @@
 import { StrictNumber } from '../../../common/strict-number'
 import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength, IsInt, Min, Max, IsIn, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
+import { INVOICE_PAYMENT_METHODS } from '../payment-method';
 
 import { StrictBoolean } from '../../../common/strict-boolean'
 export class InvoiceItemDto {
@@ -136,7 +137,8 @@ export class CreateInvoiceDto {
   @IsOptional()
   paymentTerms?: number;
 
-  @IsString()
+  // Tier 729: stored and printed (invoice/payment-method.ts) — it was dropped
+  @IsIn(INVOICE_PAYMENT_METHODS, { message: `paymentMethod muss eines von ${INVOICE_PAYMENT_METHODS.join(', ')} sein` })
   @IsOptional()
   paymentMethod?: string;
   
@@ -242,7 +244,7 @@ export class UpdateInvoiceDto {
   @StrictNumber() @IsNumber() @IsOptional() @Min(0) @Max(100) discountPercent?: number;
   @StrictNumber() @IsNumber() @IsOptional() @Min(-99999999.9999) @Max(99999999.9999) discountAmount?: number;
   @StrictNumber() @IsNumber() @IsOptional() paymentTerms?: number;
-  @IsString() @IsOptional() paymentMethod?: string;
+  @IsIn(INVOICE_PAYMENT_METHODS, { message: `paymentMethod muss eines von ${INVOICE_PAYMENT_METHODS.join(', ')} sein` }) @IsOptional() paymentMethod?: string;
   @IsString() @IsOptional() templateType?: string;
   // Tier 52: Skonto (cash discount for early payment).
   // Both fields are optional; if both are set the PDF

@@ -2662,6 +2662,19 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 729 — the invoice's „Zahlungsart“ is kept and printed
+
+The owner, 23.10.2026: „开发票端界面功能是否完善？“ Measured on the invoice form: „Zahlungsart“ (Überweisung, Barzahlung, EC-Karte, Kreditkarte, PayPal) was dropped by the service („paymentMethod is on Payment“). A cash sale printed a GiroCode to transfer the money and went out as a SEPA transfer (code 58, the IBAN) in its e-invoice.
+
+- `Invoice.paymentMethod` (migration `20261023000001_invoice_payment_method`), NULL = a transfer; `invoice/payment-method.ts` (values, `storedPaymentMethod`, `paymentMethodLabel`); the DTOs accept only those values (400 otherwise); create, update and the conversion between document types keep it.
+- PDF: „Zahlungsart: Barzahlung.“ after the payment terms, no GiroCode when not by transfer.
+- XRechnung / ZUGFeRD (`paymentMeansOf`): cash 10, PayPal 68, a card **ZZZ** with its name (BT-82) — 54 / 55 need the card's number (BG-18, BR-DE-24-a: KoSIT rejects them), which an invoice does not know; no account (BG-17) unless by transfer. All KoSIT-accepted.
+- The invoice page shows it (`invoice-payment-method`); the editor opens with it.
+
+Found on the way: the test DB `tmp-ci-pg` has no migration history (`prisma migrate deploy` refuses: schema not empty) — a new column goes in with the migration's SQL through `docker exec … psql`.
+
+Spec `444-tier729-zahlungsart.sh` (10 checks fail on the code before); Playwright `payment-method-tier729.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 728i — an AG names its Vorstand, not „Geschäftsführer“
 
 § 80 AktG: an AG's business letters name the members of the Vorstand (the chair as such) and the chair of the supervisory board; an AG has no Geschäftsführer. The invoice, the Mahnung, the statement, the e-mail signature and BT-33 printed „Geschäftsführer: …“ for every legal form.

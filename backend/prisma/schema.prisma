@@ -900,6 +900,10 @@ model Invoice {
   // customer portal — purely internal.
   internalNotesRel InvoiceInternalNote[]
   templateType     String                @default("standard")
+  // Tier 729: how the customer pays — bank_transfer (NULL reads the same),
+  // cash, ec_card, credit_card, paypal (invoice/payment-method.ts). The form
+  // offered it and the service dropped it.
+  paymentMethod    String?
   // DATEV Kostenstelle 1 + Kostenträger. Optional. The
   // user can stamp each invoice with a cost center
   // (e.g. "100" = Vertrieb, "200" = Werkstatt) and an
