@@ -909,6 +909,10 @@ model Invoice {
   // invoice.buyerReference, which did not exist: BT-10 was the customer's name.
   orderReference   String?
   buyerReference   String?
+  // Tier 729c: the company's own template (InvoiceTemplate) chosen for this
+  // invoice; NULL = the company's default. templateConfigFor() read it, but
+  // the column did not exist — only the default could be used.
+  templateId       String?
   // DATEV Kostenstelle 1 + Kostenträger. Optional. The
   // user can stamp each invoice with a cost center
   // (e.g. "100" = Vertrieb, "200" = Werkstatt) and an

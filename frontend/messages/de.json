@@ -2112,7 +2112,10 @@
     "simplified": "Vereinfacht",
     "simplifiedDesc": "Ohne Logo, kompakter Stil",
     "compact": "Kompakt",
-    "compactDesc": "Weniger Weißraum, reduzierte Spalten"
+    "compactDesc": "Weniger Weißraum, reduzierte Spalten",
+    "own": "Eigene Vorlage (Farben, Schrift, Texte)",
+    "ownDefault": "Standardvorlage des Unternehmens: {name}",
+    "ownHint": "Die Vorlagen verwalten Sie unter „Rechnungsvorlagen“. Oben wählen Sie das Layout."
   },
   "theme": {
     "label": "Theme",

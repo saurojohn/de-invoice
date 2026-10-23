@@ -147,6 +147,9 @@ export class CreateInvoiceDto {
   orderReference?: string;
   @IsString() @IsOptional() @MaxLength(100, { message: 'buyerReference: höchstens 100 Zeichen' })
   buyerReference?: string;
+  // Tier 729c: the company's own template for this invoice; "" = the default
+  @IsString() @IsOptional() @MaxLength(64)
+  templateId?: string;
   
   @IsString()
   @IsOptional()
@@ -254,6 +257,7 @@ export class UpdateInvoiceDto {
   // Tier 729b: see CreateInvoiceDto
   @IsString() @IsOptional() @MaxLength(100, { message: 'orderReference: höchstens 100 Zeichen' }) orderReference?: string;
   @IsString() @IsOptional() @MaxLength(100, { message: 'buyerReference: höchstens 100 Zeichen' }) buyerReference?: string;
+  @IsString() @IsOptional() @MaxLength(64) templateId?: string;
   @IsString() @IsOptional() templateType?: string;
   // Tier 52: Skonto (cash discount for early payment).
   // Both fields are optional; if both are set the PDF

@@ -532,6 +532,7 @@ export class InvoiceService {
     // form's credit note took any reference or none: −119 € of revenue with
     // no invoice behind it.
     const creditedInvoice = type === 'CN' ? await this.creditableInvoice(companyId, dto.referenceInvoiceId) : null;
+    const templateId = await this.ownTemplateId(companyId, dto.templateId); // Tier 729c
     // Tier 480 / 487: no VAT for a Kleinunternehmer (§ 19), an igL, § 13b.
     dto = await this.withoutVatWhereNoneIsCharged(companyId, dto);
 
@@ -794,6 +795,7 @@ export class InvoiceService {
         paymentMethod: storedPaymentMethod(dto.paymentMethod), // Tier 729
         orderReference: dto.orderReference?.trim() || null, // Tier 729b
         buyerReference: dto.buyerReference?.trim() || null,
+        templateId: templateId ?? null, // Tier 729c
         subtotal: finalSubtotal,
         totalVat: finalTotalVat,
         total: finalTotal,
@@ -1108,6 +1110,18 @@ export class InvoiceService {
     return { ...dto, items: dto.items.map((i) => ({ ...i, vatRate: 0 })) }
   }
 
+  /**
+   * Tier 729c: the company's own template for an invoice — one of its own;
+   * empty is the default (null), not given is unchanged (undefined)
+   */
+  private async ownTemplateId(companyId: string, v: string | null | undefined): Promise<string | null | undefined> {
+    if (v === undefined) return undefined
+    if (!v) return null
+    const t = await this.prisma.invoiceTemplate.findFirst({ where: { id: v, companyId }, select: { id: true } })
+    if (!t) throw new BadRequestException('Rechnungsvorlage nicht gefunden.')
+    return t.id
+  }
+
   async update(id: string, companyId: string, dto: UpdateInvoiceDto) {
     // Tier 534: one at a time per invoice
     return withKeyLock(`invoice:${id}`, () => this.updateLocked(id, companyId, dto));
@@ -1297,6 +1311,7 @@ export class InvoiceService {
         paymentMethod: dto.paymentMethod === undefined ? undefined : storedPaymentMethod(dto.paymentMethod), // Tier 729
         orderReference: dto.orderReference === undefined ? undefined : dto.orderReference.trim() || null, // Tier 729b
         buyerReference: dto.buyerReference === undefined ? undefined : dto.buyerReference.trim() || null,
+        templateId: await this.ownTemplateId(companyId, dto.templateId), // Tier 729c
         // Tier 39: costCenter + costObject. Trim + coerce
         // empty strings to null so the column reads "null"
         // rather than "" (matches the create flow).
@@ -1669,6 +1684,8 @@ export class InvoiceService {
       paymentMethod: src.paymentMethod ?? undefined, // Tier 729
       orderReference: src.orderReference ?? undefined, // Tier 729b
       buyerReference: src.buyerReference ?? undefined,
+      // Tier 729c: the template, if it still exists (else the default)
+      templateId: src.templateId && (await this.prisma.invoiceTemplate.count({ where: { id: src.templateId, companyId } })) ? src.templateId : undefined,
       ...(to === 'INV' || to === 'OC'
         ? {
             discountPercent: percent > 0 ? percent : undefined,

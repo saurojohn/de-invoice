@@ -122,6 +122,8 @@ function CreateInvoicePageInner() {
   // can refresh to re-pull), which matches the read-only
   // metadata nature of the dropdown.
   const [costCenters, setCostCenters] = useState<string[]>([])
+  // Tier 729c: the company's own templates (Rechnungsvorlagen), to choose one per invoice
+  const [ownTemplates, setOwnTemplates] = useState<Array<{ id: string; name: string; isDefault?: boolean }>>([])
   // Tier 156: Bemerkungstext templates. Loaded once
   // on mount; rendered as a dropdown next to the notes
   // input. Selecting one appends the rendered text to
@@ -252,6 +254,8 @@ function CreateInvoicePageInner() {
     // Tier 729b: the customer's references (BT-13 / BT-10)
     orderReference: "",
     buyerReference: "",
+    // Tier 729c: "" = the company's default template
+    templateId: "",
     costObject: "",
     // Tier 118: multi-currency. The invoice can be
     // issued in any ISO 4217 currency the company has
@@ -360,6 +364,7 @@ function CreateInvoicePageInner() {
         costCenter: inv.costCenter || '',
         orderReference: inv.orderReference || '',
         buyerReference: inv.buyerReference || '',
+        templateId: inv.templateId || '',
         costObject: inv.costObject || '',
         reverseCharge: Boolean(inv.reverseCharge),
         euTransaction: Boolean(inv.euTransaction),
@@ -452,6 +457,16 @@ function CreateInvoicePageInner() {
       console.error('Invoice create dropdowns fetch failed:', err)
     })
   }, [router, cloneFromId, editId, getDateLocale, t])
+
+  // Tier 729c: the company's own templates — none listed when the user may not
+  // see them (company.update) or there are none: the default applies
+  useEffect(() => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    apiGet<Array<{ id: string; name: string; isDefault?: boolean }>>(`/api/v1/invoice-templates?companyId=${companyId}`)
+      .then((list) => setOwnTemplates(Array.isArray(list) ? list : []))
+      .catch(() => setOwnTemplates([]))
+  }, [])
 
   // Tier 176 (frontend): pre-fill the USt-Behandlung radio
   // and the dueDate from Company.defaultVatMode +
@@ -1943,8 +1958,8 @@ function CreateInvoicePageInner() {
                 <div
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     templateType === "standard"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray dark:border-gray-700-200 dark:border-gray-700 hover:border-blue-300 dark:border-blue-700"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40"
+                      : "border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700"
                   }`}
                   onClick={() => setTemplateType("standard")}
                 >
@@ -1958,8 +1973,8 @@ function CreateInvoicePageInner() {
                 <div
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     templateType === "simplified"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray dark:border-gray-700-200 dark:border-gray-700 hover:border-blue-300 dark:border-blue-700"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40"
+                      : "border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700"
                   }`}
                   onClick={() => setTemplateType("simplified")}
                 >
@@ -1973,8 +1988,8 @@ function CreateInvoicePageInner() {
                 <div
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     templateType === "compact"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray dark:border-gray-700-200 dark:border-gray-700 hover:border-blue-300 dark:border-blue-700"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40"
+                      : "border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700"
                   }`}
                   onClick={() => setTemplateType("compact")}
                 >
@@ -1986,6 +2001,25 @@ function CreateInvoicePageInner() {
                   </div>
                 </div>
               </div>
+              {ownTemplates.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium mb-1">{t("template.own")}</label>
+                  <select
+                    className="w-full h-10 border rounded-md px-3 dark:bg-gray-800 dark:border-gray-700"
+                    value={form.templateId}
+                    onChange={(e) => setForm({ ...form, templateId: e.target.value })}
+                    data-testid="invoice-own-template"
+                  >
+                    <option value="">
+                      {t("template.ownDefault", { name: ownTemplates.find((x) => x.isDefault)?.name || t("template.standard") })}
+                    </option>
+                    {ownTemplates.map((x) => (
+                      <option key={x.id} value={x.id}>{x.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("template.ownHint")}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

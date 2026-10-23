@@ -2112,7 +2112,10 @@
     "simplified": "简化模板",
     "simplifiedDesc": "无Logo，更紧凑的风格",
     "compact": "紧凑模板",
-    "compactDesc": "减少空白，减少列"
+    "compactDesc": "减少空白，减少列",
+    "own": "自定义模板（颜色、字体、文字）",
+    "ownDefault": "公司默认模板：{name}",
+    "ownHint": "模板在“发票模板”中管理。上方选择的是版式。"
   },
   "theme": {
     "label": "主题",

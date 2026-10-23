@@ -2662,6 +2662,16 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 729c — a template of the company's own, chosen per invoice
+
+Measured: the company's templates (colours, font, texts) could not be chosen for an invoice — only the default applied. `templateConfigFor()` read `invoice.templateId`, a column that did not exist; the form's „Rechnungsvorlage“ offered the three built-in layouts only.
+
+- `Invoice.templateId` (migration `20261023000003_invoice_template_id`), NULL = the company's default; only one of the company's own (400 otherwise); `""` back to the default.
+- A template deleted later: the invoice renders with the default (the resolver falls back), and a conversion (quote → invoice) takes the template over only if it still exists — it would have failed with 400.
+- The form: below the layout tiles, „Eigene Vorlage (Farben, Schrift, Texte)“ (`invoice-own-template`), listed when the company has templates and the user may read them (`company.update`). The tiles' classes were broken (`border-gray dark:border-gray-700-200`) and the chosen one had no dark style.
+
+Spec `446-tier729c-vorlage-je-rechnung.sh` (6 checks fail on the code before); Playwright `payment-method-tier729.spec.ts` (second test).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 729b — the customer's order number and reference on the invoice
 
 Measured on the invoice form: no field for „Ihre Bestellnummer“ or „Ihre Referenz“ — many businesses pay only an invoice that names their order. The XRechnung read `invoice.buyerReference`, a column that did not exist: BT-10 was the customer's name; BT-13 was never written.

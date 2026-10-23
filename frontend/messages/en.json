@@ -2112,7 +2112,10 @@
     "simplified": "Simplified",
     "simplifiedDesc": "No logo, more compact style",
     "compact": "Compact",
-    "compactDesc": "Less whitespace, fewer columns"
+    "compactDesc": "Less whitespace, fewer columns",
+    "own": "Own template (colours, font, texts)",
+    "ownDefault": "The company's default template: {name}",
+    "ownHint": "Manage templates under \"Invoice templates\". Above you choose the layout."
   },
   "theme": {
     "label": "Theme",
