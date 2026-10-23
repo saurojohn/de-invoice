@@ -144,6 +144,19 @@ function companyMandatoryChecks(form: {
   return checks
 }
 
+/**
+ * Tier 728h — what an XRechnung needs beyond the invoice's legal details: the
+ * seller's contact with phone (BR-DE-6) and e-mail (BR-DE-7). Without them the
+ * XRechnung is rejected (public clients, many businesses).
+ */
+function eInvoiceChecks(form: { phone: string; email: string }): Array<{ key: string; ok: boolean; law: string }> {
+  const filled = (v: string | null | undefined) => !!v && v.trim() !== ""
+  return [
+    { key: "phone", ok: filled(form.phone), law: "XRechnung BR-DE-6" },
+    { key: "email", ok: filled(form.email), law: "XRechnung BR-DE-7" },
+  ]
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const { t, getDateLocale } = useI18n()
@@ -946,6 +959,14 @@ export default function SettingsPage() {
                       {checks.map((c) => (
                         <li key={c.key} data-testid={`company-mandatory-${c.key}`} data-ok={c.ok ? "true" : "false"}>
                           {c.ok ? "✓" : "✗"} {t(`settings.mandatory_${c.key}`)} <span className="opacity-70">({c.law})</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="font-medium mt-2 mb-1">{t("settings.einvoiceHeading")}</div>
+                    <ul className="space-y-0.5">
+                      {eInvoiceChecks(form).map((c) => (
+                        <li key={c.key} data-testid={`company-einvoice-${c.key}`} data-ok={c.ok ? "true" : "false"}>
+                          {c.ok ? "✓" : "✗"} {t(`settings.einvoice_${c.key}`)} <span className="opacity-70">({c.law})</span>
                         </li>
                       ))}
                     </ul>

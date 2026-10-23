@@ -2662,6 +2662,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 728h — the settings say what an XRechnung needs besides: phone and e-mail
+
+The mandatory-details box (Tier 728) checked what § 14 UStG and the business-letter rules ask; an XRechnung also needs the seller's contact with phone (BR-DE-6) and e-mail (BR-DE-7) — without a phone KoSIT rejects it (spec 442, section 4). The box now lists „Zusätzlich für E-Rechnungen (XRechnung): Telefonnummer, E-Mail-Adresse“ (`company-einvoice-phone` / `-email`, `eInvoiceChecks()`); the legal count („n fehlen“) is unchanged. Playwright `company-details-tier728.spec.ts` checks both items.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 728g — the e-invoice carries the company's register details (BT-33)
 
 Since 2025 the e-invoice is the invoice a business receives, and its XML prevails over the PDF it may sit in. The PDF stated seat, register court and number, managing directors and the other details (Tier 728); the XRechnung (UBL) and the ZUGFeRD XML (CII) carried the register number as an identifier (BT-30) and nothing else — BT-33 „Seller additional legal information“ was empty.

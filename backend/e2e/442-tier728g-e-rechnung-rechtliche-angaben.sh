@@ -76,4 +76,9 @@ AS PUT "/api/v1/companies/$C?companyId=$C" '{"registerEntry":"","managingDirecto
 fetch "/api/v1/invoices/$I/xrechnung?companyId=$C" "$WORK/x2.xml" > /dev/null
 assert_eq "nothing to state: no BT-33, no seat" "$(grep -c 'CompanyLegalForm\|Sitz der' "$WORK/x2.xml")" "0"
 
+note "=== 4. why the settings ask for phone and e-mail (Tier 728h) ==="
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"phone":""}'
+fetch "/api/v1/invoices/$I/xrechnung?companyId=$C" "$WORK/x3.xml" > /dev/null
+assert_eq "without a phone number KoSIT rejects the XRechnung (BR-DE-6)" "$(kosit "$WORK/x3.xml" | grep -o 'REJECT\|BR-DE-6' | sort -u | tr '\n' ' ')" "BR-DE-6 REJECT "
+
 summary

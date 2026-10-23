@@ -45,6 +45,9 @@ test("company details: the legal name's label, the mandatory details, postcode a
   await expect(item("legalForm")).toHaveAttribute("data-ok", "false")
   await expect(item("register")).toHaveAttribute("data-ok", "false")
   await expect(item("directors")).toHaveAttribute("data-ok", "false")
+  // Tier 728h: what an XRechnung needs besides — the seller's phone and e-mail
+  await expect(page.getByTestId("company-einvoice-phone")).toHaveAttribute("data-ok", "false")
+  await expect(page.getByTestId("company-einvoice-email")).toHaveAttribute("data-ok", "false")
 
   // the field is the full name — labelled so (it said „Rechtsform“)
   const legal = page.getByTestId("settings-legal-name")
