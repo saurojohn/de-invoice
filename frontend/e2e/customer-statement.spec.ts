@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 20: Customer statement (Kontoauszug) UI.
  *
@@ -95,7 +97,7 @@ async function injectLocalStorage(page: any) {
 test.beforeAll(async ({ request }) => {
   if (!testTokens) return
   const res = await request.get(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens.companyId}`,
+    `${API}/api/v1/customers?companyId=${testTokens.companyId}`,
     {
       headers: {
         "x-user-id": testTokens.userId,
@@ -134,7 +136,7 @@ test.beforeAll(async ({ request }) => {
   const dueDate = new Date(Date.UTC(2026, 5, 15, 12, 0, 0)).toISOString()
   for (let i = 0; i < 2; i++) {
     await request.post(
-      `http://localhost:3001/api/v1/invoices?companyId=${testTokens.companyId}`,
+      `${API}/api/v1/invoices?companyId=${testTokens.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -319,7 +321,7 @@ test.describe("Customer statement UI", () => {
     ).toBeVisible({ timeout: 5000 })
   })
 
-  test("order toggle re-sorts lines (DESC default, ASC opt-in)", async ({ page }) => {
+  test("order toggle re-sorts lines (ASC default, DESC opt-in)", async ({ page }) => {
     await injectLocalStorage(page)
     // Tier 293: pin the date range via URL search params
     // (the page now reads ?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -341,7 +343,8 @@ test.describe("Customer statement UI", () => {
       page.locator('[data-testid="statement-to-input"]'),
     ).toHaveValue("2026-12-31", { timeout: 15_000 })
 
-    // Generate + wait for lines (DESC default).
+    // Generate + wait for lines (ASC default — chronological since Tier 728b,
+    // as the PDF and the e-mailed statement under „Anfangsbestand“).
     // The wait-for-loading-state pattern (same as
     // test 130) prevents racing with the in-flight
     // request — statement-result mounts before
@@ -365,30 +368,10 @@ test.describe("Customer statement UI", () => {
       page.locator('[data-testid="statement-line"]').first(),
     ).toBeVisible({ timeout: 30_000 })
 
-    // Capture the first line's date under DESC (newest first)
-    const descFirstDate = await page
-      .locator('[data-testid="statement-line"]')
-      .first()
-      .locator("td")
-      .first()
-      .innerText()
-
-    // Switch to ASC (oldest first)
-    await page.locator('[data-testid="statement-order-asc"]').click()
     await expect(
       page.locator('[data-testid="statement-order-asc"]'),
     ).toHaveClass(/bg-blue-600/)
-
-    // Trigger re-fetch + wait for the new order to land
-    await page.locator('[data-testid="statement-generate-button"]').click()
-    // The DESC lines disappear (new fetch replaces the table),
-    // then ASC lines appear. Wait for any line to be visible.
-    await page.waitForTimeout(500)
-    await expect(
-      page.locator('[data-testid="statement-line"]').first(),
-    ).toBeVisible({ timeout: 15000 })
-
-    // First line under ASC should be older than DESC first
+    // Capture the first line's date under ASC (oldest first)
     const ascFirstDate = await page
       .locator('[data-testid="statement-line"]')
       .first()
@@ -396,12 +379,35 @@ test.describe("Customer statement UI", () => {
       .first()
       .innerText()
 
+    // Switch to DESC (newest first)
+    await page.locator('[data-testid="statement-order-desc"]').click()
+    await expect(
+      page.locator('[data-testid="statement-order-desc"]'),
+    ).toHaveClass(/bg-blue-600/)
+
+    // Trigger re-fetch + wait for the new order to land
+    await page.locator('[data-testid="statement-generate-button"]').click()
     // German date format dd.mm.yyyy — convert to comparable ISO
     const toIso = (g: string): string => {
       const m = g.match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
       return m ? `${m[3]}-${m[2]}-${m[1]}` : g
     }
-    expect(toIso(ascFirstDate) < toIso(descFirstDate)).toBeTruthy()
+    // The new fetch replaces the table: the first line under DESC is newer
+    // than the first under ASC
+    await expect
+      .poll(
+        async () =>
+          toIso(
+            await page
+              .locator('[data-testid="statement-line"]')
+              .first()
+              .locator("td")
+              .first()
+              .innerText(),
+          ) > toIso(ascFirstDate),
+        { timeout: 15_000 },
+      )
+      .toBe(true)
   })
 
   test("batch export modal opens + downloads ZIP", async ({ page }) => {
