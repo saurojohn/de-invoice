@@ -580,7 +580,11 @@ export default function SettingsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!companyId) return
+    await saveCompany()
+  }
+
+  const saveCompany = async (): Promise<boolean> => {
+    if (!companyId) return false
 
     setSaving(true)
     try {
@@ -641,11 +645,40 @@ export default function SettingsPage() {
       }
       // Tier 649: "erfolgreich gespeichert" was shown as an error (red)
       toast.success(t("settings.saved"))
+      return true
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : t("settings.saveError")
       toast.error(msg)
+      return false
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Tier 728f: what an invoice looks like with these details — saved first,
+  // then a sample invoice in the company's default template (or the standard
+  // look) through POST /invoice-templates/preview
+  const [previewing, setPreviewing] = useState(false)
+  const previewInvoice = async () => {
+    if (!(await saveCompany())) return
+    setPreviewing(true)
+    try {
+      const templates = await apiGet<{ isDefault?: boolean; configJson?: unknown }[]>(
+        `/api/v1/invoice-templates?companyId=${companyId}`,
+      )
+      const def = Array.isArray(templates) ? templates.find((x) => x.isDefault) : undefined
+      const res = await apiFetch(`/api/v1/invoice-templates/preview?companyId=${companyId}`, {
+        method: "POST",
+        body: JSON.stringify({ configJson: def?.configJson ?? {} }),
+        headers: { "Content-Type": "application/json" },
+      })
+      const url = URL.createObjectURL(await res.blob())
+      window.open(url, "_blank")
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("invoiceTemplates.previewError"))
+    } finally {
+      setPreviewing(false)
     }
   }
 
@@ -2009,6 +2042,15 @@ export default function SettingsPage() {
               {saving
                 ? t("common.saving")
                 : t("common.save")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={previewInvoice}
+              disabled={saving || previewing}
+              data-testid="settings-invoice-preview"
+            >
+              {t("settings.saveAndPreview")}
             </Button>
             <Button
               type="button"

@@ -2662,6 +2662,11 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 728e / 728f — the statement order test; the settings preview an invoice
+
+- **728e**: CI run 39857043891 (Tier 728b/c) — 1 failed, 1089 passed: `customer-statement.spec.ts` still expected the statement page's newest-first default that Tier 728b changed to chronological (the memory rule „changed text: grep every spec“ applies to changed defaults too). The spec now expects ASC by default and DESC on request, waits for the re-sorted table instead of a fixed 500 ms, and reads the API from `E2E_API_URL` (it had `localhost:3001` written in, so it could only run in CI).
+- **728f**: the settings had no way to see what an invoice looks like with the details just entered. „Speichern und Rechnungsvorschau (PDF)“ (`settings-invoice-preview`) saves the form (`saveCompany()`, split out of `handleSubmit`) and renders a sample invoice in the company's default template — or the standard look — through `POST /invoice-templates/preview` (Tier 728d). Same permission as saving (`company.update`). Playwright `company-preview-tier728f.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 728d — the template preview shows the company's own invoice with the template's settings; „Logo anzeigen“ is honoured
 
 The owner, 22.10.2026: „继续发票公司打印界面后台信息输入功能完善“ — the invoice templates (Rechnungsvorlagen), measured:

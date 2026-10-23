@@ -1824,6 +1824,7 @@
     "managingDirectorHint": "全部总经理（AG 为董事会成员），写全名。",
     "mandatoryMissing": "发票必备信息：缺 {n} 项",
     "mandatoryComplete": "发票必备信息：齐全",
+    "saveAndPreview": "保存并预览发票 (PDF)",
     "mandatory_name": "公司完整名称",
     "mandatory_address": "地址（街道、邮编、城市）",
     "mandatory_taxNumber": "税号或增值税识别号",

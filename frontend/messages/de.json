@@ -1824,6 +1824,7 @@
     "managingDirectorHint": "Alle Geschäftsführer (bei der AG: der Vorstand) mit Vor- und Nachnamen.",
     "mandatoryMissing": "Pflichtangaben auf Rechnungen: {n} fehlen",
     "mandatoryComplete": "Pflichtangaben auf Rechnungen: vollständig",
+    "saveAndPreview": "Speichern und Rechnungsvorschau (PDF)",
     "mandatory_name": "Vollständiger Name des Unternehmens",
     "mandatory_address": "Anschrift (Straße, PLZ, Ort)",
     "mandatory_taxNumber": "Steuernummer oder USt-IdNr.",

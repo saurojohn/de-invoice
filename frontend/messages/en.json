@@ -1824,6 +1824,7 @@
     "managingDirectorHint": "All managing directors (for an AG: the board) with first and last names.",
     "mandatoryMissing": "Mandatory invoice details: {n} missing",
     "mandatoryComplete": "Mandatory invoice details: complete",
+    "saveAndPreview": "Save and preview an invoice (PDF)",
     "mandatory_name": "Full company name",
     "mandatory_address": "Address (street, postcode, city)",
     "mandatory_taxNumber": "Tax number or VAT ID",
