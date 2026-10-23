@@ -1821,7 +1821,7 @@
     "datevAccount_privateDeposit": "Privateinlagen (1890)",
     "legalNameHint": "Nur nötig, wenn er vom Firmennamen oben abweicht. Erscheint auf Rechnungen und E-Rechnungen. Die Rechtsform selbst wählen Sie unter „Rechnungseinstellungen“.",
     "registerEntryHint": "Registergericht und Nummer — Pflicht für GmbH, UG, AG, OHG, KG und eingetragene Kaufleute.",
-    "managingDirectorHint": "Alle Geschäftsführer (bei der AG: der Vorstand) mit Vor- und Nachnamen.",
+    "managingDirectorHint": "Alle Geschäftsführer mit Vor- und Nachnamen. Bei der AG: alle Vorstandsmitglieder (den Vorsitzenden als solchen bezeichnet) und den Vorsitzenden des Aufsichtsrats (§ 80 AktG) — auf der Rechnung steht dann „Vorstand:“. Bei der GmbH & Co. KG: die Geschäftsführer der Komplementär-GmbH; deren Firma, Sitz und Register unter „Sonstige Angaben“ (§ 177a HGB).",
     "mandatoryMissing": "Pflichtangaben auf Rechnungen: {n} fehlen",
     "mandatoryComplete": "Pflichtangaben auf Rechnungen: vollständig",
     "saveAndPreview": "Speichern und Rechnungsvorschau (PDF)",

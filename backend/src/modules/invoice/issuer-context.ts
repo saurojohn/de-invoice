@@ -6,6 +6,7 @@ export function issuerContext(company: any, templateConfig?: InvoiceRenderConfig
     name: company?.name || '',
     defaultVatMode: company?.defaultVatMode ?? null, // Tier 482
     legalName: company?.legalName || undefined,
+    rechtsform: company?.rechtsform ?? (company?.settings as any)?.rechtsform ?? null, // Tier 728i
     address: company?.address || {},
     vatId: company?.vatId || undefined,
     taxId: company?.taxId || undefined,

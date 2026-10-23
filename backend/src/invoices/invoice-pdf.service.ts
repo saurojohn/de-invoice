@@ -5,7 +5,7 @@ import PDFKit from "pdfkit"
 import * as fs from "fs"
 import QRCode from "qrcode"
 import { invoiceTaxBreakdown } from "../modules/invoice/tax-breakdown"
-import { countryCode, countryLine } from '../common/business-letter'
+import { countryCode, countryLine, directorsLabel } from '../common/business-letter'
 
 interface Customer {
   name: string
@@ -1106,7 +1106,7 @@ export async function generateInvoicePDF(
       impressum.push({ text: `Sitz der Gesellschaft: ${compAddr.city}`, step: 10 })
     }
     if (reg) impressum.push({ text: `Handelsregister: ${reg}`, step: 10 })
-    if (md) impressum.push({ text: `Geschäftsführer: ${md}`, step: 10 })
+    if (md) impressum.push({ text: `${directorsLabel(company as any)} ${md}`, step: 10 })
     // „Sonstige Angaben“ line by line, each at its own fixed Y: PDFKit's
     // `lineBreak: true` with `align: "right"` drew the user's lines on top
     // of each other.

@@ -1,3 +1,5 @@
+import { resolveRechtsform } from '../modules/company/rechtsform'
+
 /**
  * Tier 728 / 728b — what every business letter of a company carries, and how
  * a country is written on an address.
@@ -13,6 +15,8 @@
 export interface LetterCompany {
   name?: string | null
   legalName?: string | null
+  /** Tier 728i: whose names the directors' line gives — „Vorstand“ for an AG */
+  rechtsform?: string | null
   address?: { street?: string | null; postalCode?: string | null; city?: string | null; country?: string | null } | null
   phone?: string | null
   fax?: string | null
@@ -52,7 +56,20 @@ export function businessLetterFooter(c: LetterCompany): string[] {
 function registerDetails(c: LetterCompany): string[] {
   const city = c.address?.city
   const seat = c.registerEntry && city && !/\bsitz\b/i.test(String(c.otherInfo || '')) ? lv('Sitz der Gesellschaft:', city) : ''
-  return [seat, lv('Handelsregister:', c.registerEntry), lv('Geschäftsführer:', c.managingDirector)]
+  return [seat, lv('Handelsregister:', c.registerEntry), lv(directorsLabel(c), c.managingDirector)]
+}
+
+/**
+ * Tier 728i — the label of the directors' line by legal form: a GmbH, UG,
+ * GmbH & Co. KG has Geschäftsführer (§ 35a GmbHG, § 177a HGB); an AG a
+ * Vorstand (§ 80 AktG — it printed „Geschäftsführer“); a KGaA its
+ * persönlich haftende Gesellschafter (§ 278 AktG).
+ */
+export function directorsLabel(c: Pick<LetterCompany, 'rechtsform' | 'legalName' | 'name'>): string {
+  const { rechtsform } = resolveRechtsform({ rechtsform: c.rechtsform, legalName: c.legalName, name: c.name })
+  if (rechtsform === 'AG') return 'Vorstand:'
+  if (rechtsform === 'KGaA') return 'Persönlich haftende Gesellschafter:'
+  return 'Geschäftsführer:'
 }
 
 /**

@@ -98,6 +98,7 @@ export interface CustomerStatement {
     registerEntry?: string | null
     managingDirector?: string | null
     otherInfo?: string | null
+    rechtsform?: string | null
   }
   customer: {
     id: string
@@ -523,7 +524,7 @@ export class CustomerStatementService {
       where: { id: companyId },
       select: {
         name: true, legalName: true, address: true, taxId: true, vatId: true, bankInfo: true,
-        phone: true, fax: true, email: true, website: true, registerEntry: true, managingDirector: true, otherInfo: true, // Tier 728b
+        phone: true, fax: true, email: true, website: true, registerEntry: true, managingDirector: true, otherInfo: true, rechtsform: true, // Tier 728b, 728i
       },
     })
 
@@ -541,6 +542,7 @@ export class CustomerStatementService {
         registerEntry: company?.registerEntry ?? null,
         managingDirector: company?.managingDirector ?? null,
         otherInfo: company?.otherInfo ?? null,
+        rechtsform: company?.rechtsform ?? null,
       },
       customer: {
         id: customer.id,

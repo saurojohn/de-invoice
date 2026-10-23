@@ -562,6 +562,7 @@ export class ReminderController {
         registerEntry: company.registerEntry,
         managingDirector: company.managingDirector,
         otherInfo: company.otherInfo,
+        rechtsform: company.rechtsform, // Tier 728i
       },
       daysOverdue,
       werktageOverdue,

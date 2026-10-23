@@ -1821,7 +1821,7 @@
     "datevAccount_privateDeposit": "Owner contributions (1890)",
     "legalNameHint": "Only needed if it differs from the company name above. Printed on invoices and e-invoices. Choose the legal form itself under “Invoice settings”.",
     "registerEntryHint": "Register court and number — required for GmbH, UG, AG, OHG, KG and registered merchants.",
-    "managingDirectorHint": "All managing directors (for an AG: the board) with first and last names.",
+    "managingDirectorHint": "All managing directors with first and last name. For an AG: all members of the board (the chair named as such) and the chair of the supervisory board (§ 80 AktG) — the invoice then says \"Vorstand:\". For a GmbH & Co. KG: the managing directors of the general partner GmbH; its name, seat and register under \"Other Impressum Info\" (§ 177a HGB).",
     "mandatoryMissing": "Mandatory invoice details: {n} missing",
     "mandatoryComplete": "Mandatory invoice details: complete",
     "saveAndPreview": "Save and preview an invoice (PDF)",

@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 728i — an AG names its Vorstand, not „Geschäftsführer“
+
+§ 80 AktG: an AG's business letters name the members of the Vorstand (the chair as such) and the chair of the supervisory board; an AG has no Geschäftsführer. The invoice, the Mahnung, the statement, the e-mail signature and BT-33 printed „Geschäftsführer: …“ for every legal form.
+
+- `business-letter.ts` `directorsLabel(company)`: „Vorstand:“ for an AG, „Persönlich haftende Gesellschafter:“ for a KGaA (§ 278 AktG), else „Geschäftsführer:“ — by `resolveRechtsform` (the setting, else the name's suffix). The invoice PDF's footer, `businessLetterFooter` and `sellerLegalInformation` use it; `rechtsform` is passed by `issuerContext`, the reminder paths, the statement and the e-mail signature.
+- The settings' hint on the directors' field says what to enter for an AG (Vorstand and the supervisory board's chair) and for a GmbH & Co. KG (the Komplementär-GmbH's directors; its name, seat and register under „Sonstige Angaben“, § 177a HGB).
+
+Spec `443-tier728i-vorstand-der-ag.sh` (4 checks fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 728h — the settings say what an XRechnung needs besides: phone and e-mail
 
 The mandatory-details box (Tier 728) checked what § 14 UStG and the business-letter rules ask; an XRechnung also needs the seller's contact with phone (BR-DE-6) and e-mail (BR-DE-7) — without a phone KoSIT rejects it (spec 442, section 4). The box now lists „Zusätzlich für E-Rechnungen (XRechnung): Telefonnummer, E-Mail-Adresse“ (`company-einvoice-phone` / `-email`, `eInvoiceChecks()`); the legal count („n fehlen“) is unchanged. Playwright `company-details-tier728.spec.ts` checks both items.

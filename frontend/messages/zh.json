@@ -1821,7 +1821,7 @@
     "datevAccount_privateDeposit": "业主存入 (1890)",
     "legalNameHint": "仅当与上面的公司名称不同时填写。会印在发票和电子发票上。法律形式本身请在“发票设置”中选择。",
     "registerEntryHint": "登记法院和登记号 —— GmbH、UG、AG、OHG、KG 及登记商人必填。",
-    "managingDirectorHint": "全部总经理（AG 为董事会成员），写全名。",
+    "managingDirectorHint": "所有总经理的名和姓。股份公司（AG）：所有董事会成员（注明主席）及监事会主席（§ 80 AktG）——发票上将显示为“Vorstand:”。GmbH & Co. KG：其普通合伙人 GmbH 的总经理；该 GmbH 的名称、注册地和登记信息填在“其他信息”中（§ 177a HGB）。",
     "mandatoryMissing": "发票必备信息：缺 {n} 项",
     "mandatoryComplete": "发票必备信息：齐全",
     "saveAndPreview": "保存并预览发票 (PDF)",
