@@ -1310,6 +1310,8 @@
     "euTransactionNote": "Tax-free intra-Community supply (§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG)",
     "costCenter": "Cost center (DATEV)",
     "orderReference": "Customer order number (optional)",
+    "preview": "Preview (PDF)",
+    "previewError": "The preview could not be created.",
     "orderReferencePlaceholder": "e.g. 4500012345",
     "buyerReference": "Customer reference / Leitweg-ID (optional)",
     "buyerReferencePlaceholder": "e.g. Project North, 04011000-12345-67",

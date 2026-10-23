@@ -1310,6 +1310,8 @@
     "euTransactionNote": "欧盟内部免税供应（§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG）",
     "costCenter": "成本中心 (DATEV)",
     "orderReference": "客户订单号（可选）",
+    "preview": "预览 (PDF)",
+    "previewError": "无法生成预览。",
     "orderReferencePlaceholder": "例如 4500012345",
     "buyerReference": "客户参考号 / Leitweg-ID（可选）",
     "buyerReferencePlaceholder": "例如 北区项目、04011000-12345-67",

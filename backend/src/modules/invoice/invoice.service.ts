@@ -520,7 +520,7 @@ export class InvoiceService {
     }
   }
 
-  async create(companyId: string, dto: CreateInvoiceDto, source?: { documentId: string }) {
+  async create(companyId: string, dto: CreateInvoiceDto, source?: { documentId: string }, opts?: { preview?: boolean }) {
     try {
     const type = (dto.type as InvoiceType) || 'INV';
     // Tier 511: only a known document type. "FOO" was stored as it came —
@@ -757,12 +757,13 @@ export class InvoiceService {
     // Tier 585: the last step before the insert; should the insert fail, the
     // number goes back (releaseInvoiceNumber steps back only if it is still
     // the newest one handed out).
-    const { invoiceNumber, sequencePrefix, sequenceYear, sequenceNumber } =
-      await this.nextInvoiceNumber(companyId, type);
-    let invoice: any = null
-    try {
-      invoice = await this.prisma.invoice.create({
-      data: {
+    // Tier 729d: a preview runs every check and computation above, takes no
+    // number and stores nothing
+    const preview = opts?.preview === true
+    const { invoiceNumber, sequencePrefix, sequenceYear, sequenceNumber } = preview
+      ? { invoiceNumber: 'VORSCHAU', sequencePrefix: null, sequenceYear: null, sequenceNumber: null }
+      : await this.nextInvoiceNumber(companyId, type);
+    const data = {
         companyId,
         customerId: customer.id,
         invoiceNumber,
@@ -901,7 +902,22 @@ export class InvoiceService {
             sortOrder: index,
           })),
         },
-      },
+      }
+    if (preview) {
+      return {
+        ...data,
+        id: 'preview',
+        createdAt: new Date(),
+        items: (data.items.create ?? []).map((it, index) => ({ ...it, id: `preview-${index}`, product: null })),
+        customer,
+        payments: [],
+        referenceInvoice: creditedInvoice ?? null,
+      }
+    }
+    let invoice: any = null
+    try {
+      invoice = await this.prisma.invoice.create({
+      data,
       include: { items: true, customer: true, referenceInvoice: true },
     })
     } catch (e: any) {

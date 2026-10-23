@@ -1310,6 +1310,8 @@
     "euTransactionNote": "Steuerfreie innergemeinschaftliche Lieferung (§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG)",
     "costCenter": "Kostenstelle (DATEV)",
     "orderReference": "Ihre Bestellnummer (optional)",
+    "preview": "Vorschau (PDF)",
+    "previewError": "Die Vorschau konnte nicht erzeugt werden.",
     "orderReferencePlaceholder": "z. B. 4500012345",
     "buyerReference": "Ihre Referenz / Leitweg-ID (optional)",
     "buyerReferencePlaceholder": "z. B. Projekt Nord, 04011000-12345-67",

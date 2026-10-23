@@ -1115,6 +1115,68 @@ function CreateInvoicePageInner() {
   // correctly. We navigate to the invoice detail page in
   // parallel so the user can also see the created invoice in
   // the dashboard.
+  // The request body of the form — for a create, an edit and the preview (Tier 729d)
+  const buildPayload = () => {
+    // Tier 652: the rate entered by hand for a foreign-currency invoice
+    // (1 EUR = … of the currency). Empty: the ECB reference rate of the
+    // invoice's day — on an edit that is said with 0, so that a rate
+    // entered before is given up.
+    const rateText = manualRate.trim().replace(",", ".")
+    return {
+      ...form,
+      exchangeRate: form.currency === "EUR" ? undefined : rateText ? Number(rateText) : isEdit ? 0 : undefined,
+      type: invoiceType,
+      templateType,
+      dueDate: form.dueDate || undefined,
+      deliveryDate: form.deliveryDate || undefined,
+      servicePeriodStart: form.servicePeriodStart || undefined,
+      servicePeriodEnd: form.servicePeriodEnd || undefined,
+      // Tier 39: drop empty-string costCenter/costObject so
+      // the backend sees `undefined` (column→null) rather
+      // than `""` (whitespace stored as truthy string).
+      // Non-empty values flow through verbatim.
+      costCenter: form.costCenter?.trim() || undefined,
+      costObject: form.costObject?.trim() || undefined,
+      // Tier 52: Skonto. Drop the pair when the user
+      // hasn't filled in both fields. The server also
+      // enforces "both or neither" — sending a lone
+      // percent would just be stored as null on both
+      // sides, but trimming here keeps the wire clean.
+      ...(form.skontoPercent > 0 && form.skontoDays > 0
+        ? {
+            skontoPercent: form.skontoPercent,
+            skontoDays: form.skontoDays,
+          }
+        : {}),
+    }
+  }
+
+  // Tier 729d: the PDF of what the form holds, before it is created — every
+  // check of a create, no number taken, nothing stored
+  const [previewing, setPreviewing] = useState(false)
+  const handlePreview = async () => {
+    if (invoiceType === 'CN' ? !form.referenceInvoiceId : !form.customerId) {
+      toast.warn(invoiceType === 'CN' ? t("common2.referenceInvoice") + " " + t("common.required") : t("common2.selectCustomer"))
+      return
+    }
+    setPreviewing(true)
+    try {
+      const companyId = localStorage.getItem("companyId") || ""
+      const res = await apiFetch(`/api/v1/invoices/preview?companyId=${companyId}`, {
+        method: "POST",
+        body: JSON.stringify(buildPayload()),
+        headers: { "Content-Type": "application/json" },
+      })
+      const url = URL.createObjectURL(await res.blob())
+      window.open(url, "_blank")
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : t("invoice.previewError"))
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
   const saveAndNavigate = async (printAfter: boolean) => {
     // Validation — credit notes (CN) need a reference invoice, NOT
     // a directly-picked customer (the customer is copied from the
@@ -1141,38 +1203,7 @@ function CreateInvoicePageInner() {
       // always empty here. deliveryDate is pre-filled with
       // today's date by default, but the user can clear it; if
       // cleared, treat it as "not set" instead of "set to empty".
-      // Tier 652: the rate entered by hand for a foreign-currency invoice
-      // (1 EUR = … of the currency). Empty: the ECB reference rate of the
-      // invoice's day — on an edit that is said with 0, so that a rate
-      // entered before is given up.
-      const rateText = manualRate.trim().replace(",", ".")
-      const payload = {
-        ...form,
-        exchangeRate: form.currency === "EUR" ? undefined : rateText ? Number(rateText) : isEdit ? 0 : undefined,
-        type: invoiceType,
-        templateType,
-        dueDate: form.dueDate || undefined,
-        deliveryDate: form.deliveryDate || undefined,
-        servicePeriodStart: form.servicePeriodStart || undefined,
-        servicePeriodEnd: form.servicePeriodEnd || undefined,
-        // Tier 39: drop empty-string costCenter/costObject so
-        // the backend sees `undefined` (column→null) rather
-        // than `""` (whitespace stored as truthy string).
-        // Non-empty values flow through verbatim.
-        costCenter: form.costCenter?.trim() || undefined,
-        costObject: form.costObject?.trim() || undefined,
-        // Tier 52: Skonto. Drop the pair when the user
-        // hasn't filled in both fields. The server also
-        // enforces "both or neither" — sending a lone
-        // percent would just be stored as null on both
-        // sides, but trimming here keeps the wire clean.
-        ...(form.skontoPercent > 0 && form.skontoDays > 0
-          ? {
-              skontoPercent: form.skontoPercent,
-              skontoDays: form.skontoDays,
-            }
-          : {}),
-      }
+      const payload = buildPayload()
       let createdId: string | null = null
       if (isEdit && editId) {
         // Edit mode: PUT replaces items wholesale and recomputes
@@ -2594,6 +2625,15 @@ function CreateInvoicePageInner() {
                 : isEdit
                   ? (t("invoice.saveChanges") || "Änderungen speichern")
                   : t("invoice.createInvoice")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading || previewing || !!loadError}
+              onClick={handlePreview}
+              data-testid="invoice-preview"
+            >
+              {previewing ? "…" : t("invoice.preview")}
             </Button>
             {!isEdit && (
               <Button

@@ -2662,6 +2662,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 729d — the invoice form previews what it holds, before „Rechnung erstellen“
+
+Measured: the form had „Rechnung erstellen“ and „Speichern und drucken“ — to see the PDF an invoice had to be created, which takes a number of the gap-free sequence. A rollback is no way out: the numbers come from a Postgres SEQUENCE (not transactional).
+
+- `InvoiceService.create(…, { preview: true })`: every check and computation of a create (customer, credit note's invoice, VAT rules, discounts, exchange rate), then — instead of `nextInvoiceNumber` and the insert — the invoice as it would be stored, numbered „VORSCHAU“; no webhook. The insert data is built once (`const data`) for both.
+- `POST /invoices/preview` (`invoice.create`, 200): that invoice through `renderInvoiceDocument(…, { plain: true })` — the draft's ENTWURF watermark.
+- The form: „Vorschau (PDF)“ (`invoice-preview`) beside the create buttons, also when editing a draft; the request body is `buildPayload()`, shared with create and edit.
+
+Found on the way: in a spec, a JSON body written as `"{\"…\"}"` inside `"$( … )"` is brace-expanded by bash — two 400 checks passed on broken JSON. The bodies are now built in variables and the message is asserted (memory `spec-json-bodies-outside-command-substitution`).
+
+Spec `447-tier729d-vorschau-vor-dem-erstellen.sh` (6 checks fail on the code before); Playwright `payment-method-tier729.spec.ts` (third test). The 15 locally runnable specs of the create form: 34 passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 729c — a template of the company's own, chosen per invoice
 
 Measured: the company's templates (colours, font, texts) could not be chosen for an invoice — only the default applied. `templateConfigFor()` read `invoice.templateId`, a column that did not exist; the form's „Rechnungsvorlage“ offered the three built-in layouts only.

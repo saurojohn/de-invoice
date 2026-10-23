@@ -29,7 +29,7 @@ import {
   validateXRechnungWithKoSIT,
   KoSITValidatorUnavailableError,
 } from '../../invoices/kosIT-validator.service';
-import { issuedDocument, issuedXRechnung } from './invoice-document';
+import { issuedDocument, issuedXRechnung, renderInvoiceDocument } from './invoice-document';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
@@ -1092,6 +1092,23 @@ export class InvoiceController {
   @Require('invoice.create')
   async create(@Query('companyId') companyId: string, @Body() dto: CreateInvoiceDto) {
     return this.invoiceService.create(companyId, dto);
+  }
+
+  /**
+   * Tier 729d: the PDF of an invoice not yet created — what the form holds,
+   * through every check of a create, with no number taken and nothing stored
+   * („VORSCHAU“, the draft's watermark).
+   */
+  @Post('preview')
+  @HttpCode(200)
+  @Require('invoice.create')
+  async preview(@Query('companyId') companyId: string, @Body() dto: CreateInvoiceDto, @Res() res: Response) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const invoice = await this.invoiceService.create(companyId, dto, undefined, { preview: true })
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+    const doc = await renderInvoiceDocument(this.prisma, invoice, company, { plain: true })
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="Vorschau.pdf"', 'Cache-Control': 'no-store' })
+    res.send(doc.buffer)
   }
 
   @Put(':id')
