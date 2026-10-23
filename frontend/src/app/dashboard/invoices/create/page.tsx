@@ -2077,18 +2077,24 @@ function CreateInvoicePageInner() {
                   have no label (the icons in the rows are
                   self-explanatory) but keep the columns
                   aligned with the rows below. */}
-              <div className="grid grid-cols-12 gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 px-2">
-                <div className="col-span-2">{t("invoice.productNumber")}</div>
-                <div className="col-span-4">{t("invoice.description")}</div>
-                <div className="col-span-2">{t("invoice.quantity")}</div>
-                <div className="col-span-1" data-testid="items-unit-price-label">{t("invoice.unitPrice")} ({currencyLabel})</div>
-                <div className="col-span-1">{t("invoice.vatRate")}</div>
-                <div className="col-span-1"></div>
-                <div className="col-span-1"></div>
+              {/* Tier 730c: header and rows on one grid of fixed tracks — the rows
+                  took 13 of 12 columns (the „+“ wrapped onto a line of its own)
+                  and the header's price was one column over a two-column field */}
+              <div className="overflow-x-auto">
+              <div className="min-w-[46rem] space-y-4">
+              <div className={`${ITEM_GRID} text-sm font-medium text-gray-600 dark:text-gray-300`} data-testid="items-header">
+                <div>{t("invoice.productNumber")}</div>
+                <div>{t("invoice.description")}</div>
+                <div>{t("invoice.quantity")} / {t("invoice.unit")}</div>
+                <div data-testid="items-unit-price-label">{t("invoice.unitPrice")} ({currencyLabel})</div>
+                <div>{t("invoice.vatRate")}</div>
+                <div className="text-right">{t("invoice.lineTotal")}</div>
+                <div></div>
+                <div></div>
               </div>
               {form.items.map((item, index) => (
-                <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-2 relative">
+                <div key={index} className={`${ITEM_GRID} items-end`} data-testid="item-row">
+                  <div className="relative">
                     {/* Artikelnr. / SKU with a product search
                         dropdown. Typing here opens a list of
                         matching products (filtered by name or
@@ -2202,7 +2208,7 @@ function CreateInvoicePageInner() {
                       </div>
                     )}
                   </div>
-                  <div className="col-span-4 relative">
+                  <div className="relative">
                     <Input
                       value={item.description}
                       aria-label={t("invoice.description")}
@@ -2252,7 +2258,7 @@ function CreateInvoicePageInner() {
                       </div>
                     )}
                   </div>
-                  <div className="col-span-2 flex gap-1">
+                  <div className="flex gap-1">
                     <Input
                       type="number"
                       min="1"
@@ -2277,7 +2283,7 @@ function CreateInvoicePageInner() {
                       }}
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <Input
                       type="number"
                       step="0.01"
@@ -2292,7 +2298,7 @@ function CreateInvoicePageInner() {
                       }}
                     />
                   </div>
-                  <div className="col-span-1">
+                  <div>
                     <select
                       data-testid={`invoice-item-vat-${index}`}
                       aria-label={t("invoice.vatRate")}
@@ -2309,11 +2315,15 @@ function CreateInvoicePageInner() {
                       <option value={0}>0%</option>
                     </select>
                   </div>
+                  {/* Tier 730c: what the line comes to (net, before a discount of the whole invoice) */}
+                  <div className="h-10 flex items-center justify-end text-sm tabular-nums" data-testid="item-line-total">
+                    {fmtCurrency(amounts().lines[index]?.net ?? 0, form.currency)}
+                  </div>
                   {/* Per-row "Remove" button \u2014 right of the
                       VAT rate column, 1 col wide. Variant
                       ghost so it doesn't compete visually
                       with the inputs. */}
-                  <div className="col-span-1">
+                  <div>
                     <Button
                       type="button"
                       variant="ghost"
@@ -2344,7 +2354,7 @@ function CreateInvoicePageInner() {
                       effectively the same as "append to
                       end" since the last row's index IS
                       the end. */}
-                  <div className="col-span-1">
+                  <div>
                     {index === form.items.length - 1 && (
                       <Button
                         type="button"
@@ -2360,6 +2370,8 @@ function CreateInvoicePageInner() {
                   </div>
                 </div>
               ))}
+              </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -3027,6 +3039,10 @@ function CreateInvoicePageInner() {
     </main>
   )
 }
+// Tier 730c: the line items' columns — Artikelnr., Beschreibung, Menge/Einheit,
+// Einzelpreis, MwSt, Gesamt, remove, add — for the header and every row
+const ITEM_GRID = "grid grid-cols-[6.5rem_minmax(10rem,1fr)_8.5rem_7rem_4.75rem_6.5rem_2.25rem_2.25rem] gap-2"
+
 export default function CreateInvoicePage() {
   return (
     <Suspense fallback={null}>

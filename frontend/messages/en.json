@@ -1310,6 +1310,7 @@
     "euTransactionNote": "Tax-free intra-Community supply (§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG)",
     "costCenter": "Cost center (DATEV)",
     "orderReference": "Customer order number (optional)",
+    "lineTotal": "Total (net)",
     "preview": "Preview (PDF)",
     "previewError": "The preview could not be created.",
     "orderReferencePlaceholder": "e.g. 4500012345",
@@ -4126,6 +4127,7 @@
     "showPreview": "Show preview"
   },
   "invoicePage": {
+    "paidNeedsPayment": "Record the payment: amount, the day it came in and how — that marks the invoice paid and books it correctly.",
     "autoAttached": "(attached automatically by the server)",
     "stornoConfirm": "Cancel invoice {number}? A cancellation invoice (credit note for the full amount) is created for you to send to the customer — it corrects the VAT in the month of the cancellation.",
     "stornoCreated": "Cancellation invoice {number} created — please send it to the customer.",

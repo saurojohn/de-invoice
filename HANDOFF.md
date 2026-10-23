@@ -2662,6 +2662,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 730 / 730b / 730c — „Bezahlt“ records the payment; the invoice page writes countries and types as the PDF; the line items line up
+
+The owner, 23.10.2026: „继续开发票前段端功能是否完善“. Walked through the list, the invoice page and the form:
+
+- **730 — „Bezahlt“ with money open** set the status alone: no payment, no day it came in. The EÜR and the Ist-Versteuerung then count the income on the issue date (Tier 454's fallback), the cash book and the bank match know nothing of it. The status select now opens the payment form instead — the open amount, today, the invoice's payment method (Tier 729) — and the payment sets the status. (The API keeps accepting „paid“ for imports; the fallback stays.) Test ids `payment-form`, `payment-amount`, `payment-method`, `payment-save`.
+- **730b — the invoice page** showed „DE“ under the sender and in the sender line, and no country under a foreign customer; the PDF (Tier 728) writes none in a domestic letter and the countries in German capitals otherwise (`lib/country.ts`, as `common/business-letter.ts`). „Rechnungsart: INV“ showed the code; every type is now named (Ausgangsrechnung, Gutschrift, Proforma-Rechnung, Quittung).
+- **730c — the line items**: the rows took 2+4+2+2+1+1+1 = 13 of 12 grid columns, so the „+“ wrapped onto a line of its own, and the header's price was a one-column cell over a two-column field (its label ran into „MwSt-Satz“); the unit had no heading. Header and rows now share one grid of fixed tracks (`ITEM_GRID`, horizontal scroll inside the card below 46 rem), „Menge / Einheit“, and a „Gesamt (netto)“ column per line.
+
+Not a defect: the list's „Überfällig 0“ next to rows „… Tage überfällig“ is local only — the status is set by the 00:05 job (`overdue-status.scheduler`, off with `DISABLE_CRON`) and at issue when the due date has passed. The hydration warning on the form is `FieldLabels` linking labels in the server-rendered HTML before React hydrates the Suspense part — development only, nothing breaks. Locally `recurring-email-tier129` fails (a CI seed customer id).
+
+Playwright `mark-paid-records-payment-tier730.spec.ts` (3 tests; the first fails on the code before). The invoice pages' 22 locally runnable specs: 66 passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 729d — the invoice form previews what it holds, before „Rechnung erstellen“
 
 Measured: the form had „Rechnung erstellen“ and „Speichern und drucken“ — to see the PDF an invoice had to be created, which takes a number of the gap-free sequence. A rollback is no way out: the numbers come from a Postgres SEQUENCE (not transactional).

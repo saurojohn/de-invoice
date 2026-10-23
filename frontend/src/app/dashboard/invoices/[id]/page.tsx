@@ -1,5 +1,6 @@
 "use client"
 
+import { countryLine, namesCountries } from "@/lib/country"
 import { formatMoney } from "@/lib/money"
 import { apiBase } from "@/lib/apiBase"
 import { todayIso } from "@/lib/today"
@@ -1777,6 +1778,21 @@ export default function InvoiceDetailPage() {
       }
       return
     }
+    // Tier 730: „Bezahlt“ while money is open — the payment it means, with the
+    // day it came in. The status alone booked no payment: the EÜR and the
+    // Ist-Versteuerung then count the income on the issue date (Tier 454), the
+    // cash book and the bank match know nothing of it.
+    if (newStatus === "paid" && outstanding > 0.005 && invoice.type !== "CN") {
+      const method = invoice.paymentMethod === "cash" ? "cash"
+        : invoice.paymentMethod === "ec_card" || invoice.paymentMethod === "credit_card" ? "card"
+        : invoice.paymentMethod === "paypal" ? "paypal"
+        : "bank_transfer"
+      setPayForm((f) => ({ ...f, amount: outstanding.toFixed(2), paymentDate: todayIso(), paymentMethod: method }))
+      setShowPayForm(true)
+      toast.info(t("invoicePage.paidNeedsPayment"))
+      setTimeout(() => document.querySelector('[data-testid="payment-form"]')?.scrollIntoView({ behavior: "smooth", block: "center" }), 50)
+      return
+    }
     if (!confirm(`Status auf "${getStatusLabel(newStatus)}" setzen?`)) return
     setStatusChanging(true)
     try {
@@ -1836,8 +1852,12 @@ export default function InvoiceDetailPage() {
       (st) => st !== "draft" || invoice.status === "draft"
         || (invoice.type !== "CN" && isToday && payments.length === 0 && !invoice.sentToCustomer && !(invoice.creditNotes ?? []).length),
     )
+  // Tier 730b: sender and customer in different countries — the PDF names them then
+  const foreignLetter = namesCountries(invoice.company?.address?.country, invoice.customer?.address?.country)
   const docTypeLabel = (ty: string) =>
-    ty === "QU" ? t("docs.typeQuote") : ty === "DN" ? t("docs.typeDeliveryNote") : ty === "OC" ? t("docs.typeOrderConfirmation") : ty === "INV" ? t("invoice.typeInvoice") : ty
+    ty === "QU" ? t("docs.typeQuote") : ty === "DN" ? t("docs.typeDeliveryNote") : ty === "OC" ? t("docs.typeOrderConfirmation") : ty === "INV" ? t("invoice.typeInvoice")
+    // Tier 730b: every type by its name („Rechnungsart: INV“ showed the code)
+    : ty === "CN" ? t("invoice.typeCreditNote") : ty === "PI" ? t("invoice.typeProforma") : ty === "RCV" ? t("invoice.typeReceipt") : ty
   // Tier 614: what can be made from this document
   const live = !["cancelled", "declined"].includes(invoice.status)
   const canMake = {
@@ -2240,8 +2260,9 @@ export default function InvoiceDetailPage() {
                     {invoice.company.address.postalCode} {invoice.company.address.city}
                   </div>
                 )}
-                {invoice.company.address?.country && (
-                  <div className="text-gray-700 dark:text-gray-200">{invoice.company.address.country}</div>
+                {/* Tier 730b: the country as on the PDF — only where the customer is abroad */}
+                {invoice.company.address?.country && foreignLetter && (
+                  <div className="text-gray-700 dark:text-gray-200">{countryLine(invoice.company.address.country)}</div>
                 )}
                 <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-x-2">
                   {invoice.company.vatId && <span>USt-IdNr.: {invoice.company.vatId}</span>}
@@ -2292,7 +2313,7 @@ export default function InvoiceDetailPage() {
                     invoice.company.name,
                     invoice.company.address.street,
                     `${invoice.company.address.postalCode} ${invoice.company.address.city}`.trim(),
-                    invoice.company.address.country,
+                    foreignLetter ? countryLine(invoice.company.address.country) : "",
                   ].filter(Boolean).join(" · ")}
                 </div>
               )}
@@ -2305,6 +2326,9 @@ export default function InvoiceDetailPage() {
                   <div className="text-gray-600 dark:text-gray-300">
                     {invoice.customer.address.street}<br />
                     {invoice.customer.address.postalCode} {invoice.customer.address.city}
+                    {foreignLetter && invoice.customer.address.country && (
+                      <><br /><span data-testid="invoice-customer-country">{countryLine(invoice.customer.address.country)}</span></>
+                    )}
                   </div>
                 )}
               </div>
@@ -2326,7 +2350,7 @@ export default function InvoiceDetailPage() {
                 ) : (invoice.deliveryDate || !["PI", "CN", "QU", "OC"].includes(invoice.type)) && (
                   <div data-testid="leistungsdatum"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.deliveryDate")}</div><div>{formatDate(invoice.deliveryDate || invoice.issueDate)}</div></div>
                 )}
-                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div>{nonFiscal ? docTypeLabel(invoice.type) : invoice.type}</div></div>
+                <div><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoicePage.invoiceType")}</div><div data-testid="invoice-type-label">{docTypeLabel(invoice.type)}</div></div>
                 {/* Tier 729b: the customer's references */}
                 {invoice.orderReference && (
                   <div data-testid="invoice-order-reference"><div className="text-sm text-gray-500 dark:text-gray-400">{t("invoice.orderReference").replace(/\s*[(（][^()（）]*[)）]$/, "")}</div><div>{invoice.orderReference}</div></div>
@@ -2656,7 +2680,7 @@ export default function InvoiceDetailPage() {
             </div>
           </CardHeader>
           {showPayForm && (
-            <CardContent className="bg-gray-50 dark:bg-gray-900 border-t">
+            <CardContent className="bg-gray-50 dark:bg-gray-900 border-t" data-testid="payment-form">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">{t("invoicePage.amountEurReq")}</label>
@@ -2665,6 +2689,7 @@ export default function InvoiceDetailPage() {
                     step="0.01"
                     value={payForm.amount}
                     onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
+                    data-testid="payment-amount"
                     placeholder={outstanding > 0 ? `Offen: ${money(outstanding)}` : "0,00"}
                   />
                 </div>
@@ -2699,6 +2724,7 @@ export default function InvoiceDetailPage() {
                   <select
                     value={payForm.paymentMethod}
                     onChange={(e) => setPayForm({ ...payForm, paymentMethod: e.target.value })}
+                    data-testid="payment-method"
                     className="w-full px-3 py-1.5 border rounded text-sm"
                   >
                     <option value="bank_transfer">{t("invoicePage.transfer")}</option>
@@ -2728,7 +2754,7 @@ export default function InvoiceDetailPage() {
               </div>
               <div className="mt-3 flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowPayForm(false)}>×</Button>
-                <Button size="sm" onClick={submitPayment} disabled={paySaving}>
+                <Button size="sm" onClick={submitPayment} disabled={paySaving} data-testid="payment-save">
                   {paySaving ? "…" : L("✓ Speichern")}
                 </Button>
               </div>
