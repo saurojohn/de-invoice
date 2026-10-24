@@ -30,6 +30,7 @@ import {
   KoSITValidatorUnavailableError,
 } from '../../invoices/kosIT-validator.service';
 import { issuedDocument, issuedXRechnung, renderInvoiceDocument } from './invoice-document';
+import { PDFDocument } from 'pdf-lib';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
@@ -252,6 +253,36 @@ export class InvoiceController {
   //   1) invoiceIds[]  — explicit IDs (e.g. user selected rows in UI)
   //   2) dateFrom/dateTo (+ optional type/status) — server picks
   //      matching invoices. Used for date-range exports.
+  /**
+   * Tier 731: the chosen documents as ONE PDF, to print in one go — the ZIP
+   * of „bulk-download“ had to be unpacked and every file opened and printed
+   * by itself. Each document as every other outlet builds it (an issued
+   * invoice is its kept copy, Tier 685), plain, in the order given.
+   */
+  @Post('bulk-print')
+  @HttpCode(200)
+  @Require('invoice.read')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async bulkPrint(@Body() body: { invoiceIds?: string[] }, @Query('companyId') companyId: string, @Res() res: Response) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const ids = Array.isArray(body?.invoiceIds) ? body.invoiceIds.filter((x) => typeof x === 'string') : []
+    if (ids.length === 0) throw new BadRequestException('invoiceIds ist erforderlich')
+    if (ids.length > 100) throw new BadRequestException('Maximal 100 Rechnungen pro Druckauftrag')
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
+    const merged = await PDFDocument.create()
+    for (const id of ids) {
+      const invoice = await this.invoiceService.findOne(id, companyId)
+      if (!invoice) throw new NotFoundException(`Rechnung ${id} nicht gefunden`)
+      const doc = await issuedDocument(this.prisma, invoice, company, { plain: true })
+      const src = await PDFDocument.load(doc.buffer)
+      for (const page of await merged.copyPages(src, src.getPageIndices())) merged.addPage(page)
+    }
+    merged.setTitle(`Sammeldruck ${businessTodayIso()} (${ids.length})`)
+    const bytes = await merged.save()
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Sammeldruck_${businessTodayIso()}.pdf"`, 'Cache-Control': 'no-store' })
+    res.send(Buffer.from(bytes))
+  }
+
   @Post('bulk-download')
   @Require('invoice.read')
   // Bulk PDF download: server reads N invoices +

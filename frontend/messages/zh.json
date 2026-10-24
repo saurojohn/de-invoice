@@ -1310,6 +1310,8 @@
     "euTransactionNote": "欧盟内部免税供应（§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG）",
     "costCenter": "成本中心 (DATEV)",
     "orderReference": "客户订单号（可选）",
+    "bulkPrint": "🖨 批量打印 — {n}",
+    "bulkPrintMax": "每次批量打印最多 100 份。",
     "lineTotal": "小计（净额）",
     "preview": "预览 (PDF)",
     "previewError": "无法生成预览。",
@@ -4127,6 +4129,9 @@
     "showPreview": "显示预览"
   },
   "invoicePage": {
+    "print": "🖨 打印",
+    "printPopupBlocked": "打印窗口被拦截——请允许此网站弹出窗口。",
+    "printError": "无法加载文档进行打印。",
     "paidNeedsPayment": "请登记这笔付款：金额、到账日期和付款方式——这样发票即标记为已付，并正确入账。",
     "autoAttached": "（由服务器自动附加）",
     "stornoConfirm": "作废发票 {number}？系统将生成一张冲销贷项通知单（全额贷项），请发送给客户——它在作废当月更正增值税。",

@@ -1,5 +1,6 @@
 "use client"
 
+import { printPdfBlob } from "@/lib/print-pdf"
 import { countryLine, namesCountries } from "@/lib/country"
 import { formatMoney } from "@/lib/money"
 import { apiBase } from "@/lib/apiBase"
@@ -1528,6 +1529,23 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  // Tier 731: print the document — there was only „PDF herunterladen“ (then
+  // open the file, then print). The same PDF, plain, in the print dialog.
+  const [printing, setPrinting] = useState(false)
+  const printDocument = async () => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId || !invoice) return
+    setPrinting(true)
+    try {
+      const res = await apiFetch(`/api/v1/invoices/${invoice.id}/pdf?companyId=${companyId}&format=pdf&t=${Date.now()}`)
+      if (!printPdfBlob(await res.blob())) toast.warn(t("invoicePage.printPopupBlocked"))
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("invoicePage.printError"))
+    } finally {
+      setPrinting(false)
+    }
+  }
+
   const downloadPDF = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId || !invoice) return
@@ -2082,6 +2100,9 @@ export default function InvoiceDetailPage() {
               data-testid="invoice-download-pdf"
             >
               {t("invoicePage.downloadPdf")}
+            </Button>
+            <Button variant="outline" onClick={printDocument} disabled={printing} data-testid="invoice-print">
+              {printing ? "…" : t("invoicePage.print")}
             </Button>
             {/* Edit + Hard-delete are only allowed on the invoice's
                 issueDate. For past-date invoices the backend returns

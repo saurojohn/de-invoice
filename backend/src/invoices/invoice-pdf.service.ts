@@ -441,7 +441,15 @@ export async function generateInvoicePDF(
     // Customer address — left side of the middle row. Sits at
     // the same Y as the RECHNUNG title to its right.
     const custAddr = invoice.customer.address || {}
-    let custY = senderStartY
+    // Tier 731: the address field of DIN 5008 (Form B) — in the window of a
+    // DL envelope (20 mm from the left, 45–90 mm from the top). The block
+    // stood at the page margin, 17.6 mm from the left: with the letter at the
+    // envelope's left edge the first characters of each line were behind the
+    // window's edge. Writing starts 25 mm from the left; the return address
+    // closes the Vermerkzone, the recipient starts in the Anschriftzone
+    // (62.7 mm).
+    const addrX = (25 / 25.4) * 72
+    let custY = senderStartY + 8
     // Sender line ("Absenderzeile"). Per user request:
     //   - "sender 公司名+地址 只要一行" — single-line format
     //   - "缩小50%，方便用于寄信封" — 50% smaller (10pt → 5pt) so
@@ -457,7 +465,7 @@ export async function generateInvoicePDF(
     const pcCity = `${compAddr.postalCode || ""} ${compAddr.city || ""}`.trim()
     if (pcCity) senderParts.push(pcCity)
     if (ownCountryLine) senderParts.push(ownCountryLine)
-    doc.fontSize(5).font(fontFor('regular')).text(senderParts.join(" · "), leftMargin, custY, { lineBreak: false })
+    doc.fontSize(5).font(fontFor('regular')).text(senderParts.join(" · "), addrX, custY, { lineBreak: false })
     custY += 10
     // Customer block — font 11pt (was 10pt; +10% per user request).
     // Note: the original "Rechnungsadresse:" label has been moved up
@@ -466,23 +474,30 @@ export async function generateInvoicePDF(
     // label down here — the sender block above acts as the
     // invoice-letterhead label.
     doc.fontSize(11).font(fontFor('regular'))
-    doc.text(invoice.customer.name, leftMargin, custY, { lineBreak: false })
+    doc.text(invoice.customer.name, addrX, custY, { lineBreak: false })
     custY += 14
+    // Tier 731: the contact person below a business's name (DIN 5008) — it
+    // was stored, and the reminder used it, but the invoice left it out
+    const attention = String((invoice.customer as any).contact?.name || "").trim()
+    if (attention && attention !== String(invoice.customer.name || "").trim() && (invoice.customer as any).type !== "individual") {
+      doc.text(attention, addrX, custY, { lineBreak: false })
+      custY += 14
+    }
     if (custAddr.street) {
-      doc.text(custAddr.street, leftMargin, custY, { lineBreak: false })
+      doc.text(custAddr.street, addrX, custY, { lineBreak: false })
       custY += 14
     }
     if (custAddr.postalCode || custAddr.city) {
-      doc.text(`${custAddr.postalCode || ""} ${custAddr.city || ""}`.trim(), leftMargin, custY, { lineBreak: false })
+      doc.text(`${custAddr.postalCode || ""} ${custAddr.city || ""}`.trim(), addrX, custY, { lineBreak: false })
       custY += 14
     }
     if (showCountries) {
-      doc.text(countryLine(custAddr.country), leftMargin, custY, { lineBreak: false })
+      doc.text(countryLine(custAddr.country), addrX, custY, { lineBreak: false })
       custY += 14
     }
     if (invoice.customer.vatId) {
       // Tier 691: "USt-IdNr." as the BZSt writes it (was "UST-IDNr." here, "USt-IDNr." in the header)
-      doc.text(`USt-IdNr.: ${invoice.customer.vatId}`, leftMargin, custY, { lineBreak: false })
+      doc.text(`USt-IdNr.: ${invoice.customer.vatId}`, addrX, custY, { lineBreak: false })
       custY += 14
     }
 
@@ -719,7 +734,11 @@ export async function generateInvoicePDF(
       const cPriceX = leftMargin + compactColWidths.sku + compactColWidths.desc + compactColWidths.qty
       const cPriceW = compactColWidths.price
       invoice.items.forEach((item, i) => {
-        const rowHeight = 20
+        // Tier 731: as high as its description — a wrapped one ran over the
+        // line below it and into the next row
+        doc.font(fontFor('regular')).fontSize(9)
+        const extra = doc.heightOfString(String(item.description ?? ""), { width: compactColWidths.desc - 10 }) - doc.heightOfString("X", { width: compactColWidths.desc - 10 })
+        const rowHeight = 20 + Math.max(0, Math.ceil(extra))
         let firstOnPage = i === 0
         if (!rowFits(rowHeight)) {
           newTablePage()
@@ -747,7 +766,7 @@ export async function generateInvoicePDF(
       const colWidths = { sku: 70, desc: 150, qty: 55, price: 75, vat: 55, net: 90 }
       // (sum: 495; rightMargin - leftMargin = 495 → last column ends exactly at rightMargin)
       const headerHeight = 25
-      const rowHeight = 24
+      const minRowHeight = 24
 
       // Gesamt header: right-aligned within net column → right edge = rightMargin
       const sNetX = leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price + colWidths.vat
@@ -777,6 +796,11 @@ export async function generateInvoicePDF(
       const sVatX = leftMargin + colWidths.sku + colWidths.desc + colWidths.qty + colWidths.price
       const sVatW = colWidths.vat
       invoice.items.forEach((item, i) => {
+        // Tier 731: as high as its description — a wrapped one ran over the
+        // line below it and into the next row
+        doc.font(fontFor('regular')).fontSize(10)
+        const extra = doc.heightOfString(String(item.description ?? ""), { width: colWidths.desc - 10 }) - doc.heightOfString("X", { width: colWidths.desc - 10 })
+        const rowHeight = minRowHeight + Math.max(0, Math.ceil(extra))
         let firstOnPage = i === 0
         if (!rowFits(rowHeight)) {
           newTablePage()
@@ -1224,6 +1248,17 @@ export async function generateInvoicePDF(
     const range = doc.bufferedPageRange()
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i)
+      // Tier 731: fold marks (105 / 210 mm, DIN 5008 Form B) and the hole
+      // mark (148.5 mm) on the first sheet, at the left edge — for folding
+      // into a DL window envelope and for the punch
+      if (i === range.start) {
+        const mmPt = (v: number) => (v / 25.4) * 72
+        doc.save().lineWidth(0.4).strokeColor("#9ca3af")
+        for (const [atMm, lenMm] of [[105, 5], [148.5, 8], [210, 5]] as const) {
+          doc.moveTo(mmPt(4), mmPt(atMm)).lineTo(mmPt(4 + lenMm), mmPt(atMm)).stroke()
+        }
+        doc.restore()
+      }
       if (isDraft) {
         const cx = doc.page.width / 2
         const cy = doc.page.height / 2
@@ -1235,6 +1270,18 @@ export async function generateInvoicePDF(
         doc.opacity(1)
       }
       doc.font(fontFor('regular')).fontSize(8).fillColor(textColor)
+      // Tier 731: a following sheet names its document and customer above
+      // the table — page 2 said only „Seite 2 von 2“, a loose sheet belonged
+      // to no invoice
+      if (i > range.start) {
+        const docName = invoiceTitle.charAt(0) + invoiceTitle.slice(1).toLowerCase()
+        doc.text(
+          `${docName} ${invoice.invoiceNumber} · ${invoice.customer?.name ?? ""} · ${formatDate(invoice.issueDate)}`,
+          leftMargin,
+          30,
+          { width: pageWidth - leftMargin * 2, lineBreak: false, ellipsis: true },
+        )
+      }
       doc.text(
         `Seite ${i - range.start + 1} von ${range.count}`,
         leftMargin,

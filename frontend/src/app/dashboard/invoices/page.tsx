@@ -11,6 +11,7 @@ import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 import { statusBadgeClass } from "@/lib/status-badge"
+import { printPdfBlob } from "@/lib/print-pdf"
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC'
 // Tier 610 / 614: the types that are no invoices, each with its own list
@@ -441,6 +442,34 @@ function InvoicesPageInner() {
   // Bulk-download selected invoices as a single ZIP. The backend
   // returns `application/zip` with each invoice as a separate PDF
   // (or ZUGFeRD if `format === "zugferd"`), plus a `_manifest.txt`.
+  // Tier 731: the chosen documents as one PDF in the print dialog — the ZIP
+  // had to be unpacked and every file printed by itself
+  const [bulkPrinting, setBulkPrinting] = useState(false)
+  const bulkPrint = async () => {
+    if (selected.size === 0) return
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    if (selected.size > 100) {
+      toast.warn(t("invoice.bulkPrintMax"))
+      return
+    }
+    setBulkPrinting(true)
+    try {
+      const { apiFetch } = await import("@/lib/api")
+      // in the list's order
+      const ids = invoices.map((inv) => inv.id).filter((id) => selected.has(id))
+      const res = await apiFetch(`/api/v1/invoices/bulk-print?companyId=${companyId}`, {
+        method: "POST",
+        body: { invoiceIds: ids.length === selected.size ? ids : Array.from(selected) },
+      })
+      if (!printPdfBlob(await res.blob())) toast.warn(t("invoicePage.printPopupBlocked"))
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("invoicePage.printError"))
+    } finally {
+      setBulkPrinting(false)
+    }
+  }
+
   const bulkDownload = async (format: "pdf" | "zugferd" = "pdf") => {
     if (selected.size === 0) return
     const companyId = localStorage.getItem("companyId")
@@ -876,6 +905,15 @@ function InvoicesPageInner() {
               {" "}ausgewählt
             </div>
             <div className="flex gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkPrint}
+                disabled={bulkPrinting || bulkDownloading || bulkSending}
+                data-testid="bulk-print"
+              >
+                {bulkPrinting ? "…" : t("invoice.bulkPrint", { n: selected.size })}
+              </Button>
               <Button
                 size="sm"
                 onClick={() => bulkDownload("pdf")}

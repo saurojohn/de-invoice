@@ -2662,6 +2662,23 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 731 — printing: the address in the envelope's window, rows as high as their text, a following sheet names its invoice, print buttons and one PDF for many
+
+The owner, 24.10.2026: „发票打印功能是否完善？“ Measured on the printed PDF (positions through `pdf-text.mjs --pos`, new: x / y in mm from the top left) and the pages:
+
+- **The address** stood 17.6 mm from the left; a DL window envelope's window starts 20 mm from the left (DIN 5008 Form B: writing from 25 mm) — with the letter at the envelope's left edge the first characters were behind the window's edge. Now from 25 mm, 3 mm lower: the return address closes the Vermerkzone (≈ 61 mm), the recipient starts in the Anschriftzone (from 62.7 mm). The rest of the page keeps the 50 pt margins the owner chose.
+- **Fold marks** (105 / 210 mm) and the **hole mark** (148.5 mm) on the first sheet, at the left edge.
+- **The contact person** (`customer.contact.name`, stored and used by the reminder since Tier 388) is the address's second line for a business; not for a private customer (`type: individual`).
+- **A wrapped description** ran over the row's line into the next row: every row was 24 pt (compact 20 pt). A row now grows by what its description needs beyond one line (`heightOfString` of the text minus that of one line — measuring the text alone made single-line rows 26 pt and 100 items 5 pages instead of 4, spec 207).
+- **A following sheet** said only „Seite 2 von 2“. It now carries „Rechnung <Nr.> · <Kunde> · <Datum>“ above the table (10.6 mm from the top). At first the number went into the page line at the foot — on the last sheet it ran into the GiroCode.
+- **Print buttons**: „🖨 Drucken“ on the invoice page (`invoice-print`; there was only „PDF herunterladen“) and „🖨 Sammeldruck — n“ for the chosen documents in the list (`bulk-print`; there was only a ZIP to unpack): `POST /invoices/bulk-print` merges the documents (each as every outlet builds it, an issued one as its kept copy) into one PDF, in the list's order, at most 100; another company's id is 404. `lib/print-pdf.ts` opens the PDF and the print dialog, and says when a pop-up blocker stopped it.
+
+Issued invoices keep their kept copy (GoBD): the new layout applies to documents rendered from now on.
+
+Found on the way: after a restart the scratchpad harness and `tmp-ci-pg` were gone again (memory `after-reboot-docker-and-scratch-harness`); Mustang's jar too.
+
+Spec `448-tier731-druck.sh` (8 checks fail on the code before); spec 207 unchanged and green; Playwright `print-tier731.spec.ts`. The invoice pages' 40 locally runnable spec files: 95 passed; the 42 PDF specs of the backend: all ok.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 730 / 730b / 730c — „Bezahlt“ records the payment; the invoice page writes countries and types as the PDF; the line items line up
 
 The owner, 23.10.2026: „继续开发票前段端功能是否完善“. Walked through the list, the invoice page and the form:

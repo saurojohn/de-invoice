@@ -1310,6 +1310,8 @@
     "euTransactionNote": "Steuerfreie innergemeinschaftliche Lieferung (§ 4 Nr. 1 Buchst. b i. V. m. § 6a UStG)",
     "costCenter": "Kostenstelle (DATEV)",
     "orderReference": "Ihre Bestellnummer (optional)",
+    "bulkPrint": "🖨 Sammeldruck — {n}",
+    "bulkPrintMax": "Höchstens 100 Dokumente pro Sammeldruck.",
     "lineTotal": "Gesamt (netto)",
     "preview": "Vorschau (PDF)",
     "previewError": "Die Vorschau konnte nicht erzeugt werden.",
@@ -4127,6 +4129,9 @@
     "showPreview": "Vorschau anzeigen"
   },
   "invoicePage": {
+    "print": "🖨 Drucken",
+    "printPopupBlocked": "Das Druckfenster wurde blockiert — bitte Pop-ups für diese Seite erlauben.",
+    "printError": "Das Dokument konnte nicht zum Drucken geladen werden.",
     "paidNeedsPayment": "Erfassen Sie die Zahlung: Betrag, Tag des Eingangs und Zahlungsweg — damit ist die Rechnung bezahlt und richtig gebucht.",
     "autoAttached": "(wird automatisch vom Server angehängt)",
     "stornoConfirm": "Rechnung {number} stornieren? Es wird eine Stornorechnung (Gutschrift über den vollen Betrag) erstellt, die Sie dem Kunden senden — sie korrigiert die Umsatzsteuer im Monat der Stornierung.",
