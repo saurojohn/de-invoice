@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 731b — the bank and register details on every sheet
+
+The owner, 25.10.2026, on the bank details and the register details standing on the last sheet only: „每页上都要“. `drawCompanyFooter()` (bank block left, the Impressum lines right — computed before the table now) is drawn on every sheet in the page loop; the GiroCode stays on the last sheet, with the amount. Every sheet's table ends above the footer (`rowFits`: the lower of footerY and the Impressum's top, − 10 pt; it was page height − 40 everywhere because only the last sheet had a footer), and the totals block moves to a new sheet when it would reach the Impressum's top (it checked footerY only — a tall Impressum starts higher).
+
+Consequence: fewer rows on a sheet — 100 rows are 5 sheets instead of 4, the totals alone on the fifth (spec 207 updated: headers on every sheet with rows).
+
+Spec 448 section 3 checks the footer on every sheet and the rows above it.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 731 — printing: the address in the envelope's window, rows as high as their text, a following sheet names its invoice, print buttons and one PDF for many
 
 The owner, 24.10.2026: „发票打印功能是否完善？“ Measured on the printed PDF (positions through `pdf-text.mjs --pos`, new: x / y in mm from the top left) and the pages:

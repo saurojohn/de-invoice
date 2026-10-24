@@ -66,21 +66,21 @@ assert_eq "every item row printed exactly once" "$ONCE" "True"
 assert_eq "labels 'Seite 1 von 2', 'Seite 2 von 2' (every page said 'Seite 1')" "$L" "Seite 1 von 2;Seite 2 von 2"
 assert_eq "totals on the last page" "$T" "2"
 
-note "=== 3. 100 items: 4 pages (40 items were 116) ==="
+note "=== 3. 100 items: 5 pages (40 items were 116; 4 before Tier 731b put the footer on every sheet) ==="
 ID100=$(invoice 100)
 IFS='|' read -r P R ONCE L T <<<"$(pdf_facts "$WORK/100.pdf" 100)"
-assert_eq "100 items: 4 pages" "$P" "4"
+assert_eq "100 items: 5 pages" "$P" "5"
 assert_eq "all 100 rows, once each" "$ONCE" "True"
-assert_eq "4 page labels" "$(tr ';' '\n' <<<"$L" | grep -c 'von 4')" "4"
-assert_eq "totals on page 4" "$T" "4"
+assert_eq "5 page labels" "$(tr ';' '\n' <<<"$L" | grep -c 'von 5')" "5"
+assert_eq "totals on page 5" "$T" "5"
 # the column headers are repeated on each page
-HDRS=$(node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$WORK/100.pdf" --json | python3 -c "import json,sys; print(sum('Einzelpreis' in p for p in json.load(sys.stdin)))")
-assert_eq "column headers on all 4 pages" "$HDRS" "4"
+HDRS=$(node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$WORK/100.pdf" --json | python3 -c "import json,sys; p=json.load(sys.stdin); print(all(('Einzelpreis' in pg) == any(r.startswith('Position ') for r in pg) for pg in p), sum(any(r.startswith('Position ') for r in pg) for pg in p))")
+assert_eq "column headers on every page with rows (4; the totals alone on 5)" "$HDRS" "True 4"
 
 note "=== 4. the ZUGFeRD PDF of a long invoice is the same document ==="
 curl -sS -o "$WORK/z.pdf" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/invoices/$ID100/zugferd?companyId=$C"
 IFS='|' read -r P R ONCE L T <<<"$(pdf_facts "$WORK/z.pdf" 100)"
-assert_eq "ZUGFeRD: 4 pages" "$P" "4"
+assert_eq "ZUGFeRD: 5 pages" "$P" "5"
 
 rm -rf "$WORK"
 summary; exit $?

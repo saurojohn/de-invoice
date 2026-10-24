@@ -82,6 +82,10 @@ assert_eq "more than one sheet" "$([ "$N" -ge 2 ] && echo yes)" "yes"
 assert_eq "sheet 2: „Rechnung <Nr.> · <Kunde> · <Datum>“ above the table (was: only „Seite 2 von N“)" \
   "$(P "$WORK/long.pdf" "next((r['s'] for r in pages[1] if r['s'].startswith('Rechnung ')), '-'), next((r['y']<15 for r in pages[1] if r['s'].startswith('Rechnung ')), False)")" "Rechnung $NUM · Beispiel Kunde AG · 01.10.2026 True"
 assert_eq "…not on the first" "$(P "$WORK/long.pdf" "any(r['s'].startswith('Rechnung $NUM ·') for r in pages[0])")" "False"
+assert_eq "the bank details and the register details on every sheet (Tier 731b: on the last only)" \
+  "$(P "$WORK/long.pdf" "[(any(r['s']=='IBAN: DE89370400440532013000' for r in pg), any(r['s'].startswith('Sitz der Gesellschaft') or r['s']=='Zahlungsinformationen:' for r in pg)) for pg in pages] == [(True, True)] * len(pages)")" "True"
+assert_eq "…and every sheet's table ends above them" \
+  "$(P "$WORK/long.pdf" "max(r['y'] for pg in pages for r in pg if r['s'].startswith('Position ') or r['s'].startswith('Modell')) < min(r['y'] for pg in pages for r in pg if r['s']=='Zahlungsinformationen:') - 3")" "True"
 
 note "=== 4. printing many: one PDF ==="
 PRINT="{\"invoiceIds\":[\"$I\",\"$I2\"]}"

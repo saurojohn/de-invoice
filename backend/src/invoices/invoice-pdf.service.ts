@@ -699,7 +699,65 @@ export async function generateInvoicePDF(
     // 116 pages, mostly blank, with the totals on the last one. A row that
     // does not fit now starts a page with the column headers repeated, and
     // leaves room for the page number.
-    const rowFits = (height: number) => y + height <= doc.page.height - 40
+    // Tier 731: the bank details and the company's register details on every
+    // sheet — they stood on the last one only; a sheet of the middle carried
+    // neither. The table of every sheet ends above them.
+    const footerY = doc.page.height - 74
+    // Right footer — Impressum / Rechtliches / Sonstige Angaben.
+    // Anchored to rightMargin, right-aligned. We pack everything
+    // the user asked for (Handelsregister, Geschäftsführer,
+    // Sonstige Angaben) into a single right column. The
+    // otherInfo block is multi-line free text and is rendered
+    // verbatim with its own line breaks, so it doesn't have to
+    // fit on a single line.
+    const reg = (company as any).registerEntry
+    const md = (company as any).managingDirector
+    const other = (company as any).otherInfo
+    const rightFooterWidth = rightMargin - leftMargin
+    // Tier 728: the lines of the block, then where it starts — with the full
+    // name and the seat it can be taller than the four lines it was laid out
+    // for; it moves up rather than past the page's foot (which would start a
+    // page of its own).
+    const impressum: Array<{ text: string; step: number }> = []
+    // the full name as registered („… Lederwaren GmbH“) when the letterhead
+    // carries a shorter one — § 14 Abs. 4 Nr. 1 UStG asks for the full name,
+    // § 35a GmbHG / § 37a HGB for the legal form. It was entered in the
+    // settings and printed nowhere (only the e-invoices had it).
+    const legal = String((company as any).legalName || "").trim()
+    if (legal && legal !== String(company.name || "").trim()) impressum.push({ text: legal, step: 10 })
+    // …a registered company's seat (§ 35a GmbHG, § 125a / § 177a HGB, § 80
+    // AktG) — the city of its address unless „Sonstige Angaben“ say it
+    if (reg && compAddr.city && !/\bsitz\b/i.test(String(other || ""))) {
+      impressum.push({ text: `Sitz der Gesellschaft: ${compAddr.city}`, step: 10 })
+    }
+    if (reg) impressum.push({ text: `Handelsregister: ${reg}`, step: 10 })
+    if (md) impressum.push({ text: `${directorsLabel(company as any)} ${md}`, step: 10 })
+    // „Sonstige Angaben“ line by line, each at its own fixed Y: PDFKit's
+    // `lineBreak: true` with `align: "right"` drew the user's lines on top
+    // of each other.
+    if (other) {
+      for (const line of String(other).split(/\r?\n/).filter((l: string) => l.length > 0)) impressum.push({ text: line, step: 9 })
+    }
+    const impressumHeight = impressum.reduce((h, l) => h + l.step, 0)
+    // the last line has to end above the page number band (page height − 22)
+    const impressumTop = Math.min(footerY, doc.page.height - 24 - impressumHeight)
+    const drawCompanyFooter = () => {
+      doc.fontSize(8).fillColor(textColor).font(fontFor('regular'))
+      if (company.bankInfo && typeof company.bankInfo === 'object') {
+        // Tier 695: a credit note asks for no payment — the account is the
+        // company's, not an instruction to pay
+        doc.text(docType === "CN" ? "Bankverbindung:" : "Zahlungsinformationen:", leftMargin, footerY, { lineBreak: false })
+        if (company.bankInfo.bankName) doc.text(`Bank: ${company.bankInfo.bankName}`, leftMargin, footerY + 12, { lineBreak: false })
+        if (company.bankInfo.iban) doc.text(`IBAN: ${company.bankInfo.iban}`, leftMargin, footerY + 24, { lineBreak: false })
+        if (company.bankInfo.bic) doc.text(`BIC: ${company.bankInfo.bic}`, leftMargin, footerY + 36, { lineBreak: false })
+      }
+      let rightFooterY = impressumTop
+      for (const line of impressum) {
+        doc.text(line.text, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
+        rightFooterY += line.step
+      }
+    }
+    const rowFits = (height: number) => y + height <= Math.min(doc.page.height - 40, impressumTop - 10, footerY - 10)
     const newTablePage = () => {
       doc.addPage()
       y = 50
@@ -897,7 +955,8 @@ export async function generateInvoicePDF(
     }
     const advanceHeightPre = advance ? advanceRows.length * totalsLineHeightPre + 5 + gesamtHeightPre : 0
     const blockHeight = 5 + rows.length * totalsLineHeightPre + gesamtHeightPre + advanceHeightPre + notesHeightPre
-    if (y + (isCompact ? 15 : 20) + blockHeight > doc.page.height - 74 - 10) {
+    // (Tier 731: above the company's footer, which can start higher than footerY)
+    if (y + (isCompact ? 15 : 20) + blockHeight > Math.min(footerY, impressumTop) - 10) {
       doc.addPage()
       y = 50
     }
@@ -1000,7 +1059,6 @@ export async function generateInvoicePDF(
     // 831.89pt). The page number is placed at the very
     // bottom of the page (pageHeight - 18 = 823.89) so it
     // sits just below the footer blocks.
-    const footerY = doc.page.height - 74
     doc.fontSize(8).fillColor(textColor).font(fontFor('regular'))
 
     // Tier 7.5: render the template's
@@ -1127,57 +1185,7 @@ export async function generateInvoicePDF(
         .text(renderConfig!.kleineUnternehmerNote!, leftMargin, footerY - 14, { lineBreak: false })
     }
 
-    if (company.bankInfo && typeof company.bankInfo === 'object') {
-      // Tier 695: a credit note asks for no payment — the account is the
-      // company's, not an instruction to pay
-      doc.text(docType === "CN" ? "Bankverbindung:" : "Zahlungsinformationen:", leftMargin, footerY, { lineBreak: false })
-      if (company.bankInfo.bankName) doc.text(`Bank: ${company.bankInfo.bankName}`, leftMargin, footerY + 12, { lineBreak: false })
-      if (company.bankInfo.iban) doc.text(`IBAN: ${company.bankInfo.iban}`, leftMargin, footerY + 24, { lineBreak: false })
-      if (company.bankInfo.bic) doc.text(`BIC: ${company.bankInfo.bic}`, leftMargin, footerY + 36, { lineBreak: false })
-    }
 
-    // Right footer — Impressum / Rechtliches / Sonstige Angaben.
-    // Anchored to rightMargin, right-aligned. We pack everything
-    // the user asked for (Handelsregister, Geschäftsführer,
-    // Sonstige Angaben) into a single right column. The
-    // otherInfo block is multi-line free text and is rendered
-    // verbatim with its own line breaks, so it doesn't have to
-    // fit on a single line.
-    const reg = (company as any).registerEntry
-    const md = (company as any).managingDirector
-    const other = (company as any).otherInfo
-    const rightFooterWidth = rightMargin - leftMargin
-    // Tier 728: the lines of the block, then where it starts — with the full
-    // name and the seat it can be taller than the four lines it was laid out
-    // for; it moves up rather than past the page's foot (which would start a
-    // page of its own).
-    const impressum: Array<{ text: string; step: number }> = []
-    // the full name as registered („… Lederwaren GmbH“) when the letterhead
-    // carries a shorter one — § 14 Abs. 4 Nr. 1 UStG asks for the full name,
-    // § 35a GmbHG / § 37a HGB for the legal form. It was entered in the
-    // settings and printed nowhere (only the e-invoices had it).
-    const legal = String((company as any).legalName || "").trim()
-    if (legal && legal !== String(company.name || "").trim()) impressum.push({ text: legal, step: 10 })
-    // …a registered company's seat (§ 35a GmbHG, § 125a / § 177a HGB, § 80
-    // AktG) — the city of its address unless „Sonstige Angaben“ say it
-    if (reg && compAddr.city && !/\bsitz\b/i.test(String(other || ""))) {
-      impressum.push({ text: `Sitz der Gesellschaft: ${compAddr.city}`, step: 10 })
-    }
-    if (reg) impressum.push({ text: `Handelsregister: ${reg}`, step: 10 })
-    if (md) impressum.push({ text: `${directorsLabel(company as any)} ${md}`, step: 10 })
-    // „Sonstige Angaben“ line by line, each at its own fixed Y: PDFKit's
-    // `lineBreak: true` with `align: "right"` drew the user's lines on top
-    // of each other.
-    if (other) {
-      for (const line of String(other).split(/\r?\n/).filter((l: string) => l.length > 0)) impressum.push({ text: line, step: 9 })
-    }
-    const impressumHeight = impressum.reduce((h, l) => h + l.step, 0)
-    // the last line has to end above the page number band (page height − 22)
-    let rightFooterY = Math.min(footerY, doc.page.height - 24 - impressumHeight)
-    for (const line of impressum) {
-      doc.text(line.text, leftMargin, rightFooterY, { width: rightFooterWidth, align: "right", lineBreak: false })
-      rightFooterY += line.step
-    }
 
     // Tier 224: GiroCode (EPC QR code, EPC069-12 v2)
     // for SEPA Überweisung. When the company has an
@@ -1259,6 +1267,7 @@ export async function generateInvoicePDF(
         }
         doc.restore()
       }
+      drawCompanyFooter()
       if (isDraft) {
         const cx = doc.page.width / 2
         const cy = doc.page.height / 2
