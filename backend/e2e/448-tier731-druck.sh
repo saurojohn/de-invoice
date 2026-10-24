@@ -91,6 +91,8 @@ note "=== 4. printing many: one PDF ==="
 PRINT="{\"invoiceIds\":[\"$I\",\"$I2\"]}"
 CODE=$(curl -sS -o "$WORK/all.pdf" -w "%{http_code}" -X POST "$API/api/v1/invoices/bulk-print?companyId=$C" -H "x-user-id: $U" -H "x-company-id: $C" -H "Content-Type: application/json" -d "$PRINT")
 assert_eq "one PDF of both, every sheet (there was only the ZIP)" "$CODE/$(head -c 4 "$WORK/all.pdf")/$(pages "$WORK/all.pdf")" "200/%PDF/$((N + 1))"
+assert_eq "…printed at its actual size (Tier 731c: „fit to page“ shrinks it, the address leaves the window)" \
+  "$(node -e "const L=require('pdf-lib');L.PDFDocument.load(require('fs').readFileSync(process.argv[1])).then(d=>console.log(String(d.catalog.lookup(L.PDFName.of('ViewerPreferences'))).replace(/\s+/g,' ')))" "$WORK/all.pdf")" "<< /PrintScaling /None >>"
 FOREIGN="{\"invoiceIds\":[\"$I\"]}"
 assert_eq "another company's invoice: 404" "$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/invoices/bulk-print?companyId=$C2" -H "x-user-id: $U2" -H "x-company-id: $C2" -H "Content-Type: application/json" -d "$FOREIGN")" "404"
 AS POST "/api/v1/invoices/bulk-print?companyId=$C" '{"invoiceIds":[]}'

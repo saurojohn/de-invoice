@@ -1732,7 +1732,7 @@
     "defaultCurrency": "默认货币",
     "defaultPrinter": "默认打印机",
     "defaultPrinterPlaceholder": "例如 Brother HL-L2350DW series",
-    "defaultPrinterHelp": "仅作为参考保存——浏览器的打印对话框无法通过 JavaScript 预选特定打印机。请填写系统打印对话框中显示的打印机名称。",
+    "defaultPrinterHelp": "请在浏览器的打印对话框中选择打印机——那里列出本机的所有打印机。Chrome 和 Edge 下次会自动预选上次使用的打印机。此处填写的名称会在打印时作为提示显示。若要固定默认打印机：Windows → 设置 → 蓝牙和其他设备 → 打印机和扫描仪 → 默认打印机；macOS → 系统设置 → 打印机与扫描仪 → 默认打印机。",
     "uploadLogo": "上传徽标",
     "removeLogo": "移除徽标",
     "noLogo": "暂无徽标",
@@ -4129,6 +4129,7 @@
     "showPreview": "显示预览"
   },
   "invoicePage": {
+    "printOn": "请在打印对话框中选择打印机“{printer}”——Chrome 和 Edge 会记住上次选择的打印机。",
     "print": "🖨 打印",
     "printPopupBlocked": "打印窗口被拦截——请允许此网站弹出窗口。",
     "printError": "无法加载文档进行打印。",

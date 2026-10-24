@@ -2662,6 +2662,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 731c — printing through the browser's dialog with the computer's printers; the PDF prints at its actual size
+
+The owner, 25.10.2026, asked for choosing a printer and a default printer; offered a print helper on each computer or server-side IPP printing, the answer was „那就根据浏览器里的本地打印机“ — the browser's print dialog with the computer's own printers. So no agent and no IPP:
+
+- `lib/print-pdf.ts` `printPdfBlob(blob, onBlocked)`: the PDF into a hidden frame on the page (off screen, rendered — Chrome does not load its PDF viewer in a `display:none` frame) and `print()` there: the dialog with the local printers comes up on the page, no new tab, no pop-up blocker. Safari (a PDF in a frame prints blank there) and a frame that cannot print: a new tab with the dialog. Chrome and Edge preselect the printer used last.
+- „Drucken“ on the invoice page, „Speichern und drucken“ on the form and „Sammeldruck“ all print through `POST /invoices/bulk-print`, whose PDF now carries `/ViewerPreferences << /PrintScaling /None >>` — the dialog starts at the actual size instead of „fit to printable area“, which shrank the page and moved the address out of the envelope's window (Tier 731).
+- „Standarddrucker“ in the settings was stored and used nowhere („informational only“). It is now named when printing (a toast: „Im Druckdialog den Drucker „…“ wählen“), and its help says how the browser remembers the last printer and where Windows / macOS set the default.
+
+Not seen here: the in-app browser of the development session shows no system print dialog; the frame and the print request were checked there, the dialog itself is the browser's.
+
+Spec 448 section 4 checks the print scaling; Playwright `print-tier731.spec.ts` the frame, the print route and the printer hint. 42 spec files of the invoice and settings pages: 97 passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 731b — the bank and register details on every sheet
 
 The owner, 25.10.2026, on the bank details and the register details standing on the last sheet only: „每页上都要“. `drawCompanyFooter()` (bank block left, the Impressum lines right — computed before the table now) is drawn on every sheet in the page loop; the GiroCode stays on the last sheet, with the amount. Every sheet's table ends above the footer (`rowFits`: the lower of footerY and the Impressum's top, − 10 pt; it was page height − 40 everywhere because only the last sheet had a footer), and the totals block moves to a new sheet when it would reach the Impressum's top (it checked footerY only — a tall Impressum starts higher).

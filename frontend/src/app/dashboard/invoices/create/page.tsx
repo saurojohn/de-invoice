@@ -1,5 +1,6 @@
 "use client"
 
+import { printPdfBlob } from "@/lib/print-pdf"
 import { todayIso } from "@/lib/today"
 import { Suspense } from "react"
 
@@ -1218,61 +1219,24 @@ function CreateInvoicePageInner() {
       }
 
       if (printAfter && createdId) {
-        // Fetch the PDF with auth headers (apiFetch attaches
-        // x-user-id + x-company-id from localStorage), then
-        // build a same-origin blob URL the new tab can load.
-        const cacheBust = `t=${Date.now()}`
-        const pdfPath = `/api/v1/invoices/${createdId}/pdf?companyId=${companyId}&${cacheBust}`
-        const response = await apiFetch(pdfPath, { throwOnError: false })
+        // Tier 731c: as „Drucken“ on the invoice's page — the print route
+        // (the PDF says „print at actual size“) and the browser's print
+        // dialog on this page, with the computer's printers. The frame
+        // stays when the page moves on below.
+        const response = await apiFetch(`/api/v1/invoices/bulk-print?companyId=${companyId}`, {
+          method: "POST",
+          body: { invoiceIds: [createdId] },
+          throwOnError: false,
+        })
         if (!response.ok) {
-          // The invoice was created (we have createdId) but the
-          // PDF fetch failed — surface the error but still
-          // navigate to the detail page so the user can
-          // download manually from there.
+          // The invoice was created but its PDF did not come — say so; it
+          // can be printed from its page
           const msg = response.status === 401 || response.status === 403
             ? "Sitzung abgelaufen — bitte neu anmelden"
             : `PDF konnte nicht geladen werden (HTTP ${response.status})`
           toast.error(msg)
-          // Fall through to the navigation below
         } else {
-          const blob = await response.blob()
-          const blobUrl = URL.createObjectURL(blob)
-          const printWindow = window.open(blobUrl, "_blank")
-          if (printWindow) {
-            // Give the PDF viewer ~1.5s to load before firing
-            // print. Most PDF viewers (Chrome/Edge/Firefox
-            // built-in, plus the Adobe extension) will then
-            // show the system print dialog automatically.
-            // The user can also hit Cmd/Ctrl+P manually if
-            // the dialog doesn't auto-appear.
-            setTimeout(() => {
-              try {
-                printWindow.focus()
-                printWindow.print()
-              } catch (e) {
-                // The blob URL is same-origin, so print() should
-                // succeed; if it doesn't (very rare — e.g. user
-                // closed the new tab), we silently no-op. The
-                // blob is still downloadable from the new tab.
-                console.error("Auto-print failed:", e)
-              }
-              // Revoke the blob URL after the print dialog has
-              // had a chance to read the blob. The PDF is fully
-              // rendered in the new tab by now, so this is safe.
-              setTimeout(() => URL.revokeObjectURL(blobUrl), 5000)
-            }, 1500)
-          } else {
-            // Popup blocked — fall back to triggering a
-            // download in the current tab. The user can then
-            // open the downloaded PDF and print from there.
-            const a = document.createElement("a")
-            a.href = blobUrl
-            a.download = `rechnung-${createdId}.pdf`
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000)
-          }
+          printPdfBlob(await response.blob(), () => toast.warn(t("invoicePage.printPopupBlocked")))
         }
       }
 

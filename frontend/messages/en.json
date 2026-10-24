@@ -1732,7 +1732,7 @@
     "defaultCurrency": "Default Currency",
     "defaultPrinter": "Default Printer",
     "defaultPrinterPlaceholder": "e.g. Brother HL-L2350DW series",
-    "defaultPrinterHelp": "Stored as a reference only — the browser's print dialog cannot be pre-selected to a specific printer via JavaScript. Type the name as it appears in your system print dialog.",
+    "defaultPrinterHelp": "Choose the printer in the browser's print dialog — it lists this computer's printers. Chrome and Edge preselect the one used last. The name entered here is shown as a reminder when printing. To fix a default: Windows → Settings → Bluetooth & devices → Printers & scanners → default printer; macOS → System Settings → Printers & Scanners → Default printer.",
     "uploadLogo": "Upload Logo",
     "removeLogo": "Remove Logo",
     "noLogo": "No Logo",
@@ -4129,6 +4129,7 @@
     "showPreview": "Show preview"
   },
   "invoicePage": {
+    "printOn": "Choose the printer \"{printer}\" in the print dialog — Chrome and Edge remember the one chosen last.",
     "print": "🖨 Print",
     "printPopupBlocked": "The print window was blocked — please allow pop-ups for this site.",
     "printError": "The document could not be loaded for printing.",

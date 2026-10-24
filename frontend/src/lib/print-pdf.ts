@@ -1,18 +1,50 @@
 /**
- * Tier 731 — print a PDF fetched with the auth headers: a same-origin blob URL
- * in a new tab, then the browser's print dialog (as „Speichern und drucken“
- * does on the invoice form). Returns false when the tab could not be opened
- * (a pop-up blocker) — the caller says so.
+ * Tier 731 / 731c — print a PDF fetched with the auth headers in the
+ * browser's own print dialog, which lists the computer's printers (the
+ * browser cannot be told one — the owner, 25.10.2026: „根据浏览器里的本地
+ * 打印机“). Chrome and Edge preselect the printer used last.
+ *
+ * The PDF is loaded into a hidden frame on the page and printed from there —
+ * no new tab, so no pop-up blocker. Safari, and wherever the frame cannot
+ * print, open the PDF in a new tab with the dialog.
+ * `onBlocked`: neither worked (a pop-up blocker) — the caller says so.
  */
-export function printPdfBlob(blob: Blob): boolean {
+export function printPdfBlob(blob: Blob, onBlocked?: () => void): void {
   const url = URL.createObjectURL(blob)
-  const w = window.open(url, "_blank")
-  if (!w) {
-    URL.revokeObjectURL(url)
-    return false
+  // Safari prints a PDF in a frame blank (or prints the page around it): the tab
+  if (/^((?!chrome|chromium|crios|edg|android|firefox|fxios).)*safari/i.test(navigator.userAgent)) {
+    if (!viaTab(url)) onBlocked?.()
+    window.setTimeout(() => URL.revokeObjectURL(url), 10 * 60_000)
+    return
   }
-  // the PDF viewer needs a moment before print() opens the dialog
-  setTimeout(() => {
+  const frame = document.createElement("iframe")
+  frame.setAttribute("data-testid", "print-frame")
+  frame.setAttribute("aria-hidden", "true")
+  // off screen but rendered: a frame with display:none / visibility:hidden
+  // does not load its PDF viewer in Chrome
+  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:800px;height:600px;border:0"
+  frame.onload = () => {
+    window.setTimeout(() => {
+      try {
+        frame.contentWindow?.focus()
+        frame.contentWindow?.print()
+      } catch {
+        if (!viaTab(url)) onBlocked?.()
+      }
+    }, 400)
+  }
+  frame.src = url
+  document.body.appendChild(frame)
+  window.setTimeout(() => {
+    frame.remove()
+    URL.revokeObjectURL(url)
+  }, 10 * 60_000)
+}
+
+function viaTab(url: string): boolean {
+  const w = window.open(url, "_blank")
+  if (!w) return false
+  window.setTimeout(() => {
     try {
       w.focus()
       w.print()
@@ -20,6 +52,5 @@ export function printPdfBlob(blob: Blob): boolean {
       // the tab was closed — the user can still print from it
     }
   }, 1500)
-  setTimeout(() => URL.revokeObjectURL(url), 120000)
   return true
 }

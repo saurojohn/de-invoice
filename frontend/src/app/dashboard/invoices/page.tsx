@@ -462,7 +462,11 @@ function InvoicesPageInner() {
         method: "POST",
         body: { invoiceIds: ids.length === selected.size ? ids : Array.from(selected) },
       })
-      if (!printPdfBlob(await res.blob())) toast.warn(t("invoicePage.printPopupBlocked"))
+      printPdfBlob(await res.blob(), () => toast.warn(t("invoicePage.printPopupBlocked")))
+      // Tier 731c: the printer the company named (the dialog cannot be told it)
+      const company = await apiGet<{ settings?: { defaultPrinter?: string } }>(`/api/v1/companies/${companyId}`).catch(() => null)
+      const printer = String(company?.settings?.defaultPrinter || "").trim()
+      if (printer) toast.info(t("invoicePage.printOn", { printer }))
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : t("invoicePage.printError"))
     } finally {

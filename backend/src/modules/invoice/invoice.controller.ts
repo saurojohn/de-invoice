@@ -30,7 +30,7 @@ import {
   KoSITValidatorUnavailableError,
 } from '../../invoices/kosIT-validator.service';
 import { issuedDocument, issuedXRechnung, renderInvoiceDocument } from './invoice-document';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, PrintScaling } from 'pdf-lib';
 // Tier 62: USt-Behandlung auto-detector (pure function, no
 // DI — we just import and call suggestUstBehandlung()).
 import { suggestUstBehandlung, UstSuggestion } from './ust-behandlung-detector';
@@ -254,7 +254,8 @@ export class InvoiceController {
   //   2) dateFrom/dateTo (+ optional type/status) — server picks
   //      matching invoices. Used for date-range exports.
   /**
-   * Tier 731: the chosen documents as ONE PDF, to print in one go — the ZIP
+   * Tier 731: the chosen documents as ONE PDF, to print in one go (one
+   * document: what „Drucken“ on its page prints) — the ZIP
    * of „bulk-download“ had to be unpacked and every file opened and printed
    * by itself. Each document as every other outlet builds it (an issued
    * invoice is its kept copy, Tier 685), plain, in the order given.
@@ -277,7 +278,10 @@ export class InvoiceController {
       const src = await PDFDocument.load(doc.buffer)
       for (const page of await merged.copyPages(src, src.getPageIndices())) merged.addPage(page)
     }
-    merged.setTitle(`Sammeldruck ${businessTodayIso()} (${ids.length})`)
+    merged.setTitle(ids.length > 1 ? `Sammeldruck ${businessTodayIso()} (${ids.length})` : 'Druck')
+    // Tier 731c: print at its actual size — „fit to the printable area“
+    // shrinks the page, and the address leaves the envelope's window
+    merged.catalog.getOrCreateViewerPreferences().setPrintScaling(PrintScaling.None)
     const bytes = await merged.save()
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Sammeldruck_${businessTodayIso()}.pdf"`, 'Cache-Control': 'no-store' })
     res.send(Buffer.from(bytes))

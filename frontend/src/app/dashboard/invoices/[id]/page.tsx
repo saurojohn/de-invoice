@@ -1537,8 +1537,14 @@ export default function InvoiceDetailPage() {
     if (!companyId || !invoice) return
     setPrinting(true)
     try {
-      const res = await apiFetch(`/api/v1/invoices/${invoice.id}/pdf?companyId=${companyId}&format=pdf&t=${Date.now()}`)
-      if (!printPdfBlob(await res.blob())) toast.warn(t("invoicePage.printPopupBlocked"))
+      // Tier 731c: through the print route — the PDF says „print at actual size“
+      const res = await apiFetch(`/api/v1/invoices/bulk-print?companyId=${companyId}`, {
+        method: "POST",
+        body: { invoiceIds: [invoice.id] },
+      })
+      printPdfBlob(await res.blob(), () => toast.warn(t("invoicePage.printPopupBlocked")))
+      const printer = String((invoice.company as { settings?: { defaultPrinter?: string } } | undefined)?.settings?.defaultPrinter || "").trim()
+      if (printer) toast.info(t("invoicePage.printOn", { printer }))
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : t("invoicePage.printError"))
     } finally {
