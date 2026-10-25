@@ -10,7 +10,7 @@
  */
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test"
 
-const API = "http://localhost:3001"
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 
 const ROUTES = [
   "/dashboard", "/dashboard/accounting", "/dashboard/accounting/journal", "/dashboard/accounting/ustva",
@@ -25,6 +25,8 @@ const ROUTES = [
   "/dashboard/settings", "/dashboard/settings/note-templates", "/dashboard/settings/users",
   "/dashboard/settings/webhooks", "/dashboard/suppliers", "/dashboard/system-errors", "/dashboard/system-health",
   "/dashboard/v2",
+  // Tier 731g: the pages since Tier 564
+  "/dashboard/time",
 ]
 
 // A 404 that is an answer, not a missing route.

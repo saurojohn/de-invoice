@@ -3,7 +3,9 @@
 # and verifies PDF format invariants (title, single page, no Fälligkeitsdatum).
 #
 # Usage:
-#   COMPANY_ID=... USER_ID=... ./smoke-test.sh
+#   COMPANY_ID=... USER_ID=... BASE=http://localhost:3011 scripts/smoke-invoices.sh
+#   (the company needs a customer; the rules of an issued invoice apply —
+#   brought up to date in Tier 731g)
 # Optional:
 #   BASE=http://localhost:3001
 #   KEEP=1        keep downloaded artefacts for inspection
@@ -172,6 +174,11 @@ ok=abs(float(d.get('subtotal',0))-sub)<0.01 and abs(float(d.get('totalVat',0))-v
 print('OK' if ok else 'FAIL')")
 [ "$RESULT" = "OK" ] && ok "totals match items (subtotal + vat = total)" || nok "totals mismatch"
 
+# Tier 731g: issue it — a credit note corrects an issued invoice (Tier 511),
+# a payment is booked on an issued one (GoBD); a draft takes neither
+apib PUT "/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}'
+[ "$STATUS" = "200" ] && ok "INV issued (status sent)" || nok "issue INV → $STATUS: $(echo "$BODY" | head -c 200)"
+
 # ── 3. create a PI invoice ───────────────────────────────────────────────
 step "Create PI invoice"
 apib POST "/api/v1/invoices?companyId=$COMPANY_ID" "{
@@ -334,17 +341,22 @@ apib POST "/api/v1/invoices/$INV_ID/payments?companyId=$COMPANY_ID" "{
   \"amount\": $(python3 -c "print(float('$INV_TOTAL')/2)"),
   \"paymentDate\": \"2026-06-06\",
   \"paymentMethod\": \"bank_transfer\",
+  \"reference\": \"Restzahlung\",
   \"notes\": \"Restzahlung\"
 }"
+# (Tier 731g: a reference of its own — the same amount, day and way within 10 s
+# is refused as a double click, 409)
 [ "$STATUS" = "201" ] || [ "$STATUS" = "200" ] && ok "remaining payment recorded" || nok "remaining payment failed: $STATUS"
 apib GET "/api/v1/invoices/$INV_ID?companyId=$COMPANY_ID" ""
 NEW_STATUS=$(python3 -c "import json; d=json.loads('''$BODY'''); print(d['status'])")
 [ "$NEW_STATUS" = "paid" ] && ok "INV auto-transitioned to paid" || nok "INV status=$NEW_STATUS (expected paid)"
 
 # ── 11. Status change via PUT /:id/status ───────────────────────────────
-step "PUT /:id/status (paid → cancelled)"
+# Tier 731g: an issued invoice is not cancelled by a status (Tier 694, § 14c
+# UStG) — refused with the reason; the Storno is a credit note (step 17)
+step "PUT /:id/status (paid → cancelled) is refused"
 apib PUT "/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" '{"status":"cancelled"}'
-[ "$STATUS" = "200" ] && ok "status → cancelled" || nok "status change failed: $STATUS $BODY"
+[ "$STATUS" = "400" ] && echo "$BODY" | grep -q "Stornorechnung" && ok "status → cancelled refused (400, Stornorechnung)" || nok "status → cancelled: $STATUS $BODY"
 
 # ── 12. List + pagination + filter ───────────────────────────────────────
 step "List + pagination + filter"
@@ -372,7 +384,10 @@ if command -v unzip >/dev/null 2>&1; then
   unzip -l "$OUT_ZIP" 2>/dev/null | grep -E "INV-|CN-|PI-" >/tmp/_ziplist
   COUNT=$(wc -l </tmp/_ziplist)
   [ "$COUNT" -ge 3 ] && ok "ZIP contains $COUNT invoice files" || nok "ZIP has $COUNT entries (expected 3+)"
-  unzip -l "$OUT_ZIP" 2>/dev/null | grep -q "_manifest.txt" && ok "ZIP contains _manifest.txt" || nok "no _manifest.txt"
+  # (Tier 731g: the listing first — `grep -q` stops reading at its match, unzip
+  # gets SIGPIPE, and with pipefail the pipe failed although the file is there)
+  ZIPLIST=$(unzip -l "$OUT_ZIP" 2>/dev/null)
+  grep -q "_manifest.txt" <<<"$ZIPLIST" && ok "ZIP contains _manifest.txt" || nok "no _manifest.txt"
 fi
 
 # ── 14. Bulk download by date range ──────────────────────────────────────
@@ -400,10 +415,10 @@ HEAD3=$(head -c 3 "$OUT_CSV" | xxd | head -1 | awk '{print $2$3}')
 [ "$HEAD3" = "efbbbf" ] && ok "CSV starts with UTF-8 BOM (Excel-friendly)" || note "CSV BOM: $HEAD3 (expected efbbbf)"
 head -1 "$OUT_CSV" | grep -q "Rechnungsnummer" && ok "CSV has German headers" || nok "CSV header missing Rechnungsnummer"
 
-# ── 17. Cancellation instead of delete (no DELETE endpoint) ─────────────
-step "Cancellation: PUT status=cancelled is the deletion path"
-apib PUT "/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" '{"status":"cancelled"}'
-[ "$STATUS" = "200" ] && ok "INV cancelled via status update" || nok "cancel failed: $STATUS"
+# ── 17. Cancellation: the Storno credit note (Tier 694) ─────────────────
+step "Cancellation: a Storno credit note over the full amount"
+apib POST "/api/v1/invoices/$INV_ID/credit-note?companyId=$COMPANY_ID" '{"reason":"Storno"}'
+[ "$STATUS" = "201" ] || [ "$STATUS" = "200" ] && ok "Storno credit note $(jget invoiceNumber "")" || nok "Storno failed: $STATUS $(echo "$BODY" | head -c 200)"
 
 # ── 18. Auth: missing headers → 403 ──────────────────────────────────────
 step "Auth: missing x-headers → 403"
