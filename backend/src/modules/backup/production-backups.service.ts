@@ -30,6 +30,7 @@
  */
 import { Injectable, Logger } from '@nestjs/common'
 import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 
@@ -79,6 +80,8 @@ export interface MirrorResult {
   copied: number
   versioned: number
   bytes: number
+  /** Tier 731e: files that could not be read or copied this run (gone, no access) */
+  skipped: number
   durationMs: number
 }
 
@@ -197,68 +200,79 @@ export class ProductionBackupsService {
     const t0 = Date.now()
     const mirror = path.join(dir, 'mirror')
     const versions = path.join(dir, 'versions')
-    fs.mkdirSync(mirror, { recursive: true })
+    await fsp.mkdir(mirror, { recursive: true })
     const stamp = now.toISOString().replace(/[:.]/g, '-')
-    let files = 0, copied = 0, versioned = 0, bytes = 0
-    const walk = (rel: string) => {
-      const abs = path.join(src, rel)
+    let files = 0, copied = 0, versioned = 0, bytes = 0, skipped = 0
+    // Tier 731e: asynchronous — the synchronous walk held every request of
+    // every company while it copied — and file by file: a file that went
+    // away between listing and copying (a temporary upload, a replaced logo)
+    // ended the whole run, and the next freshness check called the file
+    // backup stale.
+    const walk = async (rel: string): Promise<void> => {
       let entries: fs.Dirent[]
       try {
-        entries = fs.readdirSync(abs, { withFileTypes: true })
+        entries = await fsp.readdir(path.join(src, rel), { withFileTypes: true })
       } catch {
         return
       }
       for (const e of entries) {
         const r = path.join(rel, e.name)
-        if (e.isDirectory()) { walk(r); continue }
+        if (e.isDirectory()) { await walk(r); continue }
         if (!e.isFile()) continue
         const from = path.join(src, r)
         const to = path.join(mirror, r)
-        const st = fs.statSync(from)
-        files += 1
-        bytes += st.size
-        let prev: fs.Stats | null = null
-        try { prev = fs.statSync(to) } catch { prev = null }
-        if (prev && prev.size === st.size && Math.abs(prev.mtimeMs - st.mtimeMs) < 1000) continue
-        fs.mkdirSync(path.dirname(to), { recursive: true })
-        if (prev) {
-          const old = path.join(versions, `${r}.${stamp}`)
-          fs.mkdirSync(path.dirname(old), { recursive: true })
-          fs.renameSync(to, old)
-          versioned += 1
+        try {
+          const st = await fsp.stat(from)
+          files += 1
+          bytes += st.size
+          const prev = await fsp.stat(to).catch(() => null)
+          if (prev && prev.size === st.size && Math.abs(prev.mtimeMs - st.mtimeMs) < 1000) continue
+          await fsp.mkdir(path.dirname(to), { recursive: true })
+          if (prev) {
+            const old = path.join(versions, `${r}.${stamp}`)
+            await fsp.mkdir(path.dirname(old), { recursive: true })
+            await fsp.rename(to, old)
+            versioned += 1
+          }
+          const tmp = `${to}.part-${process.pid}`
+          await fsp.copyFile(from, tmp)
+          await fsp.utimes(tmp, st.atime, st.mtime)
+          await fsp.rename(tmp, to)
+          copied += 1
+        } catch (err) {
+          skipped += 1
+          this.logger.warn(`files backup: ${r} übersprungen (${(err as { code?: string }).code ?? (err as Error).message})`)
         }
-        const tmp = `${to}.part-${process.pid}`
-        fs.copyFileSync(from, tmp)
-        fs.utimesSync(tmp, st.atime, st.mtime)
-        fs.renameSync(tmp, to)
-        copied += 1
       }
     }
-    walk('')
-    const v = sizeOf(versions)
-    const m = sizeOf(mirror)
-    const result: MirrorResult = { files, copied, versioned, bytes, durationMs: Date.now() - t0 }
-    const record = { at: now.toISOString(), files, bytes, copied, versioned, versions: v.files, versionsBytes: v.bytes, mirrorBytes: m.bytes, source: src }
+    await walk('')
+    const v = await sizeOf(versions)
+    const m = await sizeOf(mirror)
+    const result: MirrorResult = { files, copied, versioned, bytes, skipped, durationMs: Date.now() - t0 }
+    const record = { at: now.toISOString(), files, bytes, copied, versioned, skipped, versions: v.files, versionsBytes: v.bytes, mirrorBytes: m.bytes, source: src }
     const tmp = path.join(dir, `last-run.json.part-${process.pid}`)
-    fs.writeFileSync(tmp, JSON.stringify(record, null, 2))
-    fs.renameSync(tmp, path.join(dir, 'last-run.json'))
-    this.logger.log(`files backup: ${files} files (${bytes} B), ${copied} copied, ${versioned} earlier versions kept`)
+    await fsp.writeFile(tmp, JSON.stringify(record, null, 2))
+    await fsp.rename(tmp, path.join(dir, 'last-run.json'))
+    this.logger.log(`files backup: ${files} files (${bytes} B), ${copied} copied, ${versioned} earlier versions kept${skipped ? `, ${skipped} skipped` : ''}`)
     return result
   }
 }
 
-function sizeOf(dir: string): { files: number; bytes: number } {
+async function sizeOf(dir: string): Promise<{ files: number; bytes: number }> {
   let files = 0, bytes = 0
-  const walk = (d: string) => {
+  const walk = async (d: string): Promise<void> => {
     let entries: fs.Dirent[]
-    try { entries = fs.readdirSync(d, { withFileTypes: true }) } catch { return }
+    try { entries = await fsp.readdir(d, { withFileTypes: true }) } catch { return }
     for (const e of entries) {
       const p = path.join(d, e.name)
-      if (e.isDirectory()) walk(p)
-      else if (e.isFile()) { files += 1; bytes += fs.statSync(p).size }
+      if (e.isDirectory()) await walk(p)
+      else if (e.isFile()) {
+        const st = await fsp.stat(p).catch(() => null)
+        if (st) { files += 1; bytes += st.size }
+      }
     }
   }
-  walk(dir)
+  await walk(dir)
   return { files, bytes }
 }
 

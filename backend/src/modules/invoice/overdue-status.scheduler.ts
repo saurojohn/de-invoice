@@ -59,7 +59,9 @@ export class OverdueStatusScheduler {
     for (const inv of due) {
       const open = Math.round(Number(inv.total) * 100) - inv.payments.reduce((s, p) => s + Math.round(Number(p.amount ?? 0) * 100), 0)
       if (open <= 0) continue
-      byCompany.set(inv.companyId, [...(byCompany.get(inv.companyId) ?? []), inv])
+      const list = byCompany.get(inv.companyId)
+      if (list) list.push(inv)
+      else byCompany.set(inv.companyId, [inv])
     }
     let marked = 0
     for (const [cid, rows] of byCompany) {

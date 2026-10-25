@@ -60,6 +60,7 @@ export interface MahnungPdfInput {
     managingDirector?: string | null
     otherInfo?: string | null
     rechtsform?: string | null
+    settings?: unknown
   }
   daysOverdue: number
   werktageOverdue: number

@@ -1133,6 +1133,7 @@ export function transformToXRechnungData(
     managingDirector?: string | null
     otherInfo?: string | null
     rechtsform?: string | null
+    settings?: unknown
     address: any
     bankInfo?: any
     /** v2: Leitweg-ID stored in settings (B2G use) */

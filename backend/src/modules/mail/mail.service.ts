@@ -161,7 +161,7 @@ export class MailService implements OnModuleInit {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
-        name: true, legalName: true, rechtsform: true, address: true, phone: true, fax: true, email: true, website: true,
+        name: true, legalName: true, rechtsform: true, settings: true, address: true, phone: true, fax: true, email: true, website: true,
         taxId: true, vatId: true, bankInfo: true, registerEntry: true, managingDirector: true, otherInfo: true,
       },
     });

@@ -54,12 +54,11 @@ test("print: the invoice, and the chosen invoices as one PDF", async ({ page, re
   // the invoice page: „Drucken“
   await page.goto(`/dashboard/invoices/${ids[0]}`)
   const [one] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/api/v1/invoices/bulk-print") && r.request().method() === "POST", { timeout: 60_000 }),
+    page.waitForResponse((r) => r.url().includes(`/api/v1/invoices/${ids[0]}/print`) && r.request().method() === "POST", { timeout: 60_000 }),
     page.getByTestId("invoice-print").click({ timeout: 60_000 }),
   ])
   expect(one.status()).toBe(200)
   expect(one.headers()["content-type"]).toContain("application/pdf")
-  expect(one.request().postDataJSON().invoiceIds).toEqual([ids[0]])
   await expect.poll(frames).toHaveLength(1)
   expect((await frames())[0]).toMatch(/^blob:/)
   // the printer the company named, as a reminder (the dialog cannot be told it)

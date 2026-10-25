@@ -269,6 +269,24 @@ export class InvoiceController {
     const ids = Array.isArray(body?.invoiceIds) ? body.invoiceIds.filter((x) => typeof x === 'string') : []
     if (ids.length === 0) throw new BadRequestException('invoiceIds ist erforderlich')
     if (ids.length > 100) throw new BadRequestException('Maximal 100 Rechnungen pro Druckauftrag')
+    await this.sendPrintPdf(ids, companyId, res)
+  }
+
+  /**
+   * Tier 731e: one document to print — „Drucken“ on its page, „Speichern und
+   * drucken“. It went through bulk-print, whose limit of 10 a minute is for
+   * the heavy many-document job: the eleventh invoice printed in a minute
+   * was refused.
+   */
+  @Post(':id/print')
+  @HttpCode(200)
+  @Require('invoice.read')
+  async printOne(@Param('id') id: string, @Query('companyId') companyId: string, @Res() res: Response) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    await this.sendPrintPdf([id], companyId, res)
+  }
+
+  private async sendPrintPdf(ids: string[], companyId: string, res: Response) {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
     const merged = await PDFDocument.create()
     for (const id of ids) {
@@ -283,7 +301,7 @@ export class InvoiceController {
     // shrinks the page, and the address leaves the envelope's window
     merged.catalog.getOrCreateViewerPreferences().setPrintScaling(PrintScaling.None)
     const bytes = await merged.save()
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Sammeldruck_${businessTodayIso()}.pdf"`, 'Cache-Control': 'no-store' })
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${ids.length > 1 ? 'Sammeldruck' : 'Druck'}_${businessTodayIso()}.pdf"`, 'Cache-Control': 'no-store' })
     res.send(Buffer.from(bytes))
   }
 

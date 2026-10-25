@@ -955,8 +955,12 @@ export async function generateInvoicePDF(
     }
     const advanceHeightPre = advance ? advanceRows.length * totalsLineHeightPre + 5 + gesamtHeightPre : 0
     const blockHeight = 5 + rows.length * totalsLineHeightPre + gesamtHeightPre + advanceHeightPre + notesHeightPre
-    // (Tier 731: above the company's footer, which can start higher than footerY)
-    if (y + (isCompact ? 15 : 20) + blockHeight > Math.min(footerY, impressumTop) - 10) {
+    // (Tier 731: above the company's footer, which can start higher than
+    // footerY. Tier 731e: and above the lines on the left over the footer —
+    // the template's footer text at footerY − 56, the payment line, Skonto
+    // and the tax note below it; they run unwrapped across the page, and a
+    // long payment line went through the totals labels.)
+    if (y + (isCompact ? 15 : 20) + blockHeight > Math.min(footerY - 60, impressumTop - 10)) {
       doc.addPage()
       y = 50
     }

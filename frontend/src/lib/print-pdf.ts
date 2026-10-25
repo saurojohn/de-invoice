@@ -17,13 +17,23 @@ export function printPdfBlob(blob: Blob, onBlocked?: () => void): void {
     window.setTimeout(() => URL.revokeObjectURL(url), 10 * 60_000)
     return
   }
+  // Tier 731e: a frame holds a PDF viewer and its file — the one of the
+  // print before goes now (its dialog is closed: the dialog is modal), this
+  // one after its dialog, the timeout below only if neither happens
+  for (const old of Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe[data-testid="print-frame"]'))) removeFrame(old)
   const frame = document.createElement("iframe")
   frame.setAttribute("data-testid", "print-frame")
+  frame.dataset.blobUrl = url
   frame.setAttribute("aria-hidden", "true")
   // off screen but rendered: a frame with display:none / visibility:hidden
   // does not load its PDF viewer in Chrome
   frame.style.cssText = "position:fixed;left:-10000px;top:0;width:800px;height:600px;border:0"
   frame.onload = () => {
+    try {
+      frame.contentWindow?.addEventListener("afterprint", () => window.setTimeout(() => removeFrame(frame), 1000))
+    } catch {
+      // no access to the frame's window — the next print or the timeout removes it
+    }
     window.setTimeout(() => {
       try {
         frame.contentWindow?.focus()
@@ -35,10 +45,13 @@ export function printPdfBlob(blob: Blob, onBlocked?: () => void): void {
   }
   frame.src = url
   document.body.appendChild(frame)
-  window.setTimeout(() => {
-    frame.remove()
-    URL.revokeObjectURL(url)
-  }, 10 * 60_000)
+  window.setTimeout(() => removeFrame(frame), 10 * 60_000)
+}
+
+function removeFrame(frame: HTMLIFrameElement) {
+  if (!frame.isConnected) return
+  frame.remove()
+  if (frame.dataset.blobUrl) URL.revokeObjectURL(frame.dataset.blobUrl)
 }
 
 function viaTab(url: string): boolean {

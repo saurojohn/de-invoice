@@ -2662,6 +2662,21 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 731e — the review of Tiers 566–731, and what it found in them
+
+The owner, 25.10.2026: „先做一次之前还没做过的代码审查“ — the last review was Tier 565 (Tiers 545–564); this one covered `d5074d4a..HEAD` (248 commits, ~20 000 lines of `src`), read by risk: new routes and their scoping, signature verification, the e-invoice import's XML reader, time tracking, backups, invoice and print logic, the newest tiers in full. Clean: the time entries' scoping and double-billing lock, the XML reader (no DOCTYPE, limits), the PDF signature check (range, hash, signature, end of file). Nine findings, all fixed („全修“):
+
+1. **The product list under a line was clipped** (Tier 730c): `overflow-x: auto` around the lines makes `overflow-y` auto too — the list stayed inside a 76 px box. No scroll box now; `ITEM_GRID` is the fixed grid from `lg` on, two columns of fields per line below it (the header hidden there).
+2. **Printing one invoice was limited to 10 a minute** (Tier 731c sent it through `bulk-print`). `POST /invoices/:id/print` (the global limit) for the invoice page and „Speichern und drucken“; `bulk-print` keeps its limit; both through `sendPrintPdf`.
+3. **The totals ran through the payment line**: they were kept above the footer only; the lines on their left (footer text at footerY − 56, payment line, Skonto, tax note) run unwrapped. Now above `min(footerY − 60, Impressum − 10)`. Measured on the code before: with 12 and 13 lines and „Zahlungsart: EC-Karte (girocard)“ they overlapped.
+4. / 5. **The file mirror** stopped at the first file it could not read (no record of the run, the freshness check called it stale) and copied synchronously in the API process. Now `fs.promises`, file by file; what cannot be read is skipped, counted (`skipped`) and logged.
+6. **„Als Entwurf kopieren“ took the order number along** (BT-13 of another order). A copy clears „Ihre Bestellnummer“; „Ihre Referenz“ (a project, a Leitweg-ID) stays.
+7. **An AG by the old `settings.rechtsform`**: „Vorstand:“ on the invoice, „Geschäftsführer:“ on statement, Mahnung, e-mail and BT-33. `directorsLabel` reads the settings too; every path passes them.
+8. **Every print left a frame with its PDF for ten minutes.** Removed after its dialog (`afterprint`) and at the next print at the latest.
+9. The nightly overdue job copied its per-company list for every invoice (quadratic) — now appends.
+
+Spec `449-tier731e-review-fixes.sh` (every section fails on the code before; section 3 needs throwaway `STORAGE_PATH` / `BACKUP_FILES_DIR` like 438); Playwright `review-fixes-tier731e.spec.ts` (product list not clipped — by its clipping ancestors, the copy's order number, one print frame); `print-tier731.spec.ts` expects the new route. 38 backend specs (PDF, backups, guards) and 41 Playwright files (97 tests) green.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 731c — printing through the browser's dialog with the computer's printers; the PDF prints at its actual size
 
 The owner, 25.10.2026, asked for choosing a printer and a default printer; offered a print helper on each computer or server-side IPP printing, the answer was „那就根据浏览器里的本地打印机“ — the browser's print dialog with the computer's own printers. So no agent and no IPP:

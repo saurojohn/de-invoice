@@ -399,6 +399,7 @@ export class BulkReminderService {
         managingDirector: company.managingDirector,
         otherInfo: company.otherInfo,
         rechtsform: company.rechtsform, // Tier 728i
+        settings: company.settings, // Tier 731e: an old settings.rechtsform
       },
       daysOverdue,
       werktageOverdue: daysOverdue, // the cron counts Werktage but

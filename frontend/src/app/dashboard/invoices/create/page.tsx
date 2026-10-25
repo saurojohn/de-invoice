@@ -363,7 +363,9 @@ function CreateInvoicePageInner() {
         paymentTerms: inv.paymentTerms ?? 0,
         language: inv.language || getDateLocale(),
         costCenter: inv.costCenter || '',
-        orderReference: inv.orderReference || '',
+        // Tier 731e: an order number is one order's — a copy is another
+        // order (the customer's reference, a project or Leitweg-ID, stays)
+        orderReference: opts.isClone ? '' : inv.orderReference || '',
         buyerReference: inv.buyerReference || '',
         templateId: inv.templateId || '',
         costObject: inv.costObject || '',
@@ -1223,9 +1225,8 @@ function CreateInvoicePageInner() {
         // (the PDF says „print at actual size“) and the browser's print
         // dialog on this page, with the computer's printers. The frame
         // stays when the page moves on below.
-        const response = await apiFetch(`/api/v1/invoices/bulk-print?companyId=${companyId}`, {
+        const response = await apiFetch(`/api/v1/invoices/${createdId}/print?companyId=${companyId}`, {
           method: "POST",
-          body: { invoiceIds: [createdId] },
           throwOnError: false,
         })
         if (!response.ok) {
@@ -2043,10 +2044,9 @@ function CreateInvoicePageInner() {
                   aligned with the rows below. */}
               {/* Tier 730c: header and rows on one grid of fixed tracks — the rows
                   took 13 of 12 columns (the „+“ wrapped onto a line of its own)
-                  and the header's price was one column over a two-column field */}
-              <div className="overflow-x-auto">
-              <div className="min-w-[46rem] space-y-4">
-              <div className={`${ITEM_GRID} text-sm font-medium text-gray-600 dark:text-gray-300`} data-testid="items-header">
+                  and the header's price was one column over a two-column field.
+                  Tier 731e: no scroll box (see ITEM_GRID) */}
+              <div className={`${ITEM_GRID} max-lg:hidden text-sm font-medium text-gray-600 dark:text-gray-300`} data-testid="items-header">
                 <div>{t("invoice.productNumber")}</div>
                 <div>{t("invoice.description")}</div>
                 <div>{t("invoice.quantity")} / {t("invoice.unit")}</div>
@@ -2334,8 +2334,6 @@ function CreateInvoicePageInner() {
                   </div>
                 </div>
               ))}
-              </div>
-              </div>
             </CardContent>
           </Card>
 
@@ -3005,7 +3003,10 @@ function CreateInvoicePageInner() {
 }
 // Tier 730c: the line items' columns — Artikelnr., Beschreibung, Menge/Einheit,
 // Einzelpreis, MwSt, Gesamt, remove, add — for the header and every row
-const ITEM_GRID = "grid grid-cols-[6.5rem_minmax(10rem,1fr)_8.5rem_7rem_4.75rem_6.5rem_2.25rem_2.25rem] gap-2"
+// Tier 731e: no scroll box around them — overflow-x:auto clips vertically too,
+// and the product list under a row's description was cut off by it. Below
+// `lg` a row is two columns of fields (the header is hidden there).
+const ITEM_GRID = "grid gap-2 grid-cols-2 lg:grid-cols-[6.5rem_minmax(8rem,1fr)_8.5rem_7rem_4.75rem_6.5rem_2.25rem_2.25rem]"
 
 export default function CreateInvoicePage() {
   return (

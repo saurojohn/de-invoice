@@ -17,6 +17,8 @@ export interface LetterCompany {
   legalName?: string | null
   /** Tier 728i: whose names the directors' line gives — „Vorstand“ for an AG */
   rechtsform?: string | null
+  /** Tier 731e: an old `settings.rechtsform` counts as well (resolveRechtsform) */
+  settings?: unknown
   address?: { street?: string | null; postalCode?: string | null; city?: string | null; country?: string | null } | null
   phone?: string | null
   fax?: string | null
@@ -65,8 +67,8 @@ function registerDetails(c: LetterCompany): string[] {
  * Vorstand (§ 80 AktG — it printed „Geschäftsführer“); a KGaA its
  * persönlich haftende Gesellschafter (§ 278 AktG).
  */
-export function directorsLabel(c: Pick<LetterCompany, 'rechtsform' | 'legalName' | 'name'>): string {
-  const { rechtsform } = resolveRechtsform({ rechtsform: c.rechtsform, legalName: c.legalName, name: c.name })
+export function directorsLabel(c: Pick<LetterCompany, 'rechtsform' | 'settings' | 'legalName' | 'name'>): string {
+  const { rechtsform } = resolveRechtsform({ rechtsform: c.rechtsform, settings: c.settings, legalName: c.legalName, name: c.name })
   if (rechtsform === 'AG') return 'Vorstand:'
   if (rechtsform === 'KGaA') return 'Persönlich haftende Gesellschafter:'
   return 'Geschäftsführer:'
