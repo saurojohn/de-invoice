@@ -133,7 +133,10 @@ fi
 # appears in the served JS chunk as a literal).
 # Find the useTheme chunk and grep it.
 USE_THEME_CHUNK=$(for f in $(echo "$PAGE_HTML" | grep -oE '/_next/static/chunks/[^"]+\.js' | sort -u); do
-  if curl -sS "http://localhost:3100${f}" 2>/dev/null | grep -q 'de-invoice\.theme'; then
+  # (Tier 731h: the body first — `curl | grep -q` under pipefail failed when
+  # grep stopped at its match and curl got SIGPIPE: the chunk was "not found")
+  CHUNK_JS=$(curl -sS "http://localhost:3100${f}" 2>/dev/null)
+  if grep -q 'de-invoice\.theme' <<<"$CHUNK_JS"; then
     echo "$f"
     break
   fi
