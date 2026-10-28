@@ -774,6 +774,7 @@
     "timeRounding": "工时取整",
     "timeRoundingInherit": "沿用公司规则",
     "invoiceEmail": "发票邮箱",
+    "xrechnungNeedsAddress": "没有邮箱（或增值税号 / Leitweg-ID）就无法为该客户生成有效的 XRechnung——XRechnung 3.0 要求填写买方的电子地址。",
     "invoiceEmailHint": "发票、催款函和对账单发送到此地址（例如客户的财务部门）。留空：发送到上面的邮箱。"
   },
   "dashboard": {
@@ -4129,6 +4130,7 @@
     "showPreview": "显示预览"
   },
   "invoicePage": {
+    "xrechnungNeedsAddress": "开具 XRechnung 需要客户的收票邮箱（政府客户需填 Leitweg-ID），该客户尚未填写。",
     "printOn": "请在打印对话框中选择打印机“{printer}”——Chrome 和 Edge 会记住上次选择的打印机。",
     "print": "🖨 打印",
     "printPopupBlocked": "打印窗口被拦截——请允许此网站弹出窗口。",

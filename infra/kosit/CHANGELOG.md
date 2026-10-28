@@ -5,6 +5,30 @@ All notable changes to the Schematron Rules and this project will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v2.6.0 on 2026-08-31
+
+This release is compatible with XRechnung 3.0
+
+### Added
+
+* Temporary rules BR-TMP-4 and BR-TMP-5 to replace CII-SR-475 and CII-SR-476 with corrected rule context until the bug is fixed upstream in CEN Schematron (see https://github.com/ConnectingEurope/eInvoicing-EN16931/issues/508)
+* Temporary rule BR-TMP-6 (UBL) to enforce YYYY-MM-DD date format on all date business terms (BT-2, BT-7, BT-9, BT-26, BT-72, BT-73, BT-74, BT-134, BT-135)
+* Temporary rule BR-TMP-7 (CII) to enforce format="102" attribute and YYYYMMDD format on all date business terms (BT-2, BT-7, BT-9, BT-26, BT-72, BT-73, BT-74, BT-134, BT-135)
+
+### Changed
+
+* BR-TMP-2 assertion flag raised to "fatal"
+* Global codelist variables to adapt CEN 1.3.16 codelist updates
+* IBAN dummy values in test files
+* Using Peppol BIS Billing 3.0.21
+* IBAN Regex extracted to common.sch
+
+### Fixed
+
+* PEPPOL-EN16931-R008 in UBL no longer rejects an empty BT-13 "Purchase order reference" (`cac:OrderReference/cbc:ID`), which the UBL schema requires to be present whenever BT-14 "Sales order reference" is provided
+
+**Note: BR-TMP-2 error level is raised to "fatal", this version might break your validation and business workflow. Please evaluate impact. BR-TMP-4, BR-TMP-5, BR-TMP-6, and BR-TMP-7 are currently implemented with error level "warning" and will be raised to "fatal" with an upcoming release.**
+
 ## v2.5.0 on 2026-01-31
 
 This release is compatible with XRechnung 3.0.x
@@ -19,11 +43,11 @@ This release is compatible with XRechnung 3.0.x
 * Schematron implementation from ISO Schematron to SchXslt
 * Using Saxon HE 12.8
 * Global codelist variables to adapt CEN 1.3.15 codelist updates
-* Bug in BR-TMP-3 that caused an error when BT-149 was provided in both `ram:NetPriceProductTradePrice` and `ram:GrossPriceProductTradePrice` and BT-150 was not provided in either
 
 ### Fixed
 
 * Bug in BR-DE-25-b that prevented detection of forbidden BT-86 "Payment service provider identifier" with BG-19 in CII
+* Bug in BR-TMP-3 that caused an error when BT-149 was provided in both `ram:NetPriceProductTradePrice` and `ram:GrossPriceProductTradePrice` and BT-150 was not provided in either
 
 ## v2.4.0 on 2025-07-10
 

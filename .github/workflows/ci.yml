@@ -423,6 +423,18 @@ jobs:
       - name: Install Python pdf deps
         run: |
           python3 -m pip install --quiet pypdf
+      # Tier 732: the ZUGFeRD reference validator (Mustang) for the specs that
+      # check the e-invoice PDF (417, 450) — from Maven Central, checked
+      # against its SHA-1. Before, it ran only by hand (Tier 693): CI checked
+      # the PDF/A-3 structure, not the profile.
+      - name: Fetch Mustang (ZUGFeRD validator)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/mustang"
+          J="$RUNNER_TEMP/mustang/Mustang-CLI-2.26.0.jar"
+          curl -sSfL -o "$J" https://repo1.maven.org/maven2/org/mustangproject/Mustang-CLI/2.26.0/Mustang-CLI-2.26.0.jar
+          echo "8755fc333032f802ad7dcf3930201edfe64014e2  $J" | sha1sum -c -
+          echo "MUSTANG_JAR=$J" >> "$GITHUB_ENV"
       - name: Run e2e suite
         run: bash run-all.sh
         working-directory: backend/e2e

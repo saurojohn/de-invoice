@@ -6,6 +6,7 @@ import {
   mapUnitToUNECE,
   normalizeCountryCode,
   paymentMeansOf,
+  buyerElectronicAddress,
   transformToXRechnungData,
   vatEasScheme,
   XRechnungData,
@@ -399,13 +400,8 @@ function generateSellerParty(s: XRechnungData['supplier']): string {
 
 /** Buyer (BG-7), same element order; electronic address as in the UBL. */
 function generateBuyerParty(c: XRechnungData['customer']): string {
-  const endpoint = c.leitwegId
-    ? { id: c.leitwegId, scheme: '0204' }
-    : c.email
-      ? { id: c.email, scheme: 'EM' }
-      : c.vatId && vatEasScheme(c.vatId)
-        ? { id: c.vatId, scheme: vatEasScheme(c.vatId)! }
-        : undefined;
+  // Tier 732: the same BT-49 as the UBL (buyerElectronicAddress)
+  const endpoint = buyerElectronicAddress(c);
   return `<ram:BuyerTradeParty>
         <ram:Name>${escapeXml(c.name)}</ram:Name>
         ${postalAddress(c.address)}

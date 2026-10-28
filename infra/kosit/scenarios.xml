@@ -19,8 +19,8 @@
     - validator.jar: KoSIT Validator 1.6.2
       (https://github.com/itplr-kosit/validator/releases/tag/v1.6.2)
     - UBL 2.1 XSD: included in the validator's standalone jar
-    - XRechnung 3.0.2 schematron: xrechnung-schematron 2.5.0
-      (https://github.com/itplr-kosit/xrechnung-schematron/releases/tag/v2.5.0)
+    - XRechnung 3.0.2 schematron: xrechnung-schematron 2.6.0 (2026-08-31; Tier 732)
+      (https://github.com/itplr-kosit/xrechnung-schematron/releases/tag/v2.6.0)
 -->
 <scenarios xmlns="http://www.xoev.de/de/validator/framework/1/scenarios" frameworkVersion="1.1.2">
     <name>de-invoice — XRechnung 3.0 Validation</name>

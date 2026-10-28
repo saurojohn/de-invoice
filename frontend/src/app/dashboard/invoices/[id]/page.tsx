@@ -54,7 +54,7 @@ interface Invoice {
   totalVat: string
   total: string
   notes: string
-  customer: { name: string; address: any; vatId: string; contact?: { email?: string; phone?: string } | null }
+  customer: { name: string; address: any; vatId: string; contact?: { email?: string; phone?: string; invoiceEmail?: string } | null }
   // Sender letterhead (the company that issued the invoice) — used by
   // the on-screen and browser-print header card. Returned by
   // GET /invoices/:id since we added `include: { company: true }`
@@ -2030,6 +2030,12 @@ export default function InvoiceDetailPage() {
             >
               {t("invoicePage.downloadXrechnung")}
             </Button>
+            {/* Tier 732: XRechnung 3.0 needs the buyer's electronic address (BT-49) */}
+            {!(invoice.customer?.address?.leitwegId || invoice.customer?.contact?.invoiceEmail || invoice.customer?.contact?.email || invoice.customer?.vatId) && (
+              <span className="text-xs text-amber-700 dark:text-amber-300 self-center max-w-xs" data-testid="xrechnung-needs-address">
+                {t("invoicePage.xrechnungNeedsAddress")}
+              </span>
+            )}
             <Button
               variant="outline"
               onClick={checkXRechnung}

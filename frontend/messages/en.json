@@ -774,6 +774,7 @@
     "timeRounding": "Rounding of logged time",
     "timeRoundingInherit": "as the company",
     "invoiceEmail": "E-mail for invoices",
+    "xrechnungNeedsAddress": "Without an e-mail address (or VAT ID / Leitweg-ID) no valid XRechnung can be created for this customer — XRechnung 3.0 requires the buyer's electronic address.",
     "invoiceEmailHint": "Invoices, reminders and statements go to this address (e.g. the customer’s accounts department). Empty: to the e-mail above."
   },
   "dashboard": {
@@ -4129,6 +4130,7 @@
     "showPreview": "Show preview"
   },
   "invoicePage": {
+    "xrechnungNeedsAddress": "For an XRechnung the customer needs an e-mail address for invoices (for public authorities: the Leitweg-ID).",
     "printOn": "Choose the printer \"{printer}\" in the print dialog — Chrome and Edge remember the one chosen last.",
     "print": "🖨 Print",
     "printPopupBlocked": "The print window was blocked — please allow pop-ups for this site.",

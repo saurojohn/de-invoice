@@ -35,7 +35,7 @@ ADMIN() { # method path [body] — the operator (backup routes)
 pos() { node "$SCRIPT_DIR/fixtures/pdf-text.mjs" "$1" --pos; }
 AS PUT "/api/v1/companies/$C?companyId=$C" '{"vatId":"DE123456789","registerEntry":"Amtsgericht München, HRB 98765","managingDirector":"Dr. Anna Beispiel","address":{"street":"Hauptstr. 5","postalCode":"80331","city":"München","country":"DE"},"bankInfo":{"bankName":"Testbank","iban":"DE89370400440532013000","bic":"COBADEFFXXX"}}'
 assert_eq "fixture: the company" "$STATUS" "200"
-AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde GmbH\",\"type\":\"business\",\"address\":{\"street\":\"Ring 2\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"
+AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde GmbH\",\"type\":\"business\",\"address\":{\"street\":\"Ring 2\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"},\"contact\":{\"email\":\"ap@kunde.example.test\"}}"
 K=$(json_field "$BODY" id)
 inv() { # n items, payment method → I
   local items; items=$(python3 -c "import json,sys;print(json.dumps([{'description':f'Leistung {i}','quantity':1,'unit':'Stk','unitPrice':10,'vatRate':0.19} for i in range(int(sys.argv[1]))]))" "$1")

@@ -951,6 +951,8 @@ export class InvoiceController {
         return;
       }
 
+      // Tier 732: no XRechnung that XRechnung rejects (BT-49) — issuedXRechnung
+      // refuses to make one; a kept one is handed out as kept
       // Tier 686: an issued invoice's XRechnung is the one kept with it
       const { xml: buffer } = await issuedXRechnung(this.prisma, invoice, company);
 

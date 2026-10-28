@@ -1454,6 +1454,10 @@ export default function CustomersPage() {
                      data-testid="customer-invoice-email"
                    />
                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("customer.invoiceEmailHint")}</p>
+                   {/* Tier 732: a business without any electronic address gets no valid XRechnung (BT-49) */}
+                   {form.type === "business" && !form.invoiceEmail.trim() && !form.email.trim() && !form.leitwegId.trim() && !form.vatId.trim() && (
+                     <p className="text-xs text-amber-700 dark:text-amber-300 mt-1" data-testid="customer-xrechnung-needs-address">{t("customer.xrechnungNeedsAddress")}</p>
+                   )}
                  </div>
 
                  {/* Inline error / success feedback inside the modal */}

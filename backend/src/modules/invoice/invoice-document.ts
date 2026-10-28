@@ -17,12 +17,12 @@
 // the e-invoice is for, got the one copy without the XML.
 //
 // Every outlet calls renderInvoiceDocument now.
-import { Logger } from '@nestjs/common'
+import { BadRequestException, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { issuerContext } from './issuer-context'
 import { generateInvoicePDF, InvoiceRenderConfig } from '../../invoices/invoice-pdf.service'
 import { generateZUGFeRD } from '../../invoices/zugferd.service'
-import { generateXRechnung, transformToXRechnungData } from '../../invoices/xrechnung.service'
+import { buyerElectronicAddress, generateXRechnung, MISSING_BUYER_ADDRESS, transformToXRechnungData } from '../../invoices/xrechnung.service'
 import { InvoiceTemplateService } from '../invoice-template/invoice-template.service'
 import { advanceDeductionFor } from './advance'
 import { isNonFiscal, NON_FISCAL_TYPES } from './document-scope'
@@ -59,6 +59,12 @@ export interface InvoiceDocument {
   canonical: boolean
   /** Tier 686: the XRechnung (UBL) of the same rendering, kept next to the PDF */
   xrechnung?: Buffer
+}
+
+/** Tier 732: the buyer has the electronic address (BT-49) XRechnung 3.0 requires */
+export function hasBuyerAddress(invoice: any, company: any): boolean {
+  const withLeitweg = { ...company, leitwegId: (company?.settings as any)?.leitwegId || null }
+  return !!buyerElectronicAddress(transformToXRechnungData(invoice, withLeitweg).customer)
 }
 
 /** The XRechnung (UBL) of an invoice — with the company's Leitweg-ID (Tier 115). */
@@ -100,7 +106,10 @@ export async function renderInvoiceDocument(
     const buffer = await generateZUGFeRD(invoice, issuer, { templateConfig })
     let xrechnung: Buffer | undefined
     try {
-      xrechnung = xrechnungFor(invoice, company)
+      // Tier 732: none for a buyer without an electronic address (BT-49) —
+      // XRechnung 3.0 rejects it, and a kept one would stay invalid; it is
+      // made (and kept) when it is asked for once the customer has one
+      if (hasBuyerAddress(invoice, company)) xrechnung = xrechnungFor(invoice, company)
     } catch (err) {
       logger.warn(`Rechnung ${invoice.invoiceNumber}: keine XRechnung (${(err as Error)?.message})`)
     }
@@ -272,17 +281,24 @@ export function xrechnungPathOf(pdfPath: string): string {
  * kept), for a draft a fresh one.
  */
 export async function issuedXRechnung(prisma: PrismaService, invoice: any, company: any): Promise<{ xml: Buffer; fromCopy: boolean }> {
-  if (invoice.status === 'draft' || isNonFiscal(invoice.type)) return { xml: xrechnungFor(invoice, company), fromCopy: false }
+  // Tier 732: a new XRechnung only for a buyer with an electronic address
+  // (BT-49) — XRechnung 3.0 rejects one without; a kept one is handed out as kept
+  const fresh = (): Buffer => {
+    if (!hasBuyerAddress(invoice, company)) throw new BadRequestException(MISSING_BUYER_ADDRESS)
+    return xrechnungFor(invoice, company)
+  }
+  if (invoice.status === 'draft' || isNonFiscal(invoice.type)) return { xml: fresh(), fromCopy: false }
   if (!(await readCopy(prisma, invoice))) {
     const doc = await renderInvoiceDocument(prisma, invoice, company)
     await keepIssuedCopy(prisma, invoice, doc)
   }
-  if (!invoice.pdfPath) return { xml: xrechnungFor(invoice, company), fromCopy: false }
+  if (!invoice.pdfPath) return { xml: fresh(), fromCopy: false }
   storage ??= new StorageService()
   const where = xrechnungPathOf(invoice.pdfPath)
   const kept = await storage.getFile(where).catch(() => null)
   if (kept?.buffer?.length) return { xml: kept.buffer, fromCopy: true }
-  const xml = xrechnungFor(invoice, company)
+  // Tier 732: an invalid one is neither handed out nor kept
+  const xml = fresh()
   try {
     await storage.saveAt(where, xml)
   } catch (err) {

@@ -774,6 +774,7 @@
     "timeRounding": "Rundung erfasster Zeiten",
     "timeRoundingInherit": "wie in der Firma",
     "invoiceEmail": "E-Mail für Rechnungen",
+    "xrechnungNeedsAddress": "Ohne E-Mail-Adresse (oder USt-IdNr. bzw. Leitweg-ID) kann für diesen Kunden keine gültige XRechnung erstellt werden — XRechnung 3.0 verlangt eine elektronische Adresse des Käufers.",
     "invoiceEmailHint": "Rechnungen, Mahnungen und Kontoauszüge gehen an diese Adresse (z. B. die Buchhaltung des Kunden). Leer: an die E-Mail oben."
   },
   "dashboard": {
@@ -4129,6 +4130,7 @@
     "showPreview": "Vorschau anzeigen"
   },
   "invoicePage": {
+    "xrechnungNeedsAddress": "Für eine XRechnung fehlt beim Kunden die E-Mail-Adresse für Rechnungen (bei Behörden: die Leitweg-ID).",
     "printOn": "Im Druckdialog den Drucker „{printer}“ wählen — Chrome und Edge merken sich den zuletzt gewählten.",
     "print": "🖨 Drucken",
     "printPopupBlocked": "Das Druckfenster wurde blockiert — bitte Pop-ups für diese Seite erlauben.",

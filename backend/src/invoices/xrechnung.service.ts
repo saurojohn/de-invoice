@@ -401,21 +401,31 @@ function generateSupplierParty(s: XRechnungSupplier): string {
   </cac:AccountingSupplierParty>`
 }
 
+/**
+ * BT-49, the buyer's electronic address — which XRechnung 3.0 requires
+ * (PEPPOL-EN16931-R010). Tier 412: CEF EAS codes (BR-CL-25) — the Leitweg-ID
+ * is 0204 (9930 is the German VAT number), then the e-mail for invoices, then
+ * the VAT id under its country's code. Tier 732: null when the customer has
+ * none of them — an XRechnung for such a customer is rejected (measured: a
+ * private customer, a GmbH entered without e-mail and VAT id).
+ */
+export function buyerElectronicAddress(c: Pick<XRechnungCustomer, 'leitwegId' | 'email' | 'vatId'>): { id: string; scheme: string } | null {
+  if (c.leitwegId) return { id: c.leitwegId, scheme: '0204' }
+  if (c.email) return { id: c.email, scheme: 'EM' }
+  const vatScheme = c.vatId ? vatEasScheme(c.vatId) : undefined
+  if (c.vatId && vatScheme) return { id: c.vatId, scheme: vatScheme }
+  return null
+}
+
+/** Tier 732: what the user is told when the customer has no BT-49 */
+export const MISSING_BUYER_ADDRESS =
+  'Für eine XRechnung braucht der Kunde eine elektronische Adresse (BT-49): tragen Sie beim Kunden eine E-Mail-Adresse für Rechnungen ein — ' +
+  'bei einer Behörde die Leitweg-ID. Ohne sie wird die XRechnung abgewiesen (XRechnung 3.0, PEPPOL-EN16931-R010). ' +
+  'Die Rechnung als PDF (auch als ZUGFeRD) geht ohne sie.'
+
 function generateCustomerParty(c: XRechnungCustomer): string {
-  // BR-DE-TMP-1: Buyer electronic address MUST be provided.
-  // Prefer VAT-ID (scheme DE:VAT), fall back to Leitweg-ID
-  // (scheme 9930) for B2G buyers.
-  // Tier 412: CEF EAS codes (BR-CL-25) — Leitweg-ID is 0204 (9930 is the
-  // German VAT number), then e-mail, then the VAT id under its country's code.
-  // XRechnung requires the buyer's electronic address (PEPPOL-EN16931-R010).
-  let endpointBlock = ''
-  if (c.leitwegId) {
-    endpointBlock = `<cbc:EndpointID schemeID="0204">${escapeXml(c.leitwegId)}</cbc:EndpointID>`
-  } else if (c.email) {
-    endpointBlock = `<cbc:EndpointID schemeID="EM">${escapeXml(c.email)}</cbc:EndpointID>`
-  } else if (c.vatId && vatEasScheme(c.vatId)) {
-    endpointBlock = `<cbc:EndpointID schemeID="${vatEasScheme(c.vatId)}">${escapeXml(c.vatId)}</cbc:EndpointID>`
-  }
+  const endpoint = buyerElectronicAddress(c)
+  const endpointBlock = endpoint ? `<cbc:EndpointID schemeID="${endpoint.scheme}">${escapeXml(endpoint.id)}</cbc:EndpointID>` : ''
 
   return `<!-- Kunde / Customer Party (BR-07, BR-08) -->
   <cac:AccountingCustomerParty>
@@ -947,16 +957,12 @@ export function validateXRechnung(data: XRechnungData): XRechnungValidation {
   }
   // Tier 412: the buyer's electronic address (BT-49) is mandatory in
   // XRechnung (PEPPOL-EN16931-R010): Leitweg-ID, e-mail or VAT number.
-  if (
-    !data.customer?.leitwegId &&
-    !data.customer?.email &&
-    !(data.customer?.vatId && vatEasScheme(data.customer.vatId))
-  ) {
+  // Tier 732: the same test as the generator (buyerElectronicAddress)
+  if (!buyerElectronicAddress(data.customer ?? {})) {
     errors.push({
       rule: 'PEPPOL-EN16931-R010',
       severity: 'error',
-      message:
-        'Elektronische Adresse des Kunden fehlt (BT-49 — Leitweg-ID, E-Mail-Adresse oder USt-IdNr. beim Kunden hinterlegen)',
+      message: MISSING_BUYER_ADDRESS,
       location: 'cac:AccountingCustomerParty/cbc:EndpointID',
     })
   }

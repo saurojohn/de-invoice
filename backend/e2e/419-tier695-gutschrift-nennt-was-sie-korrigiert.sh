@@ -36,7 +36,7 @@ AS() { # method path [body]
 }
 ust() { AS GET "/api/v1/ustva/compute?companyId=$C&year=$1&month=$2"; echo "$BODY" | python3 -c "import sys,json;print('%g' % json.load(sys.stdin)['umsatzsteuer'])"; }
 day() { q "select to_char(\"$2\",'YYYY-MM-DD') from \"Invoice\" where id='$1'"; }
-AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde AG\",\"type\":\"business\",\"address\":{\"street\":\"Ring 2\",\"postalCode\":\"80331\",\"city\":\"München\",\"country\":\"DE\"}}"
+AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde AG\",\"type\":\"business\",\"address\":{\"street\":\"Ring 2\",\"postalCode\":\"80331\",\"city\":\"München\",\"country\":\"DE\"},\"contact\":{\"email\":\"ap@kunde.example.test\"}}"
 K=$(json_field "$BODY" id)
 issued() { # extra-json → INV
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"2026-06-01\"$1,\"items\":[{\"description\":\"Beratung\",\"quantity\":10,\"unit\":\"Std\",\"unitPrice\":100,\"vatRate\":0.19}]}"

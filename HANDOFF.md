@@ -2662,6 +2662,18 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 732 — the e-invoices of every kind of invoice by the official validators; BT-49; schematron 2.6.0 and Mustang in CI
+
+The owner, 28.10.2026: „电子发票合规了吗？“ Measured: 16 kinds of invoice (domestic, 19 % + 7 % with discount, Skonto, service period, order number and reference, cash / card / PayPal, § 13b, igL, export, USD, a public client with Leitweg-ID, a Storno credit note, a Kleinunternehmer), each as XRechnung (UBL) and ZUGFeRD (CII), through KoSIT — 31 of 32 accepted; the ZUGFeRD PDFs through Mustang — valid; four of the files imported again as another company's expenses (the duty to receive since 2025) — at the right amounts.
+
+- **BT-49**: the XRechnung of a customer without e-mail, VAT id with an EAS scheme or Leitweg-ID was rejected (PEPPOL-EN16931-R010 — XRechnung 3.0 requires the buyer's electronic address) and handed out all the same; worse, the XRechnung kept at issue (Tier 686) stayed invalid after the address was entered. Now: `buyerElectronicAddress()` decides BT-49 for UBL and CII alike; `renderInvoiceDocument` keeps no XRechnung for such a buyer; `issuedXRechnung` makes a new one only with BT-49 (400 with `MISSING_BUYER_ADDRESS` otherwise) — a kept one is handed out as kept; the in-process check's existing R010 rule uses the same test. The ZUGFeRD PDF is made regardless (EN 16931 does not require BT-49). The invoice page says it at „XRechnung herunterladen“ (`xrechnung-needs-address`), the customer form at the e-mail for invoices (`customer-xrechnung-needs-address`).
+- **XRechnung schematron 2.6.0** (2026-08-31; was 2.5.0): BR-TMP-2 fatal (external document links — not written here), date-format rules BR-TMP-6/7 as warnings (to become fatal; none fire on these invoices), Peppol BIS 3.0.21. `setup.sh` and `scenarios.xml` name it. XRechnung 3.0.2 stays the standard; 4.0 is a preview (production expected spring 2027).
+- **Mustang 2.26.0** in CI: the e2e job fetches it from Maven Central, checks its SHA-1 and sets `MUSTANG_JAR` — spec 417 and 450 now run the ZUGFeRD reference validation on every push (before: by hand once, Tier 693). Locally `infra/mustang/` (gitignored).
+
+Specs fixed for BT-49: 141 (a US customer had only a US tax number), 419 and 449 (no e-mail) — their customers got one; the XRechnung they checked was invalid before.
+
+Spec `450-tier732-e-rechnung-matrix.sh` (section 3 fails on the code before: 200 with an invalid file, and the invalid kept one after the e-mail was entered); Playwright `e-invoice-buyer-address-tier732.spec.ts`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 731e — the review of Tiers 566–731, and what it found in them
 
 The owner, 25.10.2026: „先做一次之前还没做过的代码审查“ — the last review was Tier 565 (Tiers 545–564); this one covered `d5074d4a..HEAD` (248 commits, ~20 000 lines of `src`), read by risk: new routes and their scoping, signature verification, the e-invoice import's XML reader, time tracking, backups, invoice and print logic, the newest tiers in full. Clean: the time entries' scoping and double-billing lock, the XML reader (no DOCTYPE, limits), the PDF signature check (range, hash, signature, end of file). Nine findings, all fixed („全修“):

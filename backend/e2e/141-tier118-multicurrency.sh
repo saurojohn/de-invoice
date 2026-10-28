@@ -76,19 +76,24 @@ fi
 # ───── 1. Setup: 3 customers + 3 invoices ─────
 note "=== 1. Setup: 3 customers (EUR, USD, CHF) ==="
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
-INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", address, "paymentTerms", tags, "createdAt", "updatedAt")
+-- (Tier 732: an e-mail each — XRechnung 3.0 needs the buyer's electronic
+-- address, BT-49, and a US tax number has no scheme for it)
+INSERT INTO "Customer" (id, "companyId", name, "customerNumber", "vatId", address, contact, "paymentTerms", tags, "createdAt", "updatedAt")
 VALUES
   ('cust-t118-eur', '$COMPANY_ID', '${PREFIX} EUR-Kunde', '${PREFIX}-EUR',
    'DE111111111',
    '{"street":"Hauptstr. 1","city":"Berlin","postalCode":"10115","country":"Deutschland"}'::jsonb,
+   '{"email":"eur@t118.example.test"}'::jsonb,
    30, ARRAY['${PREFIX}']::text[], now(), now()),
   ('cust-t118-usd', '$COMPANY_ID', '${PREFIX} USD-Kunde', '${PREFIX}-USD',
    'US12345678',
    '{"street":"5th Ave","city":"New York","postalCode":"10001","country":"USA"}'::jsonb,
+   '{"email":"usd@t118.example.test"}'::jsonb,
    30, ARRAY['${PREFIX}']::text[], now(), now()),
   ('cust-t118-chf', '$COMPANY_ID', '${PREFIX} CHF-Kunde', '${PREFIX}-CHF',
    'CHE123456789',
    '{"street":"Bahnhofstr. 1","city":"Zürich","postalCode":"8001","country":"Schweiz"}'::jsonb,
+   '{"email":"chf@t118.example.test"}'::jsonb,
    30, ARRAY['${PREFIX}']::text[], now(), now());
 SQL
 pass "created 3 customers (EUR, USD, CHF)"

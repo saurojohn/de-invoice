@@ -87,11 +87,11 @@ fi
 if [[ -f "$REPO_DIR/schematron/ubl/XRechnung-UBL-validation.xsl" ]]; then
   ok "XRechnung 3.0.2 schematron already present"
 else
-  note "Downloading XRechnung 3.0.2 schematron (v2.5.0)..."
+  note "Downloading XRechnung 3.0.2 schematron (v2.6.0)..."
   TMP=$(mktemp -d)
   cd "$TMP"
   curl -sSL -o xrechnung.zip \
-    "https://github.com/itplr-kosit/xrechnung-schematron/releases/download/v2.5.0/xrechnung-3.0.2-schematron-2.5.0.zip"
+    "https://github.com/itplr-kosit/xrechnung-schematron/releases/download/v2.6.0/xrechnung-3.0.2-schematron-2.6.0.zip"
   unzip -o -q xrechnung.zip
   # Copy ubl + common into the schematron directory
   cp schematron/ubl/XRechnung-UBL-validation.sch "$REPO_DIR/schematron/ubl/"
