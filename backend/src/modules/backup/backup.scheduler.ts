@@ -27,6 +27,7 @@ import { CronHealthService } from '../admin/cron-health.service'
 import { ErrorTrackingService } from '../system/error-tracking.service'
 import { BackupService } from './backup.service'
 import { ProductionBackupsService } from './production-backups.service'
+import { RestoreCheckService, describeLost } from './restore-check.service'
 
 @Injectable()
 export class BackupScheduler {
@@ -37,6 +38,7 @@ export class BackupScheduler {
     private readonly health: CronHealthService,
     private readonly production: ProductionBackupsService,
     private readonly errors: ErrorTrackingService,
+    private readonly restoreCheck: RestoreCheckService,
   ) {}
 
   /**
@@ -90,9 +92,12 @@ export class BackupScheduler {
         break
       }
     }
+    // Tier 733: invoices a restore left only as their kept copy
+    const restore = await this.restoreCheck.check()
+    if (restore.lost.length) problems.push(describeLost(restore.lost))
     if (problems.length) {
       const message = `Datensicherung: ${problems.join('; ')}`
-      await this.errors.capture({ source: 'backend', kind: 'manual', message, context: { db, files } }).catch(() => {})
+      await this.errors.capture({ source: 'backend', kind: 'manual', message, context: { db, files, lost: restore.lost } }).catch(() => {})
       throw new Error(message)
     }
     return `db ${db.configured ? `${db.ageHours} h` : '—'}, files ${files.configured ? `${files.ageHours} h` : '—'}`

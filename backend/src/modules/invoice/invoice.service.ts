@@ -1500,6 +1500,15 @@ export class InvoiceService {
       // a number nobody has seen — give it back. A sent invoice keeps its gap.
       if (existing.status === 'draft') {
         await releaseInvoiceNumber(tx, companyId, existing.invoiceNumber);
+      } else {
+        // Tier 733: and keeps it — a draft deleted after it used to wind the
+        // sequence back to the highest number left, below this one, and the
+        // next invoice got this number again
+        await tx.retiredInvoiceNumber.upsert({
+          where: { companyId_invoiceNumber: { companyId, invoiceNumber: existing.invoiceNumber } },
+          create: { companyId, invoiceNumber: existing.invoiceNumber, reason: 'deleted', pdfPath: existing.pdfPath },
+          update: {},
+        });
       }
       return gone;
     });

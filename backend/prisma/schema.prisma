@@ -26,7 +26,7 @@ datasource db {
 // ==================== 组织与用户 ====================
 
 model Company {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   name               String
   legalName          String?
   taxId              String?
@@ -52,7 +52,7 @@ model Company {
   // Pre-fills the invoice create form's `dueDate` field
   // (= issueDate + defaultPaymentDays) and is the source
   // of truth for "Zahlbar binnen X Tagen" on the PDF.
-  defaultPaymentDays Int      @default(30)
+  defaultPaymentDays Int       @default(30)
   // Tier 176: default VAT treatment. NULL = "ask every time"
   // (the old behaviour). Set to "standard" / "reverseCharge"
   // / "igL" to auto-pick that radio button on invoice create
@@ -68,12 +68,12 @@ model Company {
   // Tier 649: the company takes part in the OSS scheme (§ 18j UStG) — every
   // taxed sale to a consumer in another member state is that state's tax and
   // goes into the OSS return, not the UStVA (reports/oss-scope.ts).
-  ossVerfahren       Boolean  @default(false)
+  ossVerfahren       Boolean   @default(false)
   // Tier 464: 'euer' (§ 4 Abs. 3 EStG, counted when paid) or 'bilanz'
   // (accrual). NULL = derived from the legal form (company/gewinnermittlung.ts).
   gewinnermittlung   String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   users                      User[]
   customers                  Customer[]
@@ -101,6 +101,7 @@ model Company {
   timeEntries                TimeEntry[] // Tier 611
   timeProjects               TimeProject[] // Tier 616
   runningTimers              RunningTimer[] // Tier 617
+  retiredInvoiceNumbers      RetiredInvoiceNumber[] // Tier 733
   paymentNotices             PaymentNotice[]
   bankStatements             BankStatement[]
   fintsConnections           FinTSConnection[]
@@ -178,11 +179,11 @@ model Company {
   // linear AfA schedule; the BilanzService
   // reads the pool to fill the 0100-0500
   // Anlagevermögen positions.
-  assets Asset[]
+  assets      Asset[]
+  companyCars CompanyCar[]
+  homeOffices HomeOffice[]
 
   @@index([name])
-  companyCars                CompanyCar[]
-  homeOffices                HomeOffice[]
 }
 
 model User {
@@ -407,14 +408,14 @@ model Customer {
   // this customer — or invoice-level — for one specific
   // invoice; the latter is recorded on Invoice.mahnungspausen.)
   mahnungspausen          Mahnungspause[]
-  timeEntries                TimeEntry[] // Tier 611
+  timeEntries             TimeEntry[] // Tier 611
   /// Tier 616: the hourly rate (net) a new time entry for this customer starts with
-  defaultHourlyRate          Decimal? @db.Decimal(12, 2)
+  defaultHourlyRate       Decimal?                    @db.Decimal(12, 2)
   /// Tier 626: this customer's own rounding rule for logged time (null = the company's;
   /// 0 = do not round); mode "up" | "nearest"
-  timeRoundingMinutes        Int?
-  timeRoundingMode           String?
-  timeProjects               TimeProject[] // Tier 616
+  timeRoundingMinutes     Int?
+  timeRoundingMode        String?
+  timeProjects            TimeProject[] // Tier 616
   // Tier 112: SEPA pain.008 mandates signed by this
   // customer. One customer can sign multiple mandates
   // (e.g. one per subscription, one per product line).
@@ -506,23 +507,23 @@ model Supplier {
 // Eingangsrechnung / Expense — for input tax (Vorsteuer) calculation
 // Used to compute UStVA: payables (Umsatzsteuer) minus input tax (Vorsteuerabzug)
 model Expense {
-  id                String     @id @default(uuid())
-  companyId         String
-  company           Company    @relation(fields: [companyId], references: [id])
-  supplierId        String?
-  supplier          Supplier?  @relation(fields: [supplierId], references: [id])
-  invoiceNumber     String?
-  description       String
-  invoiceDate       DateTime
-  netAmount         Decimal    @db.Decimal(12, 4)
-  vatRate           Decimal    @db.Decimal(5, 4) // 0.19, 0.07, 0
-  vatAmount         Decimal    @db.Decimal(12, 4)
-  grossAmount       Decimal    @db.Decimal(12, 4)
-  category          String? // e.g. "Material", "Miete", "Bürobedarf"
+  id                  String     @id @default(uuid())
+  companyId           String
+  company             Company    @relation(fields: [companyId], references: [id])
+  supplierId          String?
+  supplier            Supplier?  @relation(fields: [supplierId], references: [id])
+  invoiceNumber       String?
+  description         String
+  invoiceDate         DateTime
+  netAmount           Decimal    @db.Decimal(12, 4)
+  vatRate             Decimal    @db.Decimal(5, 4) // 0.19, 0.07, 0
+  vatAmount           Decimal    @db.Decimal(12, 4)
+  grossAmount         Decimal    @db.Decimal(12, 4)
+  category            String? // e.g. "Material", "Miete", "Bürobedarf"
   // Tier 503: who a business gift (category "Geschenk…") went to — the
   // 50 € limit is per recipient and year (§ 4 Abs. 5 Nr. 1 EStG), and the
   // name must be recorded (§ 4 Abs. 7 EStG). See accounting/gifts.ts.
-  giftRecipient     String?
+  giftRecipient       String?
   // Tier 539: the Bewirtungsbeleg's occasion and participants (§ 4 Abs. 5 Nr. 2 Satz 2 EStG)
   bewirtungAnlass     String?
   bewirtungTeilnehmer String?
@@ -536,20 +537,20 @@ model Expense {
   // create + list response so the frontend can
   // display the raw account number in the Beleg
   // table.
-  accountNumber     String?
-  isIntraEU         Boolean    @default(false) // igE — reverse charge
-  isReverseCharge   Boolean    @default(false) // §13b UStG
-  status            String     @default("booked") // booked|deductible|blocked
-  notes             String?
-  attachmentPath    String?
+  accountNumber       String?
+  isIntraEU           Boolean    @default(false) // igE — reverse charge
+  isReverseCharge     Boolean    @default(false) // §13b UStG
+  status              String     @default("booked") // booked|deductible|blocked
+  notes               String?
+  attachmentPath      String?
   // DATEV Kostenstelle 1 + Kostenträger. Same purpose
   // as on Invoice: per-expense cost-center stamp for
   // DATEV columns 12 + 13. Typically the user maps
   // Expense.category → costCenter once in the DATEV
   // account-map settings, but per-expense override is
   // supported when an expense doesn't fit the default.
-  costCenter        String? // DATEV Kostenstelle 1
-  costObject        String? // DATEV Kostenträger
+  costCenter          String? // DATEV Kostenstelle 1
+  costObject          String? // DATEV Kostenträger
   // Tier 87: when this Expense was auto-posted
   // by the Anlagenverzeichnis "AfA buchen" flow
   // (one row per Asset per Year), these two
@@ -559,8 +560,8 @@ model Expense {
   // dedup key for re-running the booking
   // (idempotent: "AfA buchen" twice for the
   // same year = no double booking).
-  relatedAssetId    String?
-  afaYear           Int?
+  relatedAssetId      String?
+  afaYear             Int?
   // Tier 89: 1-12 for the monthly-booking
   // mode (12 rows per asset per year), NULL
   // for the annual-booking mode (1 row per
@@ -573,7 +574,7 @@ model Expense {
   // afaMonth IS NULL for all existing rows
   // for the (asset, year) pair, else it
   // fails with "AfA already booked (annual)".
-  afaMonth          Int?
+  afaMonth            Int?
   // Tier 108: SEPA pain.001 batch payment tracking.
   // paidAt is set when the user runs a SEPA export
   // and marks the expense as paid (the date is
@@ -586,11 +587,11 @@ model Expense {
   // via SEPA yet. The (status='booked', paidAt IS NULL)
   // query is the "unpaid expenses" set the Berater
   // sees on /dashboard/payments.
-  paidAt            DateTime?
-  paidBySepaBatchId String?
-  paidBySepaBatch   SepaBatch? @relation("ExpensePaidByBatch", fields: [paidBySepaBatchId], references: [id])
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  paidAt              DateTime?
+  paidBySepaBatchId   String?
+  paidBySepaBatch     SepaBatch? @relation("ExpensePaidByBatch", fields: [paidBySepaBatchId], references: [id])
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 
   cashBookEntries CashBookEntry[]
   // Tier 581: the VAT lines of an invoice with more than one rate (19 % and
@@ -686,21 +687,21 @@ model HomeOffice {
 /// EStG) and the unentgeltliche Wertabgabe (§ 3 Abs. 9a UStG), computed per
 /// month in company-car/private-use.ts.
 model CompanyCar {
-  id        String    @id @default(uuid())
-  companyId String
-  company   Company   @relation(fields: [companyId], references: [id])
+  id          String    @id @default(uuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
   /// e.g. the number plate
-  name      String
+  name        String
   /// gross inländischer Listenpreis at first registration
-  listPrice Decimal   @db.Decimal(12, 2)
+  listPrice   Decimal   @db.Decimal(12, 2)
   /// 'one_percent' | 'electric_025' | 'electric_05'
-  method    String
-  fromDate  DateTime  @db.Date
-  untilDate DateTime? @db.Date
+  method      String
+  fromDate    DateTime  @db.Date
+  untilDate   DateTime? @db.Date
   // Tier 541: trips home–business: one-way distance (km) and days per month
   commuteKm   Int?
   commuteDays Int?
-  createdAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([companyId])
 }
@@ -808,13 +809,13 @@ model Invoice {
   type   String @default("INV")
   status String @default("draft")
 
-  issueDate    DateTime
-  dueDate      DateTime?
+  issueDate          DateTime
+  dueDate            DateTime?
   // Leistungsdatum / date of supply — a mandatory invoice
   // field (§ 14 Abs. 4 Nr. 6 UStG). Optional here: when it
   // is not recorded, the PDF and the e-invoice (BT-72) state
   // the issue date (Tier 492).
-  deliveryDate DateTime?
+  deliveryDate       DateTime?
   // Tier 493: Leistungszeitraum (BT-73/74) — both or neither; stated
   // instead of a single date when set (a recurring service, a project).
   servicePeriodStart DateTime?
@@ -862,15 +863,15 @@ model Invoice {
   //
   // Nullable for backward compat: legacy EUR invoices
   // without a rate are treated as rate=1.
-  exchangeRate Decimal? @db.Decimal(12, 6)
+  exchangeRate       Decimal? @db.Decimal(12, 6)
   // Tier 652: where the rate is from — 'ecb:2026-09-15' (the ECB reference
   // rate of that day) or 'manual' (entered on the invoice, e.g. the BMF's
   // monthly average of § 16 Abs. 6 UStG). NULL: an EUR invoice, or one from
   // before the rate was looked up for the invoice's day.
   exchangeRateSource String?
-  eurSubtotal  Decimal? @db.Decimal(12, 4)
-  eurTotalVat  Decimal? @db.Decimal(12, 4)
-  eurTotal     Decimal? @db.Decimal(12, 4)
+  eurSubtotal        Decimal? @db.Decimal(12, 4)
+  eurTotalVat        Decimal? @db.Decimal(12, 4)
+  eurTotal           Decimal? @db.Decimal(12, 4)
 
   vatBreakdown  Json?
   reverseCharge Boolean @default(false)
@@ -968,7 +969,7 @@ model Invoice {
   // can be tied to a single invoice, not the whole
   // customer).
   mahnungspausen            Mahnungspause[]
-  timeEntries                TimeEntry[] // Tier 611
+  timeEntries               TimeEntry[] // Tier 611
   // Tier 51: 1:1 back-relation to the (optional) Ratenplan
   // attached to this invoice. Null when no Ratenplan was
   // set up — the invoice is paid in one lump.
@@ -1100,20 +1101,20 @@ model InvoiceItem {
 }
 
 model Payment {
-  id            String   @id @default(uuid())
+  id            String         @id @default(uuid())
   invoiceId     String
-  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
-  amount        Decimal  @db.Decimal(12, 4)
-  currency      String   @default("EUR")
+  invoice       Invoice        @relation(fields: [invoiceId], references: [id])
+  amount        Decimal        @db.Decimal(12, 4)
+  currency      String         @default("EUR")
   // Tier 540: the EUR that arrived for a payment of a foreign-currency invoice
   // (null: unknown — the reports then use the invoice's rate).
-  eurAmount     Decimal? @db.Decimal(12, 2)
+  eurAmount     Decimal?       @db.Decimal(12, 2)
   paymentDate   DateTime
   paymentMethod String
   reference     String?
   notes         String?
   receiptNumber String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime       @default(now())
   cashBookEntry CashBookEntry?
 
   @@index([invoiceId])
@@ -2245,32 +2246,32 @@ model RecurringRun {
 /// do `WHERE customerId IN (...) AND active=true`
 /// in O(1) without a table scan.
 model Mahnungspause {
-  id          String    @id @default(uuid())
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerId  String?
-  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  invoiceId   String?
-  invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id                String    @id @default(uuid())
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId        String?
+  customer          Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceId         String?
+  invoice           Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   /// Free-text reason: "Ratenplan läuft bis 2026-12",
   /// "Kunde bestreitet Forderung", "Manuell".
-  reason      String
+  reason            String
   /// Start of the pause (inclusive). Defaults to "now"
   /// at create time. User can backdate if the dispute
   /// started last week.
-  pausedFrom  DateTime
+  pausedFrom        DateTime
   /// End of the pause (inclusive). NULL = open-ended.
-  pausedUntil DateTime?
+  pausedUntil       DateTime?
   /// Soft-cancel stamp. When the user "ends" a pause
   /// early, we set this and keep the row for audit.
-  cancelledAt DateTime?
-  createdById String?
-  createdBy   User?     @relation(fields: [createdById], references: [id])
+  cancelledAt       DateTime?
+  createdById       String?
+  createdBy         User?     @relation(fields: [createdById], references: [id])
   // Tier 500: set on the pause an installment plan creates. Such a pause is
   // not counted — the plan decides (installment-hold.ts).
   installmentPlanId String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([companyId, customerId])
   @@index([companyId, invoiceId])
@@ -3533,7 +3534,6 @@ model UserSigningKey {
   @@index([userId])
 }
 
-
 /// Tier 430 — a payment the customer says they made (Zahlungsavis).
 ///
 /// The customer portal's "als bezahlt markieren" and the payment link's
@@ -3568,29 +3568,29 @@ model PaymentNotice {
 /// customer and an hourly rate. `invoiceId` is set when the entry has been
 /// billed; deleting that invoice (a draft) opens the entry again.
 model TimeEntry {
-  id          String    @id @default(uuid())
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerId  String?
-  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  id            String       @id @default(uuid())
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId    String?
+  customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: Restrict)
   /// who wrote it down (no relation: a user's removal keeps the hours)
-  userId      String?
-  date        DateTime  @db.Date
-  minutes     Int
-  description String
+  userId        String?
+  date          DateTime     @db.Date
+  minutes       Int
+  description   String
   /// net, per hour; null = not priced (yet)
-  hourlyRate  Decimal?  @db.Decimal(12, 2)
-  billable    Boolean   @default(true)
-  invoiceId   String?
-  invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  hourlyRate    Decimal?     @db.Decimal(12, 2)
+  billable      Boolean      @default(true)
+  invoiceId     String?
+  invoice       Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   /// Tier 627: an entry written by a timer keeps its pauses: how many, how long
-  pauseCount    Int     @default(0)
-  pausedSeconds Int     @default(0)
+  pauseCount    Int          @default(0)
+  pausedSeconds Int          @default(0)
   /// Tier 616: the project the hours belong to (below the customer)
-  projectId   String?
-  project     TimeProject? @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  projectId     String?
+  project       TimeProject? @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   @@index([companyId, date])
   @@index([companyId, customerId, invoiceId])
@@ -3602,22 +3602,22 @@ model TimeEntry {
 /// no customer), with a rate of its own and an optional budget in hours.
 /// A project with hours is archived (`active = false`), not deleted.
 model TimeProject {
-  id          String    @id @default(uuid())
-  companyId   String
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customerId  String?
-  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  name        String
+  id                  String      @id @default(uuid())
+  companyId           String
+  company             Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId          String?
+  customer            Customer?   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  name                String
   /// net, per hour; null = the customer's default rate applies
-  hourlyRate  Decimal?  @db.Decimal(12, 2)
-  budgetHours Decimal?  @db.Decimal(10, 2)
+  hourlyRate          Decimal?    @db.Decimal(12, 2)
+  budgetHours         Decimal?    @db.Decimal(10, 2)
   /// Tier 626: the project's own rounding rule (null = the customer's, else the company's)
   timeRoundingMinutes Int?
   timeRoundingMode    String?
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  timeEntries TimeEntry[]
+  active              Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  timeEntries         TimeEntry[]
 
   @@index([companyId, customerId])
 }
@@ -3625,14 +3625,14 @@ model TimeProject {
 /// Tier 617 — a running stopwatch: one per user and company. Stopping it
 /// writes a TimeEntry and removes the row.
 model RunningTimer {
-  id          String   @id @default(uuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  userId      String
-  startedAt   DateTime @default(now())
-  customerId  String?
-  projectId   String?
-  description String   @default("")
+  id            String    @id @default(uuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId        String
+  startedAt     DateTime  @default(now())
+  customerId    String?
+  projectId     String?
+  description   String    @default("")
   /// Tier 623: set while the timer is paused; the seconds of finished pauses
   pausedAt      DateTime?
   pausedSeconds Int       @default(0)
@@ -3640,4 +3640,29 @@ model RunningTimer {
   pauseCount    Int       @default(0)
 
   @@unique([companyId, userId])
+}
+
+/// Tier 733 — a number an issued document carried although no invoice in the
+/// database has it. Never handed out again (invoice-number.ts):
+///   - `deleted`: the invoice was deleted on its issue day (Tier 477) — the
+///     customer may hold it; a draft deleted after it used to wind the
+///     sequence back below it, and the next invoice got its number again;
+///   - `restore`: its kept copy lies in the storage, its row does not exist —
+///     what a restore from a dump older than the invoice leaves (the files are
+///     mirrored after the dump). Reported (backup page, hourly check) until an
+///     invoice with the number is in the database again (`resolvedAt`).
+model RetiredInvoiceNumber {
+  id            String    @id @default(uuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceNumber String
+  /// 'deleted' | 'restore'
+  reason        String
+  /// the kept copy, relative to the storage root (where there is one)
+  pdfPath       String?
+  createdAt     DateTime  @default(now())
+  /// `restore`: when an invoice with this number was in the database again
+  resolvedAt    DateTime?
+
+  @@unique([companyId, invoiceNumber])
 }

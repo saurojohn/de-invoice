@@ -102,6 +102,8 @@ interface AutoStatus {
   db: { configured: boolean; latestAt: string | null; ageHours: number | null; latestSizeBytes: number; counts: { hourly: number; daily: number; weekly: number; monthly: number }; totalBytes?: number; disk?: DiskSpace | null; maxAgeHours: number; ok: boolean }
   files: { configured: boolean; lastRunAt: string | null; ageHours: number | null; files: number; bytes: number; versions: number; mirrorBytes?: number; versionsBytes?: number; disk?: DiskSpace | null; maxAgeHours: number; ok: boolean }
   offsite: { configured: boolean; remote: string | null }
+  /** Tier 733: issued invoices left only as their kept copy (after a restore) */
+  restore?: { lost: { companyId: string; companyName: string; invoiceNumber: string; pdfPath: string; foundAt: string }[] }
 }
 
 export default function BackupsPage() {
@@ -253,6 +255,22 @@ export default function BackupsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Tier 733: invoices issued after the dump a restore brought back */}
+      {auto?.restore?.lost?.length ? (
+        <div className={`rounded-lg border p-4 space-y-2 ${healthBg("red")}`} data-testid="backup-lost-invoices">
+          <h2 className="font-semibold">{t("backup.lostTitle", { n: auto.restore.lost.length })}</h2>
+          <p className="text-sm">{t("backup.lostHint")}</p>
+          <ul className="text-sm space-y-1">
+            {auto.restore.lost.map((l) => (
+              <li key={`${l.companyId}-${l.invoiceNumber}`} data-testid="backup-lost-invoice">
+                <span className="font-mono">{l.invoiceNumber}</span> · {l.companyName}
+                <span className="block text-xs break-all opacity-80">{t("backup.lostCopy", { path: l.pdfPath })}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {/* Tier 727: what runs by itself in this installation */}
       {auto && (auto.db.configured || auto.files.configured) && (

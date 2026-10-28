@@ -2002,7 +2002,10 @@
     "autoDbSize": "最新一份 {latest} · 全部合计 {total}",
     "autoFilesSize": "镜像 {mirror} · 旧版本 {versions}",
     "autoDisk": "磁盘空间：共 {total}，剩余 {free}（{percent} %）",
-    "autoDiskLow": "空间不足 —— 请扩容或把旧备份移出服务器"
+    "autoDiskLow": "空间不足 —— 请扩容或把旧备份移出服务器",
+    "lostTitle": "数据库中缺少 {n} 张已开具的发票",
+    "lostHint": "这些发票的存档副本还在，但数据库里没有——它们是在最近一次恢复所用的数据库备份之后开具的，客户已经收到。它们的编号不会再次分配。请重新录入这些发票，使其记入账簿。",
+    "lostCopy": "副本：{path}"
   },
   "systemHealth": {
     "title": "系统健康",

@@ -233,7 +233,36 @@ VPS).
 | 2026-Q1 | Scheduled DR test | ___ | ___ | Test 1, see report |
 | 2026-Q2 | Scheduled DR test (sidecar DB) | ~3 min | <24h | Tier 220 — see report below |
 | 2026-Q3 | Scheduled DR test | ___ | ___ | Test 1, see report |
-| 2026-Q4 | Scheduled DR test | ___ | ___ | Test 2, see report |
+| 2026-Q4 | Restore drill, local (Tier 733) | 54 s | < 1 h | the compose stack's postgres + backup services; see report below |
+
+### 2026-Q4 report (Tier 733) — server lost, files and database restored
+
+**Test** (28.10.2026, on the developer machine — no server yet): a stack of
+the production `postgres` and `backup` services (same images, same options)
+under its own compose project; the app on it; a company with customers,
+issued invoices with their kept copies, a payment, a credit note, an
+uploaded receipt. The backup container's dump and the app's file mirror
+taken; **one more invoice issued after the dump** (and the files mirrored
+again, as at :20 after a dump at :00). Then the loss: the database volume and
+the storage removed, an empty database. Restore as RUNBOOK §4 says: the
+files from the mirror, `restore.sh` (the production script, against this
+stack), `prisma migrate deploy`, the app started.
+
+**Result**: 72 tables, each equal to the state of the dump in row count and
+in an md5 of its full content; the audit chain verifies; the kept copies byte
+for byte; 54 s from an empty database to the app answering.
+
+**Found**: the invoice issued after the dump was back as its kept copy (the
+customer has it), not in the database — and the **next invoice got its
+number a second time** (INV-2026-000004). Tier 733: the backend compares
+the kept copies with the database when it starts, every hour and on the
+backup page; such numbers are retired (never handed out again) and reported
+until the invoices are entered again. Also found and fixed with it: a draft
+deleted after an issued invoice deleted on its issue day wound the numbering
+back below that invoice's number. Not in any backup: `.env` — keep it in the
+password manager (HETZNER-DEPLOY.md, step 4). On a new server, start
+`offsite-backup` only after the restore: its `rclone sync` would make the
+remote equal to the new server's empty dumps.
 
 ### 2026-Q2 report (Tier 220) — Restore in a sidecar DB
 

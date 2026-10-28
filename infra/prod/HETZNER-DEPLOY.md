@@ -197,6 +197,14 @@ BACKUP_WEBHOOK_URL=    # Slack/Discord webhook for backup results
 chmod 600 .env
 ```
 
+**Keep a copy of `.env` in the password manager** (and of `rclone.conf`,
+§9) — the backups hold the database and the files, not this file. On a new
+server after a loss, `FINTS_PIN_ENC_KEY` is what decrypts the stored bank
+PINs and the SMTP password (Tier 630): with a new key they are unreadable and
+every bank connection and the mail settings have to be entered again.
+`POSTGRES_PASSWORD` and `JWT_SECRET` may be new there (a new JWT secret
+signs everyone out once).
+
 ---
 
 ## 5. Build the Docker images
@@ -397,14 +405,22 @@ added.
 
 ### Restore from the Storage Box
 
+On a **new** server: do the restore **before** starting `offsite-backup`
+there. Its loop begins with `rclone sync` of the local dumps to the remote —
+on a server that has only the dumps of its own empty database, that sync
+makes the remote equal to them and deletes the archive you are about to
+restore from. Order: the files, then the database (RUNBOOK §4, „Restoring
+after a loss — the order“), then `docker compose --profile offsite up -d
+offsite-backup`.
+
 ```bash
 docker run --rm -v "$PWD/rclone.conf:/config/rclone/rclone.conf:ro" -v /tmp/restore:/restore \
   rclone/rclone:1.68.2 copy "storagebox-crypt:db/last" /restore/db
 # into the backups volume, where restore.sh looks
 docker run --rm -v de-invoice-prod_backups:/backups -v /tmp/restore/db:/from:ro alpine \
   cp /from/de_invoice-YYYYMMDD-HHMMSS.sql.gz /backups/last/
+# the files FIRST: rclone copy "storagebox-crypt:files/mirror" into the storage volume the same way
 bash infra/prod/restore.sh last/de_invoice-YYYYMMDD-HHMMSS.sql.gz
-# the files: rclone copy "storagebox-crypt:files/mirror" into the storage volume the same way
 ```
 
 (`scripts/backup-prod.sh` — Tier 114, pg_dump + files + gpg + rclone from a

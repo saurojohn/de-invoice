@@ -26,11 +26,12 @@ import { BackupController } from './backup.controller'
 import { BackupScheduler } from './backup.scheduler'
 import { BackupService } from './backup.service'
 import { ProductionBackupsService } from './production-backups.service'
+import { RestoreCheckService } from './restore-check.service'
 
 @Module({
   imports: [AdminModule, SystemModule],
   controllers: [BackupController],
-  providers: [BackupService, BackupScheduler, ProductionBackupsService],
+  providers: [BackupService, BackupScheduler, ProductionBackupsService, RestoreCheckService],
   exports: [BackupService, ProductionBackupsService],
 })
 export class BackupModule {}

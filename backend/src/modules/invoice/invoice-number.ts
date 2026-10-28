@@ -69,6 +69,24 @@ export function invoiceNumberPrefix(type: string, ownPrefix?: string | null): st
 }
 
 /**
+ * The highest number this company has used with this prefix and year — on an
+ * invoice, or (Tier 733) on an issued one that is gone: deleted on its issue
+ * day, or left by a restore only as its kept copy (RetiredInvoiceNumber).
+ */
+async function usedMax(tx: Prisma.TransactionClient, companyId: string, prefix: string, year: number): Promise<number> {
+  const like = `${prefix}${year}-%`
+  const rows = await tx.$queryRaw<Array<{ max: bigint | null }>>`
+    SELECT MAX(CAST(SUBSTRING(n FROM '([0-9]+)$') AS BIGINT)) AS max FROM (
+      SELECT "invoiceNumber" AS n FROM "Invoice" WHERE "companyId" = ${companyId} AND "invoiceNumber" LIKE ${like}
+      UNION ALL
+      SELECT "invoiceNumber" AS n FROM "RetiredInvoiceNumber" WHERE "companyId" = ${companyId} AND "invoiceNumber" LIKE ${like}
+    ) used
+    WHERE n ~ '[0-9]+$'
+  `
+  return Number(rows[0]?.max ?? 0)
+}
+
+/**
  * Sequences this process has already created or verified. Purely an
  * optimisation — the CREATE is `IF NOT EXISTS` and the seeding query is
  * idempotent, so a cold cache costs one extra round trip, never correctness.
@@ -127,14 +145,7 @@ export async function nextInvoiceNumber(
       // Start above whatever this company already used. Read it from the
       // invoice numbers themselves rather than from `sequenceNumber`, which is
       // null for every row written before Tier 174 added the column.
-      const rows = await tx.$queryRaw<Array<{ max: bigint | null }>>`
-        SELECT MAX(CAST(SUBSTRING("invoiceNumber" FROM '([0-9]+)$') AS BIGINT)) AS max
-        FROM "Invoice"
-        WHERE "companyId" = ${companyId}
-          AND "invoiceNumber" LIKE ${`${prefix}${year}-%`}
-          AND "invoiceNumber" ~ '[0-9]+$'
-      `
-      const start = Number(rows[0]?.max ?? 0) + 1
+      const start = (await usedMax(tx, companyId, prefix, year)) + 1
       await tx.$executeRawUnsafe(
         `CREATE SEQUENCE IF NOT EXISTS ${seqName} START ${start} INCREMENT 1`,
       )
@@ -154,8 +165,13 @@ export async function nextInvoiceNumber(
     )
     const seq = Number(r[0].nextval)
     const invoiceNumber = `${prefix}${year}-${String(seq).padStart(6, '0')}`
+    // Tier 733: so is the number of an issued invoice that is gone (deleted on
+    // its issue day, lost in a restore)
     const clash = await tx.$queryRaw<Array<{ one: number }>>`
       SELECT 1 AS one FROM "Invoice"
+      WHERE "companyId" = ${companyId} AND "invoiceNumber" = ${invoiceNumber}
+      UNION ALL
+      SELECT 1 AS one FROM "RetiredInvoiceNumber"
       WHERE "companyId" = ${companyId} AND "invoiceNumber" = ${invoiceNumber}
       LIMIT 1
     `
@@ -167,16 +183,9 @@ export async function nextInvoiceNumber(
         sequenceNumber: seq,
       }
     }
-    const rows = await tx.$queryRaw<Array<{ max: bigint | null }>>`
-      SELECT MAX(CAST(SUBSTRING("invoiceNumber" FROM '([0-9]+)$') AS BIGINT)) AS max
-      FROM "Invoice"
-      WHERE "companyId" = ${companyId}
-        AND "invoiceNumber" LIKE ${`${prefix}${year}-%`}
-        AND "invoiceNumber" ~ '[0-9]+$'
-    `
     // is_called = true, so the next nextval() returns max + 1.
     await tx.$executeRawUnsafe(
-      `SELECT setval('${seqName}', ${Number(rows[0]?.max ?? 0)}, true)`,
+      `SELECT setval('${seqName}', ${await usedMax(tx, companyId, prefix, year)}, true)`,
     )
   }
   throw new BadRequestException(
@@ -234,14 +243,7 @@ export async function releaseInvoiceNumber(
   if (exists.length === 0) return
   // Only step back if this really was the newest number handed out; never move
   // the sequence below a number that is still in use.
-  const rows = await tx.$queryRaw<Array<{ max: bigint | null }>>`
-    SELECT MAX(CAST(SUBSTRING("invoiceNumber" FROM '([0-9]+)$') AS BIGINT)) AS max
-    FROM "Invoice"
-    WHERE "companyId" = ${companyId}
-      AND "invoiceNumber" LIKE ${`${prefix}${year}-%`}
-      AND "invoiceNumber" ~ '[0-9]+$'
-  `
-  const remainingMax = Number(rows[0]?.max ?? 0)
+  const remainingMax = await usedMax(tx, companyId, prefix, year)
   if (remainingMax >= seq) return
   // setval(n, true) → next is n + 1; a sequence cannot be set to 0, so the
   // "next is 1" case uses is_called = false.

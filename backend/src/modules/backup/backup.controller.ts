@@ -44,6 +44,7 @@ import { Require } from '../../auth/roles.decorator'
 import { BackupService } from './backup.service'
 import { ProductionBackupsService } from './production-backups.service'
 import { BackupScheduler } from './backup.scheduler'
+import { RestoreCheckService } from './restore-check.service'
 
 // Tier 548: the installation's operator only (auth/system-admin.guard.ts)
 @SystemAuth()
@@ -53,6 +54,7 @@ export class BackupController {
     private readonly backup: BackupService,
     private readonly production: ProductionBackupsService,
     private readonly scheduler: BackupScheduler,
+    private readonly restoreCheck: RestoreCheckService,
   ) {}
 
   /**
@@ -65,7 +67,9 @@ export class BackupController {
   async status() {
     const db = this.production.dbStatus()
     const files = this.production.filesStatus()
-    return { db, files, offsite: { configured: !!process.env.BACKUP_OFFSITE_REMOTE?.trim(), remote: process.env.BACKUP_OFFSITE_REMOTE?.trim() || null } }
+    // Tier 733: invoices only left as their kept copy (after a restore)
+    const restore = await this.restoreCheck.check()
+    return { db, files, restore, offsite: { configured: !!process.env.BACKUP_OFFSITE_REMOTE?.trim(), remote: process.env.BACKUP_OFFSITE_REMOTE?.trim() || null } }
   }
 
   /** Tier 727: the file backup now (it runs every hour) */

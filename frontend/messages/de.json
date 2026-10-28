@@ -2002,7 +2002,10 @@
     "autoDbSize": "Letzte Sicherung {latest} · alle zusammen {total}",
     "autoFilesSize": "Spiegel {mirror} · frühere Versionen {versions}",
     "autoDisk": "Speicherplatz: {free} frei von {total} ({percent} %)",
-    "autoDiskLow": "zu wenig — bitte Speicher erweitern oder ältere Sicherungen auslagern"
+    "autoDiskLow": "zu wenig — bitte Speicher erweitern oder ältere Sicherungen auslagern",
+    "lostTitle": "{n} ausgestellte Rechnung(en) fehlen in der Datenbank",
+    "lostHint": "Von diesen Rechnungen liegt die abgelegte Kopie vor, in der Datenbank sind sie nicht — sie wurden nach der Datenbanksicherung ausgestellt, aus der zuletzt wiederhergestellt wurde. Der Kunde hat sie erhalten. Ihre Nummern werden nicht noch einmal vergeben. Erfassen Sie die Rechnungen wieder, damit sie in den Büchern stehen.",
+    "lostCopy": "Kopie: {path}"
   },
   "systemHealth": {
     "title": "System-Gesundheit",

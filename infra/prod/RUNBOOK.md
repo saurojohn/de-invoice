@@ -287,7 +287,7 @@ docker compose -f infra/prod/docker-compose.yml exec postgres \
 |---|---|---|---|
 | Database (`pg_dump`, the `backup` container) | every hour (`BACKUP_SCHEDULE`, default `@hourly`) | every dump 24 h · one a day 30 days · one a week 12 weeks · one a month 10 years | volume `backups`: `last/ daily/ weekly/ monthly/` |
 | Files of `storage` — kept invoice copies, receipts, attachments (the backend) | every hour at :20 | everything; nothing is deleted, a changed file keeps its earlier version | volume `backup_files`: `mirror/`, `versions/`, `last-run.json` |
-| Freshness check (the backend) | every hour at :40 | — | the scheduler `backup-freshness-check` turns red and an error event goes to the notification channels when the newest dump or the file mirror is older than 3 hours |
+| Freshness check (the backend) | every hour at :40 | — | the scheduler `backup-freshness-check` turns red and an error event goes to the notification channels when the newest dump or the file mirror is older than 3 hours — or (Tier 733) when an issued invoice exists only as its kept copy, not in the database |
 | Off-site copy (optional, `offsite-backup`) | every hour | the dumps mirrored, the files only added | the rclone remote in `BACKUP_OFFSITE_REMOTE` (Hetzner Storage Box, HETZNER-DEPLOY.md §9) |
 
 The law sets no interval (GoBD Rz. 103 ff.: the records must be protected
@@ -302,6 +302,28 @@ lost would be a gap in the numbering. The app shows all of it under
 bash infra/prod/restore.sh --list      # the newest in last/ should be < 3 h old
 docker compose -f infra/prod/docker-compose.yml exec backend cat /data/backup-files/last-run.json
 ```
+
+### Restoring after a loss — the order (Tier 733)
+
+The dump is taken on the hour, the files are mirrored at :20. An invoice
+issued at 10:05 is in the 10:20 file mirror but not in the 10:00 dump: after
+a restore its kept copy is back, its row is not — and the customer has it.
+So:
+
+1. **The files first** ("Restore the files" below).
+2. **Then the database** (`restore.sh`, "Restore from backup" below). It
+   loads the dump, applies the migrations of the running version and starts
+   the backend, which compares the kept invoice copies with the database
+   before it takes the first request.
+3. **Open Backups in the app.** Invoices issued after the dump are listed
+   in red („… fehlen in der Datenbank“; also in the backend log and, every
+   hour, as an error event). Their numbers are blocked — the numbering never
+   hands them out again. Enter those invoices again so that they are in the
+   books; the kept copy (the path is shown) is what the customer received.
+
+Measured in the restore drill of 28.10.2026 (a stack like this one, server
+lost, both restored): without step 3's check the next invoice got the number
+of the one issued after the dump a second time.
 
 ### Restore the files
 
@@ -319,9 +341,14 @@ An earlier version of a file is under `versions/<path>.<time>`.
 ### Restore from backup
 
 ```bash
+bash infra/prod/restore.sh --list      # last/ (24 h), daily/, weekly/, monthly/
 bash infra/prod/restore.sh             # the latest dump; or name one from --list
 curl -s https://invoice.shleder.de/api/v1/health/deep
 ```
+
+Restored on 28.10.2026 in the drill: 72 tables, every one equal to the state
+of the dump in row count and content, the audit chain intact, the kept copies
+byte for byte — 54 s from an empty database to the app answering.
 
 The backup container writes plain-SQL dumps (`<db>-YYYYMMDD-HHMMSS.sql.gz`,
 gzip). The script keeps the current database as `<db>_before_restore` and

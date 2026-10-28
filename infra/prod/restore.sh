@@ -22,8 +22,13 @@
 #   bash infra/prod/restore.sh --list          # what is there
 #
 # The uploaded files (the `storage` volume) are NOT part of a dump — restore
-# them from your own offsite copy (README, "The uploaded files are NOT in
-# these backups").
+# them FIRST, from the file mirror (RUNBOOK §4, "Restore the files"): when the
+# backend starts again it compares the kept invoice copies with the database
+# and blocks the numbers of invoices issued after the dump (Tier 733).
+#
+# Tier 733: after the load the migrations run (`prisma migrate deploy`), so a
+# dump of an older version gets the schema of the code that is running before
+# the backend starts on it. RESTORE_MIGRATE=0 skips that.
 # ──────────────────────────────────────────────────────────
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -33,7 +38,8 @@ cd "$(dirname "$0")/../.."
 DC=(docker compose ${RESTORE_COMPOSE_ARGS:--f infra/prod/docker-compose.yml})
 
 if [[ "${1:-}" == "--list" ]]; then
-  exec "${DC[@]}" exec -T backup sh -c 'ls -lh /backups/last /backups/daily 2>/dev/null'
+  # Tier 733: all four — an older state is in weekly/ and monthly/ (10 years)
+  exec "${DC[@]}" exec -T backup sh -c 'ls -lh /backups/last /backups/daily /backups/weekly /backups/monthly 2>/dev/null'
 fi
 
 FILE="${1:-}"
@@ -83,7 +89,15 @@ echo "stopping backend and frontend…"
   fi
 ' sh "$FILE"
 
+if [[ "${RESTORE_MIGRATE:-1}" != "0" ]]; then
+  echo "applying the migrations of this version…"
+  "${DC[@]}" run --rm --no-deps backend npx prisma migrate deploy
+fi
+
 trap - EXIT
 restart
+echo "Then open Backups in the app (or the backend log): invoices issued after this dump"
+echo "are listed there as „… fehlen in der Datenbank“ — their numbers are blocked; enter them again."
+
 echo "done. Check the app, then remove the old database when you are sure:"
 echo "  ${DC[*]} exec postgres psql -U <user> -d postgres -c 'DROP DATABASE \"<name>_before_restore\"'"

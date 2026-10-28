@@ -2002,7 +2002,10 @@
     "autoDbSize": "Latest backup {latest} · all together {total}",
     "autoFilesSize": "Mirror {mirror} · earlier versions {versions}",
     "autoDisk": "Disk: {free} free of {total} ({percent} %)",
-    "autoDiskLow": "too little — please add space or move older backups off the server"
+    "autoDiskLow": "too little — please add space or move older backups off the server",
+    "lostTitle": "{n} issued invoice(s) missing from the database",
+    "lostHint": "The kept copy of these invoices exists, the database does not have them — they were issued after the database backup that was last restored. The customer has received them. Their numbers will not be given out again. Enter the invoices again so that they are in the books.",
+    "lostCopy": "Copy: {path}"
   },
   "systemHealth": {
     "title": "System Health",
