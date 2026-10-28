@@ -211,6 +211,13 @@ jobs:
       FINTS_PIN_ENC_KEY: "ci-fixture-key-do-not-use-in-prod-00000000000000000000"
     steps:
       - uses: actions/checkout@v7
+      # Tier 732b: the Java the KoSIT and Mustang validators were tested with —
+      # the runner image moved its default to Java 25 (28.10.2026), under which
+      # `validator.jar --help` failed (spec 140)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -482,6 +489,13 @@ jobs:
       FRONTEND_URL: http://localhost:3100
     steps:
       - uses: actions/checkout@v7
+      # Tier 732b: the Java the KoSIT and Mustang validators were tested with —
+      # the runner image moved its default to Java 25 (28.10.2026), under which
+      # `validator.jar --help` failed (spec 140)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: actions/setup-node@v7
         with:
           node-version: 22

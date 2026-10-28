@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 732b — the CI runner image moved on: Java 17 pinned, a spec no longer pipes JSON through python
+
+CI run 40670959343 (Tier 732): backend 448/1/1, Playwright 1102/1 — neither from Tier 732's change. The runner image had moved its default Java to 25 (`/usr/lib/jvm/temurin-25-jdk-amd64`; the run before had 17): spec 140's `validator.jar --help` failed under it (the validations themselves passed — spec 450's KoSIT and Mustang were green). And `datev-monthly-tier142.spec.ts` read the ZIP's MANIFEST.json through `python3 -m json.tool`, whose output on the newer Python is coloured when FORCE_COLOR is set — JSON.parse failed at „line 2 column 5“. Now both e2e jobs pin `actions/setup-java@v4` (temurin 17), and the spec parses `unzip -p` directly.
+
+Mustang ran in CI as intended: spec 417 „PDF valid, XML valid“, spec 450 „all 16 ZUGFeRD PDFs valid“.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 732 — the e-invoices of every kind of invoice by the official validators; BT-49; schematron 2.6.0 and Mustang in CI
 
 The owner, 28.10.2026: „电子发票合规了吗？“ Measured: 16 kinds of invoice (domestic, 19 % + 7 % with discount, Skonto, service period, order number and reference, cash / card / PayPal, § 13b, igL, export, USD, a public client with Leitweg-ID, a Storno credit note, a Kleinunternehmer), each as XRechnung (UBL) and ZUGFeRD (CII), through KoSIT — 31 of 32 accepted; the ZUGFeRD PDFs through Mustang — valid; four of the files imported again as another company's expenses (the duty to receive since 2025) — at the right amounts.

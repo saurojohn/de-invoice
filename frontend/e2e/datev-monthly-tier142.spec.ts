@@ -91,7 +91,9 @@ test.describe('Tier 142 — DATEV monthly split', () => {
     // that get mangled by the shell argv parser.
     writeFileSync('/tmp/datev-tier142.zip', buf)
     const manifest = execSync(
-      `unzip -p /tmp/datev-tier142.zip MANIFEST.json | python3 -m json.tool`,
+      // (Tier 732b: read as it is — `python3 -m json.tool` colours its output
+      // on newer Pythons when FORCE_COLOR is set, and JSON.parse failed on it)
+      `unzip -p /tmp/datev-tier142.zip MANIFEST.json`,
       { encoding: 'utf-8' },
     )
     const m = JSON.parse(manifest)
