@@ -193,6 +193,16 @@ export async function nextInvoiceNumber(
   )
 }
 
+/**
+ * Tier 733b — prefix, year and sequence of a number as it is stored, for an
+ * invoice that is re-entered under the number it was issued with.
+ */
+export function numberParts(invoiceNumber: string): InvoiceNumber {
+  const m = /^([A-Z]+)-(\d{4})-(\d+)$/.exec(invoiceNumber || '')
+  if (!m) throw new BadRequestException(`Keine Rechnungsnummer dieses Programms: ${invoiceNumber}`)
+  return { invoiceNumber, sequencePrefix: m[1], sequenceYear: Number(m[2]), sequenceNumber: Number(m[3]) }
+}
+
 /** Test seam: forget the created-sequence cache. */
 export function resetInvoiceNumberCache(): void {
   known.clear()

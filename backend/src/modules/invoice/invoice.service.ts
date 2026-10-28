@@ -26,7 +26,7 @@ import { resolveDueDate, assertDueNotBeforeIssue } from './due-date';
 // the PDF / XRechnung / customer-facing display. The EUR
 // amounts are what EÜR / UStVA / BWA / GuV aggregate over.
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { nextInvoiceNumber, releaseInvoiceNumber } from './invoice-number';
+import { nextInvoiceNumber, numberParts, releaseInvoiceNumber } from './invoice-number';
 import { ModuleRef } from '@nestjs/core';
 import { igLVatIdProblem } from './ust-behandlung-detector';
 import { businessDayIso, businessToday, businessTodayDate, businessTodayIso, dayStart } from '../../common/business-date'
@@ -520,7 +520,14 @@ export class InvoiceService {
     }
   }
 
-  async create(companyId: string, dto: CreateInvoiceDto, source?: { documentId: string }, opts?: { preview?: boolean }) {
+  async create(
+    companyId: string,
+    dto: CreateInvoiceDto,
+    source?: { documentId: string },
+    // Tier 733b: `restoredNumber` — the number of an invoice a restore lost
+    // (RetiredInvoiceNumber), re-entered from its kept copy; never from a request
+    opts?: { preview?: boolean; restoredNumber?: string },
+  ) {
     try {
     const type = (dto.type as InvoiceType) || 'INV';
     // Tier 511: only a known document type. "FOO" was stored as it came —
@@ -762,7 +769,9 @@ export class InvoiceService {
     const preview = opts?.preview === true
     const { invoiceNumber, sequencePrefix, sequenceYear, sequenceNumber } = preview
       ? { invoiceNumber: 'VORSCHAU', sequencePrefix: null, sequenceYear: null, sequenceNumber: null }
-      : await this.nextInvoiceNumber(companyId, type);
+      : opts?.restoredNumber
+        ? numberParts(opts.restoredNumber)
+        : await this.nextInvoiceNumber(companyId, type);
     const data = {
         companyId,
         customerId: customer.id,
@@ -2162,6 +2171,8 @@ export class InvoiceService {
       reason?: string
       /** Tier 422: the date the reduction happened (a Skonto: the payment date) */
       issueDate?: Date
+      /** Tier 733b: the number of a credit note a restore lost, re-entered from its kept copy */
+      restoredNumber?: string
     },
   ) {
     // Tier 534: one at a time per invoice
@@ -2182,6 +2193,8 @@ export class InvoiceService {
       reason?: string
       /** Tier 422: the date the reduction happened (a Skonto: the payment date) */
       issueDate?: Date
+      /** Tier 733b: the number of a credit note a restore lost, re-entered from its kept copy */
+      restoredNumber?: string
     },
   ) {
     const original = await this.prisma.invoice.findFirst({
@@ -2368,7 +2381,7 @@ export class InvoiceService {
     // Tier 174: same SEQUENCE-based allocation as create().
     // The old `cnCount + 1` was racy under concurrent CN creates
     // (same P2002 hazard as the INV create path).
-    const seq = await this.nextInvoiceNumber(companyId, 'CN');
+    const seq = opts.restoredNumber ? numberParts(opts.restoredNumber) : await this.nextInvoiceNumber(companyId, 'CN');
     const invoiceNumber = seq.invoiceNumber;
     const sequenceNumber = seq.sequenceNumber;
 

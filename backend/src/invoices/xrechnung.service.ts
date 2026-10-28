@@ -758,21 +758,31 @@ export function formatCents(c: number): string {
   return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`
 }
 
+/**
+ * BT-130, UN/ECE Rec. 20. Tier 733b: the unit is typed freely and the app's
+ * own words are German abbreviations — „Std“, „Stk“, „Monat“, „pauschal“ —
+ * which this map did not know: every line in hours, days or months went out
+ * as C62 („one“, a piece), found when an invoice was read back from its copy
+ * (2 Std became 2 Stk). Anything not listed stays C62.
+ */
 export function mapUnitToUNECE(unit?: string): string {
   const unitMap: Record<string, string> = {
-    piece: 'C62',
-    stück: 'C62',
-    unit: 'C62',
-    hour: 'HUR',
-    stunde: 'HUR',
-    day: 'DAY',
-    tag: 'DAY',
-    meter: 'MTR',
-    kilogram: 'KGM',
-    kilogramm: 'KGM',
-    liter: 'LTR',
+    piece: 'C62', pieces: 'C62', stück: 'C62', stueck: 'C62', stk: 'C62', st: 'C62', unit: 'C62', einheit: 'C62',
+    hour: 'HUR', hours: 'HUR', h: 'HUR', std: 'HUR', stunde: 'HUR', stunden: 'HUR',
+    min: 'MIN', minute: 'MIN', minuten: 'MIN',
+    day: 'DAY', days: 'DAY', tag: 'DAY', tage: 'DAY',
+    week: 'WEE', woche: 'WEE', wochen: 'WEE',
+    month: 'MON', monat: 'MON', monate: 'MON',
+    year: 'ANN', jahr: 'ANN', jahre: 'ANN',
+    kg: 'KGM', kilogram: 'KGM', kilogramm: 'KGM', g: 'GRM', gramm: 'GRM', t: 'TNE', tonne: 'TNE', tonnen: 'TNE',
+    m: 'MTR', meter: 'MTR', km: 'KMT', kilometer: 'KMT',
+    'm²': 'MTK', m2: 'MTK', qm: 'MTK', 'm³': 'MTQ', m3: 'MTQ', cbm: 'MTQ',
+    l: 'LTR', liter: 'LTR', kwh: 'KWH',
+    pauschal: 'LS', pauschale: 'LS', pausch: 'LS', psch: 'LS', 'lump sum': 'LS',
+    set: 'SET', karton: 'XBX',
   }
-  return unitMap[unit?.toLowerCase() || ''] || 'C62'
+  const key = (unit || '').trim().toLowerCase().replace(/\.$/, '')
+  return unitMap[key] || 'C62'
 }
 
 /**

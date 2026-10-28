@@ -10,6 +10,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
+import { LostInvoicesNotice } from "@/components/LostInvoicesNotice"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { printPdfBlob } from "@/lib/print-pdf"
 
@@ -901,6 +902,8 @@ function InvoicesPageInner() {
       </header>
 
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        {/* Tier 733b: invoices a restore lost — entered again from their copy */}
+        <LostInvoicesNotice />
         {/* Bulk action bar — appears whenever any row is selected */}
         {selected.size > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 flex items-center justify-between flex-wrap gap-2">

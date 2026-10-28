@@ -1346,7 +1346,14 @@
     "colOpen": "Open",
     "overdueSince": "{days} days overdue",
     "sortBy": "Sort by {column}",
-    "colDate": "Date"
+    "colDate": "Date",
+    "lostTitle": "{n} issued invoice(s) missing from the books",
+    "lostHint": "These invoices were issued after the database was last backed up — after the restore only their kept copy is there. The customer has received them. Restore each one from its copy: under its number, with the amounts of the copy.",
+    "lostOpenCopy": "View copy",
+    "lostRestore": "Restore from the copy",
+    "lostRestoring": "Restoring…",
+    "lostRestored": "{number} is in the books again.",
+    "lostRestoredNewCustomer": "{number} is in the books again; the customer was created from the copy."
   },
   "invoiceTemplates": {
     "title": "Invoice templates",
@@ -2004,7 +2011,7 @@
     "autoDisk": "Disk: {free} free of {total} ({percent} %)",
     "autoDiskLow": "too little — please add space or move older backups off the server",
     "lostTitle": "{n} issued invoice(s) missing from the database",
-    "lostHint": "The kept copy of these invoices exists, the database does not have them — they were issued after the database backup that was last restored. The customer has received them. Their numbers will not be given out again. Enter the invoices again so that they are in the books.",
+    "lostHint": "The kept copy of these invoices exists, the database does not have them — they were issued after the database backup that was last restored. The customer has received them. Their numbers will not be given out again. The company restores them from their copy under Invoices.",
     "lostCopy": "Copy: {path}"
   },
   "systemHealth": {

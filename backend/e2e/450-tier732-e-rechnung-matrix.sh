@@ -118,14 +118,31 @@ if [[ -z "$JAVA_BIN" ]]; then fail "no Java for KoSIT"; else
   VERDICTS=$(python3 - "$WORK" <<'PY'
 import glob, os, re, sys
 w = sys.argv[1]
+# Tier 733b: KoSIT's own verdict per file, from its result table. The check
+# here used to search the reports for `failed-assert flag="fatal" id=` —
+# this report format writes `<ns2:failed-assert test=… flag=… id=…>`, so it
+# never found one: a run with one rejected file said „all accepted“.
+# A row of the table: the verdict on its first line, the file's path wrapped
+# over that and the following lines (shortened with „...“ in the middle).
+records = []
+for line in open(os.path.join(w, 'kosit.log'), encoding='utf-8'):
+    cols = [c.strip() for c in line.strip().strip('|').split('|')]
+    if not line.startswith('|') or len(cols) < 4 or cols[0] == 'File': continue
+    if cols[3]: records.append([cols[0], cols[3], cols[4] if len(cols) > 4 else ''])
+    elif records:
+        records[-1][0] += cols[0]
+        if len(cols) > 4: records[-1][2] += cols[4]
+rows = {os.path.basename(p): v for p, v, _ in records}
+why = {os.path.basename(p): d for p, _, d in records}
 bad = []
 for f in sorted(glob.glob(os.path.join(w, 'files', '*.xml'))):
-    base = os.path.basename(f)[:-4]
-    rep = os.path.join(w, 'report', base + '-report.xml')
-    if not os.path.exists(rep): bad.append(f'{base}: no report'); continue
-    x = open(rep, encoding='utf-8').read()
-    fatal = sorted(set(re.findall(r'failed-assert flag="fatal" id="([^"]+)"', x)))
-    if fatal or re.search(r'<rep:message[^>]*level="error"', x): bad.append(f'{base}: {" ".join(fatal) or "schema"}')
+    name = os.path.basename(f)
+    verdict = rows.get(name)
+    if verdict != 'ACCEPTABLE':
+        rep = os.path.join(w, 'report', name[:-4] + '-report.xml')
+        x = open(rep, encoding='utf-8').read() if os.path.exists(rep) else ''
+        fatal = sorted(set(re.findall(r'failed-assert[^>]*flag="fatal"[^>]*id="([^"]+)"', x) + re.findall(r'failed-assert[^>]*id="([^"]+)"[^>]*flag="fatal"', x)))
+        bad.append(f'{name}: {verdict or "not in the result table"} {" ".join(fatal)} {why.get(name, "")[:400]}'.strip())
 print('; '.join(bad) or 'all accepted')
 PY
 )

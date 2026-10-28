@@ -1346,7 +1346,14 @@
     "colOpen": "Offen",
     "overdueSince": "{days} Tage überfällig",
     "sortBy": "Sortieren nach {column}",
-    "colDate": "Datum"
+    "colDate": "Datum",
+    "lostTitle": "{n} ausgestellte Rechnung(en) fehlen in den Büchern",
+    "lostHint": "Diese Rechnungen wurden ausgestellt, nachdem die Datenbank zuletzt gesichert wurde — nach der Wiederherstellung ist nur ihre abgelegte Kopie da. Der Kunde hat sie erhalten. Stellen Sie jede aus ihrer Kopie wieder her: unter ihrer Nummer, mit den Beträgen der Kopie.",
+    "lostOpenCopy": "Kopie ansehen",
+    "lostRestore": "Aus der Kopie wiederherstellen",
+    "lostRestoring": "Wird wiederhergestellt…",
+    "lostRestored": "{number} ist wieder in den Büchern.",
+    "lostRestoredNewCustomer": "{number} ist wieder in den Büchern; der Kunde wurde aus der Kopie neu angelegt."
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",
@@ -2004,7 +2011,7 @@
     "autoDisk": "Speicherplatz: {free} frei von {total} ({percent} %)",
     "autoDiskLow": "zu wenig — bitte Speicher erweitern oder ältere Sicherungen auslagern",
     "lostTitle": "{n} ausgestellte Rechnung(en) fehlen in der Datenbank",
-    "lostHint": "Von diesen Rechnungen liegt die abgelegte Kopie vor, in der Datenbank sind sie nicht — sie wurden nach der Datenbanksicherung ausgestellt, aus der zuletzt wiederhergestellt wurde. Der Kunde hat sie erhalten. Ihre Nummern werden nicht noch einmal vergeben. Erfassen Sie die Rechnungen wieder, damit sie in den Büchern stehen.",
+    "lostHint": "Von diesen Rechnungen liegt die abgelegte Kopie vor, in der Datenbank sind sie nicht — sie wurden nach der Datenbanksicherung ausgestellt, aus der zuletzt wiederhergestellt wurde. Der Kunde hat sie erhalten. Ihre Nummern werden nicht noch einmal vergeben. Die Firma stellt sie unter Rechnungen aus ihrer Kopie wieder her.",
     "lostCopy": "Kopie: {path}"
   },
   "systemHealth": {

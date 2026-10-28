@@ -4,6 +4,7 @@ import { OverdueStatusController } from './overdue-status.controller';
 import { AdminModule } from '../admin/admin.module';
 import { InvoiceController } from './invoice.controller';
 import { InvoiceService } from './invoice.service';
+import { RestoreFromCopyService } from './restore-from-copy.service';
 import { PaymentService } from './payment.service';
 // Tier 129: extracted the invoice-by-email workflow
 // into a service so the recurring scheduler can call
@@ -38,7 +39,7 @@ import { SigningModule } from '../signing/signing.module';
 
 @Module({
   controllers: [InvoiceController, OverdueStatusController],
-  providers: [InvoiceService, PaymentService, InvoiceEmailService, OverdueStatusScheduler], // Tier 710
+  providers: [InvoiceService, PaymentService, InvoiceEmailService, OverdueStatusScheduler, RestoreFromCopyService], // Tier 710, 733b
   imports: [
     PrismaModule,
     StorageModule,

@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
  
 const archiverLib: any = require('archiver');
 import { InvoiceService } from './invoice.service';
+import { RestoreFromCopyService } from './restore-from-copy.service'
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto, CreateCreditNoteDto, BookPaymentNoticeDto } from './dto/payment-credit-note.dto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -82,6 +83,8 @@ export class InvoiceController {
     // Tier 165: PDF signing for GoBD § 146 AO
     // "unveränderbare Speicherung" compliance.
     private signingService: SigningService,
+    // Tier 733b
+    private restoreFromCopy: RestoreFromCopyService,
   ) {}
 
   /**
@@ -1070,6 +1073,37 @@ export class InvoiceController {
       console.error('ZUGFeRD generation error:', error);
       res.status(500).json({ error: 'ZUGFeRD generation failed' });
     }
+  }
+
+  /**
+   * Tier 733b — invoices a restore lost: issued, their kept copy back with
+   * the files, their row not in the restored database. Their numbers are
+   * retired (Tier 733); here they are listed, the copy shown, and the
+   * invoice entered again from it under its number.
+   */
+  @Get('retired-numbers')
+  @Require('invoice.read')
+  async retiredNumbers(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.restoreFromCopy.open(companyId)
+  }
+
+  @Get('retired-numbers/:number/copy')
+  @Require('invoice.read')
+  async retiredCopy(@Param('number') number: string, @Query('companyId') companyId: string, @Res() res: Response) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const pdf = await this.restoreFromCopy.copy(companyId, number)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="${number.replace(/[^A-Za-z0-9-]/g, '_')}.pdf"`)
+    res.send(pdf)
+  }
+
+  @Post('retired-numbers/:number/restore')
+  @HttpCode(200)
+  @Require('invoice.create')
+  async restoreRetired(@Param('number') number: string, @Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.restoreFromCopy.restore(companyId, number)
   }
 
   /**
