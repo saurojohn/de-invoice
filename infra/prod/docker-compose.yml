@@ -430,8 +430,9 @@ services:
   # remote). Off until set up: rclone.conf next to this file (see
   # HETZNER-DEPLOY.md §9), BACKUP_OFFSITE_REMOTE in .env, then
   #   docker compose --profile offsite up -d offsite-backup
-  # The dumps are mirrored (their retention applies there too); the files are
-  # only ever added (`copy`, never deleted off-site).
+  # Nothing off-site is deleted because of what is (not) on this server: the
+  # dumps are added and removed there by age only, the files only ever added
+  # (offsite-backup.sh, Tier 733c).
   offsite-backup:
     image: rclone/rclone:1.68.2
     container_name: de-invoice-offsite-backup
@@ -444,29 +445,20 @@ services:
       de-invoice.observability: "true"
       de-invoice.service: "offsite-backup"
     environment:
-      # (empty unless the offsite profile is used — the loop below refuses then)
+      # (empty unless the offsite profile is used — the script refuses then)
       REMOTE: ${BACKUP_OFFSITE_REMOTE:-}
       INTERVAL_SECONDS: ${BACKUP_OFFSITE_INTERVAL_SECONDS:-3600}
       RCLONE_CONFIG: /config/rclone/rclone.conf
       RCLONE_CACHE_DIR: /tmp/rclone-cache
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        if [ -z "$$REMOTE" ]; then
-          echo "offsite: BACKUP_OFFSITE_REMOTE is not set in .env — nothing is copied"; exit 1
-        fi
-        while true; do
-          date -u +"%Y-%m-%dT%H:%M:%SZ offsite: start"
-          rclone sync /backups "$$REMOTE/db" --create-empty-src-dirs \
-            && rclone copy /data/backup-files "$$REMOTE/files" \
-            && date -u +"%Y-%m-%dT%H:%M:%SZ offsite: ok" \
-            || date -u +"%Y-%m-%dT%H:%M:%SZ offsite: FAILED"
-          sleep "$$INTERVAL_SECONDS"
-        done
+    # Tier 733c: the loop is a script of its own — it copies, never deletes
+    # because of what is (not) here; a new server's first pass used to sync
+    # the remote down to its empty dumps
+    entrypoint: ["/bin/sh", "/offsite-backup.sh"]
     volumes:
       - backups:/backups:ro
       - backup_files:/data/backup-files:ro
       - ./rclone.conf:/config/rclone/rclone.conf:ro
+      - ./offsite-backup.sh:/offsite-backup.sh:ro
     read_only: true
     tmpfs:
       - /tmp

@@ -260,9 +260,11 @@ backup page; such numbers are retired (never handed out again) and reported
 until the invoices are entered again. Also found and fixed with it: a draft
 deleted after an issued invoice deleted on its issue day wound the numbering
 back below that invoice's number. Not in any backup: `.env` — keep it in the
-password manager (HETZNER-DEPLOY.md, step 4). On a new server, start
-`offsite-backup` only after the restore: its `rclone sync` would make the
-remote equal to the new server's empty dumps.
+password manager (HETZNER-DEPLOY.md, step 4). And the off-site copy was an
+`rclone sync`: one pass on a new server (its empty database dumped) deleted
+the old server's 8 dumps off-site and left the new server's 4 empty ones
+(measured with the rclone image, Tier 733c). It now copies and removes by
+age only (`offsite-backup.sh`, spec 453).
 
 ### 2026-Q2 report (Tier 220) — Restore in a sidecar DB
 

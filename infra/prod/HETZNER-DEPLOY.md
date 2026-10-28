@@ -399,19 +399,20 @@ docker compose --profile offsite up -d offsite-backup
 docker compose logs -f offsite-backup        # "offsite: ok" within a minute or two
 ```
 
-The backup page then shows the remote under „Kopie außer Haus“. The dumps are
-mirrored there (their retention applies off-site too); the files are only ever
-added.
+The backup page then shows the remote under „Kopie außer Haus“. Off-site the
+dumps are added and removed by age only (hourly 3 days, daily 35 days, weekly
+13 weeks, monthly 121 months — `OFFSITE_KEEP_*` in `offsite-backup.sh`); a
+file that is there is never overwritten; the files are only ever added.
 
 ### Restore from the Storage Box
 
-On a **new** server: do the restore **before** starting `offsite-backup`
-there. Its loop begins with `rclone sync` of the local dumps to the remote —
-on a server that has only the dumps of its own empty database, that sync
-makes the remote equal to them and deletes the archive you are about to
-restore from. Order: the files, then the database (RUNBOOK §4, „Restoring
+On a **new** server: the files, then the database (RUNBOOK §4, „Restoring
 after a loss — the order“), then `docker compose --profile offsite up -d
-offsite-backup`.
+offsite-backup`. (Until Tier 733c the off-site loop was an `rclone sync`:
+started on a new server before the restore, it made the remote equal to the
+new server's empty dumps and deleted the archive. `offsite-backup.sh` copies
+and removes off-site by age only — a new server cannot empty the remote any
+more; the order still keeps the new server's empty dumps out of it.)
 
 ```bash
 docker run --rm -v "$PWD/rclone.conf:/config/rclone/rclone.conf:ro" -v /tmp/restore:/restore \

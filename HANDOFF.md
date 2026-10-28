@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 733c — the off-site copy no longer deletes what a new server does not have
+
+The owner allowed the rclone image (28.10.2026, „可以下载，继续“). Measured with `rclone/rclone:1.68.2` against a local remote: the old server's 8 dumps off-site, then one pass of the `offsite-backup` loop on a new server (its empty database dumped): `rclone sync` left 4 dumps — all the new server's empty ones. The archive a restore needs, deleted by the first hour of the server meant to restore it.
+
+- `infra/prod/offsite-backup.sh` (mounted read-only; compose's entrypoint): the dumps `rclone copy --ignore-existing --skip-links` — a file off-site is never deleted or overwritten because of this server; off-site they are removed by age only (`rclone delete --min-age`: last/ 3d, daily/ 35d, weekly/ 13w, monthly/ 121M; `OFFSITE_KEEP_*`). The daily/weekly/monthly files off-site keep the first dump of their period (every hourly dump has a name of its own). The files as before (`copy`). `ONCE=1` for one pass.
+- RUNBOOK §4, HETZNER-DEPLOY §9 and DR-TEST say so; the deploy guide's "start offsite only after the restore" is kept as the order, no longer as the only protection.
+
+Spec `453-tier733c-offsite-loescht-nichts.sh` (runs the script in the image against a local remote: old server, new server, ages, no remote; skips without Docker/the image; on the compose before: the script is missing, the pass fails).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 733b — an invoice a restore lost, entered again from its kept copy; the unit codes of the e-invoice
 
 Tier 733 retires the number of an invoice a restore lost and says so; nothing could enter it again under that number. Now the company does it from the copy (`RestoreFromCopyService`, invoice module):

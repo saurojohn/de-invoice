@@ -288,7 +288,7 @@ docker compose -f infra/prod/docker-compose.yml exec postgres \
 | Database (`pg_dump`, the `backup` container) | every hour (`BACKUP_SCHEDULE`, default `@hourly`) | every dump 24 h · one a day 30 days · one a week 12 weeks · one a month 10 years | volume `backups`: `last/ daily/ weekly/ monthly/` |
 | Files of `storage` — kept invoice copies, receipts, attachments (the backend) | every hour at :20 | everything; nothing is deleted, a changed file keeps its earlier version | volume `backup_files`: `mirror/`, `versions/`, `last-run.json` |
 | Freshness check (the backend) | every hour at :40 | — | the scheduler `backup-freshness-check` turns red and an error event goes to the notification channels when the newest dump or the file mirror is older than 3 hours — or (Tier 733) when an issued invoice exists only as its kept copy, not in the database |
-| Off-site copy (optional, `offsite-backup`) | every hour | the dumps mirrored, the files only added | the rclone remote in `BACKUP_OFFSITE_REMOTE` (Hetzner Storage Box, HETZNER-DEPLOY.md §9) |
+| Off-site copy (optional, `offsite-backup`, `offsite-backup.sh`) | every hour | the dumps added and removed there by age only (hourly 3 days, daily 35, weekly 13 weeks, monthly 121 months); a file there is never overwritten; the files only added | the rclone remote in `BACKUP_OFFSITE_REMOTE` (Hetzner Storage Box, HETZNER-DEPLOY.md §9) |
 
 The law sets no interval (GoBD Rz. 103 ff.: the records must be protected
 against loss and readable for 8 / 10 years, § 147 AO); hourly is what keeps
