@@ -121,10 +121,15 @@ async function findValidatorJar(): Promise<string> {
 }
 
 /**
- * Resolve the scenarios.xml + repository.
+ * Resolve the scenarios file + repository.
+ *
+ * Tier 738: `xrechnung` (scenarios.xml) checks what de-invoice issues — an
+ * XRechnung; `en16931` (scenarios-en16931.xml) checks a received invoice,
+ * which has to be an EN 16931 invoice, not necessarily an XRechnung (Peppol
+ * BIS, ZUGFeRD / Factur-X, plain EN 16931 UBL).
  */
-async function findScenarios(): Promise<{ scenarios: string; repository: string }> {
-  const scenarios = path.join(KOSIT_ROOT, 'scenarios.xml')
+async function findScenarios(kind: 'xrechnung' | 'en16931' = 'xrechnung'): Promise<{ scenarios: string; repository: string }> {
+  const scenarios = path.join(KOSIT_ROOT, kind === 'en16931' ? 'scenarios-en16931.xml' : 'scenarios.xml')
   const repository = path.join(KOSIT_ROOT, 'repository')
   await fs.access(scenarios)
   await fs.access(repository)
@@ -138,7 +143,7 @@ async function findScenarios(): Promise<{ scenarios: string; repository: string 
  */
 export async function validateXRechnungWithKoSIT(
   xml: string,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number; scenarios?: 'xrechnung' | 'en16931' } = {},
 ): Promise<KoSITResult> {
   const timeoutMs = options.timeoutMs ?? 30_000
   const start = Date.now()
@@ -151,7 +156,7 @@ export async function validateXRechnungWithKoSIT(
   try {
     javaBin = await findJava()
     validatorJar = await findValidatorJar()
-    const s = await findScenarios()
+    const s = await findScenarios(options.scenarios)
     scenariosPath = s.scenarios
     repositoryPath = s.repository
   } catch (err: any) {

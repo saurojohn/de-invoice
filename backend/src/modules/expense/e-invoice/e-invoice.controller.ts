@@ -4,8 +4,6 @@ import { Auth, Require } from '../../../auth/roles.decorator'
 import { CallerBoundUpload } from '../../../auth/caller-bound-upload'
 import { KoSITValidatorUnavailableError, validateXRechnungWithKoSIT } from '../../../invoices/kosIT-validator.service'
 import { EInvoiceImportService, ImportOptions } from './e-invoice-import.service'
-import { embeddedXmlFiles } from './pdf-embedded-xml'
-import { decodeXml } from './xml-reader'
 
 type Upload = { buffer: Buffer; originalname: string; mimetype: string; size: number }
 
@@ -59,9 +57,10 @@ export class EInvoiceController {
   }
 
   /**
-   * The official validator (KoSIT, XRechnung scenarios) on a received file.
-   * It answers whether the document is a valid XRechnung; an EN 16931 invoice
-   * of another profile (ZUGFeRD COMFORT) matches none of its scenarios.
+   * The official validator (KoSIT) on a received file — against EN 16931
+   * (Tier 738: scenarios-en16931.xml). It used the XRechnung scenarios, which
+   * rejected a Peppol BIS or plain EN 16931 UBL invoice for BR-DE-21 alone.
+   * Preview and import run the same check by themselves since Tier 738.
    */
   @Post('e-invoice/validate')
   @HttpCode(200)
@@ -72,15 +71,9 @@ export class EInvoiceController {
     this.check(companyId, file)
     const read = await this.eInvoices.read(file!.buffer)
     if (!read) throw new BadRequestException('Die PDF-Datei enthält keine E-Rechnung (keine eingebettete XML-Datei).')
-    let xml: string
-    if (read.source === 'pdf') {
-      const embedded = (await embeddedXmlFiles(file!.buffer)).find((f) => f.filename === read.embeddedFile)
-      xml = decodeXml(embedded!.content)
-    } else {
-      xml = decodeXml(file!.buffer)
-    }
+    const xml = await this.eInvoices.xmlOf(file!.buffer, read)
     try {
-      return { available: true, profile: read.invoice.profile, ...(await validateXRechnungWithKoSIT(xml)) }
+      return { available: true, profile: read.invoice.profile, ...(await validateXRechnungWithKoSIT(xml, { scenarios: 'en16931' })) }
     } catch (e) {
       if (e instanceof KoSITValidatorUnavailableError) {
         return { available: false, profile: read.invoice.profile, message: 'Der KoSIT-Validator ist auf diesem Server nicht installiert.' }

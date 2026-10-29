@@ -4024,9 +4024,9 @@
     },
     "check": "官方校验（KoSIT）",
     "checking": "正在校验…",
-    "checkValid": "官方 KoSIT 校验器已接受该电子发票（XML 结构和业务规则）。",
-    "checkInvalid": "官方 KoSIT 校验器拒绝了该电子发票：",
-    "checkUnavailable": "本安装环境没有官方 KoSIT 校验器。上方显示的检查（合计、必填项）已执行。",
+    "checkValid": "官方 KoSIT 校验器已按 EN 16931 检查并接受了这张电子发票（XML 结构和业务规则）。",
+    "checkInvalid": "官方 KoSIT 校验器按 EN 16931 拒绝了这张电子发票。仍可以入账；请向供应商索取更正后的发票：",
+    "checkUnavailable": "无法按 EN 16931 检查：本安装中没有官方 KoSIT 校验器。上面显示的检查（金额合计、必填项）已经完成。",
     "checkFailed": "无法执行校验。",
     "skontoLine": "{days} 天内付款可扣 {percent} %"
   },

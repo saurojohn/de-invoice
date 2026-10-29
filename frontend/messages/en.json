@@ -4024,9 +4024,9 @@
     },
     "check": "Official check (KoSIT)",
     "checking": "Checking…",
-    "checkValid": "The official KoSIT validator accepted the e-invoice (XML schema and business rules).",
-    "checkInvalid": "The official KoSIT validator rejected the e-invoice:",
-    "checkUnavailable": "The official KoSIT validator is not available in this installation. The checks shown above (totals, mandatory fields) were made.",
+    "checkValid": "The official KoSIT validator checked the e-invoice against EN 16931 and accepted it (XML schema and business rules).",
+    "checkInvalid": "The official KoSIT validator rejected the e-invoice under EN 16931. It can still be recorded; ask the supplier for a corrected invoice:",
+    "checkUnavailable": "The EN 16931 check was not possible: the official KoSIT validator is not available in this installation. The checks shown above (totals, mandatory details) were carried out.",
     "checkFailed": "The check could not be carried out.",
     "skontoLine": "{percent} % if paid within {days} days"
   },

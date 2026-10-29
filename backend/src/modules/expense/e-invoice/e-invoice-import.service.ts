@@ -23,6 +23,7 @@ import { BadRequestException, ConflictException, HttpException, Injectable, Logg
 import * as crypto from 'crypto'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { withKeyLock } from '../../../common/key-lock'
+import { KoSITValidatorUnavailableError, validateXRechnungWithKoSIT } from '../../../invoices/kosIT-validator.service'
 import { assertNotFuture } from '../../../common/business-date'
 import { assertPeriodOpen } from '../../reports/filed-period'
 import { ibanProblem } from '../../../common/iban'
@@ -59,6 +60,21 @@ export interface PlannedExpense {
   taxLines?: { vatRate: number; netAmount: number; vatAmount: number }[]
 }
 
+/**
+ * Tier 738 — the official check of a received e-invoice against EN 16931
+ * (KoSIT validator, scenarios-en16931.xml: schema and the CEN schematron).
+ * `checked: false` where the validator is not installed.
+ */
+export interface En16931Check {
+  checked: boolean
+  valid: boolean | null
+  acceptance: string | null
+  errors: { rule?: string; message: string }[]
+  warningCount: number
+  /** when it was checked (ISO) */
+  at: string
+}
+
 export interface ImportOptions {
   supplierId?: string
   confirmDuplicate?: boolean
@@ -76,6 +92,8 @@ const looksLikeXml = (b: Buffer) =>
   /^\s*</.test(b.subarray(0, 64).toString('latin1').replace(/^(\xEF\xBB\xBF|\xFF\xFE|\xFE\xFF)/, '').replace(/\0/g, ''))
 const round2 = (n: number) => Math.round(n * 100) / 100
 const eur = (n: number) => n.toFixed(2).replace('.', ',')
+/** Tier 738: how long the EN 16931 verdict of a file is reused */
+const CHECK_TTL_MS = 10 * 60_000
 const squash = (s: string | null | undefined) => (s || '').toLowerCase().replace(/[^a-z0-9äöüß]/g, '')
 
 @Injectable()
@@ -123,6 +141,55 @@ export class EInvoiceImportService {
       throw e
     }
   }
+
+  /** The XML of a read e-invoice: the file itself, or the one inside the PDF. */
+  async xmlOf(buffer: Buffer, read: ReadEInvoice): Promise<string> {
+    if (read.source === 'xml') return decodeXml(buffer)
+    const embedded = (await embeddedXmlFiles(buffer)).find((f) => f.filename === read.embeddedFile)
+    if (!embedded) throw new BadRequestException('Die in der PDF eingebettete E-Rechnung ist nicht mehr auffindbar.')
+    return decodeXml(embedded.content)
+  }
+
+  /**
+   * Tier 738 — is the received invoice an EN 16931 invoice? Run on every
+   * preview and import (it was a button: an invoice that broke the rules
+   * was booked without anyone seeing it). One run at a time (a Java process
+   * each); the verdict of a file is kept ten minutes, so the import after
+   * its preview does not run it again.
+   */
+  async checkEn16931(buffer: Buffer, read: ReadEInvoice, contentHash: string): Promise<En16931Check> {
+    const now = Date.now()
+    for (const [k, v] of this.checks) if (now - v.time > CHECK_TTL_MS) this.checks.delete(k)
+    const kept = this.checks.get(contentHash)
+    if (kept) return kept.result
+    const xml = await this.xmlOf(buffer, read)
+    const run = this.checkQueue.then(async (): Promise<En16931Check> => {
+      try {
+        const r = await validateXRechnungWithKoSIT(xml, { scenarios: 'en16931', timeoutMs: 60_000 })
+        return {
+          checked: true,
+          valid: r.valid,
+          acceptance: r.acceptance,
+          errors: r.errors.slice(0, 50).map((e) => ({ rule: e.rule, message: e.message })),
+          warningCount: r.warnings.length,
+          at: new Date().toISOString(),
+        }
+      } catch (e) {
+        if (!(e instanceof KoSITValidatorUnavailableError)) this.logger.warn(`EN 16931 check failed: ${(e as Error)?.message}`)
+        return { checked: false, valid: null, acceptance: null, errors: [], warningCount: 0, at: new Date().toISOString() }
+      }
+    })
+    this.checkQueue = run.then(() => undefined, () => undefined)
+    const result = await run
+    if (result.checked) {
+      this.checks.set(contentHash, { time: now, result })
+      if (this.checks.size > 200) this.checks.delete(this.checks.keys().next().value as string)
+    }
+    return result
+  }
+
+  private checks = new Map<string, { time: number; result: En16931Check }>()
+  private checkQueue: Promise<void> = Promise.resolve()
 
   /** What the import would do — nothing is written. */
   async preview(companyId: string, buffer: Buffer, opts: ImportOptions = {}) {
@@ -223,6 +290,9 @@ export class EInvoiceImportService {
       select: { entityId: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     })
+    const en16931 = await this.checkEn16931(buffer, read, contentHash)
+    // (Its verdict is a field of its own — `en16931` — shown by the dialog
+    // with the rules it names, and written into the expense's note.)
     if (sameFile && (await this.prisma.expense.findFirst({ where: { id: sameFile.entityId, companyId }, select: { id: true } }))) {
       duplicate = {
         expenseId: sameFile.entityId,
@@ -303,6 +373,7 @@ export class EInvoiceImportService {
       buyerMatches,
       duplicate,
       contentHash,
+      en16931,
       expenses: planned,
       blocking,
       warnings,
@@ -369,7 +440,7 @@ export class EInvoiceImportService {
       supplierCreated = true
     }
 
-    const notes = noteFor(inv, read, opts.exchangeRate)
+    const notes = noteFor(inv, read, opts.exchangeRate, plan.en16931)
     const created: { id: string }[] = []
     try {
       for (const p of plan.expenses) {
@@ -431,6 +502,7 @@ export class EInvoiceImportService {
       supplierCreated,
       invoiceNumber: inv.number,
       profile: inv.profile,
+      en16931: plan.en16931,
       warnings: plan.warnings,
     }
   }
@@ -470,9 +542,20 @@ function describe(inv: ParsedEInvoice, lines: EInvoiceLine[], part: string | nul
   return (head + what).slice(0, 500 - tail.length) + tail
 }
 
-function noteFor(inv: ParsedEInvoice, read: ReadEInvoice, exchangeRate?: number): string {
+function noteFor(inv: ParsedEInvoice, read: ReadEInvoice, exchangeRate?: number, check?: En16931Check): string {
   const syntax = inv.syntax === 'cii' ? 'CII' : 'UBL'
   const parts = [`E-Rechnung ${inv.profile} (${syntax}${read.source === 'pdf' ? `, eingebettet als ${read.embeddedFile}` : ''})`]
+  // Tier 738: the verdict at the time of booking, kept with the expense
+  if (check) {
+    const on = check.at.slice(0, 10).split('-').reverse().join('.')
+    parts.push(
+      !check.checked
+        ? 'EN 16931 nicht geprüft (Validator nicht verfügbar)'
+        : check.valid
+          ? `EN 16931 geprüft am ${on} (KoSIT): gültig`
+          : `EN 16931 geprüft am ${on} (KoSIT): nicht gültig — ${[...new Set(check.errors.map((e) => e.rule).filter(Boolean))].slice(0, 8).join(', ') || `${check.errors.length} Fehler`}`,
+    )
+  }
   if (inv.currency && inv.currency !== 'EUR' && inv.totals.gross != null) {
     parts.push(`Original ${eur(inv.totals.gross)} ${inv.currency}, 1 EUR = ${String(exchangeRate).replace('.', ',')} ${inv.currency}`)
   }

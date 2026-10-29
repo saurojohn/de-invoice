@@ -4024,9 +4024,9 @@
     },
     "check": "Offiziell prüfen (KoSIT)",
     "checking": "Wird geprüft …",
-    "checkValid": "Der offizielle KoSIT-Validator hat die E-Rechnung angenommen (XML-Schema und Geschäftsregeln).",
-    "checkInvalid": "Der offizielle KoSIT-Validator hat die E-Rechnung zurückgewiesen:",
-    "checkUnavailable": "Der offizielle KoSIT-Validator ist in dieser Installation nicht verfügbar. Die oben gezeigten Prüfungen (Summen, Pflichtangaben) wurden durchgeführt.",
+    "checkValid": "Der offizielle KoSIT-Validator hat die E-Rechnung nach EN 16931 geprüft und angenommen (XML-Schema und Geschäftsregeln).",
+    "checkInvalid": "Der offizielle KoSIT-Validator hat die E-Rechnung nach EN 16931 zurückgewiesen. Sie kann trotzdem erfasst werden; fordern Sie beim Lieferanten eine korrigierte Rechnung an:",
+    "checkUnavailable": "Die Prüfung nach EN 16931 war nicht möglich: Der offizielle KoSIT-Validator ist in dieser Installation nicht verfügbar. Die oben gezeigten Prüfungen (Summen, Pflichtangaben) wurden durchgeführt.",
     "checkFailed": "Die Prüfung konnte nicht durchgeführt werden.",
     "skontoLine": "{percent} % bei Zahlung innerhalb von {days} Tagen"
   },

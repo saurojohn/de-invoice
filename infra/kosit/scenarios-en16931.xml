@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tier 738 — KoSIT scenarios for RECEIVED e-invoices: EN 16931 only.
+
+  scenarios.xml checks what de-invoice ISSUES: an XRechnung, so its UBL
+  scenarios run the XRechnung CIUS schematron as well. A received invoice
+  has to be an EN 16931 invoice (§ 14 Abs. 1 UStG), not an XRechnung —
+  Peppol BIS, ZUGFeRD / Factur-X and plain EN 16931 UBL are e-invoices too.
+  Through scenarios.xml a Peppol BIS invoice was REJECTED for BR-DE-21 alone
+  ("Specification identifier" should be XRechnung). The same scenarios as
+  scenarios.xml (UBL invoice, UBL credit note, CII), the same XSD and CEN
+  EN 16931 schematron 1.3.16, without the XRechnung step. Kept in step with
+  scenarios.xml by backend/e2e spec 458.
+-->
+<scenarios xmlns="http://www.xoev.de/de/validator/framework/1/scenarios" frameworkVersion="1.1.2">
+    <name>de-invoice — EN 16931 (received e-invoices)</name>
+    <author>de-invoice</author>
+    <date>2026-07-29</date>
+    <description>
+        <p>EN 16931 validation of received e-invoices (UBL 2.1 invoice and
+           credit note, UN/CEFACT CII D16B): schema plus the CEN EN 16931
+           schematron 1.3.16.</p>
+    </description>
+
+    <scenario>
+        <name>EN16931-UBL</name>
+        <description>
+            <p>Validate a received UBL 2.1 Invoice against EN 16931: the UBL
+               schema and the CEN EN 16931 UBL schematron (BR-*, BR-CO-*,
+               BR-DEC-*, BR-S/Z/E/AE/K-*). No XRechnung CIUS rules.</p>
+        </description>
+
+        <!-- UBL 2.1 namespaces -->
+        <namespace prefix="cac">urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2</namespace>
+        <namespace prefix="cbc">urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2</namespace>
+        <namespace prefix="udt">urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule-2</namespace>
+        <namespace prefix="ubl">urn:oasis:names:specification:ubl:schema:xsd:Invoice-2</namespace>
+
+        <!-- Match only the Invoice root element; a CreditNote has its own
+             scenario below (Tier 588) -->
+        <match>/ubl:Invoice</match>
+
+        <!-- 1. UBL 2.1 XSD validation (structural integrity) -->
+        <validateWithXmlSchema>
+            <resource>
+                <name>UBL Invoice 2.1 XSD</name>
+                <!-- Path is relative to the -r repository directory
+                     (the xsd/maindoc/ subfolder we maintain, mirroring
+                     the official UBL 2.1 distribution layout). -->
+                <location>xsd/maindoc/UBL-Invoice-2.1.xsd</location>
+            </resource>
+        </validateWithXmlSchema>
+
+        <!-- 2. EN 16931 core rules (CEN/TC 434 schematron 1.3.16).
+             Tier 410/412: this step was missing. The XRechnung schematron
+             below only carries the German CIUS rules (82 ids, all BR-DE-*);
+             every BR-*, BR-CO-* and BR-S/Z/E/AE/K-* rule lives here. The
+             official validator-configuration-xrechnung (v2026-08-31) runs
+             both, with this version. Without it an XRechnung whose tax
+             subtotal contradicted its total tax was ACCEPTABLE. -->
+        <validateWithSchematron>
+            <resource>
+                <name>EN 16931 UBL validation (CEN 1.3.16)</name>
+                <location>schematron/en16931/EN16931-UBL-validation.xslt</location>
+            </resource>
+        </validateWithSchematron>
+
+
+        <!-- The standard KoSIT report template (from
+             https://github.com/itplr-kosit/validator
+             /src/test/resources/examples/simple/repository/report.xsl)
+             The validator runs the report.xsl against the
+             internal report-input document to produce a
+             printable report. -->
+        <createReport>
+            <resource>
+                <name>Report for eRechnung</name>
+                <location>report.xsl</location>
+            </resource>
+        </createReport>
+    </scenario>
+
+    <!-- Tier 588: a UBL credit note (type 381). The same rules as for the
+         invoice — the CEN and the XRechnung schematron address both document
+         types — against the CreditNote schema. Until this scenario existed a
+         CreditNote matched nothing and was answered with REJECT and no
+         finding: the project's own credit notes (Tier 586) and every
+         supplier's. The schema is the OASIS UBL 2.1 OS file, unchanged
+         (docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/). -->
+    <scenario>
+        <name>EN16931-UBL-CreditNote</name>
+        <description>
+            <p>Validate a UBL 2.1 CreditNote against EN 16931 and the XRechnung 3.0 CIUS.</p>
+        </description>
+        <namespace prefix="cac">urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2</namespace>
+        <namespace prefix="cbc">urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2</namespace>
+        <namespace prefix="udt">urn:un:unece:uncefact:data:specification:UnqualifiedDataTypesSchemaModule-2</namespace>
+        <namespace prefix="cn">urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2</namespace>
+        <match>/cn:CreditNote</match>
+        <validateWithXmlSchema>
+            <resource>
+                <name>UBL CreditNote 2.1 XSD</name>
+                <location>xsd/maindoc/UBL-CreditNote-2.1.xsd</location>
+            </resource>
+        </validateWithXmlSchema>
+        <validateWithSchematron>
+            <resource>
+                <name>EN 16931 UBL validation (CEN 1.3.16)</name>
+                <location>schematron/en16931/EN16931-UBL-validation.xslt</location>
+            </resource>
+        </validateWithSchematron>
+        <createReport>
+            <resource>
+                <name>Report for eRechnung</name>
+                <location>report.xsl</location>
+            </resource>
+        </createReport>
+    </scenario>
+
+    <!-- Tier 414: ZUGFeRD / Factur-X (EN 16931 profile). The CII XML embedded
+         in the PDF had never been validated by anything; it used element
+         names that do not exist in CII D16B. -->
+    <scenario>
+        <name>EN16931-CII</name>
+        <description>
+            <p>Validate a UN/CEFACT CII D16B CrossIndustryInvoice (the XML inside
+               a ZUGFeRD / Factur-X PDF, EN 16931 profile) against the CII D16B
+               schema and the CEN EN 16931 CII schematron 1.3.16.</p>
+        </description>
+
+        <namespace prefix="rsm">urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100</namespace>
+        <namespace prefix="ram">urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100</namespace>
+        <namespace prefix="udt">urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100</namespace>
+
+        <match>/rsm:CrossIndustryInvoice</match>
+
+        <validateWithXmlSchema>
+            <resource>
+                <name>CII D16B (SCRDM subset, uncoupled code lists)</name>
+                <location>xsd/cii/uncefact/data/standard/CrossIndustryInvoice_100pD16B.xsd</location>
+            </resource>
+        </validateWithXmlSchema>
+
+        <validateWithSchematron>
+            <resource>
+                <name>EN 16931 CII validation (CEN 1.3.16)</name>
+                <location>schematron/en16931/EN16931-CII-validation.xslt</location>
+            </resource>
+        </validateWithSchematron>
+
+        <createReport>
+            <resource>
+                <name>Report for eRechnung</name>
+                <location>report.xsl</location>
+            </resource>
+        </createReport>
+    </scenario>
+
+    <!-- noScenarioReport: required by scenarios.xsd.
+         Uses the same report.xsl template as the scenarios
+         (so an unmatched input still produces a printable
+         report, not a crash). -->
+    <noScenarioReport>
+        <resource>
+            <name>default</name>
+            <location>report.xsl</location>
+        </resource>
+    </noScenarioReport>
+</scenarios>

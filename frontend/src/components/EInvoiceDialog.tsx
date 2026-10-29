@@ -85,6 +85,8 @@ interface Preview {
   blocking: string[]
   warnings: string[]
   importable: boolean
+  // Tier 738: the official EN 16931 check, run with every preview
+  en16931?: { checked: boolean; valid: boolean | null; errors: { rule?: string; message: string }[] }
 }
 
 type Mode = { kind: "import"; file: File } | { kind: "view"; expenseId: string }
@@ -106,10 +108,10 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
   const [exchangeRate, setExchangeRate] = useState("")
   const [paid, setPaid] = useState(false)
   const [paidAt, setPaidAt] = useState(todayIso())
-  // Tier 578: the official validator's verdict on the received file, on request
+  // Tier 578: the official validator's verdict on the received file — since
+  // Tier 738 it comes with the preview (EN 16931), no button to press
   const [check, setCheck] = useState<
     | null
-    | "running"
     | { available: boolean; valid?: boolean; errors?: { rule?: string; message: string }[]; failed?: string }
   >(null)
 
@@ -139,6 +141,7 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
           return
         }
         setPreview(data)
+        if (data.en16931) setCheck({ available: data.en16931.checked, valid: data.en16931.valid ?? undefined, errors: data.en16931.errors })
         setState("ready")
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
@@ -188,20 +191,6 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setState("error")
-    }
-  }
-
-  const runCheck = async () => {
-    if (!file) return
-    const companyId = localStorage.getItem("companyId") || ""
-    setCheck("running")
-    try {
-      const fd = new FormData()
-      fd.append("file", file)
-      const res = await apiFetch(`/api/v1/expenses/e-invoice/validate?companyId=${companyId}`, { method: "POST", body: fd })
-      setCheck(await res.json())
-    } catch (e) {
-      setCheck({ available: true, failed: e instanceof Error ? e.message : String(e) })
     }
   }
 
@@ -449,7 +438,7 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
                 </div>
               )}
 
-              {check && check !== "running" && (
+              {check && (
                 <div
                   className={`p-3 rounded border text-sm ${
                     check.failed || check.valid === false
@@ -482,11 +471,6 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
               )}
 
               <div className="flex flex-wrap justify-end gap-2">
-                {mode.kind === "import" && (
-                  <Button variant="outline" onClick={runCheck} disabled={check === "running"} className="mr-auto" data-testid="einvoice-check-button">
-                    {check === "running" ? t("eInvoice.checking") : t("eInvoice.check")}
-                  </Button>
-                )}
                 <Button variant="outline" onClick={onClose}>
                   {mode.kind === "import" ? t("common.cancel") : t("common.close")}
                 </Button>
