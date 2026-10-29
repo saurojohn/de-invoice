@@ -2662,6 +2662,10 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 735b — CI for Tier 735: green with one flaky, the year-field spec's wait
+
+Tier 735's run (40948209963): backend all passed, Playwright 1104 passed + **1 flaky** — `year-field-tier669.spec.ts` „the assets page and the reports: the same field": `years` was empty, nothing had been asked yet. The test typed „2022" and then `waitForLoadState("networkidle")` — which returns at once on a page that has been idle before, so it did not wait for the request the typing starts. The accounting test of the same file already waited for the year's answer itself (`waitForResponse`); the assets test does the same now. Spec only, no app change.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 736 — an account's e-mail address is confirmed by a mailed link; until then the installation's mail server sends nothing for the company
 
 Account self-service, first part (§9 item 22: „no e-mail verification at registration"). Registration took any address typed into the form and the company's mails went out through the installation's server at once — invoices, reminders, statements, invitations, portal links to any address the account enters, under the operator's name and reputation: a relay for whoever signs up.

@@ -94,7 +94,13 @@ test("the assets page and the reports: the same field", async ({ page, request }
   await expect(page.getByTestId("assets-year")).toBeVisible({ timeout: 120_000 })
   await page.waitForLoadState("networkidle")
   const seen = watch(page)
+  // Wait for the year's answer itself, as the accounting test does:
+  // waitForLoadState("networkidle") returns at once on a page that has been
+  // idle before, so it did not wait for the request typing starts (CI run
+  // 40948209963: `years` still empty).
+  const asked = page.waitForResponse((r) => new URL(r.url()).searchParams.get("year") === "2022" && r.ok())
   const field = await type(page, "assets-year", "2022")
+  await asked
   await page.waitForLoadState("networkidle")
   await expect(field).toHaveValue("2022")
   expect(seen.refused).toEqual([])
