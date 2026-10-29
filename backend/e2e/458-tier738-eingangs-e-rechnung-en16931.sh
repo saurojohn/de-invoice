@@ -8,9 +8,10 @@
 # a received invoice need not be (§ 14 Abs. 1 UStG asks for EN 16931). Now:
 #   1. scenarios-en16931.xml: the scenarios of scenarios.xml without the
 #      XRechnung step (kept in step — checked here);
-#   2. preview and import run it and answer `en16931`; an invoice that breaks
-#      the rules can still be booked, its note says so with the rules;
-#   3. „Offiziell prüfen“ (POST e-invoice/validate) checks EN 16931 too.
+#   2. the dialog runs it beside the preview (POST e-invoice/validate — the
+#      preview does not wait for Java); the verdict is kept for the import,
+#      which checks by itself when nobody did; an invoice that breaks the
+#      rules can still be booked, its note says so with the rules.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
@@ -74,14 +75,45 @@ send() { # route file [curl args…] → STATUS, $D/out
 }
 out() { python3 -c "import sys,json;d=json.load(open(sys.argv[1]));print(eval(sys.argv[2]))" "$D/out" "$1" 2>/dev/null; }
 
-note "=== 2. preview: the verdict comes with it ==="
+note "=== 2. the check: beside the preview, kept for the import ==="
 # the validator needs its jar and a Java runtime (the backend looks in
 # infra/java first, then JAVA_HOME, then /usr/bin/java)
 send preview "$D/xr.xml"
+assert_eq "the preview does not wait for the validator (a Java process of seconds): no verdict yet" "$STATUS/$(out "d['en16931']")" "200/None"
 if [[ ! -f "$KOSIT/validator.jar" ]] || ! { ls "$KOSIT"/../java/jdk*/Contents/Home/bin/java >/dev/null 2>&1 || [[ -x "${JAVA_HOME:-/nonexistent}/bin/java" ]] || [[ -x /usr/bin/java ]]; }; then
-  assert_eq "without the validator the preview says it did not check" "$STATUS/$(out "d['en16931']['checked']")" "200/False"
+  send validate "$D/xr.xml"
+  assert_eq "without the validator the check says so" "$STATUS/$(out "d['available']")" "200/False"
   note "KoSIT validator not installed here — the official checks are skipped"
   summary; exit $?
+fi
+send validate "$D/xr.xml"
+assert_eq "the XRechnung: ACCEPTABLE" "$STATUS/$(out "(d['acceptance'], d['schema'], d['schematron'])")" "200/('ACCEPTABLE', 'Y', 'Y')"
+send preview "$D/xr.xml"
+assert_eq "…and the preview after it has the verdict" "$(out "(d['en16931']['checked'], d['en16931']['valid'], d['importable'])")" "(True, True, True)"
+send validate "$D/peppol.xml"
+assert_eq "the same invoice as Peppol BIS: ACCEPTABLE (was REJECT for BR-DE-21 alone)" "$STATUS/$(out "(d['profile'], d['acceptance'], [e['rule'] for e in d['errors']])")" "200/('Peppol BIS Billing 3.0', 'ACCEPTABLE', [])"
+send validate "$D/zf.pdf"
+assert_eq "the ZUGFeRD PDF (its CII): ACCEPTABLE" "$(out "d['acceptance']")" "ACCEPTABLE"
+send validate "$D/broken.xml"
+assert_eq "an amount due against the total: REJECT, BR-CO-16" "$(out "(d['acceptance'], 'BR-CO-16' in [e['rule'] for e in d['errors']])")" "('REJECT', True)"
+send preview "$D/broken.xml"
+assert_eq "…the preview: not valid — and still importable" "$(out "(d['en16931']['valid'], d['importable'])")" "(False, True)"
+
+note "=== 3. import: the verdict in the response and in the expense's note ==="
+send import "$D/broken.xml"
+assert_eq "imported: 201, the verdict with it" "$STATUS/$(out "d['en16931']['valid']")" "201/False"
+E=$(out "d['expenseIds'][0]")
+assert_eq "the note: when it was checked, and what broke" \
+  "$(q "SELECT notes LIKE '%EN 16931 geprüft am $(date +%d.%m.%Y) (KoSIT): nicht gültig — %BR-CO-16%' FROM \"Expense\" WHERE id='$E';")" "t"
+send import "$D/peppol.xml"
+E2=$(out "d['expenseIds'][0]")
+assert_eq "a valid one: its note says so" "$(q "SELECT notes LIKE '%EN 16931 geprüft am % (KoSIT): gültig%' FROM \"Expense\" WHERE id='$E2';")" "t"
+# a file nobody checked beforehand: the import checks it itself
+python3 -c "import re,sys;s=open(sys.argv[1],encoding='utf-8').read();open(sys.argv[2],'w',encoding='utf-8').write(re.sub(r'(<cbc:ID>)([^<]+)(</cbc:ID>)', r'\\g<1>\\g<2>-U\\g<3>', s, count=1))" "$D/xr.xml" "$D/unchecked.xml"
+send import "$D/unchecked.xml"
+assert_eq "an import without a check before: checked by the import" "$STATUS/$(out "(d['en16931']['checked'], d['en16931']['valid'])")" "201/(True, True)"
+
+summary; exit $?
 fi
 assert_eq "the XRechnung: EN 16931 valid" "$STATUS/$(out "(d['en16931']['valid'], d['en16931']['acceptance'], d['importable'])")" "200/(True, 'ACCEPTABLE', True)"
 send preview "$D/peppol.xml"

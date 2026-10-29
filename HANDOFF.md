@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 738b — the import preview no longer waits for the validator; CI for Tiers 737–738
+
+Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped** (456, 457, 458 among them); Playwright 1106 passed, **1 failed**: `e-invoice-import-tier573.spec.ts` „an XML picked through Scan hochladen is read as an invoice" — `einvoice-gross` not there within 5 s, three times. Tier 738 had the preview run the KoSIT validator before answering: a Java process of a few seconds locally, longer on the CI runner — and on a small server, for every file a user drops. The page showed „Wird gelesen …" for that long.
+
+- The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
+- Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 739 — an invoice with 19 % and 7 %: the CSV import books its rows as one expense, the OCR proposal reads a line per rate
 
 §9 item 24: „CSV import and the OCR proposal know one VAT rate". An expense holds a VAT line per rate since Tier 581 (`ExpenseTaxLine`); two ways in did not use it.
@@ -2676,7 +2683,7 @@ Specs: `459-tier739-mehrere-steuersaetze-csv-ocr.sh` (three rows of one invoice,
 §9 item 22: „no automatic EN 16931 validation on import". The official validator (KoSIT) ran on a received file only when someone pressed „Offiziell prüfen (KoSIT)" in the import dialog — an invoice that broke the rules was booked without anyone seeing it. And it ran the **XRechnung** scenarios (`scenarios.xml`, made for what the app issues): measured on the app's own XRechnung with only `CustomizationID` changed, a Peppol BIS 3.0 invoice and a plain EN 16931 UBL invoice were both REJECTED for BR-DE-21 alone („Specification identifier should be XRechnung"). A received invoice has to be EN 16931 (§ 14 Abs. 1 UStG), not an XRechnung.
 
 - **`infra/kosit/scenarios-en16931.xml`**: the scenarios of `scenarios.xml` (UBL invoice, UBL credit note, CII) with the same XSDs and the CEN EN 16931 schematron 1.3.16, without the XRechnung CIUS step. The backend image copies `infra/kosit` whole, so it is there. `validateXRechnungWithKoSIT(xml, { scenarios: 'en16931' })`.
-- **Preview and import run it** (`EInvoiceImportService.checkEn16931`) and answer `en16931: { checked, valid, acceptance, errors (rule, message), warningCount, at }`. One validator process at a time; a file's verdict is reused for ten minutes (the import after its preview does not run Java again). Not valid does **not** block — the invoice still has to be booked; the dialog says to ask the supplier for a corrected one. The expense's note records it: „EN 16931 geprüft am TT.MM.JJJJ (KoSIT): gültig" / „… nicht gültig — BR-CO-16, …" / „nicht geprüft (Validator nicht verfügbar)".
+- **Every import is checked** and preview and import answer `en16931: { checked, valid, acceptance, errors (rule, message), warningCount, at }` (since Tier 738b the dialog runs the check beside the preview, which does not wait for it; the import uses that verdict or checks itself). One validator process at a time; a file's verdict is kept ten minutes. Not valid does **not** block — the invoice still has to be booked; the dialog says to ask the supplier for a corrected one. The expense's note records it: „EN 16931 geprüft am TT.MM.JJJJ (KoSIT): gültig" / „… nicht gültig — BR-CO-16, …" / „nicht geprüft (Validator nicht verfügbar)".
 - „Offiziell prüfen" (`POST /expenses/e-invoice/validate`) checks EN 16931 too; the dialog shows the preview's verdict at once and the button is gone. Texts de/en/zh name EN 16931.
 - The profiles that are not e-invoices under § 14 UStG (ZUGFeRD MINIMUM, BASIC WL) were already a warning of the parser; unchanged.
 

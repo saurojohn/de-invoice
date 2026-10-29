@@ -4033,7 +4033,8 @@
     "checkInvalid": "The official KoSIT validator rejected the e-invoice under EN 16931. It can still be recorded; ask the supplier for a corrected invoice:",
     "checkUnavailable": "The EN 16931 check was not possible: the official KoSIT validator is not available in this installation. The checks shown above (totals, mandatory details) were carried out.",
     "checkFailed": "The check could not be carried out.",
-    "skontoLine": "{percent} % if paid within {days} days"
+    "skontoLine": "{percent} % if paid within {days} days",
+    "checkingEn16931": "The e-invoice is being checked against EN 16931 with the official KoSIT validator …"
   },
   "changePassword": {
     "title": "Change password",

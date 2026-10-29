@@ -4033,7 +4033,8 @@
     "checkInvalid": "官方 KoSIT 校验器按 EN 16931 拒绝了这张电子发票。仍可以入账；请向供应商索取更正后的发票：",
     "checkUnavailable": "无法按 EN 16931 检查：本安装中没有官方 KoSIT 校验器。上面显示的检查（金额合计、必填项）已经完成。",
     "checkFailed": "无法执行校验。",
-    "skontoLine": "{days} 天内付款可扣 {percent} %"
+    "skontoLine": "{days} 天内付款可扣 {percent} %",
+    "checkingEn16931": "正在用官方 KoSIT 校验器按 EN 16931 检查这张电子发票 …"
   },
   "changePassword": {
     "title": "修改密码",

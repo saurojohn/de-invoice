@@ -2,7 +2,6 @@ import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post, Quer
 import { Throttle } from '@nestjs/throttler'
 import { Auth, Require } from '../../../auth/roles.decorator'
 import { CallerBoundUpload } from '../../../auth/caller-bound-upload'
-import { KoSITValidatorUnavailableError, validateXRechnungWithKoSIT } from '../../../invoices/kosIT-validator.service'
 import { EInvoiceImportService, ImportOptions } from './e-invoice-import.service'
 
 type Upload = { buffer: Buffer; originalname: string; mimetype: string; size: number }
@@ -60,7 +59,8 @@ export class EInvoiceController {
    * The official validator (KoSIT) on a received file — against EN 16931
    * (Tier 738: scenarios-en16931.xml). It used the XRechnung scenarios, which
    * rejected a Peppol BIS or plain EN 16931 UBL invoice for BR-DE-21 alone.
-   * Preview and import run the same check by themselves since Tier 738.
+   * Since Tier 738 the import dialog asks for it beside the preview (the
+   * preview does not wait for Java), and the import uses its verdict.
    */
   @Post('e-invoice/validate')
   @HttpCode(200)
@@ -71,15 +71,10 @@ export class EInvoiceController {
     this.check(companyId, file)
     const read = await this.eInvoices.read(file!.buffer)
     if (!read) throw new BadRequestException('Die PDF-Datei enthält keine E-Rechnung (keine eingebettete XML-Datei).')
-    const xml = await this.eInvoices.xmlOf(file!.buffer, read)
-    try {
-      return { available: true, profile: read.invoice.profile, ...(await validateXRechnungWithKoSIT(xml, { scenarios: 'en16931' })) }
-    } catch (e) {
-      if (e instanceof KoSITValidatorUnavailableError) {
-        return { available: false, profile: read.invoice.profile, message: 'Der KoSIT-Validator ist auf diesem Server nicht installiert.' }
-      }
-      throw e
-    }
+    // the verdict is kept for the import of the same file (Tier 738)
+    const { raw } = await this.eInvoices.runEn16931(file!.buffer, read)
+    if (!raw) return { available: false, profile: read.invoice.profile, message: 'Der KoSIT-Validator ist auf diesem Server nicht installiert.' }
+    return { available: true, profile: read.invoice.profile, ...raw }
   }
 
   @Get(':id/e-invoice')

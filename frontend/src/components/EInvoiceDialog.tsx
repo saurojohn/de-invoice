@@ -109,9 +109,11 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
   const [paid, setPaid] = useState(false)
   const [paidAt, setPaidAt] = useState(todayIso())
   // Tier 578: the official validator's verdict on the received file — since
-  // Tier 738 it comes with the preview (EN 16931), no button to press
+  // Tier 738 asked for by itself beside the preview (EN 16931; the preview
+  // does not wait for the Java process), no button to press
   const [check, setCheck] = useState<
     | null
+    | "running"
     | { available: boolean; valid?: boolean; errors?: { rule?: string; message: string }[]; failed?: string }
   >(null)
 
@@ -141,14 +143,24 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
           return
         }
         setPreview(data)
-        if (data.en16931) setCheck({ available: data.en16931.checked, valid: data.en16931.valid ?? undefined, errors: data.en16931.errors })
         setState("ready")
+        if (data.en16931) {
+          setCheck({ available: data.en16931.checked, valid: data.en16931.valid ?? undefined, errors: data.en16931.errors })
+        } else if (file) {
+          setCheck("running")
+          const fd = new FormData()
+          fd.append("file", file)
+          apiFetch(`/api/v1/expenses/e-invoice/validate?companyId=${companyId}`, { method: "POST", body: fd })
+            .then((r) => r.json())
+            .then((v) => setCheck({ available: !!v.available, valid: v.valid, errors: v.errors }))
+            .catch((e) => setCheck({ available: true, failed: e instanceof Error ? e.message : String(e) }))
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
         setState("error")
       }
     },
-    [form, t],
+    [form, t, file],
   )
 
   useEffect(() => {
@@ -438,7 +450,12 @@ export function EInvoiceDialog({ mode, onClose, onImported }: { mode: Mode; onCl
                 </div>
               )}
 
-              {check && (
+              {check === "running" && (
+                <div className="p-3 rounded border text-sm border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-200" data-testid="einvoice-check-running">
+                  {t("eInvoice.checkingEn16931")}
+                </div>
+              )}
+              {check && check !== "running" && (
                 <div
                   className={`p-3 rounded border text-sm ${
                     check.failed || check.valid === false

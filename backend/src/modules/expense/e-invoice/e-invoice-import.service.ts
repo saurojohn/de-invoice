@@ -23,7 +23,7 @@ import { BadRequestException, ConflictException, HttpException, Injectable, Logg
 import * as crypto from 'crypto'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { withKeyLock } from '../../../common/key-lock'
-import { KoSITValidatorUnavailableError, validateXRechnungWithKoSIT } from '../../../invoices/kosIT-validator.service'
+import { KoSITResult, KoSITValidatorUnavailableError, validateXRechnungWithKoSIT } from '../../../invoices/kosIT-validator.service'
 import { assertNotFuture } from '../../../common/business-date'
 import { assertPeriodOpen } from '../../reports/filed-period'
 import { ibanProblem } from '../../../common/iban'
@@ -151,41 +151,56 @@ export class EInvoiceImportService {
   }
 
   /**
-   * Tier 738 — is the received invoice an EN 16931 invoice? Run on every
-   * preview and import (it was a button: an invoice that broke the rules
-   * was booked without anyone seeing it). One run at a time (a Java process
-   * each); the verdict of a file is kept ten minutes, so the import after
-   * its preview does not run it again.
+   * Tier 738 — is the received invoice an EN 16931 invoice? It was a button:
+   * an invoice that broke the rules was booked without anyone seeing it.
+   *
+   * The validator is a Java process of several seconds (more on a small
+   * server), so the preview does not wait for it: the dialog asks for it
+   * beside the preview (POST e-invoice/validate → `runEn16931`), and the
+   * import uses that verdict or runs the check itself (`checkEn16931`).
+   * One run at a time; a file's verdict is kept ten minutes.
    */
-  async checkEn16931(buffer: Buffer, read: ReadEInvoice, contentHash: string): Promise<En16931Check> {
-    const now = Date.now()
-    for (const [k, v] of this.checks) if (now - v.time > CHECK_TTL_MS) this.checks.delete(k)
-    const kept = this.checks.get(contentHash)
-    if (kept) return kept.result
+  async runEn16931(buffer: Buffer, read: ReadEInvoice): Promise<{ check: En16931Check; raw: KoSITResult | null }> {
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex')
     const xml = await this.xmlOf(buffer, read)
-    const run = this.checkQueue.then(async (): Promise<En16931Check> => {
+    const run = this.checkQueue.then(async (): Promise<{ check: En16931Check; raw: KoSITResult | null }> => {
       try {
-        const r = await validateXRechnungWithKoSIT(xml, { scenarios: 'en16931', timeoutMs: 60_000 })
+        const raw = await validateXRechnungWithKoSIT(xml, { scenarios: 'en16931', timeoutMs: 60_000 })
         return {
-          checked: true,
-          valid: r.valid,
-          acceptance: r.acceptance,
-          errors: r.errors.slice(0, 50).map((e) => ({ rule: e.rule, message: e.message })),
-          warningCount: r.warnings.length,
-          at: new Date().toISOString(),
+          raw,
+          check: {
+            checked: true,
+            valid: raw.valid,
+            acceptance: raw.acceptance,
+            errors: raw.errors.slice(0, 50).map((e) => ({ rule: e.rule, message: e.message })),
+            warningCount: raw.warnings.length,
+            at: new Date().toISOString(),
+          },
         }
       } catch (e) {
         if (!(e instanceof KoSITValidatorUnavailableError)) this.logger.warn(`EN 16931 check failed: ${(e as Error)?.message}`)
-        return { checked: false, valid: null, acceptance: null, errors: [], warningCount: 0, at: new Date().toISOString() }
+        return { raw: null, check: { checked: false, valid: null, acceptance: null, errors: [], warningCount: 0, at: new Date().toISOString() } }
       }
     })
     this.checkQueue = run.then(() => undefined, () => undefined)
     const result = await run
-    if (result.checked) {
-      this.checks.set(contentHash, { time: now, result })
+    if (result.check.checked) {
+      this.checks.set(hash, { time: Date.now(), result: result.check })
       if (this.checks.size > 200) this.checks.delete(this.checks.keys().next().value as string)
     }
     return result
+  }
+
+  /** The verdict of this file from the last ten minutes, or null. */
+  cachedEn16931(contentHash: string): En16931Check | null {
+    const now = Date.now()
+    for (const [k, v] of this.checks) if (now - v.time > CHECK_TTL_MS) this.checks.delete(k)
+    return this.checks.get(contentHash)?.result ?? null
+  }
+
+  /** The verdict — kept, or checked now. */
+  async checkEn16931(buffer: Buffer, read: ReadEInvoice, contentHash: string): Promise<En16931Check> {
+    return this.cachedEn16931(contentHash) ?? (await this.runEn16931(buffer, read)).check
   }
 
   private checks = new Map<string, { time: number; result: En16931Check }>()
@@ -200,7 +215,7 @@ export class EInvoiceImportService {
   }
 
   /** Everything decided about an import, shared by preview and import. */
-  private async plan(companyId: string, buffer: Buffer, read: ReadEInvoice, opts: ImportOptions) {
+  private async plan(companyId: string, buffer: Buffer, read: ReadEInvoice, opts: ImportOptions, checkNow = false) {
     const inv = read.invoice
     const blocking = [...inv.errors]
     const warnings = [...inv.warnings]
@@ -290,9 +305,10 @@ export class EInvoiceImportService {
       select: { entityId: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     })
-    const en16931 = await this.checkEn16931(buffer, read, contentHash)
-    // (Its verdict is a field of its own — `en16931` — shown by the dialog
-    // with the rules it names, and written into the expense's note.)
+    // Tier 738: the EN 16931 verdict — the preview takes a kept one (null
+    // until the dialog's check has run), the import checks if there is none.
+    // Shown by the dialog with the rules it names, written into the note.
+    const en16931 = checkNow ? await this.checkEn16931(buffer, read, contentHash) : this.cachedEn16931(contentHash)
     if (sameFile && (await this.prisma.expense.findFirst({ where: { id: sameFile.entityId, companyId }, select: { id: true } }))) {
       duplicate = {
         expenseId: sameFile.entityId,
@@ -403,7 +419,7 @@ export class EInvoiceImportService {
     const read = await this.read(file.buffer)
     if (!read) throw new BadRequestException('Die PDF-Datei enthält keine E-Rechnung (keine eingebettete XML-Datei).')
     const inv = read.invoice
-    const plan = await this.plan(companyId, file.buffer, read, opts)
+    const plan = await this.plan(companyId, file.buffer, read, opts, true)
     if (plan.blocking.length) throw new BadRequestException(plan.blocking.join(' '))
     if (plan.duplicate && !opts.confirmDuplicate) {
       throw duplicateExpenseConflict(plan.duplicate.message)
@@ -542,7 +558,7 @@ function describe(inv: ParsedEInvoice, lines: EInvoiceLine[], part: string | nul
   return (head + what).slice(0, 500 - tail.length) + tail
 }
 
-function noteFor(inv: ParsedEInvoice, read: ReadEInvoice, exchangeRate?: number, check?: En16931Check): string {
+function noteFor(inv: ParsedEInvoice, read: ReadEInvoice, exchangeRate?: number, check?: En16931Check | null): string {
   const syntax = inv.syntax === 'cii' ? 'CII' : 'UBL'
   const parts = [`E-Rechnung ${inv.profile} (${syntax}${read.source === 'pdf' ? `, eingebettet als ${read.embeddedFile}` : ''})`]
   // Tier 738: the verdict at the time of booking, kept with the expense
