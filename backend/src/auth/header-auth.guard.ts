@@ -105,7 +105,7 @@ export class HeaderAuthGuard implements CanActivate {
       where: {
         userId_companyId: { userId, companyId },
       },
-      select: { role: true },
+      select: { role: true, company: { select: { closedAt: true } } },
     })
     if (!access) {
       // Cross-tenant access is never allowed. The user
@@ -113,6 +113,12 @@ export class HeaderAuthGuard implements CanActivate {
       // if they once had access, this is the
       // authoritative grant check.
       throw new UnauthorizedException('Kein Zugriff auf diese Firma')
+    }
+    // Tier 737: a closed company is kept for the retention period, not used.
+    // (Its only member deleted the account; a grant left over — an inactive
+    // member's — opens nothing.)
+    if (access.company.closedAt) {
+      throw new ForbiddenException('Diese Firma ist geschlossen. Ihre Unterlagen werden nur noch für die gesetzliche Aufbewahrungsfrist aufbewahrt.')
     }
 
     // Attach the user with the per-company role. The

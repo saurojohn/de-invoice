@@ -453,6 +453,7 @@ export class WebhookService {
       where: {
         status: 'failed',
         nextRetryAt: { lte: new Date() },
+        webhook: { company: { closedAt: null } }, // Tier 737
       },
       orderBy: { nextRetryAt: 'asc' },
       take: limit,

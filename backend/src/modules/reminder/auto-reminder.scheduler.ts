@@ -96,6 +96,7 @@ export class AutoReminderService {
     // Walk all companies. Per-company try/catch so one
     // broken tenant doesn't kill the whole run.
     const companies = await this.prisma.company.findMany({
+      where: { closedAt: null }, // Tier 737
       select: { id: true, name: true, settings: true },
     })
     for (const company of companies) {

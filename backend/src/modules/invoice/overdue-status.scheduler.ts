@@ -49,6 +49,7 @@ export class OverdueStatusScheduler {
     const due = await this.prisma.invoice.findMany({
       where: {
         ...(companyId ? { companyId } : {}),
+        company: { closedAt: null }, // Tier 737
         status: 'sent',
         type: { in: CLAIM_TYPES },
         dueDate: { lt: today },

@@ -878,7 +878,7 @@
     "cardBackupsTitle": "Backups",
     "cardBackupsDesc": "Datenbank- und Beleg-Backups anlegen, prüfen und wiederherstellen",
     "cardSecurityTitle": "Sicherheit & 2FA",
-    "cardSecurityDesc": "Zwei-Faktor-Authentifizierung einrichten und Recovery-Codes verwalten",
+    "cardSecurityDesc": "Passwort, Zwei-Faktor-Authentifizierung, Ihre Daten herunterladen, Konto löschen",
     "dashboardV2Title": "Dashboard",
     "dashboardV2Aging": "Forderungs-Alterung",
     "dashboardV2TopCustomers": "Top 5 Kunden YTD",
@@ -3899,7 +3899,7 @@
       "retention": "Speicherdauer",
       "retentionText": "Rechnungen, Buchungsbelege und Handelskorrespondenz werden gemäß § 147 AO zehn Jahre aufbewahrt. Sonstige Nutzungsdaten werden nach 30 Tagen gelöscht, sofern keine gesetzlichen Aufbewahrungspflichten entgegenstehen.",
       "rights": "Ihre Rechte",
-      "rightsText": "Sie haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch gegen die Verarbeitung (Art. 21). Eine erteilte Einwilligung können Sie jederzeit mit Wirkung für die Zukunft widerrufen (Art. 7 Abs. 3 DSGVO). Beschwerden richten Sie bitte an die zuständige Datenschutzaufsichtsbehörde.",
+      "rightsText": "Sie haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch gegen die Verarbeitung (Art. 21). Ihre Daten können Sie selbst herunterladen und Ihr Konto selbst löschen: unter „Sicherheit & 2FA“ → „Ihre Daten und Ihr Konto“. Eine erteilte Einwilligung können Sie jederzeit mit Wirkung für die Zukunft widerrufen (Art. 7 Abs. 3 DSGVO). Beschwerden richten Sie bitte an die zuständige Datenschutzaufsichtsbehörde.",
       "transfer": "Datenübertragung",
       "transferText": "Eine Übermittlung Ihrer Daten in Drittländer findet nicht statt. Sofern Drittanbieter (z. B. Hosting, Zahlungsdienstleister) eingesetzt werden, erfolgt dies nur auf Grundlage der Standardvertragsklauseln der EU-Kommission.",
       "hosting": "Hosting & Server-Standort",
@@ -4445,6 +4445,7 @@
     "understood": "Ich habe verstanden, dass das Löschen nicht rückgängig gemacht werden kann.",
     "deleteConfirm": "Konto endgültig löschen",
     "deleting": "Wird gelöscht …",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "blockerOperator": "„{company}“ ist die Firma des Betreibers dieser Installation (Impressum, Verwaltung). Sie kann nicht mit einem Konto geschlossen werden; ernennen Sie zuerst einen weiteren Administrator."
   }
 }

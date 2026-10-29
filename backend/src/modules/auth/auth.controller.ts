@@ -3,6 +3,7 @@ import { isSystemAdmin } from '../../auth/system-admin.guard';
 import { Controller, Post, Body, Get, HttpCode, HttpStatus, BadRequestException, Logger, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService, EMAIL_VERIFY_TTL_MS } from './auth.service';
+import { AccountService } from './account.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
@@ -37,6 +38,8 @@ export class AuthController {
     private audit: AuditService,
     // Tier 400: mints the session the cookie carries.
     private sessions: UserSessionService,
+    // Tier 737: the person's own data, and the end of the account
+    private account: AccountService,
   ) {}
 
   private cleanup() {
@@ -411,6 +414,49 @@ export class AuthController {
   async verifyEmail(@Body() body: { token?: unknown }) {
     const { email } = await this.authService.verifyEmail(typeof body?.token === 'string' ? body.token : '');
     return { ok: true, email, message: 'Ihre E-Mail-Adresse ist bestätigt.' };
+  }
+
+  /**
+   * Tier 737 — everything the installation keeps about the signed-in person
+   * (Art. 15 / 20 DSGVO), as a JSON download.
+   */
+  @Get('my-data')
+  @UseGuards(HeaderAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async myData(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    const data = await this.account.exportPersonalData(req.user.id);
+    res.setHeader('Content-Disposition', `attachment; filename="meine-daten-${new Date().toISOString().slice(0, 10)}.json"`);
+    return data;
+  }
+
+  /** Tier 737 — what deleting the account would do: blockers, companies closed with it. */
+  @Get('delete-account/check')
+  @UseGuards(HeaderAuthGuard)
+  async deleteAccountCheck(@Req() req: any) {
+    return this.account.deletionPlan(req.user.id);
+  }
+
+  /**
+   * Tier 737 — delete (anonymise) the signed-in account. Body: { password,
+   * closeCompanies } — the password again, and the consent to close the
+   * companies of which the person is the only member. Ends the session.
+   */
+  @Post('delete-account')
+  @UseGuards(HeaderAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  async deleteAccount(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+    @Body() body: { password?: unknown; closeCompanies?: unknown },
+  ) {
+    const { closedCompanies } = await this.account.deleteAccount(
+      req.user.id,
+      typeof body?.password === 'string' ? body.password : '',
+      body?.closeCompanies === true,
+    );
+    res.setHeader('Set-Cookie', UserSessionService.clearedCookie());
+    return { ok: true, closedCompanies, message: 'Ihr Konto wurde gelöscht.' };
   }
 
   /** Tier 736 — send the confirmation link again (signed in). */

@@ -181,7 +181,7 @@ export class VatReverifyScheduler {
     //     "checking a fresh entity" is ~1ms (DB
     //     lookup only, no VIES call).
     const rows = await (this.prisma as any)[entityType].findMany({
-      where: { vatId: { not: null }, ...(companyId ? { companyId } : {}) },
+      where: { vatId: { not: null }, company: { closedAt: null }, ...(companyId ? { companyId } : {}) }, // Tier 737
       select: { id: true, companyId: true, vatId: true, name: true },
     })
     // Tier 356: this local counter is incremented below but never read.

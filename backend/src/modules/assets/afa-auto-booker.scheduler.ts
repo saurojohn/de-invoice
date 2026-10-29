@@ -105,6 +105,7 @@ export class AfaAutoBookerScheduler {
     )
 
     const companies = await this.prisma.company.findMany({
+      where: { closedAt: null }, // Tier 737: nothing is booked into a closed company
       select: { id: true, name: true, settings: true },
     })
 
@@ -202,6 +203,7 @@ export class AfaAutoBookerScheduler {
       `AfA auto-booker force-triggered for year=${year}`,
     )
     const companies = await this.prisma.company.findMany({
+      where: { closedAt: null }, // Tier 737: nothing is booked into a closed company
       select: { id: true, name: true, settings: true },
     })
 

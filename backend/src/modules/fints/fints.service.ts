@@ -855,7 +855,7 @@ export class FinTsService {
   }> {
     const connections = await this.prisma.finTSConnection.findMany({
       // Tier 568: demo connections are left alone where the demo bank is off.
-      where: { status: 'active', ...(mockBankAllowed() ? {} : { mockMode: 0 }) },
+      where: { status: 'active', company: { closedAt: null }, ...(mockBankAllowed() ? {} : { mockMode: 0 }) }, // Tier 737: not for a closed company
     })
     let ok = 0
     let needsTan = 0

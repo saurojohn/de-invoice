@@ -1239,6 +1239,7 @@ export class RecurringService {
     const due = await this.prisma.recurringInvoice.findMany({
       where: {
         isActive: true,
+        company: { closedAt: null }, // Tier 737
         nextRunAt: { lte: now },
         OR: [
           { pausedUntil: null },

@@ -35,8 +35,11 @@ grep -qE "@CompanyIdParam\('id'\)" "$SRC/modules/company/company.controller.ts" 
 # entity (search), need no role. Anything else without a role check fails.
 # (Tier 575: auth/change-password — the caller's own password, and the current
 # one is asked for again. Tier 736: auth/resend-verification — a new link to
-# the caller's own address.)
-EXPECTED_NO_ROLE="GET auth/me
+# the caller's own address. Tier 737: auth/my-data, auth/delete-account(/check)
+# — the caller's own data and account; the deletion asks for the password.)
+EXPECTED_NO_ROLE="GET auth/delete-account/check
+GET auth/me
+GET auth/my-data
 GET search/customers
 GET search/global
 GET search/invoices
@@ -47,6 +50,7 @@ POST auth/2fa/enable
 POST auth/2fa/setup
 POST auth/2fa/status
 POST auth/change-password
+POST auth/delete-account
 POST auth/resend-verification
 POST users/me/switch-company"
 ACTUAL_NO_ROLE=$(python3 - "$SRC" <<'PY'

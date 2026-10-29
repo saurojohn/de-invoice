@@ -876,7 +876,7 @@
     "cardBackupsTitle": "Backups",
     "cardBackupsDesc": "Create, verify, and restore database + receipt backups",
     "cardSecurityTitle": "Security & 2FA",
-    "cardSecurityDesc": "Set up two-factor authentication and manage recovery codes",
+    "cardSecurityDesc": "Password, two-factor authentication, download your data, delete the account",
     "cardBankingTitle": "Online Banking (FinTS)",
     "cardBankingDesc": "Connect your bank directly — auto-fetch transactions and match them",
     "dashboardV2Title": "Dashboard",
@@ -3899,7 +3899,7 @@
       "retention": "Retention Period",
       "retentionText": "Invoices, accounting records and business correspondence are retained for ten years in accordance with § 147 AO. Other usage data will be deleted after 30 days, provided no legal retention obligations prevent this.",
       "rights": "Your Rights",
-      "rightsText": "You have the right to information (Art. 15 GDPR), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20) and objection to processing (Art. 21). You may withdraw any consent given at any time with effect for the future (Art. 7 para. 3 GDPR). Please direct complaints to the competent data protection supervisory authority.",
+      "rightsText": "You have the right to information (Art. 15 GDPR), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20) and objection to processing (Art. 21). You can download your data and delete your account yourself: under “Security & 2FA” → “Your data and your account”. You may withdraw any consent given at any time with effect for the future (Art. 7 para. 3 GDPR). Please direct complaints to the competent data protection supervisory authority.",
       "transfer": "Data Transfer",
       "transferText": "Your data is not transferred to third countries. Where third-party providers (e.g. hosting, payment service providers) are used, this is only done on the basis of the EU Commission's standard contractual clauses.",
       "hosting": "Hosting & Server Location",
@@ -4445,6 +4445,7 @@
     "understood": "I understand that the deletion cannot be undone.",
     "deleteConfirm": "Delete the account for good",
     "deleting": "Deleting …",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "blockerOperator": "“{company}” is the company of this installation’s operator (imprint, administration). It cannot be closed with an account; first make another member an administrator."
   }
 }

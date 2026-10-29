@@ -75,6 +75,12 @@ model Company {
   // Tier 734: the Land of the Finanzamt (BW, BY, … — common/steuernummer.ts);
   // the 13-digit ELSTER Steuernummer is derived from taxId with it.
   bundesland         String?
+  // Tier 737: closed with the account of its only member — nobody signs in,
+  // no job runs for it; kept until retentionUntil (§ 147 AO, § 257 HGB).
+  // closedById is a snapshot (the account is anonymised, not deleted).
+  closedAt           DateTime?
+  closedById         String?
+  retentionUntil     DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

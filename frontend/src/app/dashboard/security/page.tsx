@@ -16,6 +16,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiPost, ApiError } from "@/lib/api"
 import { ChangePasswordCard } from "@/components/ChangePasswordCard"
+import { AccountDataCard } from "@/components/AccountDataCard"
 
 interface TwoFactorStatus {
   enabled: boolean
@@ -370,6 +371,9 @@ export default function TwoFactorPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Tier 737: the person's own data, and the end of the account */}
+        <AccountDataCard />
       </div>
     </main>
   )

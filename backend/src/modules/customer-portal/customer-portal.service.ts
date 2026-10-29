@@ -218,8 +218,9 @@ export class CustomerPortalService {
     // The caller (controller.adminCreateSession) knows the
     // exact customerId. We accept it as an optional param
     // and use it to scope the lookup when present.
-    const where: { id?: string; contact: { path: string[]; equals: string } } = {
+    const where: { id?: string; contact: { path: string[]; equals: string }; company: { closedAt: null } } = {
       contact: { path: ['email'], equals: normalized },
+      company: { closedAt: null }, // Tier 737: a closed company's portal is shut
     }
     if (customerId) where.id = customerId
     const customer = await this.prisma.customer.findFirst({
