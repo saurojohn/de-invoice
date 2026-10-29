@@ -79,9 +79,10 @@ export class ExpenseController {
 
   /**
    * CSV template for expense import — column names in
-   * German to match the rest of the UI, plus 3 example
+   * German to match the rest of the UI, plus example
    * rows (one per common shape: explicit supplierId,
-   * existing supplierName, new supplierName+auto-create).
+   * existing supplierName, new supplierName+auto-create;
+   * Tier 739: an invoice with two rates as two rows).
    * UTF-8 + BOM for Excel (the importer's main target
    * is users who export from sevDesk / lexoffice /
    * DATEV and paste into Excel first).
@@ -96,6 +97,9 @@ export class ExpenseController {
       'Büromaterial;15.06.2026;RE-2026-001;Staples GmbH;DE123456789;100.00;0.19;19.00;119.00;Bürobedarf;Q2 Sammelrechnung',
       'Miete Juni 2026;01.06.2026;M-2026-06;Vermieter GmbH;;1500.00;0.19;285.00;1785.00;Miete;',
       'Beratungsleistung;2026-06-10;BS-100;Neue Beratung;DE987654321;2500.00;0.19;475.00;2975.00;Beratung;Stunden á 250€',
+      // Tier 739: an invoice with two rates — a row per rate, the same supplier, number and date: one expense
+      'Lebensmittel;12.06.2026;K-0815;Markt GmbH;;100.00;0.07;7.00;107.00;Bewirtung;7 % und 19 % auf einer Rechnung',
+      'Getränke;12.06.2026;K-0815;Markt GmbH;;50.00;0.19;9.50;59.50;Bewirtung;',
     ].join('\n');
   }
 

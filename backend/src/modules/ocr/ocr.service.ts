@@ -71,6 +71,14 @@ export interface ReceiptData {
   vatAmount: number | null
   /** Gross amount in EUR */
   grossAmount: number | null
+  /**
+   * Tier 739: one line per VAT rate when the receipt shows more than one
+   * (19 % and 7 % on one bill). Absent for a one-rate receipt — then
+   * netAmount / vatRate / vatAmount are its one line. With lines, those
+   * three are the sums and the rate of the largest line, as an expense with
+   * taxLines stores them (expense/tax-lines.ts).
+   */
+  taxLines?: Array<{ vatRate: number; netAmount: number; vatAmount: number }>
   /** Raw OCR text (for debugging + display in the UI) */
   rawText: string
 }
@@ -119,10 +127,18 @@ export const OCR_FIXTURE: ReceiptData = {
  *     these on its own OCR output without changes
  */
 export function extractFieldsFromText(text: string): ReceiptData {
-  const netAmount = extractNetAmount(text)
-  const vatAmount = extractVatAmount(text)
-  const vatRate = extractVatRate(text)
+  let netAmount = extractNetAmount(text)
+  let vatAmount = extractVatAmount(text)
+  let vatRate = extractVatRate(text)
   let grossAmount = extractGrossAmount(text)
+  // Tier 739: a receipt with more than one rate — the first "USt 19 %" line
+  // used to be the whole of it (net and VAT of one rate, the gross of all).
+  const taxLines = extractTaxLines(text, grossAmount)
+  if (taxLines) {
+    netAmount = round2(taxLines.reduce((s, l) => s + l.netAmount, 0))
+    vatAmount = round2(taxLines.reduce((s, l) => s + l.vatAmount, 0))
+    vatRate = [...taxLines].sort((a, b) => b.netAmount - a.netAmount)[0].vatRate
+  }
   // Fallback: if the OCR dropped the gross line (common
   // when Gesamtbetrag is on a separate row with the
   // amount on a different visual line), reconstruct
@@ -141,8 +157,54 @@ export function extractFieldsFromText(text: string): ReceiptData {
     vatRate,
     vatAmount,
     grossAmount,
+    ...(taxLines ? { taxLines } : {}),
     rawText: text,
   }
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+/**
+ * Tier 739 — the VAT lines of a receipt with more than one rate, or null.
+ *
+ * Every "USt / MwSt / VAT <rate> %" followed by an amount is a line's VAT;
+ * its net is the amount the line names ("auf / von / aus / Netto 100,00"),
+ * otherwise the VAT over the rate. With a gross on the receipt, the nets are
+ * made to add up with it: the difference (from a VAT rounded to the cent)
+ * goes to the largest line. One rate only — null, the receipt is one line.
+ */
+export function extractTaxLines(text: string, gross: number | null): Array<{ vatRate: number; netAmount: number; vatAmount: number }> | null {
+  const byRate = new Map<number, { net: number | null; vat: number }>()
+  const vatLine = /(?:USt|MwSt|VAT|Umsatzsteuer|Mehrwertsteuer)\.?\s*(\d{1,2}(?:,\d{1,2})?)\s*%([^\n]*)/gi
+  for (const m of text.matchAll(vatLine)) {
+    const rate = Number(m[1].replace(',', '.')) / 100
+    const rest = m[2]
+    const based = rest.match(/(?:auf|von|aus|netto|Netto)\s*:?\s*([\d.]+,\d{2})/)
+    const amounts = [...rest.matchAll(/([\d.]+,\d{2})/g)].map((a) => parseGermanAmount(a[1]))
+    if (!amounts.length) continue
+    const net = based ? parseGermanAmount(based[1]) : null
+    // the VAT is the amount that is not the base — the last one on the line
+    const vat = amounts.filter((a) => net == null || a !== net).pop() ?? amounts[amounts.length - 1]
+    const seen = byRate.get(rate)
+    // the same rate twice (a summary repeating a line) is one line
+    if (!seen) byRate.set(rate, { net, vat })
+  }
+  if (byRate.size < 2) return null
+  const lines = [...byRate.entries()].map(([rate, l]) => ({
+    vatRate: rate,
+    vatAmount: round2(l.vat),
+    netAmount: round2(l.net ?? (rate > 0 ? l.vat / rate : 0)),
+  }))
+  if (gross != null) {
+    const sum = round2(lines.reduce((s, l) => s + l.netAmount + l.vatAmount, 0))
+    const diff = round2(gross - sum)
+    // a few cents of rounding go to the largest line; more is a misreading — leave it
+    if (diff !== 0 && Math.abs(diff) <= 0.05 * lines.length) {
+      const largest = lines.reduce((a, b) => (b.netAmount > a.netAmount ? b : a))
+      largest.netAmount = round2(largest.netAmount + diff)
+    }
+  }
+  return lines.sort((a, b) => b.vatRate - a.vatRate)
 }
 
 // --- helpers below ---

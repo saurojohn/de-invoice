@@ -1025,7 +1025,10 @@
     "addTaxLine": "another VAT rate",
     "removeTaxLine": "Remove VAT rate",
     "taxLineDuplicate": "Each VAT rate may occur only once.",
-    "severalRates": "several VAT rates"
+    "severalRates": "several VAT rates",
+    "ocrTaxLines": "VAT rates on the receipt",
+    "ocrVatAmount": "VAT (€)",
+    "ocrTaxLinesHint": "The receipt shows several VAT rates — one expense is created with a line per rate; net, VAT and gross are their sums."
   },
   "home": {
     "heroTitle": "Professional German Invoice Management",
@@ -1056,7 +1059,9 @@
     "errors": "Errors",
     "errorRows": "Failed rows",
     "viewList": "View list",
-    "newImport": "New import"
+    "newImport": "New import",
+    "mergedTitle": "Combined into one invoice",
+    "mergedRow": "Invoice {number}: rows {rows} — one expense with {rates}"
   },
   "inventory": {
     "stock": "Stock",

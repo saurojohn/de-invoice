@@ -1025,7 +1025,10 @@
     "addTaxLine": "weiterer Steuersatz",
     "removeTaxLine": "Steuersatz entfernen",
     "taxLineDuplicate": "Jeder Steuersatz darf nur einmal vorkommen.",
-    "severalRates": "mehrere Steuersätze"
+    "severalRates": "mehrere Steuersätze",
+    "ocrTaxLines": "Steuersätze laut Beleg",
+    "ocrVatAmount": "USt (€)",
+    "ocrTaxLinesHint": "Der Beleg weist mehrere Steuersätze aus — es wird eine Ausgabe mit einer Zeile je Steuersatz angelegt; Netto, USt und Brutto sind deren Summen."
   },
   "home": {
     "heroTitle": "Professionelle deutsche Rechnungsverwaltung",
@@ -1056,7 +1059,9 @@
     "errors": "Fehler",
     "errorRows": "Fehlerhafte Zeilen",
     "viewList": "Zur Liste",
-    "newImport": "Neuer Import"
+    "newImport": "Neuer Import",
+    "mergedTitle": "Zu einer Rechnung zusammengefasst",
+    "mergedRow": "Rechnung {number}: Zeilen {rows} — eine Ausgabe mit {rates}"
   },
   "inventory": {
     "stock": "Bestand",

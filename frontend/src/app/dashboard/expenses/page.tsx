@@ -126,6 +126,8 @@ export default function ExpensesPage() {
           vatRate: number | null
           vatAmount: number | null
           grossAmount: number | null
+          // Tier 739: a line per VAT rate, when the receipt shows more than one
+          taxLines?: Array<{ vatRate: number; netAmount: number; vatAmount: number }>
           rawText: string
         }
         // Editable copies (the user can correct OCR noise)
@@ -138,6 +140,8 @@ export default function ExpensesPage() {
           vatAmount: string
           grossAmount: string
           description: string
+          // Tier 739: the lines, editable (rate in %, amounts as typed)
+          taxLines?: Array<{ vatRate: string; netAmount: string; vatAmount: string }>
         }
         matchedSupplierId: string | null
         matchedBy: string | null
@@ -464,6 +468,15 @@ export default function ExpensesPage() {
                         data.supplierName
                           ? `${data.supplierName} — Rechnung ${data.invoiceNumber || ""}`
                           : "OCR import",
+                      ...(Array.isArray(data.taxLines) && data.taxLines.length > 1
+                        ? {
+                            taxLines: data.taxLines.map((l: { vatRate: number; netAmount: number; vatAmount: number }) => ({
+                              vatRate: String(Math.round(l.vatRate * 10000) / 100),
+                              netAmount: String(l.netAmount),
+                              vatAmount: String(l.vatAmount),
+                            })),
+                          }
+                        : {}),
                     },
                     matchedSupplierId: msBody.supplierId,
                     matchedBy: msBody.matchedBy,
@@ -987,7 +1000,13 @@ export default function ExpensesPage() {
                         type="number"
                         step="0.01"
                         className="w-full border rounded px-2 py-1 text-sm"
-                        value={ocr.editable.grossAmount}
+                        // Tier 739: with lines, the gross is their sum
+                        value={
+                          ocr.editable.taxLines
+                            ? String(Math.round(ocr.editable.taxLines.reduce((sum, l) => sum + (parseFloat(l.netAmount) || 0) + (parseFloat(l.vatAmount) || 0), 0) * 100) / 100)
+                            : ocr.editable.grossAmount
+                        }
+                        readOnly={!!ocr.editable.taxLines}
                         onChange={(e) =>
                           setOcr({
                             ...ocr,
@@ -1000,6 +1019,9 @@ export default function ExpensesPage() {
                         data-testid="ocr-field-gross"
                       />
                     </div>
+                    {/* Tier 739: one rate — net and rate; several — the lines below */}
+                    {!ocr.editable.taxLines && (
+                      <>
                     <div>
                       <label className="block text-xs font-medium mb-1">
                         {t("expenses.ocrNet") || "Netto (€)"}
@@ -1042,7 +1064,47 @@ export default function ExpensesPage() {
                         data-testid="ocr-field-vat-rate"
                       />
                     </div>
+                      </>
+                    )}
                   </div>
+                  {ocr.editable.taxLines && (
+                    <div className="mb-4" data-testid="ocr-tax-lines">
+                      <div className="text-xs font-medium mb-1">{t("expenses.ocrTaxLines")}</div>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
+                            <th className="py-1">{t("expenses.ocrVat")}</th>
+                            <th className="py-1">{t("expenses.ocrNet")}</th>
+                            <th className="py-1">{t("expenses.ocrVatAmount")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ocr.editable.taxLines.map((l, i) => {
+                            const setLine = (patch: Partial<typeof l>) =>
+                              setOcr({
+                                ...ocr,
+                                editable: {
+                                  ...ocr.editable,
+                                  taxLines: ocr.editable.taxLines!.map((x, j) => (j === i ? { ...x, ...patch } : x)),
+                                },
+                              })
+                            return (
+                              <tr key={i} data-testid="ocr-tax-line">
+                                <td className="py-1 pr-2 font-mono">{l.vatRate.replace(".", ",")} %</td>
+                                <td className="py-1 pr-2">
+                                  <input type="number" step="0.01" aria-label={`${t("expenses.ocrNet")} ${l.vatRate} %`} className="w-full border rounded px-2 py-1 text-sm" value={l.netAmount} onChange={(e) => setLine({ netAmount: e.target.value })} />
+                                </td>
+                                <td className="py-1">
+                                  <input type="number" step="0.01" aria-label={`${t("expenses.ocrVatAmount")} ${l.vatRate} %`} className="w-full border rounded px-2 py-1 text-sm" value={l.vatAmount} onChange={(e) => setLine({ vatAmount: e.target.value })} />
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("expenses.ocrTaxLinesHint")}</p>
+                    </div>
+                  )}
                   <details className="mb-4">
                     <summary className="text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
                       {t("expenses.ocrShowRawText") ||
@@ -1093,10 +1155,21 @@ export default function ExpensesPage() {
                               ? { invoiceNumber: picked.editable.invoiceNumber }
                               : {}),
                             ...(supplierId ? { supplierId } : {}),
-                            netAmount: parseFloat(picked.editable.netAmount),
-                            vatRate: parseFloat(picked.editable.vatRate) / 100,
-                            vatAmount: parseFloat(picked.editable.vatAmount),
-                            grossAmount: parseFloat(picked.editable.grossAmount),
+                            // Tier 739: several rates — the lines; the server adds them up
+                            ...(picked.editable.taxLines
+                              ? {
+                                  taxLines: picked.editable.taxLines.map((l) => ({
+                                    vatRate: parseFloat(l.vatRate) / 100,
+                                    netAmount: parseFloat(l.netAmount),
+                                    vatAmount: parseFloat(l.vatAmount),
+                                  })),
+                                }
+                              : {
+                                  netAmount: parseFloat(picked.editable.netAmount),
+                                  vatRate: parseFloat(picked.editable.vatRate) / 100,
+                                  vatAmount: parseFloat(picked.editable.vatAmount),
+                                  grossAmount: parseFloat(picked.editable.grossAmount),
+                                }),
                           }
                           // Tier 683: a scan under a number that is already entered was
                           // refused and that was the end of it — the refusal is asked about

@@ -47,6 +47,8 @@ interface ImportResult {
   imported: number
   skipped: number
   errors: Array<{ row: number; error: string; name?: string; description?: string }>
+  // Tier 739: expense rows of one invoice (a row per VAT rate), booked as one
+  merged?: Array<{ rows: number[]; invoiceNumber: string; rates: number[] }>
 }
 
 // Per-entity config — required-field names + display
@@ -448,6 +450,22 @@ function BulkImportPageInner() {
                   </div>
                 </div>
               </div>
+              {(result.merged?.length ?? 0) > 0 && (
+                <div className="mt-4 text-sm text-gray-700 dark:text-gray-300" data-testid="import-merged">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{t("import.mergedTitle")}</h3>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    {result.merged!.map((m) => (
+                      <li key={m.rows.join("-")}>
+                        {t("import.mergedRow", {
+                          number: m.invoiceNumber,
+                          rows: m.rows.join(", "),
+                          rates: m.rates.map((r) => `${(r * 100).toLocaleString("de-DE")} %`).join(" / "),
+                        })}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {result.errors.length > 0 && (
                 <div className="mt-4">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">

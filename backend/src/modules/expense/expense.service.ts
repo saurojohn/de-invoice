@@ -234,7 +234,11 @@ export class ExpenseService {
       imported: 0,
       skipped: 0,
       errors: [],
+      merged: [],
     }
+    // Tier 739: every row is checked first, then the rows of one invoice are
+    // booked together (see the grouping below the loop).
+    const prepared: PreparedImportRow[] = []
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] || {}
       const rowNum = i + 2
@@ -362,30 +366,20 @@ export class ExpenseService {
           result.errors.push({ row: rowNum, error: amountsError, description })
           continue
         }
-        // Tier 489: a bill entered before (same supplier, same number) is
-        // not imported again — the row is reported instead.
-        const dup = await findDuplicateExpense(this.prisma, companyId, supplierId, row.invoiceNumber, netAmount < 0)
-        if (dup) {
-          result.errors.push({ row: rowNum, error: duplicateExpenseMessage(dup), description })
-          continue
-        }
-        await this.prisma.expense.create({
-          data: {
-            companyId,
-            supplierId,
-            invoiceNumber: (row.invoiceNumber || '').trim() || null,
-            description,
-            invoiceDate,
-            netAmount: netAmount.toFixed(4),
-            vatRate,
-            vatAmount: vatAmount.toFixed(4),
-            grossAmount: grossAmount.toFixed(4),
-            category: (row.category || '').trim() || null,
-            status: (row.status || 'booked').trim(),
-            notes: (row.notes || '').trim() || null,
-          },
+        prepared.push({
+          rowNum,
+          description,
+          invoiceDate,
+          invoiceNumber: (row.invoiceNumber || '').trim() || null,
+          supplierId: supplierId!,
+          net: netAmount,
+          rate: vatRate,
+          vat: vatAmount,
+          gross: grossAmount,
+          category: (row.category || '').trim() || null,
+          status: (row.status || 'booked').trim(),
+          notes: (row.notes || '').trim() || null,
         })
-        result.imported++
       } catch (e: any) {
         result.errors.push({
           row: rowNum,
@@ -394,7 +388,115 @@ export class ExpenseService {
         })
       }
     }
+
+    // Tier 739: rows of the same supplier, number and date are one invoice —
+    // the way sevDesk, lexoffice and DATEV export an invoice with 19 % and 7 %:
+    // a row per rate. They become one expense with a VAT line per rate
+    // (tax-lines.ts). Until now the second row was refused as a duplicate of
+    // the first, and only the first rate was booked. A row without a number
+    // cannot be told apart and stays an expense of its own.
+    const groups: PreparedImportRow[][] = []
+    const byKey = new Map<string, PreparedImportRow[]>()
+    for (const p of prepared) {
+      const key = p.invoiceNumber
+        ? [p.supplierId, p.invoiceNumber.toLowerCase(), p.invoiceDate.toISOString().slice(0, 10), p.net < 0 ? 'credit' : 'invoice'].join('|')
+        : null
+      const g = key ? byKey.get(key) : undefined
+      if (g) {
+        // a row repeated word for word is a mistake of the file, not a second
+        // line of the invoice — it would double the amount
+        const twin = g.find((o) => o.description === p.description && o.net === p.net && o.rate === p.rate && o.vat === p.vat)
+        if (twin) {
+          result.errors.push({ row: p.rowNum, error: `Die Zeile wiederholt Zeile ${twin.rowNum} (dieselbe Rechnung ${p.invoiceNumber}, dieselben Beträge) und wurde nicht importiert.`, description: p.description })
+          continue
+        }
+        g.push(p)
+        continue
+      }
+      const fresh = [p]
+      if (key) byKey.set(key, fresh)
+      groups.push(fresh)
+    }
+    for (const g of groups) {
+      try {
+        if (g.length === 1) await this.importOne(companyId, g[0])
+        else result.merged!.push(await this.importInvoiceRows(companyId, g))
+        result.imported += g.length
+      } catch (e: any) {
+        for (const p of g) result.errors.push({ row: p.rowNum, error: e?.message || 'Unbekannter Fehler', description: p.description })
+      }
+    }
     return result
+  }
+
+  /** One row, one expense — as the import always did. */
+  private async importOne(companyId: string, p: PreparedImportRow) {
+    // Tier 489: a bill entered before (same supplier, same number) is
+    // not imported again — the row is reported instead.
+    const dup = await findDuplicateExpense(this.prisma, companyId, p.supplierId, p.invoiceNumber, p.net < 0)
+    if (dup) throw new BadRequestException(duplicateExpenseMessage(dup))
+    await this.prisma.expense.create({
+      data: {
+        companyId,
+        supplierId: p.supplierId,
+        invoiceNumber: p.invoiceNumber,
+        description: p.description,
+        invoiceDate: p.invoiceDate,
+        netAmount: p.net.toFixed(4),
+        vatRate: p.rate,
+        vatAmount: p.vat.toFixed(4),
+        grossAmount: p.gross.toFixed(4),
+        category: p.category,
+        status: p.status,
+        notes: p.notes,
+      },
+    })
+  }
+
+  /**
+   * Tier 739 — the rows of one invoice: one expense, a VAT line per rate
+   * (rows of the same rate are added up), through create() so that every
+   * rule of a hand-entered expense with lines holds.
+   */
+  private async importInvoiceRows(companyId: string, g: PreparedImportRow[]): Promise<NonNullable<ImportExpenseResult['merged']>[number]> {
+    const first = g[0]
+    const rowList = g.map((p) => p.rowNum).join(', ')
+    const categories = [...new Set(g.map((p) => p.category).filter(Boolean))]
+    if (categories.length > 1) {
+      throw new BadRequestException(
+        `Die Zeilen ${rowList} gehören zur Rechnung ${first.invoiceNumber}, haben aber verschiedene Kategorien (${categories.join(', ')}). ` +
+          'Eine Ausgabe hat eine Kategorie — bitte eine Kategorie für alle Zeilen der Rechnung angeben.',
+      )
+    }
+    const creditNote = first.net < 0
+    const byRate = new Map<number, { rate: number; net: number; vat: number }>()
+    for (const p of g) {
+      const k = Math.round(p.rate * 10000)
+      const l = byRate.get(k) ?? { rate: p.rate, net: 0, vat: 0 }
+      l.net = Math.round((l.net + Math.abs(p.net)) * 10000) / 10000
+      l.vat = Math.round((l.vat + Math.abs(p.vat)) * 10000) / 10000
+      byRate.set(k, l)
+    }
+    const lines = [...byRate.values()].sort((a, b) => b.rate - a.rate)
+    const description = [...new Set(g.map((p) => p.description))].join(' / ').slice(0, 500)
+    const notes = [...new Set(g.map((p) => p.notes).filter(Boolean))].join('; ') || null
+    const base = {
+      supplierId: first.supplierId,
+      invoiceNumber: first.invoiceNumber,
+      invoiceDate: first.invoiceDate.toISOString().slice(0, 10),
+      description,
+      category: first.category ?? categories[0] ?? null,
+      status: first.status,
+      notes,
+      creditNote,
+    }
+    if (lines.length === 1) {
+      const l = lines[0]
+      await this.create(companyId, { ...base, netAmount: l.net, vatRate: l.rate, vatAmount: l.vat, grossAmount: Math.round((l.net + l.vat) * 10000) / 10000 })
+    } else {
+      await this.create(companyId, { ...base, taxLines: lines.map((l) => ({ vatRate: l.rate, netAmount: l.net, vatAmount: l.vat })) })
+    }
+    return { rows: g.map((p) => p.rowNum), invoiceNumber: first.invoiceNumber!, rates: lines.map((l) => l.rate) }
   }
 
   /**
@@ -448,4 +550,22 @@ export interface ImportExpenseResult {
   imported: number
   skipped: number
   errors: Array<{ row: number; error: string; description?: string }>
+  /** Tier 739: rows booked together as one invoice (one expense) */
+  merged?: Array<{ rows: number[]; invoiceNumber: string; rates: number[] }>
+}
+
+/** Tier 739: an import row, checked, before it is booked */
+interface PreparedImportRow {
+  rowNum: number
+  description: string
+  invoiceDate: Date
+  invoiceNumber: string | null
+  supplierId: string
+  net: number
+  rate: number
+  vat: number
+  gross: number
+  category: string | null
+  status: string
+  notes: string | null
 }

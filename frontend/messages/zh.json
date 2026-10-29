@@ -1025,7 +1025,10 @@
     "addTaxLine": "再加一个税率",
     "removeTaxLine": "删除该税率",
     "taxLineDuplicate": "每个税率只能出现一次。",
-    "severalRates": "多个税率"
+    "severalRates": "多个税率",
+    "ocrTaxLines": "票据上的税率",
+    "ocrVatAmount": "增值税 (€)",
+    "ocrTaxLinesHint": "票据上有多个税率——将创建一笔支出，每个税率一行；净额、增值税和总额为各行之和。"
   },
   "home": {
     "heroTitle": "专业的德国发票管理解决方案",
@@ -1056,7 +1059,9 @@
     "errors": "错误",
     "errorRows": "失败行",
     "viewList": "查看列表",
-    "newImport": "新建导入"
+    "newImport": "新建导入",
+    "mergedTitle": "已合并为一张发票",
+    "mergedRow": "发票 {number}：第 {rows} 行——合并为一笔支出，税率 {rates}"
   },
   "inventory": {
     "stock": "库存",
