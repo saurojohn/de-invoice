@@ -1,4 +1,5 @@
 import { MONTH, YEAR, queryInt } from '../../common/query';
+import { elsterSteuernummerOrProblem } from '../../common/steuernummer';
 import { signedExpenseAmounts } from '../expense/credit-note'
 import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestException, Header, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -329,23 +330,14 @@ export class UstvaController {
   }
 
   /**
-   * Generate ELSTER XML for a saved UStVA filing.
-   *
-   * The returned file is a complete <Datenlieferung> packet
-   * (ERiC schema, UStVA 2026). It can be uploaded as-is to
-   * Mein ELSTER (ElsterOnline) via "Fragebogen hochladen".
-   * For actual electronic submission with a certificate, the
-   * file still needs to be passed through the official ERiC
-   * C library — see the "Mein ELSTER" help pages for the
-   * signature workflow.
-   *
-   * Two output formats:
-   *   format=xml  (default) — full ERiC Datenlieferung
-   *   format=ascii — short ASCII paste-format for sanity check
-   *
-   * The route is GET because the computation is deterministic
-   * (saved filing + current company data). The browser-side
-   * download is triggered by `?download=1`.
+   * The UStVA of a saved filing for ELSTER (elster.service.ts):
+   *   format=xml  (default) — the declaration as ELSTER's <Anmeldungssteuern>
+   *                (Tier 734; not checked against the 2026 schema, nothing is
+   *                transmitted — this comment used to promise an upload „as-is"
+   *                to Mein ELSTER)
+   *   format=ascii — the Kennzahlen as a list to transcribe
+   * Recomputed from the documents of the period, not the saved snapshot.
+   * `?download=1` makes it an attachment.
    */
   @Get('filings/:id/elster-xml')
   @Require('ustva.read')
@@ -363,11 +355,17 @@ export class UstvaController {
 
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new BadRequestException('Company not found');
-    if (!company.taxId) {
-      throw new BadRequestException(
-        'Steuernummer im Firmenprofil fehlt. Bitte unter "Einstellungen" ergänzen.',
-      );
-    }
+    // Tier 734: the 13-digit ELSTER Steuernummer — the XML needs it (a 400
+    // says what is missing); the list shows the number as entered without it.
+    const stnr = elsterSteuernummerOrProblem(company.taxId, company.bundesland);
+    if ('problem' in stnr && (format !== 'ascii' || !company.taxId)) throw new BadRequestException(stnr.problem);
+    const steuernummer = 'value' in stnr ? stnr.value : `${company.taxId} (ELSTER-Form: ${stnr.problem})`;
+    const address = (company.address ?? {}) as { street?: string; postalCode?: string; city?: string };
+    const elsterCompany = {
+      name: company.legalName || company.name,
+      street: address.street, postalCode: address.postalCode, city: address.city,
+      phone: company.phone, email: company.email,
+    };
 
     // Recompute the live data (don't trust the persisted
     // snapshot — invoices/expenses can have changed since
@@ -384,22 +382,10 @@ export class UstvaController {
     if (format === 'ascii') {
       // Override the Content-Type for ASCII preview
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      return generateUstvaAsciiPreview({
-        data: live,
-        taxNumber: company.taxId,
-        companyName: company.name,
-        filingId: filing.id,
-        berichtigt: filing.berichtigt,
-      });
+      return generateUstvaAsciiPreview({ data: live, steuernummer, company: elsterCompany, berichtigt: filing.berichtigt });
     }
 
-    return generateUstvaElsterXml({
-      data: live,
-      taxNumber: company.taxId,
-      companyName: company.name,
-      filingId: filing.id,
-      berichtigt: filing.berichtigt,
-    });
+    return generateUstvaElsterXml({ data: live, steuernummer, company: elsterCompany, berichtigt: filing.berichtigt });
   }
 
   // ─── Tier 105: UStJA — Umsatzsteuerjahreserklärung
@@ -408,10 +394,9 @@ export class UstvaController {
   // of the following year (§ 149 AO); the 12 UStVAs
   // are Vorauszahlungen on the same liability.
   //
-  // v1: read-only preview (no save). v2: native
-  // ELSTER-XML export similar to the UStVA path
-  // above. The PDF is for the Mandant's records +
-  // for the Berater packager.
+  // A read-only preview (no save); the Kennzahlen
+  // as XML and as a list below. The PDF is for the
+  // Mandant's records + for the Berater packager.
   // ────────────────────────────────────────────────
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('ustja')
@@ -444,13 +429,10 @@ export class UstvaController {
   }
 
   // ─── Tier 107: UStJA ELSTER XML ────────────────
-  // The annual USt return as a Datenlieferung
-  // packet suitable for ELSTER upload. Same
-  // envelope as the UStVA path; the AnlageName
-  // is "AnlageUStJA" + the Zeitraum is the full
-  // calendar year (no Quartal or Monat). The
-  // BMF has required UStJA submission via ELSTER
-  // since 2024.
+  // The annual return's Kennzahlen (USt 2 A) in
+  // this app's own XML envelope — no ELSTER
+  // upload (elster.service.ts, Tier 734). The
+  // Zeitraum is the calendar year.
   //
   // Query params:
   //   companyId — required
@@ -482,11 +464,10 @@ export class UstvaController {
     if (!company) {
       throw new BadRequestException('Firma nicht gefunden')
     }
-    if (!company.taxId) {
-      throw new BadRequestException(
-        'Steuernummer im Firmenprofil fehlt. Bitte unter "Einstellungen" ergänzen.',
-      )
-    }
+    // Tier 734: the 13-digit ELSTER Steuernummer, as for the UStVA
+    const stnr = elsterSteuernummerOrProblem(company.taxId, company.bundesland)
+    if ('problem' in stnr && (format !== 'ascii' || !company.taxId)) throw new BadRequestException(stnr.problem)
+    const steuernummer = 'value' in stnr ? stnr.value : `${company.taxId} (ELSTER-Form: ${stnr.problem})`
     // Recompute the live data (don't trust a
     // persisted snapshot — invoices/expenses
     // can have changed since the last compute).
@@ -497,16 +478,8 @@ export class UstvaController {
     }
     if (format === 'ascii') {
       res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-      return generateUstjaAsciiPreview({
-        data,
-        taxNumber: company.taxId,
-        companyName: company.name,
-      })
+      return generateUstjaAsciiPreview({ data, steuernummer, companyName: company.name })
     }
-    return generateUstjaElsterXml({
-      data,
-      taxNumber: company.taxId,
-      companyName: company.name,
-    })
+    return generateUstjaElsterXml({ data, steuernummer, companyName: company.name })
   }
 }

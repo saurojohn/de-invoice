@@ -24,7 +24,7 @@ AS() { # method path [body]
 }
 py() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);$1"; }
 
-AS PUT "/api/v1/companies/$C?companyId=$C" '{"taxId":"123/456/78901"}'   # ELSTER needs a Steuernummer
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"taxId":"123/456/78901","bundesland":"BY"}'   # ELSTER needs a Steuernummer (Tier 734: and its Land)
 AS POST "/api/v1/ustva/expenses?companyId=$C" '{"invoiceNumber":"GS-1","description":"Gutschrift","invoiceDate":"'$Y'-03-10","netAmount":100,"vatRate":0.19,"vatAmount":19,"grossAmount":119,"creditNote":true}'
 assert_eq "a supplier credit note" "$STATUS" "201"
 AS GET "/api/v1/ustva/compute?companyId=$C&year=$Y&month=3"
@@ -38,6 +38,6 @@ assert_eq "stored: input tax -19, 19 to pay back (Zahllast = 0 - (-19))" \
 FID=$(python3 -c "import json;print(json.load(open('/tmp/t463-r.json'))['id'])")
 curl -sS -o /tmp/t463.xml -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/ustva/filings/$FID/elster-xml?companyId=$C"
 assert_eq "ELSTER: Kz 66 negative, Kz 83 the 19 to pay" \
-  "$(grep -oE 'Kz0(66|83)=[-+0-9]+' /tmp/t463.xml | tr '\n' ' ')" "Kz066=-000000001900 Kz083=+000000001900 "
+  "$(grep -oE '<Kz(66|83)>[^<]+' /tmp/t463.xml | tr '\n' ' ')" "<Kz66>-19.00 <Kz83>19.00 "
 
 summary

@@ -57,8 +57,9 @@ AS GET "/api/v1/ustva/zm?companyId=$C&year=$YEAR&month=$MONTH"
 assert_eq "the credit note reduces the ZM of its own month" "$(P "([(r['land'], r['art'], r['betrag']) for r in d['rows']], d['abgleich']['stimmt'])")" "([('FR', 'L', -100)], True)"
 
 curl -sS -o /tmp/t491.csv -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/ustva/zm.csv?companyId=$C&year=2026&quarter=3"
+# Tier 734: the BZSt import format, CSV-Version 3.0 (spec 454)
 assert_eq "CSV" "$(tr -d '\r' < /tmp/t491.csv | tr '\n' '|')" \
-  "Laenderkennzeichen;USt-IdNr;Betrag(EUR);Art der Leistung|AT;U12345678;300;L|AT;U12345678;200;S|FR;12345678901;1500;L|"
+  "#v3.0|#ve3.2.1|Umsatzsteuer-Identifikationsnummer (USt-IdNr.),Summe (Euro),Art der Leistung|ATU12345678,300,L|ATU12345678,200,S|FR12345678901,1500,L|"
 
 AS GET "/api/v1/ustva/zm?companyId=$C&year=2026"
 assert_eq "a period is required" "$STATUS" "400"

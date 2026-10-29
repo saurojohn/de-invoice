@@ -21,6 +21,8 @@ read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: a
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier501-e2e\",\"companyName\":\"$TAG GmbH\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
 fixture_issuer "$C"
+# Tier 734: the Land of the Finanzamt — the ELSTER file needs the 13-digit Steuernummer (12/345/67890 in Berlin)
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qAtc "update \"Company\" set bundesland='BE' where id='$C'" >/dev/null
 [[ -n "${C:-}" ]] && pass "fixture: a fresh company" || { fail "register"; summary; exit 1; }
 AS() { # method path [body]
   local resp
@@ -58,7 +60,7 @@ AS POST "/api/v1/ustva/filings?companyId=$C" "$(python3 -c "import sys,json;d=js
 assert_eq "the filing is saved (the data carries the new field)" "$STATUS" "201"
 F=$(json_field "$BODY" id)
 XML=$(curl -sS -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/ustva/filings/$F/elster-xml?companyId=$C")
-assert_eq "ELSTER: Kz 39 = 50,00" "$(echo "$XML" | grep -o 'B-Kz039=[^<"]*' | head -1)" "B-Kz039=+000000005000"
+assert_eq "ELSTER: Kz 39 = 50,00" "$(echo "$XML" | grep -o '<Kz39>[^<]*' | head -1)" "<Kz39>50.00"
 
 note "=== the UStJA counts it in the Vorauszahlungssoll ==="
 AS GET "/api/v1/ustva/ustja?companyId=$C&year=2025"

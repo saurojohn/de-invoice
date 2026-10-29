@@ -1,4 +1,5 @@
 import { withCheckedVatId } from '../../common/vat-id';
+import { elsterSteuernummerOrProblem } from '../../common/steuernummer';
 import { isBareLegalForm } from './rechtsform';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertIban } from '../../common/iban';
@@ -39,6 +40,17 @@ export class CompanyService {
         throw new BadRequestException(
           `Die Steuernummer ${taxId} ist ungültig — sie besteht aus 10 bis 13 Ziffern (z. B. 12/345/67890).`,
         );
+      }
+    }
+    // Tier 734: with the Land of the Finanzamt the Steuernummer must be one of
+    // that Land — it becomes the 13-digit ELSTER number (common/steuernummer.ts).
+    if ('bundesland' in data || 'taxId' in data) {
+      const stored = await this.prisma.company.findUnique({ where: { id }, select: { taxId: true, bundesland: true } });
+      const land = 'bundesland' in data ? data.bundesland : stored?.bundesland;
+      const tax = 'taxId' in data ? taxId : stored?.taxId;
+      if (land && tax) {
+        const r = elsterSteuernummerOrProblem(tax, land);
+        if ('problem' in r) throw new BadRequestException(r.problem);
       }
     }
     assertIban(data.bankInfo?.iban);

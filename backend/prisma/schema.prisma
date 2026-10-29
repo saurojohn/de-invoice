@@ -72,6 +72,9 @@ model Company {
   // Tier 464: 'euer' (§ 4 Abs. 3 EStG, counted when paid) or 'bilanz'
   // (accrual). NULL = derived from the legal form (company/gewinnermittlung.ts).
   gewinnermittlung   String?
+  // Tier 734: the Land of the Finanzamt (BW, BY, … — common/steuernummer.ts);
+  // the 13-digit ELSTER Steuernummer is derived from taxId with it.
+  bundesland         String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

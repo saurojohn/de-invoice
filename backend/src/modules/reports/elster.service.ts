@@ -1,37 +1,69 @@
 /**
  * UStVA / UStJA export files (§ 18 UStG).
  *
- * What these files are: the declared amounts under their official
- * Kennzahlen, for review and for transcription into Mein ELSTER. What they
- * are NOT: an ELSTER upload. Tier 417 removed this header's claim that the
- * XML was "suitable for upload … one upload away from being filed": nothing
- * here follows a verified ERiC schema (the container format is §9 item 9 of
- * HANDOFF), there is no signature and no submission path. The Steuernummer
- * handling below is likewise unverified.
+ * Tier 734 — the UStVA's XML is the declaration as ELSTER's data delivery
+ * carries it: the block <Anmeldungssteuern> of the ERiC data type „UStVA",
+ * as in the ERiC example „UStVA_2023.xml" (quoted on the ELSTER user forum,
+ * thread 429585, 02.08.2023) and as ELSTER's support described it there
+ * (namespace http://finkonsens.de/elster/elsteranmeldung/ustva/v<year>,
+ * attribute version="<year>"): Erstellungsdatum, DatenLieferant, Steuerfall /
+ * Umsatzsteuervoranmeldung with Jahr, Zeitraum (01–12 a month, 41–44 a
+ * quarter), the 13-digit Steuernummer (common/steuernummer.ts) and one
+ * element per Kennzahl, in the order of their numbers — the schema demands
+ * its order (ERiC: „element 'Kz09' is not allowed for content model
+ * (Jahr?,Zeitraum?,Steuernummer?,Kz09?,Kz10?,Kz21?,…,Kz98?)").
+ * A tax base is a whole number of euros („Tragen Sie bei den
+ * Bemessungsgrundlagen bitte nur Beträge in vollen Euro ein", ELSTER's
+ * Anleitung zur UStVA 2026), cents dropped in the company's favour; a tax
+ * amount has two decimals and a point (the ERiC example: <Kz81>150000</Kz81>,
+ * <Kz66>15000.00</Kz66>). Kz 83 is what ELSTER computes from those values —
+ * the tax on Kz 81 / 86 / 89 / 93 from the whole-euro base — so it can differ
+ * from the invoices' tax by cents (the example: 150 000 × 19 % + 25 000 × 7 %
+ * + 1 600 − 15 000 + 200 = 17 050,00 = its Kz 83).
+ *
+ * What these files are NOT: an ELSTER upload — no signature, no transmission,
+ * no check against the official schema (below).
+ *
+ * Before Tier 734 the file was a <Datenlieferung> of this app's own making —
+ * Verarbeitungsinformationen, TransferHeader, <Anlage USTVA="1"> and lines
+ * „B-Kz081=+000000146000" in cents — no element ELSTER knows, and a
+ * Steuernummer made by appending „00". Not checked against the XSD of 2026
+ * (behind the ELSTER developer registration); nothing is transmitted, there
+ * is no signature. Whether Mein ELSTER imports it is to be tried there.
+ *
+ * The UStJA's XML (an ERiC „USt" declaration of another structure, not found
+ * in public sources) stays a list of its Kennzahlen in this app's own
+ * envelope; only its Steuernummer is now the ELSTER one.
  *
  * Kennzahlen (Tier 417): USt 1 A 2026 for the UStVA, USt 2 A 2026 for the
- * UStJA — see ust-kennzahlen.ts. Before, both exports used an invented
- * numbering: bases in "Kz 20-23", tax in "Kz 26-29", input tax in
- * "Kz 56-60" and the amount payable in "Kz 81", which on the form is the
- * 19 % tax base.
- *
- * Amounts are written in cents, signed ("B-Kz081=+000000100000").
+ * UStJA — see ust-kennzahlen.ts.
  */
 
+import { BadRequestException } from '@nestjs/common';
 import { businessTodayIso } from '../../common/business-date'
 import { UstvaData } from './ustva.service';
 import { UstjaResult } from './ustja.service';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
+/** Tier 734: the company as the data supplier (<DatenLieferant>). */
+export interface ElsterCompany {
+  name: string;
+  street?: string | null;
+  postalCode?: string | null;
+  city?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}
+
 export interface ElsterUstvaExportInput {
   /** The computed UStVA data */
   data: UstvaData;
-  /** Steuernummer, e.g. "044 243 16529" — must be normalised to 13 digits */
-  taxNumber: string;
-  /** Name of the declaring company, e.g. "SH Leder GmbH" */
-  companyName: string;
-  /** Optional filing identifier (used in <Vorgang> for traceability) */
-  filingId?: string;
+  /**
+   * Tier 734: the Steuernummer — for the XML the 13-digit ELSTER form
+   * (common/steuernummer.ts); for the list as it can be shown.
+   */
+  steuernummer: string;
+  company: ElsterCompany;
   /** Tier 465: a corrected return (§ 153 AO) — Kz 10 = 1 */
   berichtigt?: boolean;
 }
@@ -40,44 +72,21 @@ export interface ElsterUstvaExportInput {
 const KZ10_LINE = 'B-Kz010=1';
 
 /**
- * Tier 107: UStJA ELSTER export input. The annual
- * USt return (§ 18 Abs. 3 UStG) consolidates the 12
- * monthly UStVAs into the BMF Vordruck 2024 Kz
- * fields — same Datenlieferung envelope as UStVA,
- * but the Anlage name is "AnlageUStJA" + the
- * Zeitraum is the full calendar year (no Quartal
- * or Monat). The BMF has required UStJA
- * submission via ELSTER since 2024.
+ * Tier 107: UStJA ELSTER export input. The annual USt return (§ 18 Abs. 3
+ * UStG) — the 12 monthly UStVAs consolidated into the USt 2 A Kennzahlen.
  */
 export interface ElsterUstjaExportInput {
   data: UstjaResult
-  taxNumber: string
+  /** Tier 734: as for the UStVA */
+  steuernummer: string
   companyName: string
   filingId?: string
 }
 
 /**
- * Normalise a German Steuernummer to its 13-digit form.
- * "044 243 16529" (11 digits with spaces) becomes "0442431652900"
- * by zero-padding the 8-digit regional form to 13 digits using
- * the BMF concatenation rules.
- *
- * ELSTER requires 13 digits — 044 (FA-Nr) + 243 (Untern.-Nr) + 16529 + 00.
- */
-export function normaliseSteuernummer(raw: string): string {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length === 13) return digits;
-  if (digits.length === 11) return digits + '00';
-  if (digits.length === 10) return '0' + digits + '00';
-  // Fallback: pad/truncate. The user must verify before submitting.
-  return digits.padEnd(13, '0').slice(0, 13);
-}
-
-/**
  * Format a cent amount as a 13-character signed field.
  * -123.45 EUR -> "-00000012345"
- * 12345 EUR    -> "0000001234500"
- * 0            -> "0000000000000"
+ * 0            -> "+000000000000"
  */
 function fmt13(cents: number): string {
   const sign = cents < 0 ? '-' : '+';
@@ -87,8 +96,8 @@ function fmt13(cents: number): string {
 }
 
 /**
- * Render a numeric field as a Kz (Kennzahl) line.
- * "B" prefix = Betrag (amount).
+ * Render a numeric field as a Kz (Kennzahl) line of the list (and of the
+ * UStJA file). "B" prefix = Betrag (amount).
  */
 function kzLine(kz: number | string, cents: number): string {
   return `B-Kz${String(kz).padStart(3, '0')}=${fmt13(cents)}`;
@@ -106,86 +115,103 @@ function kzLines(entries: KzEntry[], always: string[] = []): string[] {
     .map((e) => kzLine(e.kz, Math.round(e.value * 100)));
 }
 
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Tier 734: a tax base as the form takes it — whole euros, the cents dropped in the company's favour. */
+const wholeEuros = (n: number) => Math.floor(r2(n));
+
+/** Tier 734: the rates at which ELSTER computes the tax of a base Kennzahl itself. */
+const ELSTER_TAX_RATE: Record<string, number> = { '81': 0.19, '86': 0.07, '89': 0.19, '93': 0.07 };
+/** …the tax amounts that are declared as such, owed / deducted. */
+const OWED_TAX = ['36', '47', '85', '98'];
+const INPUT_TAX = ['61', '66', '67'];
+
 /**
- * Build the full <Datenlieferung> XML for UStVA. Returned as a
- * UTF-8 string (no BOM).
+ * Tier 734: the UStVA's Kennzahlen as ELSTER takes them — bases in whole
+ * euros, Kz 83 as ELSTER computes it from them (see the header).
+ */
+export function elsterUstvaValues(data: UstvaData): { entries: Array<KzEntry & { xml: string }>; kz83: number; kz83Invoices: number } {
+  const all = ustvaKennzahlen(data);
+  const v = (kz: string) => all.find((e) => e.kz === kz)?.value ?? 0;
+  let owed = 0;
+  for (const [kz, rate] of Object.entries(ELSTER_TAX_RATE)) owed += r2(wholeEuros(v(kz)) * rate);
+  for (const kz of OWED_TAX) owed += v(kz);
+  const input = INPUT_TAX.reduce((s, kz) => s + v(kz), 0);
+  const kz83 = r2(owed - input - v('39'));
+  const entries = all
+    .filter((e) => e.kz !== '' && e.kz !== '83' && e.value !== 0)
+    .map((e) => ({ ...e, xml: e.kind === 'base' ? String(wholeEuros(e.value)) : r2(e.value).toFixed(2) }))
+    .filter((e) => e.xml !== '0')
+    .concat([{ ...all.find((e) => e.kz === '83')!, value: kz83, xml: kz83.toFixed(2) }])
+    .sort((a, b) => Number(a.kz) - Number(b.kz));
+  return { entries, kz83, kz83Invoices: v('83') };
+}
+
+/** Tier 734: Zeitraum of the UStVA — the month 01–12, a quarter 41–44. */
+function elsterZeitraum(data: UstvaData): string {
+  if (data.month) return String(data.month).padStart(2, '0');
+  if (data.quarter) return String(40 + data.quarter);
+  throw new BadRequestException(
+    'Eine Voranmeldung gilt für einen Monat oder ein Quartal — für das ganze Jahr ist die Umsatzsteuererklärung (UStJA) da.',
+  );
+}
+
+/**
+ * Tier 734: the UStVA as ELSTER's <Anmeldungssteuern> (see the header).
+ * Returned as a UTF-8 string (no BOM).
  */
 export function generateUstvaElsterXml(input: ElsterUstvaExportInput): string {
-  const { data, taxNumber, companyName, filingId } = input;
-  const steuernummer = normaliseSteuernummer(taxNumber);
-
-  // Period fields — ELSTER expects a "Zeitraum" tuple
-  // (Jahr, Quartal, Monat) where exactly one of Quartal/Monat
-  // is set, or neither for the whole year.
-  const jahr = String(data.year);
-  const quartal = data.quarter ? String(data.quarter) : '';
-  const monat = data.month ? String(data.month) : '';
-
-  // Tier 417: the official USt 1 A 2026 Kennzahlen (ust-kennzahlen.ts);
-  // Kz 83 (verbleibende Vorauszahlung / Überschuss) is always written.
-  // Tier 465: a corrected return carries Kz 10 = 1 (was left to the user
-  // to tick in Mein ELSTER).
-  const kzBlock = [...(input.berichtigt ? [KZ10_LINE] : []), ...kzLines(ustvaKennzahlen(data), ['83'])]
-    .join('\n        ');
-
-  // Transfer header — the "Transferticket" identifies the data
-  // packet to the ELSTER backend. Vorgang = "UStVA", Anlage = 1.
-  const vorgang = filingId ? `Vorgang_${filingId}` : 'Vorgang_UStVA';
-
-  // Final XML — schema based on ERiC 32.x UStVA spec. We use
-  // the "Datenlieferung" envelope with the standard
-  // Verarbeitungsinformationen block.
+  const { data, steuernummer, company } = input;
+  const year = String(data.year);
+  const { entries } = elsterUstvaValues(data);
+  const supplier = [
+    ['Name', company.name],
+    ['Strasse', company.street],
+    ['PLZ', company.postalCode],
+    ['Ort', company.city],
+    ['Telefon', company.phone],
+    ['Email', company.email],
+  ]
+    .filter(([, value]) => value && String(value).trim())
+    .map(([tag, value]) => `      <${tag}>${escapeXml(String(value).trim())}</${tag}>`)
+    .join('\n');
+  const kz = [
+    // Tier 465: a corrected return carries Kz 10 = 1
+    ...(input.berichtigt ? ['        <Kz10>1</Kz10>'] : []),
+    ...entries.map((e) => `        <Kz${e.kz}>${e.xml}</Kz${e.kz}>`),
+  ].join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<Datenlieferung xmlns="http://www.elster.de/elsterxml/schema/v1">
-  <Verarbeitungsinformationen>
-    <Erstellung>
-      <Eingangsdatum>${businessTodayIso()}</Eingangsdatum>
-    </Erstellung>
-    <Datenbestaetigung>false</Datenbestaetigung>
-    <TransferHeader>
-      <TransferTicket>${escapeXml(vorgang)}</TransferTicket>
-      <TestTicket>1</TestTicket>
-      <DatenArt>UStVA</DatenArt>
-      <AnlageName>AnlageUStVA</AnlageName>
-      <Vorgang>UStVA</Vorgang>
-      <Zeitraum>
-        <Jahr>${jahr}</Jahr>
-        ${quartal ? `<Quartal>${quartal}</Quartal>` : ''}
-        ${monat ? `<Monat>${monat}</Monat>` : ''}
-      </Zeitraum>
-    </TransferHeader>
-  </Verarbeitungsinformationen>
-
-  <Nutzdaten>
-    <Anlage USTVA="1">
+<Anmeldungssteuern xmlns="http://finkonsens.de/elster/elsteranmeldung/ustva/v${year}" version="${year}">
+  <Erstellungsdatum>${businessTodayIso().replace(/-/g, '')}</Erstellungsdatum>
+  <DatenLieferant>
+${supplier}
+  </DatenLieferant>
+  <Steuerfall>
+    <Umsatzsteuervoranmeldung>
+      <Jahr>${year}</Jahr>
+      <Zeitraum>${elsterZeitraum(data)}</Zeitraum>
       <Steuernummer>${escapeXml(steuernummer)}</Steuernummer>
-      <Name>${escapeXml(companyName)}</Name>
-      <Zeitraum>
-        <Jahr>${jahr}</Jahr>
-        ${quartal ? `<Quartal>${quartal}</Quartal>` : ''}
-        ${monat ? `<Monat>${monat}</Monat>` : ''}
-      </Zeitraum>
-      <Kennzahlen>
-        ${kzBlock}
-      </Kennzahlen>
-    </Anlage>
-  </Nutzdaten>
-</Datenlieferung>
+${kz}
+    </Umsatzsteuervoranmeldung>
+  </Steuerfall>
+</Anmeldungssteuern>
 `;
 }
 
 /**
- * Build a CSV-style "ASCII" preview of the UStVA (the same format
- * you can paste into Mein ELSTER's "Upload" tab). Useful for
- * developers / tax consultants who don't trust the XML format
- * without a sanity check.
+ * The UStVA's Kennzahlen as a list to transcribe into Mein ELSTER (the
+ * format=ascii download).
  */
 export function generateUstvaAsciiPreview(input: ElsterUstvaExportInput): string {
-  const { data, taxNumber, companyName } = input;
-  const steuernummer = normaliseSteuernummer(taxNumber);
-  const text = fillInList('UStVA', 'USt 1 A 2026', companyName, steuernummer, data.periodLabel, ustvaKennzahlen(data), ['83'], [
-    `# ${data.counts.invoices} Rechnungen, ${data.counts.expenses} Ausgaben zugrundegelegt.`,
-  ]);
+  const { data, steuernummer, company } = input;
+  const { kz83, kz83Invoices } = elsterUstvaValues(data);
+  const entries = ustvaKennzahlen(data).map((e) => (e.kz === '83' ? { ...e, value: kz83 } : e));
+  const footer = [`# ${data.counts.invoices} Rechnungen, ${data.counts.expenses} Ausgaben zugrundegelegt.`];
+  // Tier 734: Kz 83 as ELSTER computes it from the whole-euro bases
+  if (Math.abs(kz83 - kz83Invoices) >= 0.005) {
+    footer.unshift(`# Kz 83 wie ELSTER sie aus den Bemessungsgrundlagen in vollen Euro berechnet; nach der Steuer laut Rechnungen ${kz83Invoices.toFixed(2)} €.`);
+  }
+  const text = fillInList('UStVA', 'USt 1 A 2026', company.name, steuernummer, data.periodLabel, entries, ['83'], footer);
   // Tier 465: a corrected return — Kz 10 above the amounts.
   return input.berichtigt
     ? text.replace(/\n\n/, `\n\n${KZ10_LINE}   # Berichtigte Anmeldung (§ 153 AO)\n`)
@@ -195,7 +221,7 @@ export function generateUstvaAsciiPreview(input: ElsterUstvaExportInput): string
 /**
  * Tier 417: a readable list of the Kennzahlen to enter in Mein ELSTER — the
  * "ASCII preview" called itself a "Mein-ELSTER-Paste-Format", which does not
- * exist. Each line keeps the B-Kz form of the XML plus the form's label.
+ * exist. Each line keeps the B-Kz form plus the form's label.
  */
 function fillInList(
   what: string,
@@ -279,8 +305,7 @@ function ustjaEntries(data: UstjaResult): KzEntry[] {
  * Returns a UTF-8 string (no BOM).
  */
 export function generateUstjaElsterXml(input: ElsterUstjaExportInput): string {
-  const { data, taxNumber, companyName, filingId } = input
-  const steuernummer = normaliseSteuernummer(taxNumber)
+  const { data, steuernummer, companyName, filingId } = input
   const jahr = String(data.year)
 
   // Tier 417: USt 2 A 2026 Kennzahlen, as the UStJA lines carry them.
@@ -332,8 +357,7 @@ export function generateUstjaElsterXml(input: ElsterUstjaExportInput): string {
  * uploading to ELSTER.
  */
 export function generateUstjaAsciiPreview(input: ElsterUstjaExportInput): string {
-  const { data, taxNumber, companyName } = input
-  const steuernummer = normaliseSteuernummer(taxNumber)
+  const { data, steuernummer, companyName } = input
   return fillInList('UStJA', 'USt 2 A 2026', companyName, steuernummer, data.periodLabel, ustjaEntries(data), [], [
     `# Umsatzsteuer ${data.totals.umsatzsteuer.toFixed(2)} € − Vorsteuer ${data.totals.vorsteuer.toFixed(2)} € = verbleibende Umsatzsteuer ${data.totals.zahllast.toFixed(2)} €`,
     `# Vorauszahlungssoll (berechnet) ${data.totals.vorauszahlungssoll.toFixed(2)} € — maßgeblich ist das festgesetzte Soll`,

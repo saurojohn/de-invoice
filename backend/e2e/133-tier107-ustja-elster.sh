@@ -152,6 +152,9 @@ note "=== 8. Steuernummer normalised to 13 digits in <Steuernummer> ==="
 STEUER=$(grep -oE '<Steuernummer>[0-9]+' /tmp/ustja-elster-$TS.xml | head -1 | sed 's/.*>//')
 STEUER_LEN=${#STEUER}
 assert_eq "Steuernummer is 13 digits" "$STEUER_LEN" "13"
+# Tier 734: ci-seed's 123/456/78901 with Bayern (was 12345678901 + "00")
+SEED_TAXID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc "select \"taxId\"||'|'||coalesce(bundesland,'') from \"Company\" where id='$COMPANY_ID'")
+[[ "$SEED_TAXID" == "123/456/78901|BY" ]] && assert_eq "…the ELSTER form of 123/456/78901 in Bayern" "$STEUER" "9123045678901" || note "(a company other than ci-seed's: $SEED_TAXID)"
 
 # ===== 9. Year validation =====
 echo

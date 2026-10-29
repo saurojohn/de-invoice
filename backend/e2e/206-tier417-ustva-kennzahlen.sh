@@ -27,7 +27,7 @@ AS() { # method path body
     -H "Content-Type: application/json" ${3:+-d "$3"})
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
-AS PUT "/api/v1/companies/$C?companyId=$C" '{"taxId":"123/456/78901"}'
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"taxId":"123/456/78901","bundesland":"BY"}'   # Tier 734: the Land for the 13-digit number
 cust() { AS POST "/api/v1/customers?companyId=$C" "$1"; json_field "$BODY" id; }
 KDE=$(cust '{"name":"Bau GmbH","type":"business","vatId":"DE987654321","address":{"street":"a","city":"Köln","postalCode":"50667","country":"DE"}}')
 KAT=$(cust '{"name":"Wien GmbH","type":"business","vatId":"ATU12345678","address":{"street":"a","city":"Wien","postalCode":"1060","country":"AT"}}')
@@ -73,16 +73,17 @@ AS POST "/api/v1/ustva/filings?companyId=$C" "$(python3 -c "import sys,json;d=js
 FID=$(json_field "$BODY" id)
 AS GET "/api/v1/ustva/filings/$FID/elster-xml?companyId=$C"
 XML="$BODY"
-KZ() { python3 -c "import re,sys;m=re.search(r'B-Kz%s=([+-]\d+)' % sys.argv[2], sys.argv[1]);print(int(m.group(1)) if m else '-')" "$XML" "$1"; }
-assert_eq "Kz 060 = 1000,00 (§ 13b sales)" "$(KZ 060)" "100000"
-assert_eq "Kz 021 = 500,00 (§ 18b)" "$(KZ 021)" "50000"
-assert_eq "Kz 041 = 200,00 (igL)" "$(KZ 041)" "20000"
-assert_eq "Kz 089 = 400,00 (igE 19 %)" "$(KZ 089)" "40000"
-assert_eq "Kz 084 / 085 = 2000,00 / 380,00" "$(KZ 084)/$(KZ 085)" "200000/38000"
-assert_eq "Kz 066 = 16,00 (Vorsteuer aus Rechnungen)" "$(KZ 066)" "1600"
-assert_eq "Kz 061 = 76,00 / Kz 067 = 380,00" "$(KZ 061)/$(KZ 067)" "7600/38000"
-assert_eq "Kz 083 = −16,00 (the amount payable; it went out as Kz 081)" "$(KZ 083)" "-1600"
-assert_eq "no Kz 081 — there are no 19 % sales" "$(KZ 081)" "-"
+# Tier 734: ELSTER's elements — a base in whole euros, a tax amount with two decimals
+KZ() { python3 -c "import re,sys;m=re.search(r'<Kz%s>([^<]+)</Kz%s>' % (sys.argv[2], sys.argv[2]), sys.argv[1]);print(m.group(1) if m else '-')" "$XML" "$1"; }
+assert_eq "Kz 60 = 1000 (§ 13b sales)" "$(KZ 60)" "1000"
+assert_eq "Kz 21 = 500 (§ 18b)" "$(KZ 21)" "500"
+assert_eq "Kz 41 = 200 (igL)" "$(KZ 41)" "200"
+assert_eq "Kz 89 = 400 (igE 19 %)" "$(KZ 89)" "400"
+assert_eq "Kz 84 / 85 = 2000 / 380.00" "$(KZ 84)/$(KZ 85)" "2000/380.00"
+assert_eq "Kz 66 = 16.00 (Vorsteuer aus Rechnungen)" "$(KZ 66)" "16.00"
+assert_eq "Kz 61 = 76.00 / Kz 67 = 380.00" "$(KZ 61)/$(KZ 67)" "76.00/380.00"
+assert_eq "Kz 83 = −16.00 (the amount payable; it went out as Kz 081)" "$(KZ 83)" "-16.00"
+assert_eq "no Kz 81 — there are no 19 % sales" "$(KZ 81)" "-"
 AS GET "/api/v1/ustva/filings/$FID/elster-xml?companyId=$C&format=ascii"
 grep -q "Keine amtliche Upload-Datei" <<<"$BODY" && pass "the list says it is not an ELSTER upload" || fail "list header"
 

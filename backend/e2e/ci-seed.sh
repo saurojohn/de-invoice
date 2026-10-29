@@ -127,6 +127,9 @@ note "seeding company taxId + address ..."
 psql_test -c "
   UPDATE \"Company\"
   SET \"taxId\"='$TAX_ID',
+      -- Tier 734: the Land of the Finanzamt, for the 13-digit ELSTER
+      -- Steuernummer (123/456/78901 in Bayern: 9123045678901)
+      bundesland='BY',
       address='{\"street\":\"Musterstraße 1\",\"city\":\"Stuttgart\",\"postalCode\":\"70173\",\"country\":\"Deutschland\"}'::jsonb,
       \"legalName\"='$COMPANY_NAME',
       \"invoicePrefix\"='INV-',

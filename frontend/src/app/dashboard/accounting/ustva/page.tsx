@@ -471,8 +471,10 @@ function UstvaPageInner() {
     if (!companyId) return
     ;(async () => {
       try {
+        // Tier 734: with /api/v1 — the path without it answered 404 „Cannot GET",
+        // shown as the error: the button had never downloaded anything.
         const res = await apiFetch(
-          `/ustva/filings/${encodeURIComponent(filingId)}/elster-xml?companyId=${encodeURIComponent(companyId)}&format=xml&download=1`,
+          `/api/v1/ustva/filings/${encodeURIComponent(filingId)}/elster-xml?companyId=${encodeURIComponent(companyId)}&format=xml&download=1`,
           { method: "GET" },
         )
         const blob = await res.blob()
@@ -1423,6 +1425,7 @@ function UstvaPageInner() {
                                 size="sm"
                                 onClick={() => downloadElster(f.id, f.periodLabel)}
                                 title={t("ustva.elsterTooltip")}
+                                data-testid={`ustva-elster-xml-${f.id}`}
                               >
                                 {t("ustva.downloadElster")}
                               </Button>
@@ -1442,7 +1445,7 @@ function UstvaPageInner() {
           </>
         )}
         {downloadError && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm">
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded text-sm" data-testid="ustva-download-error">
             {downloadError}
           </div>
         )}

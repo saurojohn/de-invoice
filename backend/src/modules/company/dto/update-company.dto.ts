@@ -1,4 +1,5 @@
 import { StrictNumber } from '../../../common/strict-number'
+import { BUNDESLAENDER } from '../../../common/steuernummer';
 import { StrictBoolean } from '../../../common/strict-boolean'
 import { RECHTSFORMEN } from '../rechtsform';
 import {
@@ -219,6 +220,12 @@ export class UpdateCompanyDto {
   @IsIn(['soll', 'ist'], { message: "besteuerungsart muss 'soll' oder 'ist' sein" })
   @IsOptional()
   besteuerungsart?: string | null;
+
+  // Tier 734: the Land of the Finanzamt (common/steuernummer.ts); null clears it.
+  @IsString()
+  @IsIn(BUNDESLAENDER as unknown as string[], { message: `bundesland muss eines von ${BUNDESLAENDER.join(', ')} sein` })
+  @IsOptional()
+  bundesland?: string | null;
 
   // Tier 649: takes part in the OSS scheme (§ 18j UStG).
   @StrictBoolean()

@@ -13,7 +13,7 @@ import { cashBookings } from '../cashbook/cash-bookings';
 import { besteuerungsart, istPaidDocuments } from './ustva-ist';
 import { taxedAbroad } from './oss-scope';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
-import { normalizeVatId } from '../../common/vat-id';
+import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 import { privateCarUse } from '../company-car/private-use';
@@ -21,6 +21,25 @@ import { nonDeductibleGiftIds } from '../accounting/gifts';
 import { assertNotFuture } from '../../common/business-date';
 import { assertExpenseAmounts } from '../expense/amounts';
 import { expenseTaxLines } from '../expense/tax-lines';
+
+/** Tier 734: the BZSt ZM import takes at most this many lines per file. */
+const ZM_CSV_MAX_ROWS = 1500;
+
+/**
+ * Tier 734: why the BZSt ZM import would refuse this USt-IdNr., or null. Its
+ * rules (CSV-Version 3.0): the country prefix of a member state (EL for
+ * Greece, XI for Northern Ireland), then letters, digits, "+" or "*", at least
+ * 7 characters in all; and the VIES format of the state (common/vat-id.ts).
+ */
+const ZM_COUNTRIES = new Set(['AT', 'BE', 'BG', 'CY', 'CZ', 'DK', 'EE', 'EL', 'ES', 'FI', 'FR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK', 'XI']);
+function zmVatIdProblem(vatId: string): string | null {
+  if (!vatId) return 'Umsatz ohne USt-IdNr. des Kunden — in der ZM nicht meldefähig.';
+  const format = vatIdFormatProblem(vatId);
+  if (format) return format;
+  if (!ZM_COUNTRIES.has(vatId.slice(0, 2))) return `USt-IdNr. ${vatId}: kein Länderkennzeichen eines anderen Mitgliedstaats — in der ZM nicht meldefähig.`;
+  if (!/^[A-Z]{2}[A-Z0-9+*]{5,12}$/.test(vatId)) return `USt-IdNr. ${vatId}: so nimmt sie der ZM-Import nicht an.`;
+  return null;
+}
 
 /**
  * UStVA — Umsatzsteuervoranmeldung
@@ -1012,24 +1031,32 @@ export class UstvaService {
    * Lieferung, S = sonstige Leistung im übrigen Gemeinschaftsgebiet) the sum
    * in full euros, taken from the same classification as UStVA Kz 41 / Kz 21
    * and reconciled with them. Credit notes reduce it in their own period.
+   *
+   * Tier 734: a line that rounds to 0 € is not reported; a line whose
+   * USt-IdNr. the BZSt import refuses (none, malformed) stays in the preview
+   * with a note and is left out of the CSV (`zmCsv`).
    */
   async computeZm(companyId: string, year: number, quarter?: number, month?: number) {
     const data = await this.computeWithZm(companyId, year, quarter, month);
     const rows = (data.zm ?? [])
-      .filter((e) => Math.abs(e.amount) >= 0.005)
       .map((e) => ({
         land: e.vatId.slice(0, 2),
         ustIdNr: e.vatId.slice(2),
         art: e.art,
         betrag: Math.round(e.amount),
+        meldefaehig: zmVatIdProblem(e.vatId) === null,
       }))
+      .filter((r) => r.betrag !== 0)
       .sort((a, b) => (a.land + a.ustIdNr + a.art).localeCompare(b.land + b.ustIdNr + b.art));
     const sum = (art: 'L' | 'S') => (data.zm ?? []).filter((e) => e.art === art).reduce((s, e) => s + e.amount, 0);
     const summeL = Math.round(sum('L') * 100) / 100;
     const summeS = Math.round(sum('S') * 100) / 100;
     const hinweise: string[] = [];
-    if (rows.some((r) => !r.ustIdNr)) {
-      hinweise.push('Umsätze ohne USt-IdNr. des Kunden — in der ZM nicht meldefähig; die Rechnungen prüfen.');
+    for (const r of rows.filter((x) => !x.meldefaehig)) {
+      hinweise.push(`${zmVatIdProblem(r.land + r.ustIdNr)} Die Zeile (${r.art}, ${r.betrag} €) ist nicht in der CSV-Datei; die Rechnungen prüfen.`);
+    }
+    if (rows.filter((r) => r.meldefaehig).length > ZM_CSV_MAX_ROWS) {
+      hinweise.push(`Mehr als ${ZM_CSV_MAX_ROWS} Meldezeilen — der BZSt-Import nimmt höchstens ${ZM_CSV_MAX_ROWS} je Datei.`);
     }
     return {
       year,
@@ -1046,15 +1073,33 @@ export class UstvaService {
       hinweise,
       disclaimer:
         'Vorschau der Zusammenfassenden Meldung (§ 18a UStG) aus den ausgestellten Rechnungen und Gutschriften ' +
-        'des Zeitraums. Beträge in vollen Euro (Bemessungsgrundlage). Übermittlung an das BZSt über ELSTER / BZStOnline; ' +
-        'das Upload-Format ist vor der ersten Übermittlung zu prüfen. Berichtigungen früherer Zeiträume meldet der Berater.',
+        'des Zeitraums. Beträge in vollen Euro (Bemessungsgrundlage). Die CSV-Datei folgt dem Importformat des ' +
+        'BZSt-Formulars (CSV-Version 3.0) in Mein ELSTER; die importierten Zeilen vor dem Absenden prüfen. ' +
+        'Berichtigungen früherer Zeiträume meldet der Berater.',
     };
   }
 
-  /** Tier 491: the ZM as CSV (Länderkennzeichen; USt-IdNr.; Betrag; Art). */
+  /**
+   * Tier 734 — the ZM as the BZSt form imports it (Mein ELSTER, "ZM-Import",
+   * CSV-Version 3.0, Excel 3.2.1; elster.de help "zmdo_import"): the two
+   * version lines, a header line (not evaluated, the help's own), then one
+   * line per USt-IdNr. and kind — the USt-IdNr. with its country prefix in one
+   * column (version 2.0 joined the two), the sum as a whole number, the kind.
+   * UTF-8 (version 3.0; ISO-8859-15 is no longer taken), no empty line, at
+   * most 1 500 lines; lines equal but for the amount are refused (the 2015
+   * guide) — computeZm has one per USt-IdNr. and kind.
+   *
+   * Tier 491 wrote "Laenderkennzeichen;USt-IdNr;Betrag(EUR);Art der Leistung"
+   * and four columns without version lines: refused as a file without a
+   * version, and in version 3.0's three columns the amount stood under "Art".
+   */
   zmCsv(zm: Awaited<ReturnType<UstvaService['computeZm']>>): string {
-    const lines = ['Laenderkennzeichen;USt-IdNr;Betrag(EUR);Art der Leistung'];
-    for (const r of zm.rows) lines.push(`${r.land};${r.ustIdNr};${r.betrag};${r.art}`);
+    const rows = zm.rows.filter((r) => r.meldefaehig);
+    if (rows.length > ZM_CSV_MAX_ROWS) {
+      throw new BadRequestException(`Mehr als ${ZM_CSV_MAX_ROWS} Meldezeilen — der BZSt-Import nimmt höchstens ${ZM_CSV_MAX_ROWS} je Datei.`);
+    }
+    const lines = ['#v3.0', '#ve3.2.1', 'Umsatzsteuer-Identifikationsnummer (USt-IdNr.),Summe (Euro),Art der Leistung'];
+    for (const r of rows) lines.push(`${r.land}${r.ustIdNr},${r.betrag},${r.art}`);
     return lines.join('\r\n') + '\r\n';
   }
 

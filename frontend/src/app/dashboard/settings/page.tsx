@@ -1,5 +1,6 @@
 "use client"
 
+import { BUNDESLAENDER } from "@/lib/bundeslaender"
 import { apiBase } from "@/lib/apiBase"
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
@@ -96,6 +97,8 @@ interface CompanySettings {
   gewinnermittlung: "euer" | "bilanz" | null
   // Tier 649: takes part in the OSS scheme (§ 18j UStG)
   ossVerfahren: boolean
+  // Tier 734: the Land of the Finanzamt (lib/bundeslaender.ts); null = not chosen
+  bundesland: string | null
 }
 
 // Tier 441: the values the backend accepts (company/rechtsform.ts).
@@ -294,6 +297,7 @@ export default function SettingsPage() {
     besteuerungsart: null,
     gewinnermittlung: null,
     ossVerfahren: false,
+    bundesland: null,
   })
 
   const [storageForm, setStorageForm] = useState<StorageSettings>({
@@ -393,6 +397,7 @@ export default function SettingsPage() {
               besteuerungsart: data.besteuerungsart ?? null,
               gewinnermittlung: data.gewinnermittlung ?? null,
               ossVerfahren: data.ossVerfahren === true,
+              bundesland: data.bundesland ?? null,
             })
 
             if (data.logoPath) {
@@ -654,6 +659,7 @@ export default function SettingsPage() {
           besteuerungsart: fresh.besteuerungsart ?? null,
           gewinnermittlung: fresh.gewinnermittlung ?? null,
           ossVerfahren: fresh.ossVerfahren === true,
+          bundesland: fresh.bundesland ?? null,
         })
       }
       // Tier 649: "erfolgreich gespeichert" was shown as an error (red)
@@ -1020,6 +1026,26 @@ export default function SettingsPage() {
                     onChange={(e) => setForm({ ...form, taxId: e.target.value })}
                     placeholder={t("settings.placeholderTaxId")}
                   />
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1" htmlFor="settings-bundesland">
+                    {t("settings.bundesland")}
+                  </label>
+                  <select
+                    id="settings-bundesland"
+                    className="w-full h-10 border rounded-md px-3 bg-white dark:bg-gray-800"
+                    value={form.bundesland ?? ""}
+                    onChange={(e) => setForm({ ...form, bundesland: e.target.value || null })}
+                    data-testid="settings-bundesland"
+                  >
+                    <option value="">{t("settings.bundeslandNone")}</option>
+                    {BUNDESLAENDER.map(([code, name]) => (
+                      <option key={code} value={code}>{name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t("settings.bundeslandHelp")}</p>
                 </div>
               </div>
 

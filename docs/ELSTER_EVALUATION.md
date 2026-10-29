@@ -4,6 +4,15 @@
 > **Author:** Tier 13 evaluation.
 > **Date:** 2026-06-25.
 
+> **Superseded in its description of the export (Tiers 417, 734):** the
+> "ERiC-compatible Datenlieferung" below was this app's own envelope with
+> invented Kennzahlen (Tier 417 put them right) and a Steuernummer padded
+> with "00". Since Tier 734 the UStVA XML is ELSTER's `<Anmeldungssteuern>`
+> (namespace `…/elsteranmeldung/ustva/v<year>`) with the 13-digit
+> Steuernummer derived with the Land of the Finanzamt — still not checked
+> against the 2026 XSD, and not "ready for upload" as this text says.
+> Current state: HANDOFF.md §9 item 9 and `elster.service.ts`.
+
 ## TL;DR
 
 The UStVA XML **generator** is already done (`elster.service.ts`,

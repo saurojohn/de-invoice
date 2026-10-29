@@ -24,7 +24,7 @@ AS() { # method path [body]
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 py() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);$1"; }
-AS PUT "/api/v1/companies/$C?companyId=$C" '{"taxId":"123/456/78901"}'
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"taxId":"123/456/78901","bundesland":"BY"}'
 AS POST "/api/v1/ustva/expenses?companyId=$C" '{"invoiceNumber":"ER-1","description":"Material","invoiceDate":"'$Y'-03-10","netAmount":100,"vatRate":0.19,"vatAmount":19,"grossAmount":119}'
 AS GET "/api/v1/ustva/compute?companyId=$C&year=$Y&month=3"
 DATA="$BODY"
@@ -37,13 +37,13 @@ AS POST "/api/v1/ustva/filings?companyId=$C" "$(filing)"
 assert_eq "first return submitted" "$STATUS" "201"
 FID=$(json_field "$BODY" id)
 assert_eq "not a corrected return" "$(py 'print(d["berichtigt"])')" "False"
-assert_eq "XML: no Kz 10" "$(export_of xml | grep -c 'Kz010')" "0"
+assert_eq "XML: no Kz 10" "$(export_of xml | grep -c 'Kz10')" "0"
 
 AS POST "/api/v1/ustva/filings?companyId=$C" "$(filing "d['berichtigt']=True")"
 assert_eq "submitted again as a corrected return" "$STATUS" "201"
 assert_eq "the filing says so (was only a notes prefix)" "$(py 'print(d["berichtigt"])')" "True"
-assert_eq "XML: Kz 10 = 1 (was missing)" "$(export_of xml | grep -o 'B-Kz010=1')" "B-Kz010=1"
+assert_eq "XML: Kz 10 = 1 (was missing)" "$(export_of xml | grep -o '<Kz10>1</Kz10>')" "<Kz10>1</Kz10>"
 assert_eq "text preview: Kz 10 = 1 (was missing)" "$(export_of ascii | grep -c '^B-Kz010=1 .*Berichtigte Anmeldung')" "1"
-assert_eq "the amounts are still there" "$(export_of xml | grep -o 'B-Kz066=[-+0-9]*')" "B-Kz066=+000000001900"
+assert_eq "the amounts are still there" "$(export_of xml | grep -o '<Kz66>[^<]*')" "<Kz66>19.00"
 
 summary

@@ -2662,6 +2662,20 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 734 — the files for the tax office: the ZM's CSV in the BZSt import format, the 13-digit Steuernummer, the UStVA as ELSTER's <Anmeldungssteuern>
+
+The owner, 29.10.2026: „好，开始核对ELSTER格式“ (§9 item 9). Checked against what is public: the ZM import help of Mein ELSTER (elster.de, help topic `zmdo_import`, CSV-Version 3.0 / Excel 3.2.1) and the official guide „CSV-Format der Import-Datei ZM“ (03.11.2015, for the rules it kept); for the UStVA, ELSTER's „Anleitung zur UStVA 2026“, the ERiC example `UStVA_2023.xml` and ELSTER support's answer as quoted on the ELSTER user forum (threads 354780, 354827, 425731, 429585 — users, not ELSTER staff, 2021–2023); for the Steuernummer, Wikipedia „Steuernummer“, the Lexware help (20.02.2026) and `rechtlogisch/steuernummer` (MIT), which agree. The ERiC XSD of 2026 is still behind the developer registration.
+
+- **ZM CSV** (`GET /ustva/zm.csv`, `zmCsv`): was `Laenderkennzeichen;USt-IdNr;Betrag(EUR);Art der Leistung`, four columns, no version line — refused („Enthält die Datei keine Versionsangabe …“), and read as version 3.0's three columns the amount stood under „Art“. Now `#v3.0`, `#ve3.2.1`, the help's header line, `FR12345678901,1500,L` (the prefix in the number since version 2.0), comma, CRLF, UTF-8, no empty line, at most 1 500 lines. A line whose USt-IdNr. the import refuses (none, malformed, no member-state prefix — `zmVatIdProblem`) stays in the preview (`meldefaehig: false`) with a note and is left out of the file; a line that rounds to 0 € is not reported. Lines equal but for the amount cannot occur (one per number and kind).
+- **Steuernummer** (`common/steuernummer.ts`): ELSTER takes the 13-digit federal form (Bundesfinanzamtsnummer, 0, district, number, check digit). `normaliseSteuernummer` appended „00“ to 11 digits (Bayern's 181/815/08155 → 1818150815500, right: 9181081508155) and wrapped 10 digits in 0…00. The printed form does not tell its Land (10 and 11 digits fit several), so **`Company.bundesland`** (migration `20261029000001_company_bundesland`, settings „Bundesland des Finanzamts“, `lib/bundeslaender.ts`): the conversion per Land, checked against the Land's Finanzamt prefix (Brandenburg 30…, Sachsen-Anhalt 31…, Sachsen 32…, MV 40…, Thüringen 41…); a 13- or 12-digit number is taken when its fifth digit is the 0. Saving a Land with a number that does not fit is refused, saying how that Land writes it. The 17 examples of the table (both Saarland forms) give the published 13 digits. The check digit is not verified. Without a Land the XML is refused (400 says what is missing); the transcription list shows the number as entered. ci-seed sets `BY` (its 123/456/78901).
+- **UStVA XML** (`generateUstvaElsterXml`): was a `<Datenlieferung>` of the app's own — Verarbeitungsinformationen, TransferHeader, `<Anlage USTVA="1">` and lines `B-Kz081=+000000146000`. Now `<Anmeldungssteuern xmlns="http://finkonsens.de/elster/elsteranmeldung/ustva/v<year>" version="<year>">` with Erstellungsdatum (YYYYMMDD), DatenLieferant (name, street, PLZ, Ort, phone, e-mail), Steuerfall / Umsatzsteuervoranmeldung: Jahr, Zeitraum (01–12; a quarter 41–44), Steuernummer, Kz10 for a correction, then one element per Kennzahl in the order of their numbers (ERiC refuses another order). Bases in whole euros, cents dropped in the company's favour; tax amounts `19.00`. **Kz 83 as ELSTER computes it** — the tax of Kz 81/86/89/93 from the whole-euro base (the ERiC example: 150 000 × 19 % + 25 000 × 7 % + 1 600 − 15 000 + 200 = its Kz 83 17 050,00): 1 000,60 € at 19 % gives Kz 81 = 1000 and 190,00 €, not the invoice's 190,11; the list to transcribe names both when they differ. A filing of the whole year is no Voranmeldung: 400.
+- **Found with the Playwright spec: the XML button on the UStVA page had never downloaded anything** — it called `/ustva/filings/…` without `/api/v1` and showed „Cannot GET …“. Fixed.
+- The UStJA's XML stays the app's own envelope (its ERiC structure is another declaration, not in what is public); its Steuernummer is the ELSTER one now. The UStVA page's hint says what the file is and that it is not checked against the schema; spec 405 still holds. docs/ELSTER_EVALUATION.md is marked superseded.
+
+Specs: `454-tier734-zm-csv-bzst-format.sh` (10 of 13 fail on the code before), `455-tier734-elster-steuernummer-und-kennzahlen.sh` (17 fail on the code before; the year-filing check was added after that run), `49-elster-xml.sh` rewritten — it asserted a `<Datenlieferung>` and skipped every element check (8 fail before); 133, 206, 252, 254, 277, 287 read the new format; Playwright `elster-zm-tier734.spec.ts` (the Land in the settings, the page's XML without and with it, the ZM card's CSV).
+
+**Still open (§9 item 9):** whether Mein ELSTER imports this XML and the BZSt form this CSV is to be tried once in the portal by the owner (import, look, do not send) — the formats follow the public descriptions, not a schema check.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 733c — the off-site copy no longer deletes what a new server does not have
 
 The owner allowed the rclone image (28.10.2026, „可以下载，继续“). Measured with `rclone/rclone:1.68.2` against a local remote: the old server's 8 dumps off-site, then one pass of the `offsite-backup` loop on a new server (its empty database dumped): `rclone sync` left 4 dumps — all the new server's empty ones. The archive a restore needs, deleted by the first hour of the server meant to restore it.
@@ -9930,6 +9944,17 @@ These are **not in the repo** — only the user can do them:
    invented and put the Zahllast in Kz 81 (the 19 % base). What remains open
    is only the container format, and the files no longer claim to be an
    upload.
+   *Tier 734 (29.10.2026):* checked against the public descriptions and changed
+   — the **ZM CSV** is the BZSt import's version 3.0 (it had no version line and
+   four columns: refused); the **Steuernummer** is the 13-digit ELSTER form,
+   derived with the new setting „Bundesland des Finanzamts“ (it was padded with
+   „00“); the **UStVA XML** is ELSTER's `<Anmeldungssteuern>` (namespace
+   `…/elsteranmeldung/ustva/v<year>`, Zeitraum 01–12 / 41–44, Kennzahlen as
+   ordered elements, bases in whole euros, Kz 83 as ELSTER computes it). Spec 49
+   now asserts that structure. **Left for the owner:** import each file once in
+   Mein ELSTER (UStVA form, ZM form of the BZSt) and look — without sending;
+   the 2026 XSD itself is still not obtained. The UStJA XML keeps the app's own
+   envelope.
 10. ~~**Replace the header "authentication" before any real deployment**~~ — **done:** production refuses `x-user-id` by default (Tier 555), the compose file sets `ALLOW_HEADER_AUTH: "0"`, verified on the production stack (Tier 562). The text below is the history.
     ~~Replace the header "authentication" before any real deployment~~
     (**phases 1-2 done, Tiers 400-401** — the browser is cookie-only; what is
