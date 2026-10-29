@@ -97,6 +97,8 @@ export class BulkReminderService {
     if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
       return { total: 0, succeeded: 0, failed: 0, skipped: 0, results: [] }
     }
+    // Tier 736: one 400 that says why, not a failed row per invoice
+    await this.mail.assertMaySend(companyId)
     // Cap the batch. 100 mirrors the existing
     // /invoices/bulk-send-email limit (Tier 32) so the
     // operator doesn't accidentally DoS the SMTP relay.
@@ -159,6 +161,7 @@ export class BulkReminderService {
     level: "first" | "second" | "final",
     createdById?: string,
   ): Promise<BulkSendResultRow> {
+    await this.mail.assertMaySend(companyId) // Tier 736
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
     })

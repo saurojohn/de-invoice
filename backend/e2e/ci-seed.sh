@@ -143,6 +143,8 @@ psql_test -c "
       -- test then asserts against as 'wrong'.
       \"bankInfo\"=NULL
   WHERE id='$COMPANY_ID';
+  -- Tier 736: the seed admin is an established account, its address confirmed
+  UPDATE \"User\" SET \"emailVerifiedAt\"=COALESCE(\"emailVerifiedAt\", now()) WHERE id='$USER_ID';
 " >/dev/null
 ok "company seeded"
 

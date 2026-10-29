@@ -144,6 +144,10 @@ export class UsersController {
     if (!body.email || !body.role) {
       throw new BadRequestException('email und role sind erforderlich');
     }
+    // Tier 736: not through the installation's mail server before the
+    // company's address is confirmed — refused here, not after the invitation
+    // exists with a mail that never went out.
+    await (this.users as any).mailService?.assertMaySend(companyId);
     const inv = await this.users.createInvitation(companyId, req.user.id, body.email, body.role);
 
     // Build the invite link and email it (graceful: logs to console if SMTP not configured)

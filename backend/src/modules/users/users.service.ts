@@ -550,6 +550,8 @@ export class UsersService {
           companyId: inv.companyId,
           role: inv.role,
           status: 'active',
+          // Tier 736: the invitation's link came to this mailbox
+          emailVerifiedAt: new Date(),
         },
       });
       await tx.userCompany.create({

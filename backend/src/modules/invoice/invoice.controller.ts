@@ -1466,6 +1466,8 @@ export class InvoiceController {
     if (ids.length > 100) {
       throw new BadRequestException('Maximal 100 Rechnungen pro Anfrage');
     }
+    // Tier 736: one 400 that says why, not a failed row per invoice
+    await this.mailService.assertMaySend(companyId);
 
     // Concurrency cap. The SMTP transporter opens one
     // connection per send; we don't want 100 sockets

@@ -208,7 +208,18 @@
     "verify2faWrong": "Code invalid",
     "verify2faBack": "← Back to login",
     "code": "Code",
-    "recoveryCodePlaceholder": "Recovery code"
+    "recoveryCodePlaceholder": "Recovery code",
+    "verifyEmail": {
+      "title": "Confirm your e-mail address",
+      "checking": "Checking the link …",
+      "noToken": "The link has no confirmation code. Please open the complete link from the e-mail.",
+      "invalid": "The confirmation link is invalid or has expired.",
+      "done": "The e-mail address {email} is confirmed. de-invoice now also sends e-mails for your company.",
+      "toDashboard": "To the overview",
+      "notice": "Please confirm your e-mail address {email} with the link we sent you. Until then de-invoice sends no e-mails for your company (invoices, reminders, invitations) — except through your own SMTP server under Settings → E-mail.",
+      "resend": "Send the link again",
+      "resent": "A new confirmation link is on its way to {email}."
+    }
   },
   "bankImport": {
     "openAmount": "open",
@@ -4412,5 +4423,28 @@
     "cancelledRowHint": "Invoices of this period that a credit note over the full amount cancels — the credit note counts in its own month.",
     "creditNotesRow": "Credit notes",
     "creditNotesRowHint": "Credit notes of this period (cancellations and price reductions), without article lines of their own."
+  },
+  "account": {
+    "title": "Your data and your account",
+    "error": "That did not work.",
+    "exportTitle": "Download my data",
+    "exportText": "Everything de-invoice stores about you as a person (Art. 15 and 20 GDPR): your account, your company memberships, your sign-ins with time, IP address and browser, your activities in the log, your invitations and the e-mails you sent — as a JSON file.",
+    "exportCompanyText": "The company’s business records (invoices, customers, bookings) belong to the company; an administrator exports them in full with the GoBD export under",
+    "exportCompanyLink": "Audit trail → GoBD export",
+    "exportButton": "Download my data",
+    "exporting": "Preparing …",
+    "deleteTitle": "Delete account",
+    "deleteText": "Your e-mail address, your name, your password and your sign-ins are deleted; you can no longer sign in. What you booked and created stays with the company, as the law keeps it — without your name.",
+    "deleteStart": "Delete account …",
+    "blockersIntro": "The account cannot be deleted yet:",
+    "blockerLastAdmin": "In “{company}” you are the last administrator, but there are other members. First make someone else an administrator or remove the members (Settings → Users).",
+    "closesIntro": "You are the only member of these companies. With your account the company is closed: nobody can sign in to it any more, nothing is booked or sent any more.",
+    "closesCompany": "“{company}” — its records are kept until {date} (§ 147 AO, § 257 HGB) and deleted afterwards.",
+    "closesExportFirst": "You remain obliged to keep the records yourself for that long. Download the GoBD export of every year first — after closing it is no longer within your reach.",
+    "password": "Your password",
+    "understood": "I understand that the deletion cannot be undone.",
+    "deleteConfirm": "Delete the account for good",
+    "deleting": "Deleting …",
+    "cancel": "Cancel"
   }
 }

@@ -2,7 +2,7 @@ import { publicOrigin } from '../../common/public-origin'
 import { isSystemAdmin } from '../../auth/system-admin.guard';
 import { Controller, Post, Body, Get, HttpCode, HttpStatus, BadRequestException, Logger, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { AuthService } from './auth.service';
+import { AuthService, EMAIL_VERIFY_TTL_MS } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
@@ -194,6 +194,7 @@ export class AuthController {
       status: user.status,
       sessionToken: session.token,
       sessionExpiresAt: session.expiresAt,
+      emailVerified: !!user.emailVerifiedAt, // Tier 736
       profile: user.profile,
       preferences: user.preferences,
       createdAt: user.createdAt,
@@ -255,6 +256,7 @@ export class AuthController {
           preferences: true,
           createdAt: true,
           lastLogin: true,
+          emailVerifiedAt: true,
         },
       }),
       // UserCompany grant list — used to populate the
@@ -288,8 +290,12 @@ export class AuthController {
     // — this is for display only).
     const activeGrant = grants.find((g) => g.company.id === companyId);
 
+    const { emailVerifiedAt, ...rest } = user;
     return {
-      ...user,
+      ...rest,
+      // Tier 736: whether the account's address is confirmed (the dashboard
+      // asks for it until it is).
+      emailVerified: !!emailVerifiedAt,
       // Tier 598: whether this session is the installation's operator — the
       // pages for backups and scheduled jobs are his alone, and the dashboard
       // offered them to every company.
@@ -343,11 +349,80 @@ export class AuthController {
     // Tier 401: registration auto-logs the user in (the page writes the ids and
     // redirects to /dashboard), so it has to mint a session like /auth/login.
     const session = await this.sessions.issue(res, created.user.id, req);
+    // Tier 736: the link that confirms the address
+    const verification = await this.sendEmailVerification(created.user.id, req);
     return {
       ...created,
+      user: { ...created.user, emailVerified: false },
+      verificationMailSent: verification.sent,
       sessionToken: session.token,
       sessionExpiresAt: session.expiresAt,
     };
+  }
+
+  /**
+   * Tier 736 — mail a link that confirms the user's address. Through the
+   * installation's server (`system`); without one, the link is in the log
+   * (as the reset link is) outside production. A failure to send does not
+   * fail the request: the dashboard offers to send it again.
+   */
+  private async sendEmailVerification(userId: string, req: any): Promise<{ sent: boolean; alreadyVerified?: boolean }> {
+    const issued = await this.authService.issueEmailVerification(userId);
+    if (!issued) return { sent: false, alreadyVerified: true };
+    const link = `${publicOrigin(req).replace(/\/$/, '')}/verify-email?token=${issued.tokenPlain}`;
+    const hours = EMAIL_VERIFY_TTL_MS / 3_600_000;
+    try {
+      await this.mailService.send(issued.companyId ?? '', {
+        system: true,
+        to: issued.email,
+        subject: 'E-Mail-Adresse bestätigen — de-invoice',
+        text:
+          `Willkommen bei de-invoice.\n\n` +
+          `Bitte bestätigen Sie Ihre E-Mail-Adresse mit dem folgenden Link (gültig ${hours} Stunden):\n` +
+          `${link}\n\n` +
+          `Bis dahin versendet de-invoice keine E-Mails für Ihre Firma (Rechnungen, Mahnungen, Einladungen).\n\n` +
+          `Falls Sie sich nicht bei de-invoice registriert haben, ignorieren Sie diese E-Mail.`,
+        html: `
+          <p>Willkommen bei de-invoice.</p>
+          <p>Bitte bestätigen Sie Ihre E-Mail-Adresse mit dem folgenden Link (gültig ${hours} Stunden):</p>
+          <p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:6px;">E-Mail-Adresse bestätigen</a></p>
+          <p>Oder kopieren Sie diesen Link in Ihren Browser:<br><code>${link}</code></p>
+          <p style="color:#6b7280;font-size:12px;margin-top:24px;">Bis dahin versendet de-invoice keine E-Mails für Ihre Firma. Falls Sie sich nicht registriert haben, ignorieren Sie diese E-Mail.</p>
+        `,
+      });
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.warn(`[DEV-VERIFY-LINK] ${link}`);
+      }
+      return { sent: true };
+    } catch (err) {
+      this.logger.error(`Failed to send the e-mail confirmation to ${issued.email}: ${(err as Error).message}`);
+      return { sent: false };
+    }
+  }
+
+  /**
+   * Tier 736 — the link from the confirmation mail. Public: it is opened from
+   * the mailbox, perhaps in another browser than the one signed in.
+   */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body() body: { token?: unknown }) {
+    const { email } = await this.authService.verifyEmail(typeof body?.token === 'string' ? body.token : '');
+    return { ok: true, email, message: 'Ihre E-Mail-Adresse ist bestätigt.' };
+  }
+
+  /** Tier 736 — send the confirmation link again (signed in). */
+  @Post('resend-verification')
+  @UseGuards(HeaderAuthGuard)
+  @Throttle({ default: { limit: 3, ttl: 3_600_000 } })
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(@Req() req: any) {
+    const result = await this.sendEmailVerification(req.user.id, req);
+    if (result.alreadyVerified) return { ok: true, alreadyVerified: true, message: 'Ihre E-Mail-Adresse ist bereits bestätigt.' };
+    if (!result.sent) throw new BadRequestException('Die Bestätigungs-E-Mail konnte nicht versendet werden. Bitte versuchen Sie es später erneut.');
+    return { ok: true, message: 'Wir haben Ihnen einen neuen Bestätigungslink geschickt.' };
   }
 
   /**
@@ -401,6 +476,7 @@ export class AuthController {
 
       try {
         await this.mailService.send(result.user.companyId ?? 'system', {
+          system: true, // Tier 736
           to: result.user.email,
           subject: 'Passwort zurücksetzen — de-invoice',
           text:

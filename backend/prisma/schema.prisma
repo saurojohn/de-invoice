@@ -218,6 +218,14 @@ model User {
   passwordResetToken   String?
   passwordResetExpires DateTime?
 
+  // Tier 736: the address confirmed by a link sent to it. The token is kept
+  // as a SHA-256 hash (32 random bytes — no need for bcrypt, and it can be
+  // looked up). Until an admin of a company has confirmed their address, the
+  // installation's mail server sends nothing for that company.
+  emailVerifiedAt      DateTime?
+  emailVerifyTokenHash String?   @unique
+  emailVerifyExpires   DateTime?
+
   // ─── Two-Factor Authentication (TOTP / RFC 6238) ───
   // 2FA is opt-in per user. When enabled, login requires
   // password + a 6-digit code from an authenticator app

@@ -122,6 +122,8 @@ export class InvoiceEmailService {
     options: SendInvoiceEmailOptions = {},
   ): Promise<SendInvoiceEmailResult> {
     let invoice = await this.invoiceService.findOne(invoiceId, companyId);
+    // Tier 736: refused before a draft is issued below, not after
+    await this.mailService.assertMaySend(companyId);
     // Tier 495: a cancelled document is not sent to the customer; a draft is
     // issued the regular way first (Tier 494 mandatory details, Tier 472
     // advance settlement, the invoice.sent webhook) — this used to write

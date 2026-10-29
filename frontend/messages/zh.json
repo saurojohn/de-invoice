@@ -208,7 +208,18 @@
     "verify2faWrong": "代码无效",
     "verify2faBack": "← 返回登录",
     "code": "验证码",
-    "recoveryCodePlaceholder": "恢复代码"
+    "recoveryCodePlaceholder": "恢复代码",
+    "verifyEmail": {
+      "title": "确认电子邮件地址",
+      "checking": "正在检查链接 …",
+      "noToken": "链接中没有确认码。请打开邮件中的完整链接。",
+      "invalid": "确认链接无效或已过期。",
+      "done": "电子邮件地址 {email} 已确认。de-invoice 现在也会为您的公司发送邮件。",
+      "toDashboard": "返回概览",
+      "notice": "请通过我们发给您的链接确认电子邮件地址 {email}。在此之前，de-invoice 不会为您的公司发送任何邮件（发票、催款单、邀请）——除非您在“设置 → 电子邮件”中配置了自己的 SMTP 服务器。",
+      "resend": "重新发送链接",
+      "resent": "新的确认链接已发往 {email}。"
+    }
   },
   "bankImport": {
     "openAmount": "未付",
@@ -4412,5 +4423,28 @@
     "cancelledRowHint": "本期内被全额贷项通知单冲销的发票——该贷项通知单计入其自身所在月份。",
     "creditNotesRow": "贷项通知单",
     "creditNotesRowHint": "本期的贷项通知单（冲销和降价），不含自身商品行。"
+  },
+  "account": {
+    "title": "您的数据与账户",
+    "error": "操作未成功。",
+    "exportTitle": "下载我的数据",
+    "exportText": "de-invoice 保存的关于您个人的全部数据（DSGVO 第 15 和 20 条）：您的账户、您可访问的公司、您的登录记录（时间、IP 地址、浏览器）、日志中您的操作、您发出的邀请和您发送的邮件——以 JSON 文件提供。",
+    "exportCompanyText": "公司的业务资料（发票、客户、账目）属于公司；管理员可通过 GoBD 导出完整导出，位置：",
+    "exportCompanyLink": "审计日志 → GoBD 导出",
+    "exportButton": "下载我的数据",
+    "exporting": "正在生成 …",
+    "deleteTitle": "删除账户",
+    "deleteText": "您的电子邮件地址、姓名、密码和登录记录将被删除，之后无法再登录。您记过的账和创建的单据按法律规定留在公司，但不再带有您的姓名。",
+    "deleteStart": "删除账户 …",
+    "blockersIntro": "账户暂时还不能删除：",
+    "blockerLastAdmin": "您是“{company}”的最后一位管理员，但公司还有其他成员。请先任命另一位管理员，或移除这些成员（设置 → 用户）。",
+    "closesIntro": "您是以下公司的唯一成员。删除账户的同时公司将被关闭：任何人都无法再登录该公司，也不会再记账或发送任何内容。",
+    "closesCompany": "“{company}”——其资料保存至 {date}（AO 第 147 条、HGB 第 257 条），之后删除。",
+    "closesExportFirst": "您本人仍有义务在此期间保存这些资料。请先下载每一年的 GoBD 导出——公司关闭后您将无法再访问。",
+    "password": "您的密码",
+    "understood": "我已了解，删除后无法撤销。",
+    "deleteConfirm": "永久删除账户",
+    "deleting": "正在删除 …",
+    "cancel": "取消"
   }
 }

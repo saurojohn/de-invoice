@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { isSealed, openSecret, sealSecret, secretEncryptionAvailable } from '../../common/secret-crypto';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -22,6 +22,14 @@ export interface SendMailOptions {
    * directors, tax numbers, bank. Not for system mails (password, invites).
    */
   companySignature?: boolean;
+  /**
+   * Tier 736: a mail of the installation itself — the e-mail confirmation,
+   * the password reset, the operator's error notices. It goes out through
+   * the installation's server even before the company's address is
+   * confirmed. Everything a company sends (invoices, reminders, statements,
+   * invitations, portal links, its own notices) is not `system`.
+   */
+  system?: boolean;
 }
 
 interface ResolvedConfig {
@@ -33,7 +41,15 @@ interface ResolvedConfig {
   fromName: string;
   fromEmail: string;
   enabled: boolean;
+  /** Tier 736: the company's own server, or the installation's (env) */
+  source: 'company' | 'installation';
 }
+
+/** Tier 736: why the installation's server does not send for a company yet */
+export const UNCONFIRMED_MAIL_MESSAGE =
+  'Die E-Mail-Adresse Ihres Kontos ist noch nicht bestätigt. Bis dahin versendet de-invoice keine E-Mails ' +
+  'für Ihre Firma über den Mailserver der Installation. Bitte klicken Sie auf den Link in der Bestätigungs-E-Mail ' +
+  '(auf der Übersicht können Sie ihn erneut anfordern) oder richten Sie unter Einstellungen → E-Mail einen eigenen SMTP-Server ein.';
 
 @Injectable()
 export class MailService implements OnModuleInit {
@@ -85,6 +101,7 @@ export class MailService implements OnModuleInit {
           fromName: cfg.fromName,
           fromEmail: cfg.fromEmail,
           enabled: cfg.enabled,
+          source: 'company',
         };
       }
     }
@@ -102,6 +119,7 @@ export class MailService implements OnModuleInit {
       fromName: process.env.SMTP_FROM_NAME || 'Ihre Firma',
       fromEmail: process.env.SMTP_FROM_EMAIL || user,
       enabled: true,
+      source: 'installation',
     };
   }
 
@@ -114,9 +132,46 @@ export class MailService implements OnModuleInit {
     return cfg !== null;
   }
 
+  /**
+   * Tier 736 — may the installation's mail server send for this company?
+   * Only once an admin of the company has confirmed their e-mail address.
+   *
+   * Registration needs nothing but an address typed into a form, and the
+   * company's mails go out through the operator's server under the
+   * operator's reputation: invoices, reminders, invitations and portal links
+   * to any address the account enters. Unconfirmed, that is a relay for
+   * whoever signs up. A company with its own SMTP server (Einstellungen →
+   * E-Mail) sends through it and is not asked.
+   */
+  async installationMailAllowed(companyId: string): Promise<boolean> {
+    if (!companyId) return false;
+    const confirmedAdmin = await this.prisma.userCompany.findFirst({
+      where: { companyId, role: 'admin', user: { emailVerifiedAt: { not: null }, status: 'active' } },
+      select: { userId: true },
+    });
+    return !!confirmedAdmin;
+  }
+
+  /**
+   * Tier 736 — throws the 400 that names the confirmation when the company
+   * would send through the installation's server and may not yet. Without
+   * any server configured nothing leaves the machine (the NO-SMTP log), so
+   * nothing is refused.
+   */
+  async assertMaySend(companyId: string): Promise<void> {
+    const cfg = await this.resolveConfig(companyId);
+    if (cfg?.source === 'installation' && !(await this.installationMailAllowed(companyId))) {
+      throw new BadRequestException(UNCONFIRMED_MAIL_MESSAGE);
+    }
+  }
+
   async send(companyId: string, options: SendMailOptions): Promise<{ messageId: string }> {
     if (options.companySignature) options = { ...options, text: await this.withSignature(companyId, options.text) };
     const cfg = await this.resolveConfig(companyId);
+    if (cfg?.source === 'installation' && !options.system && !(await this.installationMailAllowed(companyId))) {
+      this.logger.warn(`[mail] not sent for company ${companyId || '-'}: no admin has confirmed their e-mail address (Tier 736) — To: ${options.to} | Subject: ${options.subject}`);
+      throw new BadRequestException(UNCONFIRMED_MAIL_MESSAGE);
+    }
     if (!cfg) {
       this.logger.warn(
         `[NO-SMTP] companyId=${companyId} To: ${options.to}` +

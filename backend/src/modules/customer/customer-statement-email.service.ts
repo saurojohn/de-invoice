@@ -87,6 +87,7 @@ export class CustomerStatementEmailService {
   ): Promise<SendStatementEmailResult> {
     if (!companyId) throw new BadRequestException('companyId is required')
     if (!customerId) throw new BadRequestException('customerId is required')
+    await this.mailService.assertMaySend(companyId) // Tier 736
     if (!fromStr || !toStr) {
       throw new BadRequestException('from and to are required (YYYY-MM-DD)')
     }

@@ -57,6 +57,7 @@ POST auth/login
 POST auth/logout
 POST auth/register
 POST auth/reset-password
+POST auth/verify-email
 POST customer-portal/invoice/:id/mark-paid
 POST customer-portal/request-session
 POST invitations/accept

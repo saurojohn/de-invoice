@@ -292,6 +292,7 @@ export class NotificationService {
         // a NotificationConfig table later.
         const companyId = event.companyId || ""
         await mail.send(companyId, {
+          system: true, // Tier 736: the operator's notice, not the company's mail
           to: recipients.join(", "),
           subject: `[de-invoice] ${event.source} error: ${event.message.slice(0, 80)}`,
           text:

@@ -208,7 +208,18 @@
     "verify2faWrong": "Code ungültig",
     "verify2faBack": "← Zurück zur Anmeldung",
     "code": "Code",
-    "recoveryCodePlaceholder": "Wiederherstellungscode"
+    "recoveryCodePlaceholder": "Wiederherstellungscode",
+    "verifyEmail": {
+      "title": "E-Mail-Adresse bestätigen",
+      "checking": "Der Link wird geprüft …",
+      "noToken": "Der Link enthält keinen Bestätigungscode. Bitte öffnen Sie den vollständigen Link aus der E-Mail.",
+      "invalid": "Der Bestätigungslink ist ungültig oder abgelaufen.",
+      "done": "Die E-Mail-Adresse {email} ist bestätigt. de-invoice versendet jetzt auch E-Mails für Ihre Firma.",
+      "toDashboard": "Zur Übersicht",
+      "notice": "Bitte bestätigen Sie Ihre E-Mail-Adresse {email} mit dem Link, den wir Ihnen geschickt haben. Bis dahin versendet de-invoice keine E-Mails für Ihre Firma (Rechnungen, Mahnungen, Einladungen) — außer über einen eigenen SMTP-Server unter Einstellungen → E-Mail.",
+      "resend": "Link erneut senden",
+      "resent": "Ein neuer Bestätigungslink ist an {email} unterwegs."
+    }
   },
   "bankImport": {
     "openAmount": "offen",
@@ -4412,5 +4423,28 @@
     "cancelledRowHint": "Rechnungen dieses Zeitraums, die eine Gutschrift über den vollen Betrag aufhebt — ihre Gutschrift zählt in ihrem eigenen Monat.",
     "creditNotesRow": "Gutschriften",
     "creditNotesRowHint": "Gutschriften dieses Zeitraums (Stornos und Preisnachlässe), ohne eigene Artikelzeilen."
+  },
+  "account": {
+    "title": "Ihre Daten und Ihr Konto",
+    "error": "Das hat nicht geklappt.",
+    "exportTitle": "Meine Daten herunterladen",
+    "exportText": "Alles, was de-invoice über Sie als Person speichert (Art. 15 und 20 DSGVO): Ihr Konto, Ihre Firmenzugänge, Ihre Anmeldungen mit Zeit, IP-Adresse und Browser, Ihre Aktivitäten im Protokoll, Ihre Einladungen und die von Ihnen versendeten E-Mails — als JSON-Datei.",
+    "exportCompanyText": "Die Geschäftsunterlagen der Firma (Rechnungen, Kunden, Buchungen) gehören der Firma; ein Administrator exportiert sie vollständig mit dem GoBD-Export unter",
+    "exportCompanyLink": "Audit-Trail → GoBD-Export",
+    "exportButton": "Meine Daten herunterladen",
+    "exporting": "Wird erstellt …",
+    "deleteTitle": "Konto löschen",
+    "deleteText": "Ihre E-Mail-Adresse, Ihr Name, Ihr Passwort und Ihre Anmeldungen werden gelöscht; Sie können sich danach nicht mehr anmelden. Was Sie gebucht und erstellt haben, bleibt bei der Firma, weil das Gesetz es aufbewahrt — ohne Ihren Namen.",
+    "deleteStart": "Konto löschen …",
+    "blockersIntro": "Das Konto kann noch nicht gelöscht werden:",
+    "blockerLastAdmin": "In „{company}“ sind Sie der letzte Administrator, es gibt aber weitere Mitglieder. Ernennen Sie zuerst jemanden zum Administrator oder entfernen Sie die Mitglieder (Einstellungen → Benutzer).",
+    "closesIntro": "Sie sind das einzige Mitglied dieser Firmen. Mit Ihrem Konto wird die Firma geschlossen: niemand kann sich mehr bei ihr anmelden, nichts wird mehr gebucht oder versendet.",
+    "closesCompany": "„{company}“ — ihre Unterlagen werden bis zum {date} aufbewahrt (§ 147 AO, § 257 HGB) und danach gelöscht.",
+    "closesExportFirst": "Sie bleiben verpflichtet, die Unterlagen selbst so lange aufzubewahren. Laden Sie vorher den GoBD-Export jedes Jahres herunter — nach dem Schließen ist er für Sie nicht mehr erreichbar.",
+    "password": "Ihr Passwort",
+    "understood": "Ich habe verstanden, dass das Löschen nicht rückgängig gemacht werden kann.",
+    "deleteConfirm": "Konto endgültig löschen",
+    "deleting": "Wird gelöscht …",
+    "cancel": "Abbrechen"
   }
 }

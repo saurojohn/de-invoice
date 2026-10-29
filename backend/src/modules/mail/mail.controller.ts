@@ -47,6 +47,9 @@ export class MailController {
       // every company could read the operator's mail server and account
       // name. A company learns only whether the installation sends for it.
       const installationSender = !!(process.env.SMTP_HOST && process.env.SMTP_USER);
+      // Tier 736: and whether it does yet — not before an admin of the company
+      // has confirmed their e-mail address.
+      const installationMailAllowed = await this.mailService.installationMailAllowed(companyId);
       if (!(await isSystemAdmin(this.prisma, req?.user))) {
         return {
           configured: false,
@@ -55,6 +58,7 @@ export class MailController {
           enabled: true,
           source: 'env',
           installationSender,
+          installationMailAllowed,
         };
       }
       // Return env fallback as initial values for the UI form (without password)
@@ -70,6 +74,7 @@ export class MailController {
         fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || '',
         enabled: true,
         source: 'env',
+        installationMailAllowed,
       };
     }
     return {

@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { UserSessionService } from '../../auth/user-session.service';
 
@@ -167,6 +167,8 @@ export class AuthService {
         passwordResetExpires: null,
       },
     });
+    // Tier 736: the link came to the mailbox — the address is confirmed.
+    await this.prisma.user.updateMany({ where: { id: userId, emailVerifiedAt: null }, data: { emailVerifiedAt: new Date() } });
 
     // Tier 403: end every session this user had.
     //
@@ -196,6 +198,50 @@ export class AuthService {
     } catch { /* ignore */ }
 
     return { ok: true, userId };
+  }
+
+  /**
+   * Tier 736 — a new link to confirm the user's e-mail address.
+   *
+   * 32 random bytes; only their SHA-256 is stored (the token has the entropy
+   * a slow hash protects a password with, and a hash can be looked up — the
+   * reset token's bcrypt needs a scan). Valid 72 hours; a new link replaces
+   * the old one. Returns null when the address is confirmed already.
+   */
+  async issueEmailVerification(userId: string): Promise<{ tokenPlain: string; email: string; companyId: string | null } | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, companyId: true, emailVerifiedAt: true },
+    });
+    if (!user || user.emailVerifiedAt) return null;
+    const tokenPlain = randomBytes(32).toString('hex');
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifyTokenHash: emailTokenHash(tokenPlain), emailVerifyExpires: new Date(Date.now() + EMAIL_VERIFY_TTL_MS) },
+    });
+    return { tokenPlain, email: user.email, companyId: user.companyId };
+  }
+
+  /** Tier 736 — the link's token: the address is confirmed, the token used up. */
+  async verifyEmail(tokenPlain: string): Promise<{ email: string }> {
+    const token = typeof tokenPlain === 'string' ? tokenPlain.trim() : '';
+    const user = /^[0-9a-f]{64}$/.test(token)
+      ? await this.prisma.user.findUnique({
+          where: { emailVerifyTokenHash: emailTokenHash(token) },
+          select: { id: true, email: true, companyId: true, emailVerifyExpires: true },
+        })
+      : null;
+    if (!user || !user.emailVerifyExpires || user.emailVerifyExpires < new Date()) {
+      throw new BadRequestException('Der Bestätigungslink ist ungültig oder abgelaufen. Sie können auf der Übersicht einen neuen anfordern.');
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifiedAt: new Date(), emailVerifyTokenHash: null, emailVerifyExpires: null },
+    });
+    await this.audit
+      .writeActivity({ companyId: user.companyId ?? null, userId: user.id, action: 'email_verified', entityType: 'auth', entityId: user.id })
+      .catch(() => undefined);
+    return { email: user.email };
   }
 
   /**
@@ -236,6 +282,13 @@ export class AuthService {
       .catch(() => undefined);
     return { endedSessions };
   }
+}
+
+/** Tier 736: how long an e-mail confirmation link is valid */
+export const EMAIL_VERIFY_TTL_MS = 72 * 60 * 60 * 1000;
+
+function emailTokenHash(tokenPlain: string): string {
+  return createHash('sha256').update(tokenPlain).digest('hex');
 }
 
 /** The rule for a new password — reset and change (registration: auth.dto.ts). */
