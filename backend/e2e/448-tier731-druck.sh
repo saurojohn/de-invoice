@@ -61,7 +61,9 @@ STREAM=$(python3 - "$WORK/short.pdf" <<'PY'
 import re, sys, zlib
 pdf = open(sys.argv[1], 'rb').read()
 out = b''
-for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', pdf, re.S):
+# Tier 734b: up to „endstream“, the line end kept — `\r?\nendstream` took a compressed
+# stream's last byte when it was 0x0D (1 in 256): zlib then failed and the file came out empty.
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', pdf, re.S):
     try: out += zlib.decompress(m.group(1))
     except Exception: pass
 # PDFKit writes the page upside down (1 0 0 -1 0 842 cm): y as given, in pt

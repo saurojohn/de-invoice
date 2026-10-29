@@ -42,7 +42,9 @@ fetch() { curl -sS -o "$2" -w "%{http_code}" -H "x-user-id: $U" -H "x-company-id
 cii_of() { python3 - "$1" <<'PY'
 import re, sys, zlib
 pdf = open(sys.argv[1], 'rb').read()
-for m in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', pdf, re.S):
+# Tier 734b: up to „endstream“, the line end kept — `\r?\nendstream` took a compressed
+# stream's last byte when it was 0x0D (1 in 256): zlib then failed and the file came out empty.
+for m in re.finditer(rb'stream\r?\n(.*?)endstream', pdf, re.S):
     try: data = zlib.decompress(m.group(1))
     except Exception: data = m.group(1)
     if b'CrossIndustryInvoice' in data[:2000]:
