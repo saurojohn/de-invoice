@@ -4,9 +4,9 @@
  * Static privacy policy. The "Controller" section links back
  * to the Impressum (DSGVO requires the controller identity
  * disclosed here). The 10-year retention period for invoices
- * is mandated by § 147 AO (Abgabenordnung) and the Cookie
- * section explicitly references the Tier 170c banner so users
- * can revoke their consent at any time.
+ * is mandated by § 147 AO (Abgabenordnung). The Cookie
+ * section lists what the application stores and reopens the
+ * cookie notice (Tier 735: necessary cookies only, no consent).
  *
  * Why "use client": same as Impressum — useI18n() is a hook.
  */
@@ -111,9 +111,8 @@ export default function DatenschutzPage() {
           onClick={() => {
             // The CookieBanner exposes a window event for
             // programmatic open. If the banner hasn't mounted
-            // yet, the event is dropped silently — the user
-            // can still scroll to the footer and click the
-            // settings link there.
+            // yet, the event is dropped silently — the footer's
+            // "Cookies" link opens it as well.
             window.dispatchEvent(new CustomEvent("open-cookie-settings"))
           }}
           className="mt-3 text-sm text-blue-600 hover:underline dark:text-blue-400"

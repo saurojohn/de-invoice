@@ -3894,8 +3894,8 @@
       "hosting": "Hosting & Server-Standort",
       "hostingText": "Diese Anwendung wird auf Servern innerhalb der Europäischen Union betrieben. Der konkrete Standort und der Rechenzentrumsdienstleister sind im Rahmen der technischen und organisatorischen Maßnahmen (TOM) dokumentiert.",
       "cookies": "Cookies & lokale Speicherung",
-      "cookiesText": "Diese Anwendung verwendet technisch notwendige Cookies sowie — nur nach Ihrer ausdrücklichen Einwilligung — Analyse- und Marketing-Cookies. Sie können Ihre Einwilligung jederzeit über die Cookie-Einstellungen am Ende der Seite widerrufen oder anpassen.",
-      "openCookieSettings": "Cookie-Einstellungen öffnen",
+      "cookiesText": "Diese Anwendung setzt nur technisch notwendige Cookies: ein Sitzungs-Cookie für die Anmeldung (httpOnly; es endet mit der Abmeldung oder nach 30 Tagen ohne Nutzung) und zwei Cookies mit der Kennung des Benutzers und der gewählten Firma (je einen Tag gültig). Im lokalen Speicher des Browsers liegen dieselben Kennungen, die E-Mail-Adresse der Anmeldung, die gewählte Sprache und der Vermerk, dass der Cookie-Hinweis gesehen wurde. Analyse- oder Werbe-Cookies und Tracking gibt es nicht. Da alles davon für den von Ihnen gewünschten Dienst unbedingt erforderlich ist, ist keine Einwilligung nötig (§ 25 Abs. 2 Nr. 2 TDDDG).",
+      "openCookieSettings": "Cookie-Hinweis anzeigen",
       "changes": "Änderungen dieser Erklärung",
       "changesText": "Wir behalten uns vor, diese Datenschutzerklärung anzupassen, damit sie stets den aktuellen rechtlichen Anforderungen entspricht. Für Ihren erneuten Besuch gilt dann die neue Datenschutzerklärung."
     },
@@ -3903,26 +3903,13 @@
       "rights": "Alle Rechte vorbehalten",
       "impressum": "Impressum",
       "datenschutz": "Datenschutz",
-      "cookieSettings": "Cookie-Einstellungen"
+      "cookieSettings": "Cookies"
     },
     "cookieBanner": {
-      "title": "Cookie-Einstellungen",
-      "intro": "Wir verwenden Cookies und ähnliche Technologien, um den Betrieb dieser Webanwendung sicherzustellen und — mit Ihrer Einwilligung — die Nutzung zu analysieren. Sie können selbst entscheiden, welche Kategorien Sie zulassen möchten.",
-      "acceptAll": "Alle akzeptieren",
-      "rejectAll": "Nur notwendige",
-      "saveSelection": "Auswahl speichern",
-      "necessary": {
-        "label": "Notwendig",
-        "description": "Diese Cookies sind für den Betrieb der Anwendung technisch erforderlich (Authentifizierung, Sicherheit, Lastverteilung). Sie können nicht deaktiviert werden."
-      },
-      "analytics": {
-        "label": "Analyse",
-        "description": "Helfen uns zu verstehen, wie Besucher die Anwendung nutzen, damit wir die Benutzererfahrung verbessern können. Nur mit Ihrer Einwilligung."
-      },
-      "marketing": {
-        "label": "Marketing",
-        "description": "Werden verwendet, um Besuchern relevante Inhalte und Anzeigen anzuzeigen. Nur mit Ihrer Einwilligung."
-      },
+      "title": "Cookies und Speicherung im Browser",
+      "intro": "Diese Anwendung setzt nur technisch notwendige Cookies: für die Anmeldung und die gewählte Firma. Im Browser speichert sie außerdem Ihre Sprache und, dass Sie diesen Hinweis gesehen haben.",
+      "noTracking": "Es gibt keine Analyse- oder Werbe-Cookies und kein Tracking. Für notwendige Cookies ist keine Einwilligung erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG).",
+      "ok": "Verstanden",
       "policyNote": "Details finden Sie in unserer ",
       "policyLink": "Datenschutzerklärung"
     }

@@ -11,13 +11,14 @@
  *   3. footer      — Impressum/Datenschutz/Cookie-
  *                    Settings links present on every
  *                    page (TMG § 5 reachability)
- *   4. banner      — appears on first visit, accept
- *                    all persists to localStorage,
- *                    reload doesn't re-show
- *   5. withdrawal  — "Cookie-Einstellungen" button
- *                    reopens the banner so the user
- *                    can revoke consent (DSGVO Art.
- *                    7 (3) — easy withdrawal)
+ *   4. notice      — appears on first visit,
+ *                    "Verstanden" persists to
+ *                    localStorage, reload doesn't
+ *                    re-show (Tier 735: a notice of
+ *                    the necessary cookies, no
+ *                    consent request)
+ *   5. reopen      — the footer's "Cookies" and the
+ *                    Datenschutz page show it again
  *
  * Why no auth: these pages are public, no login needed.
  * The footer + banner mount on every page (root layout).
@@ -110,20 +111,17 @@ test.describe('Tier 170 — Impressum + Datenschutz + CookieBanner', () => {
     }
   })
 
-  test('4. cookie banner shows on first visit, persists after accept', async ({
+  test('4. cookie notice shows on first visit, persists after "Verstanden"', async ({
     page,
   }) => {
-    // Clear any pre-existing cookie consent so this
-    // is genuinely a "first visit". The Tier 249
-    // global-setup writes a cookie-consent entry to
-    // storageState so subsequent tests don't see
-    // the banner — but this test specifically
-    // verifies the banner's first-visit UX.
+    // Clear any pre-existing record so this is genuinely a "first visit". The
+    // Tier 249 global-setup writes a cookie-consent entry to storageState so
+    // the other tests don't see the notice.
     //
     // Tier 432: only on the tab's FIRST load. An init script runs on every
-    // navigation, the reload below included — it wiped the consent again, so
-    // the "banner must not reappear" check passed only when it ran before the
-    // banner's mount effect (flaky: Tier 423 and 432 runs).
+    // navigation, the reload below included — it wiped the record again, so
+    // the "must not reappear" check passed only when it ran before the
+    // notice's mount effect (flaky: Tier 423 and 432 runs).
     await page.addInitScript(() => {
       try {
         if (!sessionStorage.getItem('t170-cleared')) {
@@ -133,77 +131,53 @@ test.describe('Tier 170 — Impressum + Datenschutz + CookieBanner', () => {
       } catch {}
     })
     await page.goto('/login')
-    // First visit — banner must appear.
     const banner = page.getByTestId('cookie-banner')
     await expect(banner).toBeVisible()
-    // Necessary category is always on and disabled.
-    const necessary = page.getByTestId('cookie-cat-necessary')
-    await expect(necessary).toBeVisible()
-    const necessaryCheckbox = necessary.locator('input[type="checkbox"]')
-    await expect(necessaryCheckbox).toBeChecked()
-    await expect(necessaryCheckbox).toBeDisabled()
+    // Tier 735: a notice of what is stored, not a consent request — the
+    // application sets no analytics or marketing cookies, so there is
+    // nothing to opt into (§ 25 Abs. 2 Nr. 2 TDDDG).
+    await expect(page.getByTestId('cookie-banner-text')).toContainText('nur technisch notwendige Cookies')
+    await expect(banner).toContainText('keine Analyse- oder Werbe-Cookies')
+    await expect(banner.locator('input[type="checkbox"]')).toHaveCount(0)
+    await expect(page.getByTestId('cookie-btn-accept')).toHaveCount(0)
 
-    // Click "Alle akzeptieren" — banner should hide AND
-    // localStorage should have the consent record.
-    await page.getByTestId('cookie-btn-accept').click()
+    await page.getByTestId('cookie-btn-ok').click()
     await expect(banner).not.toBeVisible()
-    const stored = await page.evaluate(() =>
-      localStorage.getItem('cookie-consent'),
-    )
-    expect(stored).not.toBeNull()
-    const parsed = JSON.parse(stored!)
-    expect(parsed.necessary).toBe(true)
-    expect(parsed.analytics).toBe(true)
-    expect(parsed.marketing).toBe(true)
-    expect(typeof parsed.savedAt).toBe('string')
+    const parsed = JSON.parse((await page.evaluate(() => localStorage.getItem('cookie-consent')))!)
+    expect(parsed).toEqual({ necessary: true, savedAt: expect.any(String) })
 
-    // Reload — banner must NOT reappear (consent is
-    // already on record). Wait until the page has settled so the banner's
-    // mount effect has run — a "not visible" checked before it proves nothing.
+    // Reload — the notice must NOT reappear. Wait until the page has settled
+    // so its mount effect has run — a "not visible" checked before it proves
+    // nothing.
     await page.reload()
     await page.waitForLoadState('networkidle')
     expect(await page.evaluate(() => localStorage.getItem('cookie-consent'))).not.toBeNull()
     await expect(page.getByTestId('cookie-banner')).not.toBeVisible()
   })
 
-  test('5. cookie banner withdrawal — "Nur notwendige" works', async ({
+  test('5. the footer and the Datenschutz page open the notice again; an old consent record counts as seen', async ({
     page,
   }) => {
-    // Clear cookie-consent so this is a "first
-    // visit" (the Tier 249 global-setup writes one
-    // by default; see test 4 for the same fix).
+    // A record the old consent dialog wrote (before Tier 735): not asked again.
     await page.addInitScript(() => {
-      try { localStorage.removeItem('cookie-consent') } catch {}
+      try {
+        localStorage.setItem('cookie-consent', JSON.stringify({ necessary: true, analytics: true, marketing: false, savedAt: '2026-01-01T00:00:00.000Z' }))
+      } catch {}
     })
     await page.goto('/login')
+    await page.waitForLoadState('networkidle')
     const banner = page.getByTestId('cookie-banner')
-    await expect(banner).toBeVisible()
-
-    // User accepts all first, then withdraws to "only
-    // necessary" — this is the DSGVO Art. 7 (3)
-    // withdrawal path: it's just as easy to revoke
-    // as to grant.
-    await page.getByTestId('cookie-btn-accept').click()
     await expect(banner).not.toBeVisible()
 
-    // Reopen via the footer button (the withdrawal entry
-    // point — every page exposes it).
-    await page
-      .getByTestId('footer-link-cookie-settings')
-      .click()
+    await page.getByTestId('footer-link-cookie-settings').click()
     await expect(banner).toBeVisible()
-
-    // Reject all — analytics + marketing off, necessary
-    // stays on.
-    await page.getByTestId('cookie-btn-reject').click()
+    await page.getByTestId('cookie-btn-ok').click()
     await expect(banner).not.toBeVisible()
-    const stored = await page.evaluate(() =>
-      localStorage.getItem('cookie-consent'),
-    )
-    const parsed = JSON.parse(stored!)
-    expect(parsed.necessary).toBe(true)
-    expect(parsed.analytics).toBe(false)
-    expect(parsed.marketing).toBe(false)
+
+    await page.goto('/datenschutz')
+    await expect(page.getByText('Analyse- oder Werbe-Cookies und Tracking gibt es nicht')).toBeVisible()
+    await page.getByTestId('datenschutz-open-cookie-settings').click()
+    await expect(banner).toBeVisible()
   })
 
   test('6. mobile 375x667 — pages do not overflow', async ({ page }) => {

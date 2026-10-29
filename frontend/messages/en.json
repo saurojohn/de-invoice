@@ -3894,8 +3894,8 @@
       "hosting": "Hosting & Server Location",
       "hostingText": "This application is operated on servers within the European Union. The specific location and the data centre service provider are documented within the framework of technical and organisational measures (TOM).",
       "cookies": "Cookies & Local Storage",
-      "cookiesText": "This application uses technically necessary cookies and — only with your explicit consent — analytics and marketing cookies. You can withdraw or adjust your consent at any time via the cookie settings at the bottom of the page.",
-      "openCookieSettings": "Open cookie settings",
+      "cookiesText": "This application sets only technically necessary cookies: a session cookie for signing in (httpOnly; it ends with sign-out or after 30 days without use) and two cookies with the ids of the user and of the selected company (valid for one day each). The browser’s local storage holds the same ids, the e-mail address used to sign in, the chosen language and a note that the cookie notice was seen. There are no analytics or advertising cookies and no tracking. As all of this is strictly necessary for the service you asked for, no consent is needed (§ 25 (2) no. 2 TDDDG).",
+      "openCookieSettings": "Show the cookie notice",
       "changes": "Changes to this Statement",
       "changesText": "We reserve the right to adapt this privacy policy so that it always complies with current legal requirements. The new privacy policy will then apply to your next visit."
     },
@@ -3903,28 +3903,15 @@
       "rights": "All rights reserved",
       "impressum": "Legal Notice",
       "datenschutz": "Privacy Policy",
-      "cookieSettings": "Cookie Settings"
+      "cookieSettings": "Cookies"
     },
     "cookieBanner": {
-      "title": "Cookie Settings",
-      "intro": "We use cookies and similar technologies to ensure the operation of this web application and — with your consent — to analyse usage. You can decide which categories you wish to allow.",
-      "acceptAll": "Accept all",
-      "rejectAll": "Only necessary",
-      "saveSelection": "Save selection",
-      "necessary": {
-        "label": "Necessary",
-        "description": "These cookies are technically required for the operation of the application (authentication, security, load balancing). They cannot be disabled."
-      },
-      "analytics": {
-        "label": "Analytics",
-        "description": "Help us understand how visitors use the application so we can improve the user experience. Only with your consent."
-      },
-      "marketing": {
-        "label": "Marketing",
-        "description": "Used to display relevant content and ads to visitors. Only with your consent."
-      },
-      "policyNote": "For details, see our ",
-      "policyLink": "Privacy Policy"
+      "title": "Cookies and browser storage",
+      "intro": "This application sets only technically necessary cookies: for signing in and for the selected company. In the browser it also stores your language and that you have seen this notice.",
+      "noTracking": "There are no analytics or advertising cookies and no tracking. Necessary cookies need no consent (§ 25 (2) no. 2 TDDDG).",
+      "ok": "Got it",
+      "policyNote": "Details are in our ",
+      "policyLink": "privacy policy"
     }
   },
   "companyCars": {

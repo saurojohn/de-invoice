@@ -8,10 +8,10 @@
  * root layout — that way the link is present even on
  * not-yet-fully-built pages (login, register, etc).
  *
- * The cookie-settings button dispatches the same
+ * The "Cookies" button dispatches the same
  * `open-cookie-settings` event that the Datenschutz page
- * uses, so the same CookieBanner dialog reopens. This
- * satisfies DSGVO Art. 7 (3) — easy withdrawal of consent.
+ * uses, so the cookie notice opens again (Tier 735: a notice
+ * of what is stored — there is nothing to consent to).
  */
 "use client"
 

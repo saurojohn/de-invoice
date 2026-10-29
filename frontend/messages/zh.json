@@ -3894,8 +3894,8 @@
       "hosting": "托管与服务器位置",
       "hostingText": "此应用在欧盟境内的服务器上运行。具体位置和数据中心服务提供商在技术和组织措施 (TOM) 框架内记录。",
       "cookies": "Cookie 与本地存储",
-      "cookiesText": "此应用使用技术上必需的 cookie,以及 — 仅在您明确同意后 — 分析和营销 cookie。您可以随时通过页面底部的 Cookie 设置撤回或调整您的同意。",
-      "openCookieSettings": "打开 Cookie 设置",
+      "cookiesText": "本应用只使用技术上必需的 Cookie：一个用于登录的会话 Cookie（httpOnly，退出登录或 30 天未使用后失效），以及两个记录用户和所选公司编号的 Cookie（各自有效一天）。浏览器的本地存储中保存同样的编号、登录用的电子邮件地址、所选语言，以及已看过 Cookie 提示的记录。没有分析或广告 Cookie，也没有任何追踪。以上全部是提供您所要求的服务所必需的，因此无需征得同意（德国 TDDDG 第 25 条第 2 款第 2 项）。",
+      "openCookieSettings": "显示 Cookie 提示",
       "changes": "本声明的变更",
       "changesText": "我们保留调整本隐私政策的权利,以使其始终符合当前的法定要求。新的隐私政策将适用于您的下次访问。"
     },
@@ -3903,27 +3903,14 @@
       "rights": "保留所有权利",
       "impressum": "法律声明",
       "datenschutz": "隐私政策",
-      "cookieSettings": "Cookie 设置"
+      "cookieSettings": "Cookie"
     },
     "cookieBanner": {
-      "title": "Cookie 设置",
-      "intro": "我们使用 Cookie 和类似技术来确保此网络应用的运行,并在您同意的情况下分析使用情况。您可以自行决定允许哪些类别。",
-      "acceptAll": "全部接受",
-      "rejectAll": "仅必要",
-      "saveSelection": "保存选择",
-      "necessary": {
-        "label": "必要",
-        "description": "这些 Cookie 是应用运行所必需的(身份验证、安全、负载均衡)。无法禁用。"
-      },
-      "analytics": {
-        "label": "分析",
-        "description": "帮助我们了解访问者如何使用该应用,以便我们改进用户体验。仅在您同意后启用。"
-      },
-      "marketing": {
-        "label": "营销",
-        "description": "用于向访问者展示相关内容。仅在您同意后启用。"
-      },
-      "policyNote": "详细信息请参见我们的",
+      "title": "Cookie 与浏览器存储",
+      "intro": "本应用只使用技术上必需的 Cookie：用于登录和所选公司。此外在浏览器中保存您选择的语言，以及您已看过本提示。",
+      "noTracking": "没有分析或广告 Cookie，也没有任何追踪。必需的 Cookie 无需征得同意（德国 TDDDG 第 25 条第 2 款第 2 项）。",
+      "ok": "知道了",
+      "policyNote": "详情请见",
       "policyLink": "隐私政策"
     }
   },

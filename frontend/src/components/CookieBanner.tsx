@@ -1,30 +1,23 @@
 /**
- * CookieBanner — DSGVO / TDDDG compliant consent UI
+ * CookieBanner — what the application stores in the browser
  *
- * Three categories (per the German TDDDG, "Telekommunikation-
- * Digitale-Dienste-Datenschutz-Gesetz", in force since 2024):
- *   - necessary:    always on, no toggle (authentication cookies,
- *                  CSRF tokens, load-balancer session affinity)
- *   - analytics:    opt-in (we currently set NO analytics cookies
- *                  even when consent is given — this is a hook
- *                  for a future integration; the UI must be
- *                  there for legal compliance)
- *   - marketing:    opt-in (same as analytics)
+ * Tier 735: a notice, not a consent dialog. The application stores only what
+ * it needs to work: the session cookie (httpOnly), the `x-user-id` /
+ * `x-company-id` cookies, and in localStorage the signed-in user's and
+ * company's ids, the e-mail address, the language and this notice's own
+ * record. All of it is "unbedingt erforderlich" for a service the user asked
+ * for (§ 25 Abs. 2 Nr. 2 TDDDG), so no consent is needed. The banner asked
+ * for consent to "Analyse" and "Marketing" cookies that the application never
+ * set — a consent request for nothing, and a hint at tracking that does not
+ * exist. If an analytics tool is ever added, a consent dialog comes back
+ * with it (and the tool loads only after a yes).
  *
- * Persistence: localStorage["cookie-consent"] = JSON of the
- * category map plus a "savedAt" timestamp. The DSGVO requires
- * the consent decision to be "demonstrable" — a server-side
- * audit log would be ideal for production, but localStorage
- * is the minimum-viable DSGVO-compliant storage in 2026
- * (the German courts have not yet ruled that localStorage
- * alone is insufficient, only that "implied consent" via
- * cookie wall is NOT sufficient — explicit accept/reject
- * buttons satisfy the requirement).
+ * Persistence: localStorage["cookie-consent"] = { necessary: true, savedAt }.
+ * A record written by the old dialog (with analytics / marketing) counts as
+ * seen, so nobody is asked again.
  *
- * The banner listens for the `open-cookie-settings` window
- * event so the Datenschutz page (and the footer) can reopen
- * the settings dialog at any time. This satisfies DSGVO Art.
- * 7 (3) — easy withdrawal of consent.
+ * The footer and the Datenschutz page reopen the notice through the
+ * `open-cookie-settings` window event.
  */
 "use client"
 
@@ -32,128 +25,51 @@ import { useEffect, useState } from "react"
 
 import { useI18n } from "@/components/useI18n"
 
-type Consent = {
-  necessary: true
-  analytics: boolean
-  marketing: boolean
-  savedAt: string
-}
-
 const STORAGE_KEY = "cookie-consent"
 const EVENT_OPEN = "open-cookie-settings"
 
-function loadConsent(): Consent | null {
-  if (typeof window === "undefined") return null
+function noticeSeen(): boolean {
+  if (typeof window === "undefined") return false
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
+    if (!raw) return false
     const parsed = JSON.parse(raw)
-    if (typeof parsed !== "object" || parsed === null) return null
-    if (parsed.necessary !== true) return null
-    if (typeof parsed.analytics !== "boolean") return null
-    if (typeof parsed.marketing !== "boolean") return null
-    if (typeof parsed.savedAt !== "string") return null
-    return parsed as Consent
+    return typeof parsed === "object" && parsed !== null && typeof parsed.savedAt === "string"
   } catch {
-    return null
+    return false
   }
-}
-
-function saveConsent(c: Consent) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(c))
 }
 
 export function CookieBanner() {
   const { t } = useI18n()
   // Don't render during SSR — the localStorage check would
   // throw and the page would hydrate with mismatched markup.
-  // Mounted is set in an effect to avoid the flicker.
   const [mounted, setMounted] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  // form state for the settings dialog
-  const [analytics, setAnalytics] = useState(false)
-  const [marketing, setMarketing] = useState(false)
+  const [open, setOpen] = useState(false)
 
-  // Initial mount: read existing consent (if any) and decide
-  // whether to show the banner. The banner shows whenever
-  // there's no consent record — even if the user has only
-  // accepted the necessary category, the record exists.
   useEffect(() => {
     setMounted(true)
-    const existing = loadConsent()
-    if (!existing) {
-      setShowSettings(true)
-      // Reset form to "all off except necessary"
-      setAnalytics(false)
-      setMarketing(false)
-    } else {
-      setAnalytics(existing.analytics)
-      setMarketing(existing.marketing)
-    }
+    if (!noticeSeen()) setOpen(true)
   }, [])
 
-  // Listen for the open-settings event from the Datenschutz
-  // page or footer. We always re-open on the event, regardless
-  // of whether a consent is already saved — that's how
-  // DSGVO-compliant "withdrawal of consent" works.
   useEffect(() => {
-    const handler = () => {
-      const existing = loadConsent()
-      if (existing) {
-        setAnalytics(existing.analytics)
-        setMarketing(existing.marketing)
-      }
-      setShowSettings(true)
-    }
+    const handler = () => setOpen(true)
     window.addEventListener(EVENT_OPEN, handler)
     return () => window.removeEventListener(EVENT_OPEN, handler)
   }, [])
 
-  const acceptAll = () => {
-    const c: Consent = {
-      necessary: true,
-      analytics: true,
-      marketing: true,
-      savedAt: new Date().toISOString(),
-    }
-    saveConsent(c)
-    setShowSettings(false)
+  const dismiss = () => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ necessary: true, savedAt: new Date().toISOString() }))
+    } catch { /* private window: the notice shows again next time */ }
+    setOpen(false)
   }
 
-  const rejectAll = () => {
-    const c: Consent = {
-      necessary: true,
-      analytics: false,
-      marketing: false,
-      savedAt: new Date().toISOString(),
-    }
-    saveConsent(c)
-    setShowSettings(false)
-  }
-
-  const saveCurrent = () => {
-    const c: Consent = {
-      necessary: true,
-      analytics,
-      marketing,
-      savedAt: new Date().toISOString(),
-    }
-    saveConsent(c)
-    setShowSettings(false)
-  }
-
-  // Don't render anything until the mount-effect has run —
-  // otherwise we'd flash the banner on every page load even
-  // after the user already consented.
-  if (!mounted) return null
-  if (!showSettings) return null
+  if (!mounted || !open) return null
 
   return (
-    // Bottom-right floating card on >=md, full-width sheet on mobile.
-    // Role="dialog" + aria-modal + aria-labelledby is the minimum
-    // for screen-reader compliance. Backdrop is intentionally absent
-    // — DSGVO-compliant consent UIs must not block the user from
-    // accessing the page (no "cookie wall" pattern).
+    // Bottom-right floating card on >=md, full-width sheet on mobile. No
+    // backdrop: the page stays usable while the notice is open.
     <div
       role="dialog"
       aria-modal="false"
@@ -168,38 +84,12 @@ export function CookieBanner() {
         >
           {t("legal.cookieBanner.title")}
         </h2>
-        <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+        <p className="mt-2 text-sm text-gray-700 dark:text-gray-300" data-testid="cookie-banner-text">
           {t("legal.cookieBanner.intro")}
         </p>
-
-        <div className="mt-4 space-y-2">
-          <CategoryRow
-            testid="cookie-cat-necessary"
-            label={t("legal.cookieBanner.necessary.label")}
-            description={t("legal.cookieBanner.necessary.description")}
-            checked
-            disabled
-            onChange={() => {
-              /* no-op: necessary is always on */
-            }}
-          />
-          <CategoryRow
-            testid="cookie-cat-analytics"
-            label={t("legal.cookieBanner.analytics.label")}
-            description={t("legal.cookieBanner.analytics.description")}
-            checked={analytics}
-            disabled={false}
-            onChange={setAnalytics}
-          />
-          <CategoryRow
-            testid="cookie-cat-marketing"
-            label={t("legal.cookieBanner.marketing.label")}
-            description={t("legal.cookieBanner.marketing.description")}
-            checked={marketing}
-            disabled={false}
-            onChange={setMarketing}
-          />
-        </div>
+        <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+          {t("legal.cookieBanner.noTracking")}
+        </p>
 
         <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
           {t("legal.cookieBanner.policyNote")}
@@ -212,65 +102,17 @@ export function CookieBanner() {
           .
         </p>
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <div className="mt-4 flex justify-end">
           <button
             type="button"
-            data-testid="cookie-btn-reject"
-            onClick={rejectAll}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-          >
-            {t("legal.cookieBanner.rejectAll")}
-          </button>
-          <button
-            type="button"
-            data-testid="cookie-btn-save"
-            onClick={saveCurrent}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-          >
-            {t("legal.cookieBanner.saveSelection")}
-          </button>
-          <button
-            type="button"
-            data-testid="cookie-btn-accept"
-            onClick={acceptAll}
+            data-testid="cookie-btn-ok"
+            onClick={dismiss}
             className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
           >
-            {t("legal.cookieBanner.acceptAll")}
+            {t("legal.cookieBanner.ok")}
           </button>
         </div>
       </div>
     </div>
-  )
-}
-
-function CategoryRow(props: {
-  testid: string
-  label: string
-  description: string
-  checked: boolean
-  disabled: boolean
-  onChange: (v: boolean) => void
-}) {
-  return (
-    <label
-      data-testid={props.testid}
-      className="flex items-start gap-3 rounded border border-gray-200 p-2 dark:border-gray-700"
-    >
-      <input
-        type="checkbox"
-        checked={props.checked}
-        disabled={props.disabled}
-        onChange={(e) => props.onChange(e.target.checked)}
-        className="mt-0.5 h-4 w-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-      />
-      <span className="flex-1">
-        <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
-          {props.label}
-        </span>
-        <span className="block text-xs text-gray-600 dark:text-gray-400">
-          {props.description}
-        </span>
-      </span>
-    </label>
   )
 }
