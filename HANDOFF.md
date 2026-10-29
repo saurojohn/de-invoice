@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 739b — CI green for Tiers 738b and 739
+
+Run 40965496716 (commit 29d0363a): backend **458 passed / 0 failed / 1 skipped** (458 and 459 among them), Playwright **1108 passed, 0 flaky, no retry** (the e-invoice dialog spec that failed in run 40959218063, and `several-vat-rates-tier739`, among them). Tiers 735–739 are green.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 739 — an invoice with 19 % and 7 %: the CSV import books its rows as one expense, the OCR proposal reads a line per rate
 
 §9 item 24: „CSV import and the OCR proposal know one VAT rate". An expense holds a VAT line per rate since Tier 581 (`ExpenseTaxLine`); two ways in did not use it.
