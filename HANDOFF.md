@@ -2669,9 +2669,25 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 747 — a Mahnungspause holds a reminder sent again too
+
+The owner, 30.10.2026, on §9 item 13: „1 拒绝" — an explicit reminder during a pause is refused. Tier 510 had done that for the manual send, the bulk send and (through the same pipeline, Tier 702) the automatic run; the item had not been closed. Looking for what was left: `POST /mail/emails/:id/resend` sends any e-mail of the history again, a reminder too, and asked nothing — 201 during a pause. For an e-mail of `templateType` `reminder_*` it now answers 400 with `pauseHoldMessage`; an invoice's own e-mail can still be sent again. Spec 296 extended (fails on the code before).
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 746 — the AfA storno reverses a booking, it does not delete it
+
+The owner, 30.10.2026, on §9 item 15: „2 反向分录". `POST /assets/storno-afa` deleted the year's AfA rows; only the audit log still knew the booking.
+
+- Each row stays and gets a counter-entry: opposite sign, same day, same `afaYear` / `afaMonth`, „Storno: …", `reversesExpenseId` (migration `20261030000003_afa_reversal`). Both carry `afaReversedAt`. One transaction.
+- `LIVE_AFA` (`booked-afa.ts`) = no mark: what counts as booked — `bookAfa` both modes, the booking status, the storno itself, the disposal's check, `bookedAfaCost`, Anlage V. So the year can be booked again in either mode. Reports that add up rows get zero for the pair.
+- **DATEV:** the export wrote `abs(net)` with S for every AfA row, so a counter-entry would have doubled the AfA. It writes `-net` now: a negative amount turns S to H. Measured on the asset account 0210: −1 200, 0 after the storno, −1 200 after booking again.
+- The GuV after a storno shows its computed AfA with `afaSource: computed`, as for a year never booked: unchanged.
+- The confirmation says what happens. The counter-entries are locked like every AfA row. Verfahrensdokumentation 1.3.
+
+Specs: `466-tier746-afa-storno-gegenbuchung.sh` (8 fail on the code before); 116 and 197 count what stands. Locally 113 / 115 / 116 / 118 failed on assets left on the seed company in the reused test database; with those removed all four pass — they are not the known failures they looked like.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 745b — CI green for Tier 745
 
-Run 41125297942 (commit 595ef127): backend **464 passed / 0 failed / 1 skipped**, Playwright **1110 passed, 0 flaky, no retry**. Next to do, none begun: the Z3 archive's `index.xml` (ask the Steuerberater first), deleting a closed company after its period; the owner's decisions on the dunning pause, the AfA storno and the dunning fees (§9 items 13, 15, 17).
+Run 41125297942 (commit 595ef127): backend **464 passed / 0 failed / 1 skipped**, Playwright **1110 passed, 0 flaky, no retry**. Next to do, none begun: the Z3 archive's `index.xml` (ask the Steuerberater first), deleting a closed company after its period.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 745 — a Beleg taken off a record can be put back
 
@@ -10226,7 +10242,7 @@ These are **not in the repo** — only the user can do them:
     period; or add a correction record per affected row. Neither was done. Only
     relevant if a database with real users ran a build before Tier 384.
 
-13. **May an explicit Mahnung override a Mahnungspause?** (found Tier 388)
+13. ~~**May an explicit Mahnung override a Mahnungspause?**~~ **Decided 30.10.2026: refused** (Tiers 510, 747). (found Tier 388)
     A pause (e.g. for an agreed Ratenplan, or a disputed invoice) stops only the
     daily cron. The invoice page's manual send and the bulk send still dun a
     paused customer or invoice — and since Tier 388 the manual send really
@@ -10249,7 +10265,7 @@ These are **not in the repo** — only the user can do them:
     Bearbeiten / Löschen on every invoice dated today. Also open under the same
     heading: editing an invoice that has payments.
 
-15. **Should the AfA storno reverse bookings instead of deleting them?**
+15. ~~**Should the AfA storno reverse bookings instead of deleting them?**~~ **Decided 30.10.2026: it reverses** (Tier 746).
     (found Tier 408) `POST /assets/storno-afa` hard-deletes the year's booked
     depreciation expenses and re-books on the next run. Since Tier 408 every
     deleted booking is on the audit record with its amount and asset, so the
@@ -10265,7 +10281,7 @@ These are **not in the repo** — only the user can do them:
     `infra/kosit/scenarios.xml`, and the XRechnung generator was fixed until
     every invoice type passes it — see §8, Tier 412.
 
-17. **Mahngebühren defaults** (found Tier 421). `getFeeConfig` defaults to
+17. **Mahngebühren defaults** (found Tier 421; the owner, 30.10.2026: not changed for now). `getFeeConfig` defaults to
     5 € for the first Mahnung, 5 € for the second and 10 € for the final one,
     justified in code by a "post-2023 § 288 BGB reform (BGBl. I 2022 Nr. 51)"
     that supposedly allows charging for the first Mahnung. I could not verify

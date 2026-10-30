@@ -3242,7 +3242,7 @@
     "stornoAfa": "AfA stornieren",
     "stornoAfaOk": "{count} AfA-Buchungen storniert, Gesamt: {total}",
     "stornoAfaConfirmTitle": "AfA-Buchung rückgängig machen?",
-    "stornoAfaConfirmHint": "Löscht alle {count} gebuchten AfA-Ausgaben für {year} (Gesamt: {total}). Der Vorgang wird im Audit-Log protokolliert.",
+    "stornoAfaConfirmHint": "Bucht alle {count} AfA-Buchungen für {year} (Gesamt: {total}) mit Gegenbuchungen zurück. Die Buchungen und ihre Stornos bleiben im Journal stehen; der Vorgang wird im Audit-Log protokolliert.",
     "stornoAfaConfirmFootnote": "Hinweis: Nach dem Storno kann die Buchung im jährlichen ODER monatlichen Modus erneut durchgeführt werden. Die Audit-Log-Einträge bleiben dauerhaft erhalten.",
     "landNoAfa": "Grund und Boden nutzt sich nicht ab und wird nicht abgeschrieben (§ 6 Abs. 1 Nr. 2 EStG). Das Gebäude darauf als eigene Anlage erfassen."
   },

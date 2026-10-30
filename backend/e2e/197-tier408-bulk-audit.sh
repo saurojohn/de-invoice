@@ -63,7 +63,7 @@ assert_eq "both items are on the record, with their content" \
   "$(sql "SELECT string_agg(\"oldData\"->>'description', ',' ORDER BY \"oldData\"->>'description') FROM \"AuditLog\" WHERE action = 'invoiceitem.deleted' AND \"oldData\"->>'invoiceId' = '$D';")" \
   "$TAG Pos A,$TAG Pos B"
 
-note "=== 3. the AfA storno records each booking it removes ==="
+note "=== 3. the AfA storno records each booking it takes back ==="
 sql "INSERT INTO \"Asset\" (id, \"companyId\", type, bezeichnung, \"anschaffungsDatum\", \"anschaffungsKosten\", \"nutzungsdauerMonate\", restwert, \"afaMethode\", \"bilanzKonto\", \"createdAt\", \"updatedAt\")
      VALUES (gen_random_uuid()::text, '$C', 'Maschine', '$TAG Maschine', '$YEAR-01-01', 6000, 60, 0, 'linear', '0300', now(), now());" >/dev/null
 ASSET=$(sql "SELECT id FROM \"Asset\" WHERE \"companyId\" = '$C' AND bezeichnung = '$TAG Maschine';")
@@ -71,14 +71,16 @@ AS POST "/api/v1/assets/book-afa?companyId=$C&year=$YEAR"
 EXP=$(sql "SELECT id FROM \"Expense\" WHERE \"relatedAssetId\" = '$ASSET' AND category = 'AfA' LIMIT 1;")
 [[ -n "$EXP" ]] && pass "fixture: a booked AfA expense" || fail "book-afa booked nothing: $BODY"
 AS POST "/api/v1/assets/storno-afa?companyId=$C&year=$YEAR"
-assert_eq "the storno removed it" "$(json_field "$BODY" stornoedCount)" "1"
-assert_eq "the removed booking is on the record under its own id (was: a count)" \
-  "$(sql "SELECT count(*) FROM \"AuditLog\" WHERE \"entityId\" = '$EXP' AND action = 'expense.deleted';")" "1"
-# AfA bookings are stored negative (-1200); the storno reports the absolute value.
-assert_eq "…with its amount" \
-  "$(sql "SELECT abs((\"oldData\"->>'grossAmount')::numeric) = 1200 FROM \"AuditLog\" WHERE \"entityId\" = '$EXP' AND action = 'expense.deleted';")" "t"
-assert_eq "…and the asset it belonged to" \
-  "$(sql "SELECT \"oldData\"->>'relatedAssetId' FROM \"AuditLog\" WHERE \"entityId\" = '$EXP' AND action = 'expense.deleted';")" "$ASSET"
+assert_eq "the storno took it back" "$(json_field "$BODY" stornoedCount)" "1"
+# Tier 746: the booking stays; it and its counter-entry are on the record under their own ids
+REV=$(sql "SELECT id FROM \"Expense\" WHERE \"reversesExpenseId\" = '$EXP';")
+assert_eq "the mark on the booking is on the record under its id" \
+  "$(sql "SELECT count(*) > 0 FROM \"AuditLog\" WHERE \"entityId\" = '$EXP' AND action LIKE 'expense.%';")" "t"
+# AfA bookings are stored negative (-1200); the counter-entry positive.
+assert_eq "…and the counter-entry under its own id, with its amount" \
+  "$(sql "SELECT abs((\"newData\"->>'grossAmount')::numeric) = 1200 FROM \"AuditLog\" WHERE \"entityId\" = '$REV' ORDER BY seq LIMIT 1;")" "t"
+assert_eq "…and the asset it belongs to" \
+  "$(sql "SELECT \"newData\"->>'relatedAssetId' FROM \"AuditLog\" WHERE \"entityId\" = '$REV' ORDER BY seq LIMIT 1;")" "$ASSET"
 
 note "=== 4. the chain verifies, and the escape hatches are deliberate ==="
 AS GET "/api/v1/audit-logs/verify?companyId=$C"

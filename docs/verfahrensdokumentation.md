@@ -1,6 +1,6 @@
 # Verfahrensdokumentation de-invoice (Vorlage)
 
-**Version 1.2 · Stand 30.10.2026 · gilt für den Programmstand ab Tier 745**
+**Version 1.3 · Stand 30.10.2026 · gilt für den Programmstand ab Tier 747**
 
 Diese Vorlage beschreibt, was das Programm de-invoice tatsächlich tut. Jeder
 Satz über das Programm wurde am Quelltext oder durch eine Messung am laufenden
@@ -121,6 +121,7 @@ Regeln das Programm dabei durchsetzt.
 ### 2.6 Buchungsbelege und Journal
 
 - Buchungsbelege werden nach SKR03 erfasst. Ein gebuchter Beleg wird nicht geändert: Der Storno ist ein neuer Beleg mit umgekehrten Zeilen, der auf den ursprünglichen verweist (`backend/src/modules/accounting/voucher.service.ts`).
+- Die AfA eines Jahres wird aus dem Anlagenverzeichnis gebucht (jährlich oder monatlich). Ein Storno löscht nichts: Jede Buchung bleibt stehen und bekommt eine Gegenbuchung gleichen Datums; danach lässt sich das Jahr neu buchen. In festgeschriebenen Zeiträumen ist das nicht möglich.
 - Das Programm liefert den Kontenrahmen SKR03 aus.
 
 ### 2.7 Abschluss von Zeiträumen
@@ -267,4 +268,5 @@ Diese Dokumentation ist zu versionieren: Jede Änderung am Verfahren wird mit Da
 | 1.0 | 30.10.2026 | Vorlage aus dem Programmstand erstellt | de-invoice |
 | 1.1 | 30.10.2026 | Rolle `auditor` für den Datenzugriff Z1 | de-invoice |
 | 1.2 | 30.10.2026 | Entfernte Belege lassen sich wiederherstellen | de-invoice |
+| 1.3 | 30.10.2026 | AfA-Storno durch Gegenbuchung | de-invoice |
 | | | **[Auszufüllen]** Übernahme durch das Unternehmen | |

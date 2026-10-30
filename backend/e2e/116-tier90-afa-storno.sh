@@ -13,7 +13,7 @@
 # Tests:
 #   1. /storno-afa on a fresh year returns
 #      stornoedCount=0 (idempotent).
-#   2. After book-afa, /storno-afa deletes the
+#   2. After book-afa, /storno-afa reverses the
 #      row + writes an audit log entry.
 #   3. After storno, /book-afa can be called
 #      again (rebook works after storno).
@@ -84,7 +84,7 @@ curl -sS -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" > /dev/null
 # Check the row exists
 BEFORE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA';" \
+  "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA' AND \"afaReversedAt\" IS NULL;" \
   2>&1 | tr -d ' ')
 assert_eq "AfA rows before storno" "$BEFORE" "1"
 # Storno
@@ -95,9 +95,9 @@ STORNO_COUNT1=$(echo "$STORNO1" | python3 -c "import json,sys; print(json.load(s
 STORNO_TOTAL1=$(echo "$STORNO1" | python3 -c "import json,sys; print(json.load(sys.stdin)['stornoedTotal'])")
 assert_eq "stornoedCount = 1" "$STORNO_COUNT1" "1"
 assert_eq "stornoedTotal = 1200" "$STORNO_TOTAL1" "1200"
-# Check the row is gone
+# Tier 746: no booking stands any more (spec 466: it stays, with its counter-entry)
 AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA';" \
+  "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA' AND \"afaReversedAt\" IS NULL;" \
   2>&1 | tr -d ' ')
 assert_eq "AfA rows after storno" "$AFTER" "0"
 
@@ -123,7 +123,7 @@ curl -sS -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" > /dev/null
 # Verify 12 rows
 BEFORE_M=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA';" \
+  "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA' AND \"afaReversedAt\" IS NULL;" \
   2>&1 | tr -d ' ')
 assert_eq "monthly AfA rows before storno" "$BEFORE_M" "12"
 # Storno
@@ -135,7 +135,7 @@ STORNO_TOTAL2=$(echo "$STORNO2" | python3 -c "import json,sys; print(json.load(s
 assert_eq "stornoedCount = 12" "$STORNO_COUNT2" "12"
 assert_eq "stornoedTotal = 1200" "$STORNO_TOTAL2" "1200"
 AFTER_M=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA';" \
+  "SELECT COUNT(*) FROM \"Expense\" WHERE \"relatedAssetId\"='$ASSET_ID' AND \"category\"='AfA' AND \"afaReversedAt\" IS NULL;" \
   2>&1 | tr -d ' ')
 assert_eq "monthly AfA rows after storno" "$AFTER_M" "0"
 

@@ -3242,7 +3242,7 @@
     "stornoAfa": "Storno AfA booking",
     "stornoAfaOk": "Stornoed {count} AfA bookings, total: {total}",
     "stornoAfaConfirmTitle": "Reverse AfA booking?",
-    "stornoAfaConfirmHint": "Deletes all {count} booked AfA expenses for {year} (total: {total}). The action is logged in the audit trail.",
+    "stornoAfaConfirmHint": "Reverses all {count} AfA bookings for {year} (total: {total}) with counter-entries. The bookings and their reversals stay in the journal; the action is recorded in the audit log.",
     "stornoAfaConfirmFootnote": "Note: After storno, the booking can be re-done in annual OR monthly mode. The audit log entries remain permanently.",
     "landNoAfa": "Land does not wear out and is not depreciated (§ 6 para. 1 Nr. 2 EStG). Enter the building on it as an asset of its own."
   },

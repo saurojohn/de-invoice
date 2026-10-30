@@ -597,6 +597,11 @@ model Expense {
   // for the (asset, year) pair, else it
   // fails with "AfA already booked (annual)".
   afaMonth            Int?
+  // Tier 746: the AfA storno reverses, it does not delete. The booking and its
+  // counter-entry both carry the day, so what is booked for a year is what has
+  // none (LIVE_AFA, booked-afa.ts); the reversal names the row it reverses.
+  afaReversedAt       DateTime?
+  reversesExpenseId   String?
   // Tier 108: SEPA pain.001 batch payment tracking.
   // paidAt is set when the user runs a SEPA export
   // and marks the expense as paid (the date is

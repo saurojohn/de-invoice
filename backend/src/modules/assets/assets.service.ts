@@ -10,6 +10,7 @@ import { AuditService } from '../audit/audit.service'
 import { computeAfaSummary, isLand } from './afa'
 import { assertNotFuture } from '../../common/business-date'
 import { assertBooksOpen } from '../reports/filed-period'
+import { LIVE_AFA } from '../accounting/booked-afa'
 
 /**
  * Tier 83+87: Anlagenverzeichnis (Asset Register)
@@ -305,7 +306,7 @@ export class AssetsService {
     const saleDate = new Date(dto.verkauftAm)
     const saleYear = saleDate.getFullYear()
     const booked = await this.prisma.expense.findMany({
-      where: { companyId, relatedAssetId: id, category: 'AfA', afaYear: { gte: saleYear } },
+      where: { companyId, relatedAssetId: id, category: 'AfA', afaYear: { gte: saleYear }, ...LIVE_AFA },
       select: { afaYear: true, netAmount: true },
     })
     const bookedCents = (y: number) =>
@@ -396,6 +397,7 @@ export class AssetsService {
         companyId,
         afaYear: year,
         relatedAssetId: { not: null },
+        ...LIVE_AFA,
         afaMonth: { not: null },
       },
     })
@@ -421,6 +423,7 @@ export class AssetsService {
         companyId,
         afaYear: year,
         relatedAssetId: { not: null },
+        ...LIVE_AFA,
       },
       select: { relatedAssetId: true, grossAmount: true },
     })
@@ -547,6 +550,7 @@ export class AssetsService {
         companyId,
         afaYear: year,
         relatedAssetId: { not: null },
+        ...LIVE_AFA,
         afaMonth: null,
       },
     })
@@ -568,6 +572,7 @@ export class AssetsService {
         companyId,
         afaYear: year,
         relatedAssetId: { not: null },
+        ...LIVE_AFA,
         afaMonth: { not: null },
       },
       select: {
@@ -699,30 +704,19 @@ export class AssetsService {
   // ----------------------------------------------------------------
 
   /**
-   * Storno all booked AfA Expense rows for
-   * the year (any mode: annual + monthly).
-   * The rows are physically deleted (not
-   * soft-deleted) so the rebook flow can
-   * re-create them cleanly. The user can
-   * then re-book in either mode.
+   * Tier 746 — take back all AfA booked for the year (annual and monthly): by
+   * a counter-entry, not by deleting.
    *
-   * Idempotent: if no AfA bookings exist
-   * for the year, returns
-   * `stornoedCount=0` and does nothing.
+   * This deleted the rows, and only the audit log still knew the booking had
+   * existed; a booking that had gone into a return was gone from the ledger.
+   * Now each row stays and gets a reversal of the opposite sign, on the same
+   * day and in the same AfA period, so every sum of the year is zero for the
+   * pair. Both are marked (`afaReversedAt`): the year counts as not booked and
+   * can be booked again, in either mode.
    *
-   * Audit trail: writes an AuditLog row
-   * with action='assets.afa.stornoed'
-   * carrying the year + the count +
-   * the original grossAmount sum. The
-   * audit log is the only durable
-   * evidence that the booking existed
-   * before storno (the Expense rows are
-   * gone).
-   *
-   * v1: simple DELETE + audit log. v2:
-   * could also support a "storno single
-   * asset" mode (delete one asset's
-   * rows) — not in v1.
+   * Idempotent: with nothing booked it returns `stornoedCount=0`. In closed
+   * books it is refused. The audit log gets a semantic row
+   * (`assets.afa.stornoed`) beside the automatic ones.
    */
   async stornoAfa(
     companyId: string,
@@ -752,9 +746,9 @@ export class AssetsService {
         companyId,
         afaYear: year,
         relatedAssetId: { not: null },
+        ...LIVE_AFA,
         category: 'AfA',
       },
-      select: { id: true, grossAmount: true, afaMonth: true },
     })
 
     if (existing.length === 0) {
@@ -786,17 +780,46 @@ export class AssetsService {
           ? 'monthly'
           : 'annual'
 
-    // Delete the rows. The audit log
-    // captures the evidence.
-    const { count } = await this.prisma.expense.deleteMany({
-      where: { id: { in: ids }, companyId },
+    // The counter-entries, and the mark on both sides, as one step.
+    const reversedAt = new Date()
+    const count = await this.prisma.$transaction(async (tx) => {
+      for (const e of existing) {
+        await tx.expense.create({
+          data: {
+            companyId,
+            supplierId: e.supplierId,
+            invoiceNumber: null,
+            description: `Storno: ${e.description}`,
+            invoiceDate: e.invoiceDate,
+            netAmount: new Prisma.Decimal(e.netAmount).negated(),
+            vatRate: e.vatRate,
+            vatAmount: new Prisma.Decimal(e.vatAmount ?? 0).negated(),
+            grossAmount: new Prisma.Decimal(e.grossAmount ?? 0).negated(),
+            category: 'AfA',
+            accountNumber: e.accountNumber,
+            isIntraEU: false,
+            isReverseCharge: false,
+            status: e.status,
+            notes: `Storno der AfA-Buchung ${e.id}`,
+            relatedAssetId: e.relatedAssetId,
+            afaYear: e.afaYear,
+            afaMonth: e.afaMonth,
+            afaReversedAt: reversedAt,
+            reversesExpenseId: e.id,
+          },
+        })
+      }
+      const marked = await tx.expense.updateMany({
+        where: { id: { in: ids }, companyId },
+        data: { afaReversedAt: reversedAt },
+      })
+      return marked.count
     })
 
     // Write the audit log entry. The
     // AuditLog extension (in prisma/
     // audit-log.extension.ts) wraps every
     // mutation with auto-audit. The
-    // .deleteMany() is auto-audited. The
     // explicit `assets.afa.stornoed`
     // entry below is a SEMANTIC marker
     // (not auto-audited) so the Berater
@@ -817,13 +840,12 @@ export class AssetsService {
         stornoedCount: count,
         stornoedTotal,
       },
-      // No "new" state for a storno — the rows are gone.
       ipAddress: null,
       userAgent: 'de-invoice:AssetsService.stornoAfa',
     })
 
     this.logger.log(
-      `AfA-Storno ${companyId} year=${year}: deleted=${count} total=${stornoedTotal} (mode=${modeDesc})`,
+      `AfA-Storno ${companyId} year=${year}: reversed=${count} total=${stornoedTotal} (mode=${modeDesc})`,
     )
     return {
       year,
@@ -856,6 +878,7 @@ export class AssetsService {
           companyId,
           afaYear: year,
           relatedAssetId: { not: null },
+          ...LIVE_AFA,
         },
         select: {
           id: true,

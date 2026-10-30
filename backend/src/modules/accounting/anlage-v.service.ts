@@ -2,6 +2,7 @@ import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
+import { LIVE_AFA } from './booked-afa'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
@@ -247,6 +248,7 @@ export class AnlageVService {
         invoiceDate: { gte: yearStart, lte: yearEnd },
         category: 'AfA',
         afaYear: year,
+        ...LIVE_AFA, // Tier 746
         // Tier 436: the rental pool only, as the computed fallback below — a
         // machine's AfA is no Werbungskosten of a rental.
         relatedAssetId: {

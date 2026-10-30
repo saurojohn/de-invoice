@@ -760,7 +760,9 @@ export async function buildBuchungenFromDb(
         belegfeld1: `AFA-${y}${exp.afaMonth ? '-' + String(exp.afaMonth).padStart(2, '0') : ''}`,
         konto: k.afa,
         gegenkonto: k.anlage,
-        betrag: r2(Math.abs(Number(exp.netAmount))),
+        // An AfA booking is stored negative; its Storno positive (Tier 746) —
+        // negative here, which turns it to H and takes the AfA back.
+        betrag: r2(-Number(exp.netAmount)),
         shVz: 'S',
         buchungstext: exp.description.substring(0, 60),
       })

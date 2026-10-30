@@ -13,6 +13,13 @@ import { Prisma, PrismaClient } from '@prisma/client'
 
 type Db = PrismaClient | Prisma.TransactionClient
 
+/**
+ * Tier 746 — an AfA row that stands. The AfA storno leaves the booking in the
+ * ledger and adds its counter-entry, and marks both: in every sum the pair is
+ * zero, and "is this year booked?" looks only at rows without the mark.
+ */
+export const LIVE_AFA = { afaReversedAt: null } as const
+
 export async function bookedAfaCost(db: Db, companyId: string, year: number): Promise<{ amount: number; count: number }> {
   const rows = await db.expense.findMany({
     where: {
@@ -20,6 +27,7 @@ export async function bookedAfaCost(db: Db, companyId: string, year: number): Pr
       category: 'AfA',
       afaYear: year,
       relatedAssetId: { not: null },
+      ...LIVE_AFA,
     },
     select: { netAmount: true },
   })
