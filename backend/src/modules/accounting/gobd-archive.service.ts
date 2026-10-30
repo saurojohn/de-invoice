@@ -8,6 +8,7 @@ import * as archiver from 'archiver'
 import * as fs from 'fs'
 import * as path from 'path'
 import { SALES_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
+import { belegeInPeriod } from './gobd-belege'
 
 /**
  * Tier 77: GoBD-compliant Document Archive (§ 147 AO).
@@ -190,6 +191,15 @@ export class GobdArchiveService {
       totalVorsteuer += exp.vorsteuer
     }
 
+    // Tier 741: the Belege themselves (gobd-belege.ts)
+    const belege = await belegeInPeriod(this.prisma, this.storage, companyId, yearStart, yearEnd)
+    const folder = { expense: 'Expenses', voucher: 'Vouchers', invoice: 'Invoices' }
+    for (const b of belege) {
+      if (!b.buffer) continue
+      archive.append(b.buffer, { name: `${folder[b.kind]}/${b.relativePath}` })
+      attachmentCount += 1
+    }
+
     archive.append(encodeDatevCsv(datevCsv), { name: 'Buchungsstapel.csv' })
     archive.append(auditCsv, { name: 'Audit-Log.csv' })
 
@@ -211,6 +221,10 @@ export class GobdArchiveService {
         attachments: attachmentCount,
         auditLogLines: auditCsv.split('\n').length - 2, // minus header + trailing newline
       },
+      // Tier 741: what could not be handed over as it was stored
+      belegeProblems: belege
+        .filter((b) => !b.buffer || b.changed)
+        .map((b) => ({ record: b.recordNumber, file: b.originalName, problem: b.buffer ? 'Inhalt weicht vom gespeicherten Hash ab' : 'Datei fehlt', sha256: b.contentHash })),
       totals: {
         revenueNet: this.round2(totalRevenueNet),
         expenseNet: this.round2(totalExpenseNet),
@@ -220,7 +234,8 @@ export class GobdArchiveService {
       },
       disclaimer:
         'Dieses Archiv wurde nach den Grundsätzen der GoBD (§ 147 AO) ' +
-        'zusammengestellt. Aufbewahrungsfrist: 10 Jahre. ' +
+        'zusammengestellt. Aufbewahrungsfristen (§ 147 Abs. 3 AO): Bücher und Jahresabschlüsse 10 Jahre, ' +
+        'Buchungsbelege 8 Jahre, Handelsbriefe 6 Jahre. ' +
         'Die Unveränderlichkeit der PDF-Rechnungen wird durch die ' +
         'PDF-Signatur (sofern aktiv) sichergestellt.',
     }
@@ -261,9 +276,9 @@ export class GobdArchiveService {
             invoiceDate: { gte: yearStart, lte: yearEnd },
           },
           select: {
+            id: true,
             netAmount: true,
             vatAmount: true,
-            attachmentPath: true,
           },
         }),
         this.prisma.auditLog.count({
@@ -333,7 +348,11 @@ export class GobdArchiveService {
         }),
       ])
 
-    const attachmentCount = expenses.filter((e) => e.attachmentPath).length
+    // Tier 741: the Belege the archive will hold (Expense.attachmentPath is
+    // the old field: nothing writes it)
+    const attachmentCount = await this.prisma.attachment.count({
+      where: { companyId, entityType: 'expense', entityId: { in: expenses.map((e) => e.id) } },
+    })
     const totalRevenueNet =
       Number(totalRev._sum.total || 0) - Number(totalRev._sum.totalVat || 0)
     const totalExpenseNet = Number(totalExp._sum.netAmount || 0)

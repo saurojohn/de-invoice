@@ -4,6 +4,7 @@ import { NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
+import { belegeInPeriod } from '../accounting/gobd-belege'
 import { SigningService } from '../signing/signing.service'
 // archiver v8 is an ESM module re-exported as
 // CJS. `require('archiver')` returns an object
@@ -77,11 +78,12 @@ import * as crypto from 'crypto'
  *     the legal Beleg; Mahnung is a notification)
  *   recurrings/REC-XXXX.meta.json
  *
+ *   expenses/<number>.meta.json, belege/expenses/<number>/…
+ *     (Tier 741: the received Belege, vouchers' and
+ *     invoices' too, under belege/vouchers, belege/invoices;
+ *     gobd-belege.ts — `entfernt/` for one taken off a record)
+ *
  * Not in the ZIP (explicitly):
- *   - Belege/Attachments (Bilder, Scans). Optional
- *     v2 — Tier 140 has them but they're not
- *     geschäftsrelevant in the same sense. Adding
- *     would 2-5x the archive size.
  *   - Customer payment history (Payment rows). The
  *     audit log + the invoice meta is enough.
  *   - The cert / key itself. Storing the private key
@@ -128,6 +130,8 @@ export interface GobdExportResult {
     recurrings: number
     emailSends: number
     auditLogRows: number
+    belege: number
+    expenses: number
     signedPdfs: number
     unsignedPdfs: number
     totalSize: number
@@ -550,6 +554,36 @@ export class GobdExportService {
       )
     }
 
+    // 3b. Tier 741: the received invoices and every other Beleg of the period
+    const belege = await belegeInPeriod(this.prisma, this.storageService, opts.companyId, yearStart, new Date(yearEnd.getTime() - 1))
+    const belegeProblems: Array<{ record: string; file: string; problem: string; sha256: string }> = []
+    for (const b of belege) {
+      if (!b.buffer) {
+        belegeProblems.push({ record: b.recordNumber, file: b.originalName, problem: 'Datei fehlt', sha256: b.contentHash })
+        continue
+      }
+      if (b.changed) belegeProblems.push({ record: b.recordNumber, file: b.originalName, problem: 'Inhalt weicht vom gespeicherten Hash ab', sha256: b.contentHash })
+      await appendFile(`belege/${b.kind}s/${b.relativePath}`, b.buffer, b.mimeType, { isSigned: false })
+    }
+    const expenseRows = await this.prisma.expense.findMany({
+      where: { companyId: opts.companyId, invoiceDate: { gte: yearStart, lt: yearEnd } },
+      orderBy: { invoiceDate: 'asc' },
+      select: {
+        id: true, invoiceNumber: true, invoiceDate: true, description: true, category: true, status: true,
+        netAmount: true, vatRate: true, vatAmount: true, grossAmount: true, paidAt: true, notes: true,
+        supplier: { select: { name: true, vatId: true } },
+        taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true }, orderBy: { position: 'asc' } },
+      },
+    })
+    for (const e of expenseRows) {
+      await appendFile(
+        `expenses/${(e.invoiceNumber || e.id.slice(0, 8)).replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(0, 120)}-${e.id.slice(0, 8)}.meta.json`,
+        Buffer.from(JSON.stringify(e, null, 2), 'utf-8'),
+        'application/json',
+        { isSigned: false },
+      )
+    }
+
     // 4. Audit log CSV. We use the same
     //    serialiser as the existing
     //    /audit-logs/export.csv endpoint —
@@ -653,6 +687,8 @@ export class GobdExportService {
         signedPdfs,
         unsignedPdfs,
         totalSize: fileEntries.reduce((s, f) => s + f.size, 0),
+        belege: belege.length,
+        belegeProblems, // Tier 741: missing or changed since upload
       },
       files: fileEntries,
     }
@@ -764,6 +800,8 @@ export class GobdExportService {
         recurrings: recurrings.length,
         emailSends: emailSends.length,
         auditLogRows: auditLogs.length,
+        belege: belege.length,
+        expenses: expenseRows.length,
         signedPdfs,
         unsignedPdfs,
         totalSize: zipBuffer.length,

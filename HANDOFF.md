@@ -2669,6 +2669,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 741 — the Belege are in the GoBD archives
+
+Measured with an expense and its scanned invoice: `GET /accounting/gobd-archive` held `Expenses/<number>.json` and no invoice — it read `Expense.attachmentPath`, which nothing has written since Belege became `Attachment` rows, and its summary counted 0; `GET /gobd-export` left them out on purpose („not geschäftsrelevant in the same sense"). The package for a tax audit held no received invoice, and no received e-invoice in its original form (§ 147 Abs. 1 Nr. 4 AO).
+
+- `accounting/gobd-belege.ts` (`belegeInPeriod`): the attachments of the expenses, vouchers and invoices dated in the period, those taken off a record (Tier 740) under `entfernt/`; each file is read back and its SHA-256 compared with the one stored at upload.
+- `gobd-archive`: `Expenses|Vouchers|Invoices/<number>/<id>_<name>`; the MANIFEST counts them and lists `belegeProblems` (file missing, or content not the stored hash). The summary counts `Attachment` rows.
+- `gobd-export`: `belege/<kind>s/<number>/…` with their SHA-256 in the manifest, `expenses/<number>-<id>.meta.json` for the expense data (the export held none), `belege` and `belegeProblems` in the verification report, `belege` / `expenses` in the stats. The archive is built in memory: with many scans a year's ZIP is large — not measured under load.
+
+Spec `461-tier741-belege-im-gobd-archiv.sh` (byte for byte, in both; entfernt/; another year; a changed and a missing file named — 13 fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 740 — a Beleg stays: taken off an open record it is marked, in closed books it is refused, the received e-invoice cannot be taken off; the storage route no longer removes kept documents
 
 Found while checking the facts for the Verfahrensdokumentation (§9 item 23), measured on the test backend: `DELETE /attachments/:id` removed row and bytes of a Beleg — with 200 for an expense in **closed books**, and for the kept original of a received e-invoice; `DELETE /storage/files/<path>` (Einstellungen → Dateien) removed the **kept copy of an issued invoice** and the bytes under an attachment's row. § 146 Abs. 4, § 147 AO; the document could not have said „unveränderbar".
