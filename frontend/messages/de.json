@@ -1028,7 +1028,11 @@
     "severalRates": "mehrere Steuersätze",
     "ocrTaxLines": "Steuersätze laut Beleg",
     "ocrVatAmount": "USt (€)",
-    "ocrTaxLinesHint": "Der Beleg weist mehrere Steuersätze aus — es wird eine Ausgabe mit einer Zeile je Steuersatz angelegt; Netto, USt und Brutto sind deren Summen."
+    "ocrTaxLinesHint": "Der Beleg weist mehrere Steuersätze aus — es wird eine Ausgabe mit einer Zeile je Steuersatz angelegt; Netto, USt und Brutto sind deren Summen.",
+    "attachmentRemoveConfirm": "Diesen Beleg von der Ausgabe entfernen? Er wird nicht vernichtet: Die Datei bleibt aufbewahrt und das Entfernen wird protokolliert.",
+    "attachmentRemoveFailed": "Der Beleg konnte nicht entfernt werden.",
+    "attachmentOriginal": "Original",
+    "attachmentOriginalHint": "Die empfangene E-Rechnung im Original. Sie ist unverändert aufzubewahren und kann nicht entfernt werden."
   },
   "home": {
     "heroTitle": "Professionelle deutsche Rechnungsverwaltung",

@@ -18,6 +18,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { StorageService } from './storage.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { StorageConfigDto, UploadFileDto } from './dto/storage-config.dto';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { CallerBoundUpload } from '../../auth/caller-bound-upload';
@@ -38,7 +39,7 @@ interface MulterFile {
 @Auth()
 @Controller('storage')
 export class StorageController {
-  constructor(private storageService: StorageService) {}
+  constructor(private storageService: StorageService, private prisma: PrismaService) {}
 
   /**
    * Upload file to local storage
@@ -107,6 +108,22 @@ export class StorageController {
   }
 
   /**
+   * Tier 740 — this route removed any file of the company by its path.
+   * Measured: the kept copy of an issued invoice (Settings → Dateien) was gone
+   * with a 200, and an attachment's bytes went from under its row. The files
+   * the program produces (`pdf`: invoices, UStVA …) and every file an
+   * attachment points at are records; only what was uploaded here and belongs
+   * to nothing can be removed.
+   */
+  private async assertNotAKeptDocument(filePath: string, companyId: string): Promise<void> {
+    const generated = filePath.split('/')[2] === 'pdf';
+    const attached = await this.prisma.attachment.findFirst({ where: { companyId, storagePath: filePath }, select: { id: true } });
+    if (generated || attached) {
+      throw new BadRequestException('Diese Datei gehört zu einem aufbewahrungspflichtigen Beleg und kann nicht gelöscht werden.');
+    }
+  }
+
+  /**
    * Delete file from storage
    * DELETE /api/v1/storage/files/<path>
    */
@@ -115,6 +132,7 @@ export class StorageController {
   async deleteFile(@Param('splat') splat: string[], @Headers('x-company-id') companyId: string) {
     const requested = (Array.isArray(splat) ? splat.join('/') : splat || '').replace(/,/g, '/');
     const filePath = this.storageService.companyFilePath(requested, companyId);
+    if (filePath) await this.assertNotAKeptDocument(filePath, companyId);
 
     const deleted = filePath ? await this.storageService.deleteFile(filePath) : false;
 

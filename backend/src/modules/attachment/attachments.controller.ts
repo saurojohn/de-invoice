@@ -38,6 +38,7 @@ import {
   UploadedFile,
   Res,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { Auth, Require } from '../../auth/roles.decorator';
@@ -188,8 +189,9 @@ export class AttachmentsController {
   async delete(
     @Param('id') id: string,
     @Query('companyId') companyId: string,
+    @Req() req: any,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required')
-    return this.attachments.delete(companyId, id)
+    return this.attachments.delete(companyId, id, req.user?.id)
   }
 }

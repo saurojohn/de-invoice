@@ -1871,6 +1871,7 @@ export class InvoiceController {
     @Query('companyId') companyId: string,
     @Param('id') id: string,
     @Param('attachmentId') attachmentId: string,
+    @Req() req: any,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required')
     // Defense in depth: the attachments service
@@ -1881,7 +1882,7 @@ export class InvoiceController {
     // user didn't expect. The cheap check is one
     // Prisma findFirst with both ids.
     const att = await this.prisma.attachment.findFirst({
-      where: { id: attachmentId, companyId, entityType: 'invoice', entityId: id },
+      where: { id: attachmentId, companyId, entityType: 'invoice', entityId: id, deletedAt: null },
       select: { id: true },
     })
     if (!att) {
@@ -1889,6 +1890,6 @@ export class InvoiceController {
         'Anhang nicht gefunden (gehört nicht zu dieser Rechnung)',
       )
     }
-    return this.attachmentsService.delete(companyId, attachmentId)
+    return this.attachmentsService.delete(companyId, attachmentId, req.user?.id)
   }
 }

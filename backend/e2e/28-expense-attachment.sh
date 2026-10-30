@@ -190,11 +190,11 @@ DEL_STATUS=$(curl -sS -X DELETE -o /dev/null -w "%{http_code}" \
   "$API/api/v1/attachments/$ATT_ID?companyId=$COMPANY_ID")
 assert_eq "DELETE /attachment returns 200" "$DEL_STATUS" "200"
 
-# Verify the Attachment row is gone
+# Tier 740: a Beleg is marked, not destroyed (spec 460)
 ROW_COUNT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "
-  SELECT count(*) FROM \"Attachment\" WHERE id = '$ATT_ID';
+  SELECT count(*) FROM \"Attachment\" WHERE id = '$ATT_ID' AND \"deletedAt\" IS NOT NULL;
 " 2>/dev/null | tr -d ' ')
-assert_eq "deleted Attachment row gone" "$ROW_COUNT" "0"
+assert_eq "the Attachment row stays, marked as taken off" "$ROW_COUNT" "1"
 
 # Re-fetch the bundle — should have 1 entry now
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \

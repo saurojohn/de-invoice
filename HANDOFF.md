@@ -2669,6 +2669,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 740 — a Beleg stays: taken off an open record it is marked, in closed books it is refused, the received e-invoice cannot be taken off; the storage route no longer removes kept documents
+
+Found while checking the facts for the Verfahrensdokumentation (§9 item 23), measured on the test backend: `DELETE /attachments/:id` removed row and bytes of a Beleg — with 200 for an expense in **closed books**, and for the kept original of a received e-invoice; `DELETE /storage/files/<path>` (Einstellungen → Dateien) removed the **kept copy of an issued invoice** and the bytes under an attachment's row. § 146 Abs. 4, § 147 AO; the document could not have said „unveränderbar".
+
+- `Attachment.deletedAt`, `deletedById`, `keptOriginal` (migration `20261030000001_attachment_kept`). `AttachmentsService.delete`: the received e-invoice as it came (`keptOriginal`, set by the import): 400; a record in closed books or a submitted UStVA period (`assertPeriodOpen`, by the expense's / voucher's / invoice's date): 400; otherwise marked — the record no longer shows it, it no longer opens through the record, row and bytes stay, the audit log has the change. `removeUnbooked` (row and bytes) is for the e-invoice import's rollback alone. Lists, the file route, the OCR text, the import's same-file check and the DATEV Belege export read `deletedAt: null`.
+- Storage route: files of type `pdf` (what the program produces) and every file an attachment row points at — marked ones too — are refused with 400; what was uploaded there and belongs to nothing can still be removed.
+- Frontend: `ReceiptsPanel` only logged a failed delete to the console — it shows the reason now; the question says the file is kept; the original shows „Original" instead of the button.
+- There is no way yet to put a taken-off Beleg back from the UI (`UPDATE "Attachment" SET "deletedAt"=NULL`). A wrong upload with personal data stays stored until the record's period ends; deleting it is a decision for the owner.
+
+Specs: `460-tier740-belege-bleiben.sh` (12 fail on the code before); 28 and 29 assert the mark; Playwright `belege-bleiben-tier740.spec.ts`. Locally: spec 29's cleanup deletes the seed company's account 1200 when it runs on a database where nothing else references it, and then 183 reports „fixtures missing" — a local artefact, restored by hand in the test database.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 739b — CI green for Tiers 738b and 739
 
 Run 40965496716 (commit 29d0363a): backend **458 passed / 0 failed / 1 skipped** (458 and 459 among them), Playwright **1108 passed, 0 flaky, no retry** (the e-invoice dialog spec that failed in run 40959218063, and `several-vat-rates-tier739`, among them). Tiers 735–739 are green.

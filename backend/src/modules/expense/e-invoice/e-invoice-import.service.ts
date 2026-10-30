@@ -301,7 +301,7 @@ export class EInvoiceImportService {
     const contentHash = crypto.createHash('sha256').update(buffer).digest('hex')
     let duplicate: { expenseId: string; reason: 'file' | 'number'; message: string } | null = null
     const sameFile = await this.prisma.attachment.findFirst({
-      where: { companyId, entityType: 'expense', contentHash },
+      where: { companyId, entityType: 'expense', contentHash, deletedAt: null },
       select: { entityId: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     })
@@ -497,13 +497,14 @@ export class EInvoiceImportService {
           size: file.buffer.length,
           uploadedById: userId,
           text,
+          keptOriginal: true, // Tier 740
         })
       }
     } catch (e) {
       // All or nothing: an invoice half booked is worse than one not booked.
       for (const c of created) {
         const kept = await this.prisma.attachment.findMany({ where: { companyId, entityType: 'expense', entityId: c.id }, select: { id: true } }).catch(() => [])
-        for (const a of kept) await this.attachments.delete(companyId, a.id).catch(() => undefined)
+        for (const a of kept) await this.attachments.removeUnbooked(companyId, a.id).catch(() => undefined)
         await this.prisma.expense.deleteMany({ where: { id: c.id, companyId } }).catch(() => undefined)
       }
       if (supplierCreated && supplierId) {

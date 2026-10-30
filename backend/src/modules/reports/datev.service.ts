@@ -1303,6 +1303,7 @@ export async function collectBelegbilder(
         companyId,
         entityType: 'expense',
         entityId: { in: Array.from(expenseIdToNumber.keys()) },
+        deletedAt: null, // Tier 740
       },
       select: {
         id: true,
@@ -1356,6 +1357,7 @@ export async function collectBelegbilder(
         companyId,
         entityType: 'voucher',
         entityId: { in: Array.from(voucherIdToNumber.keys()) },
+        deletedAt: null, // Tier 740
       },
       select: {
         id: true,

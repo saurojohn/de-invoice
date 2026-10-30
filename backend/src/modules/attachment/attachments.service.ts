@@ -34,11 +34,12 @@
  *     to have its own Attachment row even if the
  *     underlying bytes are identical).
  */
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService, SavedFile } from '../storage/storage.service';
 import { OcrService } from './ocr.service';
+import { assertPeriodOpen } from '../reports/filed-period';
 
 export interface UploadInput {
   buffer: Buffer;
@@ -78,6 +79,8 @@ export class AttachmentsService {
     uploadedById?: string;
     /** Tier 573: searchable text the caller already has (an e-invoice's content) */
     text?: string;
+    /** Tier 740: the received e-invoice as it came — never taken off */
+    keptOriginal?: boolean;
   }): Promise<any> {
     // Sanity: the parent must exist and belong to
     // this company. We don't trust the entityId
@@ -178,6 +181,7 @@ export class AttachmentsService {
         ocrText,
         contentHash,
         uploadedById: input.uploadedById,
+        keptOriginal: input.keptOriginal === true,
       },
     })
   }
@@ -194,7 +198,7 @@ export class AttachmentsService {
     entityId: string,
   ): Promise<any[]> {
     return this.prisma.attachment.findMany({
-      where: { companyId, entityType, entityId },
+      where: { companyId, entityType, entityId, deletedAt: null },
       orderBy: { createdAt: 'asc' },
       include: {
         // Surface the uploader's email so the audit
@@ -227,7 +231,7 @@ export class AttachmentsService {
     size: number;
   }> {
     const att = await this.prisma.attachment.findFirst({
-      where: { id: attachmentId, companyId },
+      where: { id: attachmentId, companyId, deletedAt: null },
     })
     if (!att) throw new NotFoundException('Anhang nicht gefunden')
     const file = await this.storage.getFile(att.storagePath)
@@ -252,41 +256,59 @@ export class AttachmentsService {
   }
 
   /**
-   * Delete an attachment. Removes both the DB row
-   * AND the bytes on disk. Cascades: when the
-   * parent (Expense / Voucher) is deleted, the
-   * FK on Attachment sets this row to orphan —
-   * that's a bug for the storage layer to handle.
+   * Tier 740 — take a Beleg off a record.
    *
-   * Currently we don't auto-clean orphaned
-   * attachments on parent delete. A future Tier
-   // will add a janitor that scans for
-   // orphan rows and unlinks the bytes. For
-   // now, the `onDelete: Cascade` on Company
-   // handles the company-deletion path; per-
-   // record deletion leaves the bytes on disk
-   // until the operator manually runs the
-   // janitor.
+   * This removed the row and the bytes, always. Measured: the Beleg of an
+   * expense in closed books was gone with a 200, and so was the kept original
+   * of a received e-invoice. A Beleg is kept unchanged for its whole period
+   * (§ 146 Abs. 4, § 147 AO; GoBD Unveränderbarkeit). Now:
+   *
+   *   - the received e-invoice as it came (`keptOriginal`): refused;
+   *   - a record in closed books or a submitted UStVA period: refused;
+   *   - otherwise — a wrong file on an open record — it is marked: the record
+   *     no longer shows it, row and bytes stay, the audit log has the change,
+   *     and the GoBD exports keep it as removed.
    */
-  async delete(companyId: string, attachmentId: string): Promise<{ success: boolean }> {
+  async delete(companyId: string, attachmentId: string, userId?: string | null): Promise<{ success: boolean }> {
     const att = await this.prisma.attachment.findFirst({
-      where: { id: attachmentId, companyId },
+      where: { id: attachmentId, companyId, deletedAt: null },
     })
     if (!att) throw new NotFoundException('Anhang nicht gefunden')
-    // Delete the bytes first; if the file is already
-    // gone, getFile() would 404 anyway. We log the
-    // miss but proceed with the DB delete — the
-    // user's intent is to remove the attachment,
-    // not to debug missing bytes.
-    try {
-      await this.storage.deleteFile(att.storagePath)
-    } catch (e: any) {
-      this.logger.warn(
-        `Failed to delete file ${att.storagePath} for attachment ${att.id}: ${e?.message}`,
-      )
+    if (att.keptOriginal) {
+      throw new BadRequestException('Das ist die empfangene E-Rechnung im Original. Sie ist unverändert aufzubewahren und kann nicht entfernt werden.')
     }
-    await this.prisma.attachment.delete({ where: { id: att.id } })
+    const date = await this.recordDate(companyId, att.entityType, att.entityId)
+    if (date) await assertPeriodOpen(this.prisma, companyId, [date], 'das Entfernen eines Belegs')
+    await this.prisma.attachment.update({
+      where: { id: att.id },
+      data: { deletedAt: new Date(), deletedById: userId ?? null },
+    })
     return { success: true }
+  }
+
+  /** The day a Beleg's record is booked on, for the closed-period check. */
+  private async recordDate(companyId: string, entityType: string, entityId: string): Promise<Date | null> {
+    if (entityType === 'expense') {
+      return (await this.prisma.expense.findFirst({ where: { id: entityId, companyId }, select: { invoiceDate: true } }))?.invoiceDate ?? null
+    }
+    if (entityType === 'voucher') {
+      return (await this.prisma.voucher.findFirst({ where: { id: entityId, companyId }, select: { date: true } }))?.date ?? null
+    }
+    if (entityType === 'invoice') {
+      return (await this.prisma.invoice.findFirst({ where: { id: entityId, companyId }, select: { issueDate: true } }))?.issueDate ?? null
+    }
+    return null
+  }
+
+  /**
+   * Row and bytes of a file whose record was never booked — the e-invoice
+   * import rolling back. Nothing else calls this.
+   */
+  async removeUnbooked(companyId: string, attachmentId: string): Promise<void> {
+    const att = await this.prisma.attachment.findFirst({ where: { id: attachmentId, companyId } })
+    if (!att) return
+    await this.storage.deleteFile(att.storagePath).catch(() => undefined)
+    await this.prisma.attachment.delete({ where: { id: att.id } })
   }
 
   /**
@@ -298,7 +320,7 @@ export class AttachmentsService {
    */
   async getOcrText(companyId: string, attachmentId: string): Promise<{ text: string | null }> {
     const att = await this.prisma.attachment.findFirst({
-      where: { id: attachmentId, companyId },
+      where: { id: attachmentId, companyId, deletedAt: null },
       select: { ocrText: true },
     })
     if (!att) throw new NotFoundException('Anhang nicht gefunden')

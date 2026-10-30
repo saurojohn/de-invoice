@@ -39,6 +39,8 @@ export interface Attachment {
   contentHash: string
   createdAt: string
   uploadedBy: { id: string; email: string } | null
+  // Tier 740: the received e-invoice as it came — never taken off
+  keptOriginal?: boolean
 }
 
 interface Props {
@@ -84,6 +86,7 @@ export function ReceiptsPanel({ companyId, entityType, entityId, onChange }: Pro
   const [uploading, setUploading] = useState(false)
   const [expandedOcrId, setExpandedOcrId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch the attachment list. We re-fetch on every
@@ -145,13 +148,15 @@ export function ReceiptsPanel({ companyId, entityType, entityId, onChange }: Pro
   }
 
   const remove = async (id: string) => {
-    if (!confirm(t("expenses.deleteConfirm"))) return
+    if (!confirm(t("expenses.attachmentRemoveConfirm"))) return
+    setRemoveError(null)
     try {
       await apiDelete(`/api/v1/attachments/${id}?companyId=${companyId}`)
       await load()
       onChange?.()
     } catch (e) {
-      console.error("delete failed", e)
+      // Tier 740: closed books, a received original — the reason is shown
+      setRemoveError((e as Error)?.message || t("expenses.attachmentRemoveFailed"))
     }
   }
 
@@ -162,6 +167,11 @@ export function ReceiptsPanel({ companyId, entityType, entityId, onChange }: Pro
 
   return (
     <div className="space-y-4">
+      {removeError && (
+        <div role="alert" data-testid="attachment-remove-error" className="rounded border border-red-300 bg-red-50 p-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          {removeError}
+        </div>
+      )}
       {/* Drop zone — also acts as the file-picker
           trigger. The visual state changes when a
           file is dragged over (dragOver = true). */}
@@ -259,12 +269,19 @@ export function ReceiptsPanel({ companyId, entityType, entityId, onChange }: Pro
                   >
                     {t("expenses.download")}
                   </a>
-                  <button
-                    onClick={() => remove(a.id)}
-                    className="text-xs px-2 py-1 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
-                  >
-                    {t("expenses.delete")}
-                  </button>
+                  {a.keptOriginal ? (
+                    <span className="text-xs px-2 py-1 text-gray-500 dark:text-gray-400 text-center" data-testid="attachment-kept-original" title={t("expenses.attachmentOriginalHint")}>
+                      {t("expenses.attachmentOriginal")}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => remove(a.id)}
+                      data-testid="attachment-remove"
+                      className="text-xs px-2 py-1 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      {t("expenses.delete")}
+                    </button>
+                  )}
                 </div>
               </div>
               {/* OCR text panel — shown on demand so
