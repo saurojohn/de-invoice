@@ -135,7 +135,7 @@ export class UsersController {
   @Post('invitations')
   async invite(
     @Query('companyId') companyId: string,
-    @Body() body: { email?: string; role?: string },
+    @Body() body: { email?: string; role?: string; accessUntil?: unknown },
     @Req() req: AuthedRequest,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
@@ -148,7 +148,7 @@ export class UsersController {
     // company's address is confirmed — refused here, not after the invitation
     // exists with a mail that never went out.
     await (this.users as any).mailService?.assertMaySend(companyId);
-    const inv = await this.users.createInvitation(companyId, req.user.id, body.email, body.role);
+    const inv = await this.users.createInvitation(companyId, req.user.id, body.email, body.role, body.accessUntil);
 
     // Build the invite link and email it (graceful: logs to console if SMTP not configured)
     try {
@@ -229,13 +229,13 @@ export class UsersController {
   async changeRole(
     @Query('companyId') companyId: string,
     @Param('id') id: string,
-    @Body() body: { role?: string },
+    @Body() body: { role?: string; accessUntil?: unknown },
     @Req() req: AuthedRequest,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     UsersService.requireRole(req.user?.role, 'users.changeRole');
     if (!body.role) throw new BadRequestException('role ist erforderlich');
-    return this.users.changeRole(companyId, id, body.role);
+    return this.users.changeRole(companyId, id, body.role, body.accessUntil);
   }
 
   /**

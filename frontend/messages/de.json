@@ -2233,7 +2233,10 @@
     "confirmCancel": "Diese Einladung wirklich stornieren?",
     "cannotRemoveLastAdmin": "Es muss mindestens ein aktiver Administrator vorhanden sein",
     "yourAccount": "(Sie)",
-    "youAreAdmin": "Sie sind der einzige Administrator"
+    "youAreAdmin": "Sie sind der einzige Administrator",
+    "roleAuditor": "Betriebsprüfer (nur lesen, befristet)",
+    "roleAuditorDesc": "Für den Datenzugriff der Finanzverwaltung (§ 147 Abs. 6 AO): sieht alle Rechnungen, Ausgaben, Buchungen, Umsatzsteuer-Voranmeldungen und das Änderungsprotokoll und kann die GoBD-Archive laden. Ändern kann der Prüfer nichts, auch keine Benutzer. Der Zugang endet am gewählten Tag und lässt sich hier verlängern.",
+    "accessUntil": "Zugang bis"
   },
   "ustva": {
     "ossNote": "Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz: netto {net} — in Kz 45 enthalten, nur als Bemessungsgrundlage. Ihre Steuer ({vat}) steht nicht in dieser Voranmeldung; sie wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG), siehe Berichte → OSS.",
@@ -4457,5 +4460,10 @@
     "deleting": "Wird gelöscht …",
     "cancel": "Abbrechen",
     "blockerOperator": "„{company}“ ist die Firma des Betreibers dieser Installation (Impressum, Verwaltung). Sie kann nicht mit einem Konto geschlossen werden; ernennen Sie zuerst einen weiteren Administrator."
+  },
+  "auditor": {
+    "title": "Prüferzugang: nur lesen",
+    "text": "Sie sehen die Bücher dieser Firma, einschließlich Umsatzsteuer und Änderungsprotokoll; ändern lässt sich nichts. Der Zugang endet am {date}.",
+    "archives": "Audit-Trail und GoBD-Archive"
   }
 }

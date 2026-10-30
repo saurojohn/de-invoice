@@ -40,7 +40,9 @@ export class RolesGuard implements CanActivate {
       ]
       if (!READS_BY_POST.some((re) => re.test(path))) {
         throw new ForbiddenException(
-          `Read-Only Modus aktiv — Schreibvorgang "${action ?? `${req.method} ${path}`}" ist gesperrt`,
+          req.user?.role === 'auditor'
+            ? 'Ein Prüferzugang kann nur lesen.' // Tier 744
+            : `Read-Only Modus aktiv — Schreibvorgang "${action ?? `${req.method} ${path}`}" ist gesperrt`,
         )
       }
     }

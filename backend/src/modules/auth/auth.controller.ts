@@ -271,6 +271,7 @@ export class AuthController {
         where: { userId },
         select: {
           role: true,
+          accessUntil: true, // Tier 744
           company: {
             select: {
               id: true,
@@ -309,6 +310,8 @@ export class AuthController {
       // on each Mandant). This is the same value
       // HeaderAuthGuard already attached to req.user.role.
       role: activeGrant?.role ?? user.role,
+      // Tier 744: an auditor's last day (the dashboard says it)
+      accessUntil: activeGrant?.accessUntil ?? null,
       // Per-company grants. Empty array for users with
       // a single Mandant (the common case).
       companies: grants.map((g) => ({

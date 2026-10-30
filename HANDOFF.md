@@ -2669,6 +2669,21 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 744 — a tax auditor's access: role `auditor`, read only on the server, with a last day
+
+The owner, 30.10.2026: „好，先做审计员角色". § 147 Abs. 6 AO (Z1). `viewer` sees neither the UStVA (`ustva.read`) nor the audit log (`audit.read`), and the read-only switch is the client's header — no boundary against anyone.
+
+- **Role `auditor`** (`users.service.ts`): not a rank. `can()`: every action ending in `.read` except `users.read`, `admin.read`, `berater.note.read`. So it has the books, the UStVA, the audit log and both GoBD archives, not the user list, the operator's pages, the internal notes.
+- **Read only on the server:** `HeaderAuthGuard` sets `readonly` for the role whatever the client sends; the rule of Tier 547 then refuses every non-GET but the few reads by POST and the person's own `/auth/*`, with „Ein Prüferzugang kann nur lesen."
+- **A last day:** `UserCompany.accessUntil`, `UserInvitation.accessUntil` (migration `20261030000002_auditor_access`). Required for the role at the invitation and at a role change, at most 366 days ahead; the guard answers 403 „abgelaufen" after it; `PATCH /users/:id/role` with a new day extends; any other role clears it. `/auth/me` and the user list answer it.
+- **No member:** `deletionPlan` does not count an auditor, so a sole admin beside one can still leave and close the company.
+- **Frontend:** Einstellungen → Benutzer: the role in the invitation with the day and a hint; for an existing auditor the day is the field that extends it (the role itself is not offered to existing members). `AuditorAccessNotice` on the dashboard. de/en/zh. Write buttons are not hidden on the pages: they answer with the sentence above.
+- Verfahrensdokumentation 1.1 (3.2, 6, 7).
+
+**Limits:** the role sees all years, not the audit period; reading is not logged, only sign-ins; one e-mail address is one account in an installation, so an auditor with an account elsewhere on the same installation cannot be invited.
+
+Specs: `464-tier744-pruefer-zugang.sh` (the day's rules; reads; refusals; **every writing route of every controller fired as the auditor answers 403**; expiry and extension; the role is no member — 28 fail on the code before); Playwright `auditor-access-tier744.spec.ts`; 463 knows five roles.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 743b — CI green for Tiers 740–743
 
 Run 41061766991 (commit decb1dcc): backend **462 passed / 0 failed / 1 skipped** (460–463 among them), Playwright **1109 passed, 0 flaky, no retry**. Next to do, none begun: the Z3 archive's `index.xml`, a Beleg put back from the UI, deleting a closed company after its period; the owner's decisions on the dunning pause, the AfA storno and the dunning fees (§9 items 13, 15, 17).

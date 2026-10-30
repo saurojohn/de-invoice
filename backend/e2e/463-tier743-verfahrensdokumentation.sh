@@ -44,11 +44,11 @@ check "120 monthly" "$C" 'BACKUP_KEEP_MONTHS:-120'
 check "…as the document says" "$DOC" 'eine je Tag für 30 Tage, eine je Woche für 12 Wochen, eine je Monat für 120 Monate'
 check "sessions end after 30 days" "$ROOT/backend/src/auth/user-session.service.ts" 'SESSION_TTL_DAYS = 30'
 check "session rows go after 90 days" "$ROOT/backend/src/auth/user-session.service.ts" 'SESSION_RETENTION_DAYS = 90'
-for r in admin accountant berater viewer; do
+for r in admin accountant berater viewer auditor; do
   check "role $r in the program" "$ROOT/backend/src/modules/users/users.service.ts" "'$r'"
   check "role $r in the document" "$DOC" "\`$r\`"
 done
-assert_eq "no role beyond the four" "$(grep -cE "^  [A-Z]+: '[a-z]+'" "$ROOT/backend/src/modules/users/users.service.ts")" "4"
+assert_eq "no role beyond the five" "$(grep -cE "^  [A-Z]+: '[a-z]+'" "$ROOT/backend/src/modules/users/users.service.ts")" "5"
 assert_eq "bank formats as the document says: no CSV" "$(grep -c "'mt940' | 'camt053'" "$ROOT/backend/src/modules/bank-import/parsers.ts")/$(grep -c 'CSV' <<<"$(grep -E 'Bankauszüge werden|^- Bank:' "$DOC")")" "1/0"
 assert_eq "the sent mail: 500 characters of it, as the document says" \
   "$(grep -c 'text.slice(0, 500)' "$ROOT/backend/src/modules/invoice/invoice-email.service.ts")/$(grep -c 'die ersten 500 Zeichen' "$DOC")" "1/1"

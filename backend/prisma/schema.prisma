@@ -333,7 +333,11 @@ model UserCompany {
   //                   "berater" into "admin" for
   //                   permission checks; the value
   //                   is preserved in audit trails.
+  //   "auditor"     — Betriebsprüfer: reads everything of
+  //                   the books, writes nothing, until
+  //                   accessUntil (Tier 744)
   role        String   @default("accountant")
+  accessUntil DateTime?
   grantedAt   DateTime @default(now())
   grantedById String?
   grantedBy   User?    @relation("GrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
@@ -349,7 +353,8 @@ model UserInvitation {
   companyId   String
   company     Company   @relation(fields: [companyId], references: [id])
   email       String
-  role        String    @default("accountant") // "admin" | "accountant" | "viewer"
+  role        String    @default("accountant") // "admin" | "accountant" | "viewer" | "auditor"
+  accessUntil DateTime? // Tier 744: an auditor's last day
   // Token — random URL-safe string, also stored hashed (bcrypt) in tokenHash
   tokenHash   String
   expiresAt   DateTime

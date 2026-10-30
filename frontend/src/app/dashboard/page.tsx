@@ -17,6 +17,7 @@ import { useI18n, L } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 import { signOut } from "@/lib/auth"
 import { EmailVerificationNotice } from "@/components/EmailVerificationNotice"
+import { AuditorAccessNotice } from "@/components/AuditorAccessNotice"
 
 interface DashboardStats {
   totalInvoices: number
@@ -354,6 +355,8 @@ export default function DashboardPage() {
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Tier 736: until the account's address is confirmed */}
         <EmailVerificationNotice />
+        {/* Tier 744: a tax auditor's access */}
+        <AuditorAccessNotice />
         {/* KPI Tiles — YTD + Month-over-Month change
             indicators. The "change" arrows come from
             the dashboard endpoint's `changes` field

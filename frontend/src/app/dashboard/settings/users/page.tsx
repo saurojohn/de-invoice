@@ -17,6 +17,7 @@ interface User {
   status: string
   createdAt: string
   lastLogin: string | null
+  accessUntil?: string | null // Tier 744
 }
 
 interface Invitation {
@@ -44,6 +45,8 @@ export default function UsersPage() {
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("accountant")
+  // Tier 744: the last day of a tax auditor's access
+  const [inviteUntil, setInviteUntil] = useState("")
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState<string | null>(null)
 
@@ -142,7 +145,11 @@ export default function UsersPage() {
             "x-user-id": userId,
             "x-company-id": companyId,
           },
-          body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole }),
+          body: JSON.stringify({
+            email: inviteEmail.trim().toLowerCase(),
+            role: inviteRole,
+            ...(inviteRole === "auditor" ? { accessUntil: inviteUntil } : {}),
+          }),
         }
       )
       const data = await res.json().catch(() => ({}))
@@ -153,6 +160,7 @@ export default function UsersPage() {
       setInviteMsg(t("users.invitationSent"))
       setInviteEmail("")
       setInviteRole("accountant")
+      setInviteUntil("")
       await loadAll(companyId, userId)
     } catch {
       setInviteMsg("Netzwerkfehler")
@@ -196,7 +204,7 @@ export default function UsersPage() {
     }
   }
 
-  const changeRole = async (userId: string, newRole: string) => {
+  const changeRole = async (userId: string, newRole: string, accessUntil?: string) => {
     const companyId = localStorage.getItem("companyId")
     const myId = localStorage.getItem("userId")
     if (!companyId || !myId) return
@@ -209,7 +217,7 @@ export default function UsersPage() {
           "x-user-id": myId,
           "x-company-id": companyId,
         },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify({ role: newRole, ...(accessUntil ? { accessUntil } : {}) }),
       }
     )
     const data = await res.json().catch(() => ({}))
@@ -253,6 +261,7 @@ export default function UsersPage() {
     if (r === "admin") return t("users.roleAdmin")
     if (r === "accountant") return t("users.roleAccountant")
     if (r === "viewer") return t("users.roleViewer")
+    if (r === "auditor") return t("users.roleAuditor")
     return r
   }
 
@@ -341,14 +350,35 @@ export default function UsersPage() {
                       <option value="accountant">{t("users.roleAccountant")}</option>
                       <option value="viewer">{t("users.roleViewer")}</option>
                       <option value="admin">{t("users.roleAdmin")}</option>
+                      <option value="auditor">{t("users.roleAuditor")}</option>
                     </select>
                   </div>
+                  {inviteRole === "auditor" && (
+                    <div>
+                      <label htmlFor="invite-access-until" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                        {t("users.accessUntil")}
+                      </label>
+                      <input
+                        id="invite-access-until"
+                        type="date"
+                        value={inviteUntil}
+                        onChange={(e) => setInviteUntil(e.target.value)}
+                        data-testid="invite-access-until"
+                        className="w-full px-2 py-1.5 border rounded text-sm"
+                      />
+                    </div>
+                  )}
                   <div className="flex items-end">
                     <Button onClick={sendInvite} disabled={inviting} size="sm" className="w-full">
                       {inviting ? "…" : t("users.sendInvitation")}
                     </Button>
                   </div>
                 </div>
+                {inviteRole === "auditor" && (
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-300" data-testid="invite-auditor-hint">
+                    {t("users.roleAuditorDesc")}
+                  </p>
+                )}
                 {inviteMsg && (
                   <p
                     className={`mt-2 text-sm ${
@@ -449,7 +479,7 @@ export default function UsersPage() {
                           )}
                         </td>
                         <td className="py-2">
-                          {isAdmin && !isMe ? (
+                          {isAdmin && !isMe && u.role !== "auditor" ? (
                             <select
                               value={u.role}
                               onChange={(e) => changeRole(u.id, e.target.value)}
@@ -461,6 +491,26 @@ export default function UsersPage() {
                             </select>
                           ) : (
                             <span>{roleLabel(u.role)}</span>
+                          )}
+                          {/* Tier 744: an auditor's access: shown, and extended here */}
+                          {u.role === "auditor" && (
+                            <label className="mt-1 flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
+                              <span>{t("users.accessUntil")}</span>
+                              {isAdmin ? (
+                                <input
+                                  type="date"
+                                  key={u.accessUntil ?? ""}
+                                  defaultValue={(u.accessUntil ?? "").slice(0, 10)}
+                                  onBlur={(e) => {
+                                    if (e.target.value && e.target.value !== (u.accessUntil ?? "").slice(0, 10)) changeRole(u.id, "auditor", e.target.value)
+                                  }}
+                                  data-testid={`user-access-until-${u.id}`}
+                                  className="border rounded px-1 py-0.5"
+                                />
+                              ) : (
+                                <span>{formatDate(u.accessUntil ?? "")}</span>
+                              )}
+                            </label>
                           )}
                         </td>
                         <td className="py-2">

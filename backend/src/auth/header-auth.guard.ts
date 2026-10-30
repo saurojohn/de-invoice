@@ -105,7 +105,7 @@ export class HeaderAuthGuard implements CanActivate {
       where: {
         userId_companyId: { userId, companyId },
       },
-      select: { role: true, company: { select: { closedAt: true } } },
+      select: { role: true, accessUntil: true, company: { select: { closedAt: true } } },
     })
     if (!access) {
       // Cross-tenant access is never allowed. The user
@@ -119,6 +119,10 @@ export class HeaderAuthGuard implements CanActivate {
     // member's — opens nothing.)
     if (access.company.closedAt) {
       throw new ForbiddenException('Diese Firma ist geschlossen. Ihre Unterlagen werden nur noch für die gesetzliche Aufbewahrungsfrist aufbewahrt.')
+    }
+    // Tier 744: a tax auditor's access ends on its day
+    if (access.accessUntil && access.accessUntil.getTime() < Date.now()) {
+      throw new ForbiddenException(`Der Prüferzugang ist am ${access.accessUntil.toISOString().slice(0, 10).split('-').reverse().join('.')} abgelaufen.`)
     }
 
     // Attach the user with the per-company role. The
@@ -137,7 +141,9 @@ export class HeaderAuthGuard implements CanActivate {
     const readonlyHeader = String(
       req.headers['x-readonly'] || '',
     ).toLowerCase()
-    const readonly = readonlyHeader === '1' || readonlyHeader === 'true'
+    // Tier 744: a tax auditor writes nothing — on the server, not by the
+    // client's header, and on every route, whatever action it carries.
+    const readonly = readonlyHeader === '1' || readonlyHeader === 'true' || access.role === 'auditor'
     // Tier 565: `companyId` is the company this request acts in — the verified
     // x-company-id — like `role`, which is that company's role. It was the
     // user's HOME company (User.companyId, nullable): for a user with grants

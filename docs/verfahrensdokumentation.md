@@ -1,6 +1,6 @@
 # Verfahrensdokumentation de-invoice (Vorlage)
 
-**Version 1.0 · Stand 30.10.2026 · gilt für den Programmstand ab Tier 742**
+**Version 1.1 · Stand 30.10.2026 · gilt für den Programmstand ab Tier 744**
 
 Diese Vorlage beschreibt, was das Programm de-invoice tatsächlich tut. Jeder
 Satz über das Programm wurde am Quelltext oder durch eine Messung am laufenden
@@ -159,6 +159,7 @@ Geschäftstage rechnet das Programm in der Zeitzone Europe/Berlin (`backend/src/
 | `accountant` | Geschäftsdaten erfassen und ändern, Protokoll lesen; keine Benutzer und Firmeneinstellungen |
 | `berater` | wie `accountant`; in Protokollen als Berater erkennbar |
 | `viewer` | nur lesen, ohne Protokoll, ohne Umsatzsteuer-Voranmeldung, ohne Benutzerverwaltung |
+| `auditor` | Betriebsprüfer: nur lesen, einschließlich Umsatzsteuer-Voranmeldungen, Protokoll und GoBD-Archiven; ohne Benutzerverwaltung und Betreiberseiten. Der Server weist jede Schreibanfrage ab. Der Zugang endet an einem festgelegten Tag (höchstens ein Jahr, verlängerbar). |
 
 Die Matrix steht in `backend/src/modules/users/users.service.ts`. Anmeldung mit
 Passwort, wahlweise mit zweitem Faktor (TOTP). Sitzungen sind serverseitig
@@ -230,7 +231,7 @@ Das Programm setzt durch:
 
 | Art | Umsetzung |
 |---|---|
-| **Unmittelbar (Z1)** | Dem Prüfer wird ein Benutzer mit der Rolle `viewer` eingerichtet: Er sieht Rechnungen, Ausgaben, Kunden, Buchhaltung und Auswertungen und ändert nichts. Protokoll und Umsatzsteuer-Voranmeldungen sieht diese Rolle nicht; das Protokoll ist Teil des GoBD-Archivs, die Voranmeldungen zeigt ein Mitarbeiter (Z2). Eine eigene Prüfer-Rolle gibt es nicht. |
+| **Unmittelbar (Z1)** | Ein Administrator lädt den Prüfer mit der Rolle `auditor` und einem Enddatum ein (Einstellungen → Benutzer). Der Prüfer sieht die Bücher der Firma, Umsatzsteuer-Voranmeldungen und Protokoll und kann die GoBD-Archive laden; ändern kann er nichts. Der Zugang endet am Enddatum. Die Rolle sieht alle Jahre, nicht nur den Prüfungszeitraum (siehe 7). |
 | **Mittelbar (Z2)** | Ein Mitarbeiter wertet nach Vorgabe des Prüfers im Programm aus. |
 | **Datenüberlassung (Z3)** | Audit-Trail → „GoBD-Archiv" (Jahr oder Monat): Rechnungen, Gutschriften, Ausgaben, Belege, Protokoll und ein Manifest mit den SHA-256-Werten aller Dateien. Buchhaltung → „GoBD-Archiv" (Jahr): zusätzlich der Buchungsstapel. Beides ist ein ZIP. |
 
@@ -250,6 +251,7 @@ Programm leistet.
 5. **Eingang.** Belege, die per E-Mail kommen, gelangen nur durch Hochladen ins Programm. Bis dahin liegen sie im Postfach; dort sind sie zu sichern.
 6. **Elektronische Kassen.** Keine Anbindung, keine TSE.
 7. **Wiederherstellung eines entfernten Belegs** geht nur durch den Betreiber.
+   Der Prüferzugang lässt sich nicht auf einzelne Jahre beschränken. Seine Anmeldungen stehen im Protokoll, sein Lesen nicht.
 8. **Nichts wird nach Fristablauf gelöscht.** Auch geschlossene Firmen bleiben gespeichert, bis der Betreiber handelt.
 9. **Geschlossene Firmen.** Wer sein Konto löscht und einziges Mitglied ist, schließt die Firma; ihre Unterlagen bleiben bis zum 31.12. des zehnten Jahres gespeichert. Das Unternehmen bleibt selbst aufbewahrungspflichtig und muss vorher die GoBD-Archive herunterladen.
 10. **Praxistests stehen aus.** DATEV-Import, ELSTER-Import, Auszüge einer echten Bank; siehe `docs/steuerberater-pruefliste.md`.
@@ -264,4 +266,5 @@ Diese Dokumentation ist zu versionieren: Jede Änderung am Verfahren wird mit Da
 | Version | Datum | Änderung | Verantwortlich |
 |---|---|---|---|
 | 1.0 | 30.10.2026 | Vorlage aus dem Programmstand erstellt | de-invoice |
+| 1.1 | 30.10.2026 | Rolle `auditor` für den Datenzugriff Z1 | de-invoice |
 | | | **[Auszufüllen]** Übernahme durch das Unternehmen | |

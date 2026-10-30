@@ -126,7 +126,8 @@ export class AccountService {
       const companyName = c.legalName || c.name;
       if (c.closedAt) { plan.leaves.push({ companyId: c.id, companyName }); continue; }
       const others = await this.prisma.userCompany.findMany({
-        where: { companyId: c.id, userId: { not: userId }, user: { status: 'active' } },
+        // Tier 744: a tax auditor reads for a while; the company is not theirs
+        where: { companyId: c.id, userId: { not: userId }, role: { not: 'auditor' }, user: { status: 'active' } },
         select: { role: true },
       });
       if (others.length === 0 && c.id === operatorCompany?.id) plan.blockers.push({ companyId: c.id, companyName, reason: 'operator-company' });

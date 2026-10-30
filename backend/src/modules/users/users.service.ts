@@ -24,11 +24,36 @@ export const ROLES = {
   // read-only behaviour is a UI / x-readonly
   // header concern, not a permission level.
   BERATER: 'berater',
+  // Tier 744: Betriebsprüfer (§ 147 Abs. 6 AO, Z1). Reads the books — the
+  // UStVA and the audit log too, which `viewer` does not — and writes nothing,
+  // on the server, whatever the client sends (header-auth.guard.ts). The
+  // access ends on a day (UserCompany.accessUntil). Not a rank: see can().
+  AUDITOR: 'auditor',
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
 
-const VALID_ROLES = new Set<string>([ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.VIEWER, ROLES.BERATER]);
+const VALID_ROLES = new Set<string>([ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.VIEWER, ROLES.BERATER, ROLES.AUDITOR]);
+
+/** Tier 744: reading that is no business of a tax auditor */
+const AUDITOR_CANNOT_READ = new Set(['users.read', 'admin.read', 'berater.note.read']);
+/** Tier 744: an auditor's access is given for a time: at most this long */
+const AUDITOR_MAX_DAYS = 366;
+
+/** Tier 744: the last day of an auditor's access, from the form's YYYY-MM-DD. */
+export function auditorAccessUntil(value: unknown): Date {
+  const text = typeof value === 'string' ? value.trim() : '';
+  const until = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T23:59:59.999Z`) : null;
+  if (!until || Number.isNaN(until.getTime()) || until.toISOString().slice(0, 10) !== text) {
+    throw new BadRequestException('Für einen Prüferzugang ist ein Enddatum erforderlich (accessUntil, JJJJ-MM-TT).');
+  }
+  const now = Date.now();
+  if (until.getTime() < now) throw new BadRequestException('Das Enddatum des Prüferzugangs liegt in der Vergangenheit.');
+  if (until.getTime() > now + AUDITOR_MAX_DAYS * 24 * 60 * 60 * 1000) {
+    throw new BadRequestException('Ein Prüferzugang gilt höchstens ein Jahr. Er kann verlängert werden.');
+  }
+  return until;
+}
 
 /**
  * Permission matrix — keep this in sync with the frontend.
@@ -155,6 +180,9 @@ export class UsersService {
     if (!role) return false;
     const required = PERMISSIONS[action];
     if (!required) return false;
+    // Tier 744: an auditor is no rank — above `viewer` for reading (UStVA,
+    // audit log), and never for a write.
+    if (role === ROLES.AUDITOR) return String(action).endsWith('.read') && !AUDITOR_CANNOT_READ.has(String(action));
     // Tier 71: 'berater' is treated as 'accountant'
     // for the permission rank. The role distinction
     // is preserved in audit trails + the UI, but
@@ -191,7 +219,7 @@ export class UsersService {
    * List all users in a company (admin only).
    */
   async listCompanyUsers(companyId: string) {
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where: { companyId },
       select: {
         id: true,
@@ -201,9 +229,11 @@ export class UsersService {
         createdAt: true,
         lastLogin: true,
         profile: true,
+        userCompanies: { where: { companyId }, select: { accessUntil: true } }, // Tier 744
       },
       orderBy: [{ createdAt: 'asc' }],
     });
+    return users.map(({ userCompanies, ...u }) => ({ ...u, accessUntil: userCompanies[0]?.accessUntil ?? null }));
   }
 
   /**
@@ -311,10 +341,12 @@ export class UsersService {
     invitedById: string,
     email: string,
     role: string,
+    accessUntil?: unknown,
   ): Promise<{ id: string; email: string; role: string; tokenPlain: string; expiresAt: Date; companyName: string | null }> {
     if (!VALID_ROLES.has(role)) {
       throw new BadRequestException(`Ungültige Rolle: ${role}`);
     }
+    const until = role === ROLES.AUDITOR ? auditorAccessUntil(accessUntil) : null; // Tier 744
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       throw new BadRequestException('Ungültige E-Mail-Adresse');
@@ -352,6 +384,7 @@ export class UsersService {
         companyId,
         email: normalizedEmail,
         role,
+        accessUntil: until,
         tokenHash,
         expiresAt,
         createdById: invitedById,
@@ -407,10 +440,13 @@ export class UsersService {
    * Change a user's role (admin only).
    * Special rule: cannot demote the last admin of a company.
    */
-  async changeRole(companyId: string, userId: string, newRole: string) {
+  async changeRole(companyId: string, userId: string, newRole: string, accessUntil?: unknown) {
     if (!VALID_ROLES.has(newRole)) {
       throw new BadRequestException(`Ungültige Rolle: ${newRole}`);
     }
+    // Tier 744: an auditor's access has an end (and is extended here); any
+    // other role has none
+    const until = newRole === ROLES.AUDITOR ? auditorAccessUntil(accessUntil) : null;
     // Tier 387: permissions come from UserCompany.role (HeaderAuthGuard, Tier 66),
     // but this updated only User.role. Measured: an accountant demoted to viewer
     // was listed as viewer and still created customers (201). The membership
@@ -445,8 +481,8 @@ export class UsersService {
     return this.prisma.$transaction(async (tx) => {
       await tx.userCompany.upsert({
         where: { userId_companyId: { userId, companyId } },
-        create: { userId, companyId, role: newRole },
-        update: { role: newRole },
+        create: { userId, companyId, role: newRole, accessUntil: until },
+        update: { role: newRole, accessUntil: until },
       });
       const user = home
         ? await tx.user.update({
@@ -509,6 +545,7 @@ export class UsersService {
           companyId: c.companyId,
           companyName: c.company?.name,
           expiresAt: c.expiresAt,
+          accessUntil: c.accessUntil, // Tier 744
         };
       }
     }
@@ -555,7 +592,7 @@ export class UsersService {
         },
       });
       await tx.userCompany.create({
-        data: { userId: created.id, companyId: inv.companyId, role: inv.role },
+        data: { userId: created.id, companyId: inv.companyId, role: inv.role, accessUntil: inv.accessUntil ?? null },
       });
       await tx.userInvitation.update({
         where: { id: inv.id },

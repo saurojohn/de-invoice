@@ -2233,7 +2233,10 @@
     "confirmCancel": "确定取消此邀请?",
     "cannotRemoveLastAdmin": "至少需要一名活跃管理员",
     "yourAccount": "(您)",
-    "youAreAdmin": "您是唯一的管理员"
+    "youAreAdmin": "您是唯一的管理员",
+    "roleAuditor": "税务审计员（只读，有期限）",
+    "roleAuditorDesc": "用于税务机关查阅数据（AO 第 147 条第 6 款）：可查看所有发票、支出、账目、增值税申报和变更日志，并可下载 GoBD 归档。审计员不能修改任何内容，也不能管理用户。访问在所选日期结束，可在此延长。",
+    "accessUntil": "访问截止"
   },
   "ustva": {
     "ossNote": "按目的国税率开给其他欧盟国家消费者的销售额：净额 {net} — 已计入 Kz 45，仅作为计税基础。其税额（{vat}）不在本期申报内，通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",
@@ -4457,5 +4460,10 @@
     "deleting": "正在删除 …",
     "cancel": "取消",
     "blockerOperator": "“{company}”是本安装运营方的公司（Impressum、后台管理），不能随账户一起关闭；请先任命另一位管理员。"
+  },
+  "auditor": {
+    "title": "审计员访问：只读",
+    "text": "您可以查看本公司的账目，包括增值税和变更日志；不能修改任何内容。访问于 {date} 结束。",
+    "archives": "审计日志和 GoBD 归档"
   }
 }

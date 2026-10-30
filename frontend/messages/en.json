@@ -2233,7 +2233,10 @@
     "confirmCancel": "Really cancel this invitation?",
     "cannotRemoveLastAdmin": "At least one active administrator is required",
     "yourAccount": "(you)",
-    "youAreAdmin": "You are the only administrator"
+    "youAreAdmin": "You are the only administrator",
+    "roleAuditor": "Tax auditor (read only, time-limited)",
+    "roleAuditorDesc": "For the tax office’s data access (§ 147 (6) AO): sees all invoices, expenses, bookings, VAT returns and the change log and can download the GoBD archives. The auditor can change nothing, not even users. The access ends on the chosen day and can be extended here.",
+    "accessUntil": "Access until"
   },
   "ustva": {
     "ossNote": "Sales to consumers in other EU states at the rate of those states: net {net} — included in Kz 45, as a base only. Their tax ({vat}) is not in this return; it is declared through the OSS scheme at the BZSt (§ 18j UStG), see Reports → OSS.",
@@ -4457,5 +4460,10 @@
     "deleting": "Deleting …",
     "cancel": "Cancel",
     "blockerOperator": "“{company}” is the company of this installation’s operator (imprint, administration). It cannot be closed with an account; first make another member an administrator."
+  },
+  "auditor": {
+    "title": "Auditor access: read only",
+    "text": "You see this company’s books, including VAT and the change log; nothing can be changed. The access ends on {date}.",
+    "archives": "Audit trail and GoBD archives"
   }
 }
