@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 745b — CI green for Tier 745
+
+Run 41125297942 (commit 595ef127): backend **464 passed / 0 failed / 1 skipped**, Playwright **1110 passed, 0 flaky, no retry**. Next to do, none begun: the Z3 archive's `index.xml` (ask the Steuerberater first), deleting a closed company after its period; the owner's decisions on the dunning pause, the AfA storno and the dunning fees (§9 items 13, 15, 17).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 745 — a Beleg taken off a record can be put back
 
 The owner, 30.10.2026: „好，CI 通过后接着做恢复被移除的凭证". CI for Tier 744 first: run 41119352925, backend 463 / 0 / 1, Playwright 1110 passed, 0 flaky, no retry.
