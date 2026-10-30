@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { randomBytes } from 'crypto';
+import { businessDayEndInstant, businessTodayIso } from '../../common/business-date';
 import * as bcrypt from 'bcrypt';
 
 export const ROLES = {
@@ -41,15 +42,17 @@ const AUDITOR_CANNOT_READ = new Set(['users.read', 'admin.read', 'berater.note.r
 const AUDITOR_MAX_DAYS = 366;
 
 /** Tier 744: the last day of an auditor's access, from the form's YYYY-MM-DD. */
-export function auditorAccessUntil(value: unknown): Date {
+export function auditorAccessUntil(value: unknown, now: Date = new Date()): Date {
   const text = typeof value === 'string' ? value.trim() : '';
-  const until = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T23:59:59.999Z`) : null;
-  if (!until || Number.isNaN(until.getTime()) || until.toISOString().slice(0, 10) !== text) {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T00:00:00.000Z`) : null;
+  if (!day || Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== text) {
     throw new BadRequestException('Für einen Prüferzugang ist ein Enddatum erforderlich (accessUntil, JJJJ-MM-TT).');
   }
-  const now = Date.now();
-  if (until.getTime() < now) throw new BadRequestException('Das Enddatum des Prüferzugangs liegt in der Vergangenheit.');
-  if (until.getTime() > now + AUDITOR_MAX_DAYS * 24 * 60 * 60 * 1000) {
+  // The days are the business's, in Germany: at 00:18 on the 31st the 30th is
+  // over, which in UTC it was not (CI run 41140816615).
+  if (text < businessTodayIso(now)) throw new BadRequestException('Das Enddatum des Prüferzugangs liegt in der Vergangenheit.');
+  const until = businessDayEndInstant(text);
+  if (until.getTime() > now.getTime() + AUDITOR_MAX_DAYS * 24 * 60 * 60 * 1000) {
     throw new BadRequestException('Ein Prüferzugang gilt höchstens ein Jahr. Er kann verlängert werden.');
   }
   return until;

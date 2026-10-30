@@ -5,6 +5,7 @@ import { invoiceTaxBreakdown } from '../invoice/tax-breakdown'
 import { consumerAbroad, isGermanRate } from './oss-scope'
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service'
 import { invoiceEurFactor } from '../invoice/tax-breakdown'
+import { businessTodayIso } from '../../common/business-date'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -248,7 +249,7 @@ export class OssService {
     // 10 000 € of Swedish turnover). Until the quarter is over — or where the
     // ECB quotes no rate — the invoice's own rate stands in, and the report
     // says so.
-    const today = new Date().toISOString().slice(0, 10)
+    const today = businessTodayIso()
     const fx = new Map<string, { currency: string; quarterEnd: string; rate: number | null; rateDate: string | null; ids: Set<string> }>()
     const eurFactor = async (inv: any, y: number, qu: number): Promise<number> => {
       const currency = String(inv.currency || 'EUR').toUpperCase()

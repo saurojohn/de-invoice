@@ -24,7 +24,7 @@ import * as crypto from 'crypto'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { withKeyLock } from '../../../common/key-lock'
 import { KoSITResult, KoSITValidatorUnavailableError, validateXRechnungWithKoSIT } from '../../../invoices/kosIT-validator.service'
-import { assertNotFuture } from '../../../common/business-date'
+import { assertNotFuture, businessDayIso } from '../../../common/business-date'
 import { assertPeriodOpen } from '../../reports/filed-period'
 import { ibanProblem } from '../../../common/iban'
 import { normalizeVatId, vatIdFormatProblem } from '../../../common/vat-id'
@@ -559,12 +559,12 @@ function describe(inv: ParsedEInvoice, lines: EInvoiceLine[], part: string | nul
   return (head + what).slice(0, 500 - tail.length) + tail
 }
 
-function noteFor(inv: ParsedEInvoice, read: ReadEInvoice, exchangeRate?: number, check?: En16931Check | null): string {
+export function noteFor(inv: ParsedEInvoice, read: ReadEInvoice, exchangeRate?: number, check?: En16931Check | null): string {
   const syntax = inv.syntax === 'cii' ? 'CII' : 'UBL'
   const parts = [`E-Rechnung ${inv.profile} (${syntax}${read.source === 'pdf' ? `, eingebettet als ${read.embeddedFile}` : ''})`]
   // Tier 738: the verdict at the time of booking, kept with the expense
   if (check) {
-    const on = check.at.slice(0, 10).split('-').reverse().join('.')
+    const on = businessDayIso(new Date(check.at)).split('-').reverse().join('.')
     parts.push(
       !check.checked
         ? 'EN 16931 nicht geprüft (Validator nicht verfügbar)'

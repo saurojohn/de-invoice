@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 import { Public } from '../../auth/public.decorator';
 import { UserSessionService } from '../../auth/user-session.service';
+import { businessDayIso } from '../../common/business-date';
 import { Response } from 'express';
 
 interface LoginAttempt {
@@ -428,7 +429,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async myData(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const data = await this.account.exportPersonalData(req.user.id);
-    res.setHeader('Content-Disposition', `attachment; filename="meine-daten-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.setHeader('Content-Disposition', `attachment; filename="meine-daten-${businessDayIso(new Date())}.json"`);
     return data;
   }
 

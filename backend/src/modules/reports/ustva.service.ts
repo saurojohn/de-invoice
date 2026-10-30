@@ -18,7 +18,7 @@ import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 import { privateCarUse } from '../company-car/private-use';
 import { nonDeductibleGiftIds } from '../accounting/gifts';
-import { assertNotFuture } from '../../common/business-date';
+import { assertNotFuture, businessDayIso } from '../../common/business-date';
 import { assertExpenseAmounts } from '../expense/amounts';
 import { expenseTaxLines } from '../expense/tax-lines';
 
@@ -941,7 +941,7 @@ export class UstvaService {
     });
     let notes = data.notes;
     if (existing?.status === 'submitted') {
-      const when = existing.submittedAt ? existing.submittedAt.toISOString().slice(0, 10) : '?';
+      const when = existing.submittedAt ? businessDayIso(existing.submittedAt) : '?';
       if (status !== 'submitted') {
         throw new ConflictException(
           `Die UStVA ${existing.periodLabel} wurde am ${when} übermittelt und kann nicht mehr als Entwurf gespeichert werden. Eine Korrektur ist eine berichtigte Voranmeldung.`,

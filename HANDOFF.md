@@ -2669,6 +2669,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 749b — the day is Germany's, also in the hour after midnight
+
+CI run 41136273199 (Tiers 748 and 747b, commit 91536051): green, 466 passed / 0 failed / 1 skipped, Playwright 1111 passed, no retry. CI run 41140816615 (Tier 749, commit 813c79ad): red, 465 / 2 / 1, Playwright 1111. Neither failure was Tier 749's: the run reached specs 458 and 464 at 23:18 UTC, 00:18 on 31.10. in Germany, and both have dates. The specs were right (CI has `TZ: Europe/Berlin`), the code had the UTC day.
+
+- `users.service.ts auditorAccessUntil(value, now)`: „past" compares with `businessTodayIso(now)`, the end is `businessDayEndInstant` (was `T23:59:59.999Z`: 00:59 of the next day in winter, 01:59 in summer, and a last day of yesterday accepted for an hour or two after midnight).
+- The note of a received e-invoice, the guard's expiry message, `retentionUntilFor` (a company closed in the first hour of a year kept its documents a year too short), the Verfahrensdokumentation and its filename, `erstellt am` in `index.xml`, the filename of `meine-daten`: `businessDayIso` / `businessToday`.
+- Two older ones of the same kind, found by the sweep: the date in the refusal of a submitted UStVA (`submittedAt`) and `today` in the OSS report, which decides whether a quarter is over.
+- **What stays UTC on purpose.** Date-only values are midnight UTC and a period's bounds are built in UTC: `31.12. 23:59:59.999Z` is 01.01. in Germany, so `z3-dataset.ts` has `boundOf` beside `dayOf` for the `Validity` range. The spec holds that line.
+- `noteFor` is exported for the spec.
+
+Spec `469-tier749b-der-deutsche-kalendertag.sh`: the code is handed the instant, so it does not depend on when it runs. With `businessDayIso`, `businessToday` and `businessDayEndInstant` temporarily back on UTC, 7 of its 11 checks fail; the other 4 (a day that does not exist, more than a year ahead, the period's range, a date of the books) hold either way, as they should.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 749 — the data for the tax office's software: index.xml and ten tables
 
 The owner, 30.10.2026: „好，CI 通过后做第1项". § 147 Abs. 6 AO, Z3: the auditor's software (IDEA) reads a package described by the Beschreibungsstandard. The GoBD export held JSON, PDFs and one CSV, which the auditor would have had to describe by hand.

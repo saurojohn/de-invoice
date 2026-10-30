@@ -1,3 +1,4 @@
+import { businessDayIso } from '../common/business-date'
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
@@ -122,7 +123,7 @@ export class HeaderAuthGuard implements CanActivate {
     }
     // Tier 744: a tax auditor's access ends on its day
     if (access.accessUntil && access.accessUntil.getTime() < Date.now()) {
-      throw new ForbiddenException(`Der Prüferzugang ist am ${access.accessUntil.toISOString().slice(0, 10).split('-').reverse().join('.')} abgelaufen.`)
+      throw new ForbiddenException(`Der Prüferzugang ist am ${businessDayIso(access.accessUntil).split('-').reverse().join('.')} abgelaufen.`)
     }
 
     // Attach the user with the per-company role. The

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { businessToday } from '../../common/business-date';
 import { AuditService } from '../audit/audit.service';
 
 /**
@@ -42,7 +43,7 @@ export interface DeletionPlan {
  * records matter for a tax assessment still open — to be checked before anything is deleted.
  */
 export function retentionUntilFor(closedAt: Date): Date {
-  return new Date(Date.UTC(closedAt.getUTCFullYear() + 10, 11, 31));
+  return new Date(Date.UTC(businessToday(closedAt).y + 10, 11, 31));
 }
 
 @Injectable()

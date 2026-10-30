@@ -3,6 +3,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { PrismaService } from '../../prisma/prisma.service'
 import { markdownToDocx } from '../../common/markdown-docx'
+import { businessDayIso } from '../../common/business-date'
 import { resolveGewinnermittlung } from '../company/gewinnermittlung'
 import { resolveRechtsform } from '../company/rechtsform'
 import { BUNDESLAND_NAMEN } from '../../common/steuernummer'
@@ -22,7 +23,7 @@ import { BUNDESLAND_NAMEN } from '../../common/steuernummer'
  */
 const TEMPLATE = path.resolve(__dirname, '..', '..', '..', 'assets', 'verfahrensdokumentation.md')
 const TO_FILL = '**[Auszufüllen]**'
-const de = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('.')
+const de = (d: Date) => businessDayIso(d).split('-').reverse().join('.')
 /** a table cell of the company's own text: no line break, no column */
 const cell = (v: string | null | undefined) => (v && v.trim() ? v.trim().replace(/\s+/g, ' ').replace(/\|/g, '/') : TO_FILL)
 
@@ -105,7 +106,7 @@ export class VerfahrensdokuService {
     const safe = (company.legalName || company.name).replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(0, 60)
     return {
       buffer: await markdownToDocx(await this.markdown(companyId)),
-      filename: `Verfahrensdokumentation-${safe}-${new Date().toISOString().slice(0, 10)}.docx`,
+      filename: `Verfahrensdokumentation-${safe}-${businessDayIso(new Date())}.docx`,
     }
   }
 }

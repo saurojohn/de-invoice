@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { PrismaService } from '../../prisma/prisma.service'
 import { buildBuchungenFromDb } from '../reports/datev.service'
+import { businessDayIso } from '../../common/business-date'
 
 /**
  * Tier 749 — the data handed over to the tax office, described (Z3).
@@ -50,7 +51,10 @@ const money = (name: string, description = name): Z3Column => ({ name, descripti
 const num4 = (name: string, description = name): Z3Column => ({ name, description, type: 'num4' })
 
 const xml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-const dayOf = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('.')
+/** A value of the books: its German calendar day (date-only values are midnight UTC). */
+const dayOf = (d: Date) => businessDayIso(d).split('-').reverse().join('.')
+/** The bounds of a period are UTC by construction: 31.12. 23:59:59.999Z is still the 31st. */
+const boundOf = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('.')
 
 function cell(value: unknown, type: ColumnType): string {
   if (value === null || value === undefined || value === '') return ''
@@ -79,7 +83,7 @@ function tableXml(t: Z3Table, from: Date, to: Date): string {
     : ''
   return (
     `<Table><URL>${xml(t.file)}</URL><Name>${xml(t.name)}</Name><Description>${xml(t.description)}</Description>` +
-    `<Validity><Range><From>${dayOf(from)}</From><To>${dayOf(to)}</To></Range><Format>DD.MM.YYYY</Format></Validity>` +
+    `<Validity><Range><From>${boundOf(from)}</From><To>${boundOf(to)}</To></Range><Format>DD.MM.YYYY</Format></Validity>` +
     '<UTF8/><DecimalSymbol>,</DecimalSymbol><DigitGroupingSymbol>.</DigitGroupingSymbol>' +
     '<VariableLength><ColumnDelimiter>;</ColumnDelimiter><RecordDelimiter>&#13;&#10;</RecordDelimiter><TextEncapsulator>&quot;</TextEncapsulator>' +
     t.keys.map((c) => columnXml(c, 'VariablePrimaryKey')).join('') +
