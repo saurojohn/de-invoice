@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 747b — CI for Tiers 746 and 747: green with one flaky, the status chip spec's count
+
+Run 41132454808 (commit b94f23f5): backend 465 / 0 / 1, Playwright 1109 passed + **1 flaky** — `invoices-chip-filter-tier239.spec.ts` test 2: `count()` of the overdue rows right after the response, 0, because the table had not rendered it yet; `count()` does not wait. It waits for the row now. Spec only.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 748 — a company's Verfahrensdokumentation as a Word file
 
 The owner, 30.10.2026: „好，CI 通过后做第2项" (the document from inside the program). The template was a file in the repository, which no company using the program can reach.

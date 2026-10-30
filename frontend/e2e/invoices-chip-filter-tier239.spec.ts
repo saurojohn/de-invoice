@@ -129,8 +129,10 @@ test.describe("Tier 239 — Invoice list multi-status chip filter", () => {
     // getStatusColor() helper maps overdue → "bg-red-100".
     // We assert by checking at least one red row badge
     // is present (and no green/blue ones).
+    // Tier 747b: waited for, not counted at once — the response is in before
+    // the table has rendered it (CI run 41132454808: count 0, flaky).
     const overdueRow = page.locator("tbody tr:has(.bg-red-100)")
-    expect(await overdueRow.count()).toBeGreaterThan(0)
+    await expect(overdueRow.first()).toBeVisible({ timeout: 10000 })
   })
 
   test("3. multi-chip click (overdue + sent) — URL ?status=overdue,sent", async ({ page }) => {
