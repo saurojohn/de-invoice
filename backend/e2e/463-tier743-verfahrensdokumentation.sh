@@ -1,7 +1,7 @@
 #!/bin/bash
 # Tier 743 — the Verfahrensdokumentation says what the program does
 #
-# docs/verfahrensdokumentation.md is a template built from the program (GoBD
+# backend/assets/verfahrensdokumentation.md is a template built from the program (GoBD
 # Rz. 151 ff.: general description, user, technical and operating
 # documentation). It is only worth anything while it is true, so what can be
 # checked mechanically is: every path it names exists, its figures are the
@@ -13,7 +13,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 ROOT="$SCRIPT_DIR/../.."
-DOC="$ROOT/docs/verfahrensdokumentation.md"
+DOC="$ROOT/backend/assets/verfahrensdokumentation.md"
 has() { grep -qF -- "$2" "$1"; }
 check() { # label file text
   if has "$2" "$3"; then pass "$1"; else fail "$1 — '$3' not in $(basename "$2")"; fi

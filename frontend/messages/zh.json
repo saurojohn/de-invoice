@@ -2839,7 +2839,9 @@
     "expenseNet": "支出净额",
     "vat": "增值税",
     "vorsteuer": "进项税",
-    "disclaimer": "档案包含发票 PDF、支出元数据 + 凭证、DATEV 总账和审计日志。MANIFEST 条目包含 SHA-256 哈希用于完整性验证。"
+    "disclaimer": "档案包含发票 PDF、支出元数据 + 凭证、DATEV 总账和审计日志。MANIFEST 条目包含 SHA-256 哈希用于完整性验证。",
+    "verfahrensdoku": "程序说明文档（Word）",
+    "verfahrensdokuHint": "按 GoBD 要求的程序说明文档，已填入本公司的信息。黄色标记的部分由您和税务顾问补充；公司需保存每一个版本。"
   },
   "oss": {
     "settingOn": "OSS 程序：已登记（设置 → 公司）。卖给其他欧盟国家消费者的全部应税销售列在这里，不进入德国增值税预申报。",

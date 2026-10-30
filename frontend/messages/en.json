@@ -2839,7 +2839,9 @@
     "expenseNet": "Expenses net",
     "vat": "VAT",
     "vorsteuer": "Input VAT",
-    "disclaimer": "The archive contains invoice PDFs, expense metadata + receipts, the DATEV ledger, and the audit log. The MANIFEST entry contains SHA-256 hashes for integrity verification."
+    "disclaimer": "The archive contains invoice PDFs, expense metadata + receipts, the DATEV ledger, and the audit log. The MANIFEST entry contains SHA-256 hashes for integrity verification.",
+    "verfahrensdoku": "Procedure documentation (Word)",
+    "verfahrensdokuHint": "The procedure documentation under the GoBD with this company’s details. You and your tax adviser complete the parts marked in yellow; the company keeps every version."
   },
   "oss": {
     "settingOn": "OSS scheme: registered (Settings → Company). All taxed sales to consumers in other EU states are listed here and not in the German VAT return.",

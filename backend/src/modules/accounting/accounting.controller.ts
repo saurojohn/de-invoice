@@ -1,3 +1,5 @@
+import { contentDisposition } from '../../common/content-disposition';
+import { VerfahrensdokuService } from './verfahrensdoku.service';
 import { queryDate, queryInt } from '../../common/query';
 import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards, HttpException, NotFoundException } from '@nestjs/common';
 import { Response } from 'express';
@@ -77,9 +79,12 @@ import { Require } from '../../auth/roles.decorator';
 import { cleanRow as cleanSoRow } from './anlage-so-rules';
 import { AnlageSOV2Service } from './anlage-so-v2.service';
 
+const WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
 @Controller('accounting')
 export class AccountingController {
   constructor(
+    private verfahrensdoku: VerfahrensdokuService, // Tier 748
     private accountService: AccountService,
     private voucherService: VoucherService,
     private euer: EuerService,
@@ -1621,6 +1626,24 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     await this.gobd.streamArchive(companyId, year, res)
+  }
+
+  /**
+   * Tier 748 — the company's Verfahrensdokumentation as a Word file: the
+   * template with what the program knows about the company.
+   */
+  @Require('audit.read')
+  @Get('verfahrensdokumentation')
+  @UseGuards(HeaderAuthGuard)
+  async getVerfahrensdokumentation(@Res() res: Response, @Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const { buffer, filename } = await this.verfahrensdoku.docx(companyId)
+    res.set({
+      'Content-Type': WORD_DOCUMENT,
+      'Content-Disposition': contentDisposition(WORD_DOCUMENT, filename, true),
+      'Content-Length': String(buffer.length),
+    })
+    res.end(buffer)
   }
 
   /**

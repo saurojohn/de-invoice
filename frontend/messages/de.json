@@ -2839,7 +2839,9 @@
     "expenseNet": "Aufwand netto",
     "vat": "USt",
     "vorsteuer": "Vorsteuer",
-    "disclaimer": "Das Archiv enthält Rechnungs-PDFs, Ausgaben-Metadaten + Belege, den DATEV-Buchungsstapel und das Audit-Log. Der MANIFEST-Eintrag enthält SHA-256-Hashes für die Integritätsprüfung."
+    "disclaimer": "Das Archiv enthält Rechnungs-PDFs, Ausgaben-Metadaten + Belege, den DATEV-Buchungsstapel und das Audit-Log. Der MANIFEST-Eintrag enthält SHA-256-Hashes für die Integritätsprüfung.",
+    "verfahrensdoku": "Verfahrensdokumentation (Word)",
+    "verfahrensdokuHint": "Die Verfahrensdokumentation nach GoBD mit den Angaben dieser Firma. Gelb markierte Stellen ergänzen Sie und Ihr Steuerberater; das Unternehmen bewahrt jede Fassung auf."
   },
   "oss": {
     "settingOn": "OSS-Verfahren: angemeldet (Einstellungen → Unternehmen). Alle steuerpflichtigen Verkäufe an Verbraucher in anderen EU-Staaten stehen hier und nicht in der Umsatzsteuer-Voranmeldung.",

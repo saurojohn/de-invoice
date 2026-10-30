@@ -1,3 +1,4 @@
+import { VerfahrensdokuService } from './verfahrensdoku.service';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { AccountingController } from './accounting.controller';
@@ -104,7 +105,7 @@ import { AuditModule } from '../audit/audit.module';
 @Module({
   imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule, InvoiceTemplateModule, AuditModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController, AnlageSOV2Controller, BooksClosingController],
-  providers: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  providers: [VerfahrensdokuService, AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
   exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
 })
 export class AccountingModule {}

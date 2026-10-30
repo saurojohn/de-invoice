@@ -143,6 +143,18 @@ export function GobdArchiveSection() {
                 📦 {tRef.current("gobd.downloadZip")}
               </Button>
             </a>
+            {/* Tier 748: the company's Verfahrensdokumentation, to complete in Word */}
+            <a
+              href={zipUrl.replace(/\/gobd-archive\?.*$/, `/verfahrensdokumentation?companyId=${typeof window !== "undefined" ? localStorage.getItem("companyId") || "" : ""}`)}
+              target="_blank"
+              rel="noreferrer"
+              title={tRef.current("gobd.verfahrensdokuHint")}
+              data-testid="gobd-verfahrensdoku-link"
+            >
+              <Button type="button" variant="outline">
+                📝 {tRef.current("gobd.verfahrensdoku")}
+              </Button>
+            </a>
           </div>
 
           {summary && (
