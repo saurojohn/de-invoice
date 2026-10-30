@@ -1,3 +1,4 @@
+import { activePause, pauseHoldMessage } from '../reminder/pause-hold';
 import { queryDate, queryInt } from '../../common/query';
 import { INVOICE_DOCUMENT_INCLUDE, issuedDocument } from '../invoice/invoice-document';
 import {
@@ -311,6 +312,14 @@ export class MailController {
       throw new BadRequestException('Rechnung nicht gefunden')
     }
     const customer = invoice.customer
+
+    // Tier 747: a reminder sent again is a reminder — the one way past a
+    // Mahnungspause that was left (the sends: Tier 510). The owner, 30.10.2026:
+    // an explicit send during a pause is refused, not warned about.
+    if ((original.templateType || '').startsWith('reminder_')) {
+      const pause = await activePause(this.prisma, companyId, invoice.id, invoice.customerId)
+      if (pause) throw new BadRequestException(pauseHoldMessage(pause))
+    }
 
     // The document again (Tier 683: as the first e-mail builds it — this was a
     // plain PDF from six company fields, without the template). Tier 685: an

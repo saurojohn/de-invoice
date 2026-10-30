@@ -64,4 +64,18 @@ AS DELETE "/api/v1/mahnungspausen/$PAUSE?companyId=$C"
 send "$I_PAUSED"
 assert_eq "the invoice can be dunned again" "$STATUS" "201"
 
+note "=== a reminder sent again (Tier 747) ==="
+# The one way past a pause that was left: the e-mail history's „erneut senden".
+EM=$(q "select id from \"EmailSend\" where \"invoiceId\"='$I_PAUSED' and \"templateType\" like 'reminder_%' order by \"sentAt\" desc limit 1")
+[[ -n "$EM" ]] && pass "fixture: the reminder's e-mail" || fail "no reminder e-mail recorded"
+AS POST "/api/v1/mahnungspausen?companyId=$C" "{\"invoiceId\":\"$I_PAUSED\",\"reason\":\"Reklamation\",\"pausedFrom\":\"2026-09-01\"}"
+PAUSE2=$(json_field "$BODY" id)
+SENT=$(q "select count(*) from \"EmailSend\" where \"invoiceId\"='$I_PAUSED'")
+AS POST "/api/v1/mail/emails/$EM/resend?companyId=$C" '{}'
+assert_eq "the reminder sent again during a pause: refused, naming it (was 201)" "$STATUS/$(P "'Mahnungspause' in d.get('message', '')")" "400/True"
+assert_eq "…nothing recorded" "$(q "select count(*) from \"EmailSend\" where \"invoiceId\"='$I_PAUSED'")" "$SENT"
+AS DELETE "/api/v1/mahnungspausen/$PAUSE2?companyId=$C"
+AS POST "/api/v1/mail/emails/$EM/resend?companyId=$C" '{}'
+assert_eq "the pause ended: it goes out" "$STATUS" "201"
+
 summary
