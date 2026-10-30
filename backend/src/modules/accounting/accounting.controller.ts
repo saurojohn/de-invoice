@@ -1597,8 +1597,8 @@ export class AccountingController {
    * pre-built copies would just duplicate the
    * storage cost).
    *
-   * The GoBD § 147 AO 10-year retention is
-   * satisfied as long as the source data is in
+   * The retention of § 147 AO (books 10, Belege
+   * 8 years) is satisfied as long as the source data is in
    * the DB. The archive itself is a snapshot
    * export — losing the ZIP doesn't lose the
    * underlying records, but the Berater

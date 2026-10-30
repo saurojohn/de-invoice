@@ -35,7 +35,12 @@ export interface DeletionPlan {
   leaves: Array<{ companyId: string; companyName: string }>;
 }
 
-/** 31.12. of the tenth year after `closedAt` (§ 147 Abs. 4 AO: the period starts at the end of the calendar year) */
+/**
+ * 31.12. of the tenth year after `closedAt`: a company's data holds its books,
+ * and books run longest (§ 147 Abs. 3 AO: 10 years; Belege 8, letters 6; Abs. 4:
+ * from the end of the calendar year). The period does not end while the
+ * records matter for a tax assessment still open — to be checked before anything is deleted.
+ */
 export function retentionUntilFor(closedAt: Date): Date {
   return new Date(Date.UTC(closedAt.getUTCFullYear() + 10, 11, 31));
 }

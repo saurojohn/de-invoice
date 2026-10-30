@@ -14,8 +14,9 @@ import { belegeInPeriod } from './gobd-belege'
  * Tier 77: GoBD-compliant Document Archive (§ 147 AO).
  *
  * Every business in Germany is required to keep
- * all accounting-relevant documents for 10 years
- * (GoBD = Grundsätze zur ordnungsmäßigen Führung
+ * its accounting documents: books 10 years, Belege
+ * 8, letters 6 (§ 147 Abs. 3 AO, since 01.01.2025;
+ * GoBD = Grundsätze zur ordnungsmäßigen Führung
  * und Aufbewahrung von Büchern, Aufzeichnungen
  * und Unterlagen in elektronischer Form sowie
  * zum Datenzugriff). The archive is what the

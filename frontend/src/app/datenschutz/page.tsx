@@ -3,8 +3,8 @@
  *
  * Static privacy policy. The "Controller" section links back
  * to the Impressum (DSGVO requires the controller identity
- * disclosed here). The 10-year retention period for invoices
- * is mandated by § 147 AO (Abgabenordnung). The Cookie
+ * disclosed here). The retention periods are those of § 147
+ * Abs. 3 AO: 10 years books, 8 years Belege, 6 years letters. The Cookie
  * section lists what the application stores and reopens the
  * cookie notice (Tier 735: necessary cookies only, no consent).
  *

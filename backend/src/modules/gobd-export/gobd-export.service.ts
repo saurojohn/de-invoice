@@ -31,7 +31,8 @@ import * as crypto from 'crypto'
  * Führung und Aufbewahrung von Büchern, Aufzeichnungen
  * und Unterlagen in elektronischer Form" requires
  * every Steuerpflichtige to retain all geschäftsrelevante
- * Unterlagen for 10 years (§ 147 Abs. 3 AO) AND to be
+ * Unterlagen — books 10, Belege 8, letters 6 years
+ * (§ 147 Abs. 3 AO, since 01.01.2025) — AND to be
  * able to produce them on demand for a Betriebsprüfung
  * (§ 200 AO) in a form that proves:
  *
