@@ -1029,10 +1029,14 @@
     "ocrTaxLines": "票据上的税率",
     "ocrVatAmount": "增值税 (€)",
     "ocrTaxLinesHint": "票据上有多个税率——将创建一笔支出，每个税率一行；净额、增值税和总额为各行之和。",
-    "attachmentRemoveConfirm": "要把这份凭证从这笔支出上移除吗？文件不会被销毁：它会继续保存，移除操作也会记入日志。",
+    "attachmentRemoveConfirm": "要移除这份凭证吗？文件不会被销毁：它会继续保存，移除操作会记入日志，之后也可以恢复。",
     "attachmentRemoveFailed": "无法移除这份凭证。",
     "attachmentOriginal": "原件",
-    "attachmentOriginalHint": "收到的电子发票原件。必须原样保存，不能移除。"
+    "attachmentOriginalHint": "收到的电子发票原件。必须原样保存，不能移除。",
+    "attachmentsRemoved": "已移除的凭证（{count}）",
+    "attachmentRemovedOn": "{by} 于 {date} 移除",
+    "attachmentRestore": "恢复",
+    "attachmentRestoreFailed": "无法恢复这份凭证。"
   },
   "home": {
     "heroTitle": "专业的德国发票管理解决方案",

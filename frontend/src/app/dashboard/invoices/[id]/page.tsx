@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n, L } from "@/components/useI18n"
+import { RemovedAttachments } from "@/components/RemovedAttachments"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, ApiError } from "@/lib/api"
 import { substitute } from "@/lib/substitute"
@@ -553,7 +554,7 @@ export default function InvoiceDetailPage() {
 
   const deleteInvoiceAttachment = async (attachmentId: string) => {
     if (!invoice) return
-    if (!confirm(L("Diesen Beleg wirklich löschen?"))) return
+    if (!confirm(t("expenses.attachmentRemoveConfirm"))) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setDeletingAttachmentId(attachmentId)
@@ -3247,6 +3248,22 @@ export default function InvoiceDetailPage() {
                 </p>
               )}
             </div>
+            {/* Tier 745: what was taken off, and the way back */}
+            {invoice && (
+              <div className="mt-3">
+                <RemovedAttachments
+                  companyId={localStorage.getItem("companyId") || ""}
+                  entityType="invoice"
+                  entityId={invoice.id}
+                  version={invoiceAttachments}
+                  onRestored={() => {
+                    apiGet<any[]>(`/api/v1/invoices/${invoice.id}/attachments?companyId=${localStorage.getItem("companyId") || ""}`)
+                      .then((rows) => setInvoiceAttachments(Array.isArray(rows) ? rows : []))
+                      .catch(() => undefined)
+                  }}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 

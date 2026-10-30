@@ -2669,6 +2669,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 745 — a Beleg taken off a record can be put back
+
+The owner, 30.10.2026: „好，CI 通过后接着做恢复被移除的凭证". CI for Tier 744 first: run 41119352925, backend 463 / 0 / 1, Playwright 1110 passed, 0 flaky, no retry.
+
+- `GET /attachments/removed` (`invoice.read`): the Belege taken off a record, with the day and who (looked up from the snapshot `deletedById`). `GET /attachments/:id/file?removed=1`: the file, to look at first. `POST /attachments/:id/restore` (`invoice.update`): clears the mark. Refused in a closed or submitted period, like taking one off; refused when the file is no longer there. The audit log has it (`Attachment` is an audited model).
+- `RemovedAttachments` („Entfernte Belege (n)", collapsed, not shown while there are none) in `ReceiptsPanel` (expenses, vouchers) and on the invoice page. The question before removing says the file stays and can be restored; the invoice page asked „wirklich löschen?".
+- Verfahrensdokumentation 1.2. An auditor cannot restore: the route is a write (spec 464's sweep covers it).
+
+Specs: `465-tier745-beleg-wiederherstellen.sh` (11 fail on the code before); Playwright `belege-bleiben-tier740.spec.ts` goes on to the way back.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 744 — a tax auditor's access: role `auditor`, read only on the server, with a last day
 
 The owner, 30.10.2026: „好，先做审计员角色". § 147 Abs. 6 AO (Z1). `viewer` sees neither the UStVA (`ustva.read`) nor the audit log (`audit.read`), and the read-only switch is the client's header — no boundary against anyone.
@@ -2721,7 +2731,7 @@ Found while checking the facts for the Verfahrensdokumentation (§9 item 23), me
 - `Attachment.deletedAt`, `deletedById`, `keptOriginal` (migration `20261030000001_attachment_kept`). `AttachmentsService.delete`: the received e-invoice as it came (`keptOriginal`, set by the import): 400; a record in closed books or a submitted UStVA period (`assertPeriodOpen`, by the expense's / voucher's / invoice's date): 400; otherwise marked — the record no longer shows it, it no longer opens through the record, row and bytes stay, the audit log has the change. `removeUnbooked` (row and bytes) is for the e-invoice import's rollback alone. Lists, the file route, the OCR text, the import's same-file check and the DATEV Belege export read `deletedAt: null`.
 - Storage route: files of type `pdf` (what the program produces) and every file an attachment row points at — marked ones too — are refused with 400; what was uploaded there and belongs to nothing can still be removed.
 - Frontend: `ReceiptsPanel` only logged a failed delete to the console — it shows the reason now; the question says the file is kept; the original shows „Original" instead of the button.
-- There is no way yet to put a taken-off Beleg back from the UI (`UPDATE "Attachment" SET "deletedAt"=NULL`). A wrong upload with personal data stays stored until the record's period ends; deleting it is a decision for the owner.
+- (Putting a taken-off Beleg back: Tier 745.) A wrong upload with personal data stays stored until the record's period ends; deleting it is a decision for the owner.
 
 Specs: `460-tier740-belege-bleiben.sh` (12 fail on the code before); 28 and 29 assert the mark; Playwright `belege-bleiben-tier740.spec.ts`. Locally: spec 29's cleanup deletes the seed company's account 1200 when it runs on a database where nothing else references it, and then 183 reports „fixtures missing" — a local artefact, restored by hand in the test database.
 

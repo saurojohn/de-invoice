@@ -29,6 +29,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useI18n } from "@/components/useI18n"
 import { apiDelete, apiGet, apiFetch } from "@/lib/api"
+import { RemovedAttachments } from "@/components/RemovedAttachments"
 
 export interface Attachment {
   id: string
@@ -314,6 +315,14 @@ export function ReceiptsPanel({ companyId, entityType, entityId, onChange }: Pro
           ))}
         </div>
       )}
+      {/* Tier 745: what was taken off, and the way back */}
+      <RemovedAttachments
+        companyId={companyId}
+        entityType={entityType}
+        entityId={entityId}
+        version={items}
+        onRestored={() => { load(); onChange?.() }}
+      />
     </div>
   )
 }

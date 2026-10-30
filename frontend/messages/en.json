@@ -1029,10 +1029,14 @@
     "ocrTaxLines": "VAT rates on the receipt",
     "ocrVatAmount": "VAT (€)",
     "ocrTaxLinesHint": "The receipt shows several VAT rates — one expense is created with a line per rate; net, VAT and gross are their sums.",
-    "attachmentRemoveConfirm": "Remove this receipt from the expense? It is not destroyed: the file stays archived and the removal is logged.",
+    "attachmentRemoveConfirm": "Remove this receipt? It is not destroyed: the file stays archived, the removal is logged, and it can be restored.",
     "attachmentRemoveFailed": "The receipt could not be removed.",
     "attachmentOriginal": "Original",
-    "attachmentOriginalHint": "The received e-invoice as it came. It has to be kept unchanged and cannot be removed."
+    "attachmentOriginalHint": "The received e-invoice as it came. It has to be kept unchanged and cannot be removed.",
+    "attachmentsRemoved": "Removed receipts ({count})",
+    "attachmentRemovedOn": "removed on {date} by {by}",
+    "attachmentRestore": "Restore",
+    "attachmentRestoreFailed": "The receipt could not be restored."
   },
   "home": {
     "heroTitle": "Professional German Invoice Management",

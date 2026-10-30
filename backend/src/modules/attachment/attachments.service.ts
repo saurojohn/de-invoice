@@ -224,6 +224,7 @@ export class AttachmentsService {
   async getFile(
     companyId: string,
     attachmentId: string,
+    opts: { removed?: boolean } = {}, // Tier 745: a removed Beleg, to look at before restoring it
   ): Promise<{
     buffer: Buffer;
     mimeType: string;
@@ -231,7 +232,7 @@ export class AttachmentsService {
     size: number;
   }> {
     const att = await this.prisma.attachment.findFirst({
-      where: { id: attachmentId, companyId, deletedAt: null },
+      where: { id: attachmentId, companyId, deletedAt: opts.removed ? { not: null } : null },
     })
     if (!att) throw new NotFoundException('Anhang nicht gefunden')
     const file = await this.storage.getFile(att.storagePath)
@@ -282,6 +283,49 @@ export class AttachmentsService {
     await this.prisma.attachment.update({
       where: { id: att.id },
       data: { deletedAt: new Date(), deletedById: userId ?? null },
+    })
+    return { success: true }
+  }
+
+  /**
+   * Tier 745 — the Belege taken off a record, for the panel that puts them
+   * back. `deletedById` is a snapshot; the address is looked up (an anonymised
+   * account shows as such).
+   */
+  async listRemoved(companyId: string, entityType: string, entityId: string): Promise<any[]> {
+    const rows = await this.prisma.attachment.findMany({
+      where: { companyId, entityType, entityId, deletedAt: { not: null } },
+      orderBy: { deletedAt: 'desc' },
+      select: { id: true, originalName: true, mimeType: true, size: true, contentHash: true, createdAt: true, deletedAt: true, deletedById: true },
+    })
+    const ids = [...new Set(rows.map((r) => r.deletedById).filter((x): x is string => !!x))]
+    const users = ids.length
+      ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } })
+      : []
+    const email = new Map(users.map((u) => [u.id, u.email]))
+    return rows.map(({ deletedById, ...r }) => ({ ...r, deletedBy: deletedById ? email.get(deletedById) ?? null : null }))
+  }
+
+  /**
+   * Tier 745 — put a Beleg back on its record. Until now this took the
+   * operator and a statement in the database. As with taking one off, closed
+   * periods stay as they are; the audit log has the change.
+   */
+  async restore(companyId: string, attachmentId: string): Promise<{ success: boolean }> {
+    const att = await this.prisma.attachment.findFirst({
+      where: { id: attachmentId, companyId, deletedAt: { not: null } },
+    })
+    if (!att) throw new NotFoundException('Anhang nicht gefunden oder nicht entfernt')
+    const date = await this.recordDate(companyId, att.entityType, att.entityId)
+    if (date) await assertPeriodOpen(this.prisma, companyId, [date], 'das Wiederherstellen eines Belegs')
+    const file = await this.storage.getFile(att.storagePath).catch(() => null)
+    if (!file) {
+      this.logger.error(`Attachment ${att.id} (${att.originalName}) has no file at ${att.storagePath}`)
+      throw new BadRequestException('Die Datei dieses Belegs fehlt auf dem Server. Er kann nicht wiederhergestellt werden.')
+    }
+    await this.prisma.attachment.update({
+      where: { id: att.id },
+      data: { deletedAt: null, deletedById: null },
     })
     return { success: true }
   }

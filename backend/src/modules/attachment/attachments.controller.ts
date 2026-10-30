@@ -38,6 +38,7 @@ import {
   UploadedFile,
   Res,
   BadRequestException,
+  HttpCode,
   Req,
 } from '@nestjs/common';
 import { Response } from 'express';
@@ -133,6 +134,33 @@ export class AttachmentsController {
     return this.attachments.listForEntity(companyId, entityType, entityId)
   }
 
+  /** Tier 745 — the Belege taken off a record. */
+  @Get('removed')
+  @Require('invoice.read')
+  async listRemoved(
+    @Query('companyId') companyId: string,
+    @Query('entityType') entityType: string,
+    @Query('entityId') entityId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    if (!entityType || !entityId) {
+      throw new BadRequestException('entityType und entityId sind erforderlich')
+    }
+    return this.attachments.listRemoved(companyId, entityType, entityId)
+  }
+
+  /** Tier 745 — put a Beleg back on its record. */
+  @Post(':id/restore')
+  @Require('invoice.update')
+  @HttpCode(200)
+  async restore(
+    @Param('id') id: string,
+    @Query('companyId') companyId: string,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required')
+    return this.attachments.restore(companyId, id)
+  }
+
   /**
    * Download / preview the file bytes. Content-Type
    * is set to the server-detected MIME type, with
@@ -151,10 +179,11 @@ export class AttachmentsController {
     @Param('id') id: string,
     @Query('companyId') companyId: string,
     @Query('download') download: string,
+    @Query('removed') removed: string,
     @Res() res: Response,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required')
-    const file = await this.attachments.getFile(companyId, id)
+    const file = await this.attachments.getFile(companyId, id, { removed: removed === '1' })
     // Tier 573: only a PDF or a picture is shown in place; an XML is a download.
     const disposition = contentDisposition(file.mimeType, file.originalName, !!download)
     res.set({

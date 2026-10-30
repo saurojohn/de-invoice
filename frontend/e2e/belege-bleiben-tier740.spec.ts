@@ -3,8 +3,8 @@
  *
  * In closed books the removal is refused and the page says why (the panel
  * only logged the failure to the console); a wrong file on an open expense
- * goes off the record after a question that says it is kept.
- * (The rules: backend spec 460.)
+ * goes off the record after a question that says it is kept, and can be put
+ * back (Tier 745). (The rules: backend specs 460, 465.)
  */
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test"
 
@@ -73,4 +73,14 @@ test("the receipts panel: refused in closed books, with the reason; an open expe
   await page.getByTestId("attachment-remove").click()
   await expect(page.getByTestId("attachment-remove")).toHaveCount(0, { timeout: 30_000 })
   expect(messages.at(-1)).toContain("nicht vernichtet")
+
+  // Tier 745: the way back
+  const removed = page.getByTestId("attachments-removed")
+  await expect(removed).toContainText("Entfernte Belege (1)", { timeout: 30_000 })
+  await removed.locator("summary").click()
+  await expect(page.getByTestId("attachment-removed-row")).toContainText(`${tag}-B.pdf`)
+  await expect(page.getByTestId("attachment-removed-row")).toContainText(`${tag}@example.test`)
+  await page.getByTestId("attachment-restore").click()
+  await expect(page.getByTestId("attachment-remove")).toHaveCount(1, { timeout: 30_000 })
+  await expect(page.getByTestId("attachments-removed")).toHaveCount(0)
 })

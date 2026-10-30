@@ -1,6 +1,6 @@
 # Verfahrensdokumentation de-invoice (Vorlage)
 
-**Version 1.1 · Stand 30.10.2026 · gilt für den Programmstand ab Tier 744**
+**Version 1.2 · Stand 30.10.2026 · gilt für den Programmstand ab Tier 745**
 
 Diese Vorlage beschreibt, was das Programm de-invoice tatsächlich tut. Jeder
 Satz über das Programm wurde am Quelltext oder durch eine Messung am laufenden
@@ -100,7 +100,7 @@ Regeln das Programm dabei durchsetzt.
 
 - Jeder Beleg hängt an seinem Datensatz (Ausgabe, Buchungsbeleg, Rechnung) und ist von dort aus aufrufbar. So ist die Verbindung von Beleg und Buchung jederzeit nachvollziehbar.
 - Beim Speichern wird der SHA-256-Hash des Inhalts festgehalten. Das GoBD-Archiv vergleicht jede Datei damit und nennt fehlende oder veränderte Dateien.
-- **Ein Beleg wird nicht gelöscht** (`backend/src/modules/attachment/attachments.service.ts`). Eine versehentlich angehängte Datei lässt sich von einem offenen Datensatz nehmen: Sie verschwindet aus der Ansicht, Datensatz und Datei bleiben erhalten, die Änderung steht im Protokoll, und die GoBD-Archive führen sie unter `entfernt/`. In abgeschlossenen Zeiträumen ist das nicht möglich. Die Dateiverwaltung der Einstellungen entfernt nur Dateien, die zu nichts gehören.
+- **Ein Beleg wird nicht gelöscht** (`backend/src/modules/attachment/attachments.service.ts`). Eine versehentlich angehängte Datei lässt sich von einem offenen Datensatz nehmen: Sie verschwindet aus der Ansicht, Datensatz und Datei bleiben erhalten, die Änderung steht im Protokoll, und die GoBD-Archive führen sie unter `entfernt/`. Am Datensatz lässt er sich unter „Entfernte Belege" ansehen und wiederherstellen. In abgeschlossenen Zeiträumen ist beides nicht möglich. Die Dateiverwaltung der Einstellungen entfernt nur Dateien, die zu nichts gehören.
 
 ### 2.4 Zahlungen, Bank
 
@@ -250,8 +250,7 @@ Programm leistet.
 4. **Versendete E-Mails sind nicht vollständig gespeichert.** Das Programm hält Empfänger, Betreff, die ersten 500 Zeichen des Textes und die Namen der Anhänge fest, nicht die ganze E-Mail. Handelsbriefe sind deshalb im E-Mail-Archiv des Unternehmens aufzubewahren. Die Rechnung selbst ist als aufbewahrte Fassung im Programm.
 5. **Eingang.** Belege, die per E-Mail kommen, gelangen nur durch Hochladen ins Programm. Bis dahin liegen sie im Postfach; dort sind sie zu sichern.
 6. **Elektronische Kassen.** Keine Anbindung, keine TSE.
-7. **Wiederherstellung eines entfernten Belegs** geht nur durch den Betreiber.
-   Der Prüferzugang lässt sich nicht auf einzelne Jahre beschränken. Seine Anmeldungen stehen im Protokoll, sein Lesen nicht.
+7. **Der Prüferzugang**: Er lässt sich nicht auf einzelne Jahre beschränken. Seine Anmeldungen stehen im Protokoll, sein Lesen nicht.
 8. **Nichts wird nach Fristablauf gelöscht.** Auch geschlossene Firmen bleiben gespeichert, bis der Betreiber handelt.
 9. **Geschlossene Firmen.** Wer sein Konto löscht und einziges Mitglied ist, schließt die Firma; ihre Unterlagen bleiben bis zum 31.12. des zehnten Jahres gespeichert. Das Unternehmen bleibt selbst aufbewahrungspflichtig und muss vorher die GoBD-Archive herunterladen.
 10. **Praxistests stehen aus.** DATEV-Import, ELSTER-Import, Auszüge einer echten Bank; siehe `docs/steuerberater-pruefliste.md`.
@@ -267,4 +266,5 @@ Diese Dokumentation ist zu versionieren: Jede Änderung am Verfahren wird mit Da
 |---|---|---|---|
 | 1.0 | 30.10.2026 | Vorlage aus dem Programmstand erstellt | de-invoice |
 | 1.1 | 30.10.2026 | Rolle `auditor` für den Datenzugriff Z1 | de-invoice |
+| 1.2 | 30.10.2026 | Entfernte Belege lassen sich wiederherstellen | de-invoice |
 | | | **[Auszufüllen]** Übernahme durch das Unternehmen | |
