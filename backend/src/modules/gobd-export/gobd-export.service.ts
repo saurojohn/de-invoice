@@ -5,6 +5,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
 import { belegeInPeriod } from '../accounting/gobd-belege'
+import { Z3_DTD, z3Csv, z3Dtd, z3IndexXml, z3Tables } from './z3-dataset'
 import { SigningService } from '../signing/signing.service'
 // archiver v8 is an ESM module re-exported as
 // CJS. `require('archiver')` returns an object
@@ -79,6 +80,8 @@ import * as crypto from 'crypto'
  *     the legal Beleg; Mahnung is a notification)
  *   recurrings/REC-XXXX.meta.json
  *
+ *   datenueberlassung/index.xml, *.csv (Tier 749: the tables
+ *     for the tax office's software; z3-dataset.ts)
  *   expenses/<number>.meta.json, belege/expenses/<number>/…
  *     (Tier 741: the received Belege, vouchers' and
  *     invoices' too, under belege/vouchers, belege/invoices;
@@ -585,6 +588,28 @@ export class GobdExportService {
       )
     }
 
+    // 3c. Tier 749: the data for the tax office's software, described
+    const z3End = new Date(yearEnd.getTime() - 1)
+    const z3 = await z3Tables(this.prisma, opts.companyId, yearStart, z3End)
+    for (const t of z3) await appendFile(`datenueberlassung/${t.file}`, z3Csv(t), 'text/csv', { isSigned: false })
+    const place = (company.address ?? {}) as { postalCode?: string; city?: string }
+    await appendFile(
+      'datenueberlassung/index.xml',
+      Buffer.from(z3IndexXml({
+        supplierName: company.legalName || company.name,
+        supplierLocation: [place.postalCode, place.city].filter(Boolean).join(' '),
+        period: periodLabel,
+        from: yearStart,
+        to: z3End,
+        generatedAt: new Date(),
+        tables: z3,
+      }), 'utf8'),
+      'application/xml',
+      { isSigned: false },
+    )
+    const dtd = z3Dtd()
+    if (dtd) await appendFile(`datenueberlassung/${Z3_DTD}`, dtd, 'application/xml-dtd', { isSigned: false })
+
     // 4. Audit log CSV. We use the same
     //    serialiser as the existing
     //    /audit-logs/export.csv endpoint —
@@ -690,6 +715,12 @@ export class GobdExportService {
         totalSize: fileEntries.reduce((s, f) => s + f.size, 0),
         belege: belege.length,
         belegeProblems, // Tier 741: missing or changed since upload
+        // Tier 749: index.xml needs its DTD beside it
+        datenueberlassung: {
+          tables: z3.map((t) => ({ file: t.file, rows: t.rows.length })),
+          dtd: dtd ? Z3_DTD : null,
+          ...(dtd ? {} : { hint: `${Z3_DTD} fehlt in dieser Installation (assets/). Sie gehört neben index.xml; erhältlich beim Herausgeber des Beschreibungsstandards.` }),
+        },
       },
       files: fileEntries,
     }

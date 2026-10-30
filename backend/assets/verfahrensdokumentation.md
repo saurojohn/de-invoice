@@ -1,6 +1,6 @@
 # Verfahrensdokumentation de-invoice (Vorlage)
 
-**Version 1.4 · Stand 30.10.2026**
+**Version 1.5 · Stand 30.10.2026**
 
 Diese Vorlage beschreibt, was das Programm de-invoice tatsächlich tut. Jeder
 Satz über das Programm wurde am Quelltext oder durch eine Messung am laufenden
@@ -236,7 +236,7 @@ Das Programm setzt durch:
 |---|---|
 | **Unmittelbar (Z1)** | Ein Administrator lädt den Prüfer mit der Rolle `auditor` und einem Enddatum ein (Einstellungen → Benutzer). Der Prüfer sieht die Bücher der Firma, Umsatzsteuer-Voranmeldungen und Protokoll und kann die GoBD-Archive laden; ändern kann er nichts. Der Zugang endet am Enddatum. Die Rolle sieht alle Jahre, nicht nur den Prüfungszeitraum (siehe 7). |
 | **Mittelbar (Z2)** | Ein Mitarbeiter wertet nach Vorgabe des Prüfers im Programm aus. |
-| **Datenüberlassung (Z3)** | Audit-Trail → „GoBD-Archiv" (Jahr oder Monat): Rechnungen, Gutschriften, Ausgaben, Belege, Protokoll und ein Manifest mit den SHA-256-Werten aller Dateien. Buchhaltung → „GoBD-Archiv" (Jahr): zusätzlich der Buchungsstapel. Beides ist ein ZIP. |
+| **Datenüberlassung (Z3)** | Audit-Trail → „GoBD-Archiv" (Jahr oder Monat): ein ZIP mit dem Ordner `datenueberlassung`, den die Prüfsoftware der Finanzverwaltung einliest (`index.xml` nach dem Beschreibungsstandard und zehn Tabellen: Buchungen, Konten, Kunden, Lieferanten, Rechnungen, Positionen, Zahlungen, Ausgaben, Steuerzeilen, Kassenbuch), dazu die Belege als Dateien, Protokoll und ein Manifest mit den SHA-256-Werten aller Dateien. Buchhaltung → „GoBD-Archiv" (Jahr) enthält zusätzlich den DATEV-Buchungsstapel. |
 
 Die Daten liegen in maschinell auswertbarer Form vor (CSV, JSON, XML).
 
@@ -249,7 +249,7 @@ Programm leistet.
 
 1. **Protokoll und Hash-Kette sind nicht gegen den Datenbank-Administrator geschützt.** Die Datenbank hat keine Sperre gegen das Ändern von Protokollzeilen, und die Kette ist nicht außerhalb des Systems verankert. Wer Administratorrechte auf der Datenbank hat, könnte sie neu berechnen. Unabhängige Belege dafür sind die Sicherungen, vor allem die Kopie außer Haus. Deshalb ist der Kreis der Administratoren festzuhalten (Abschnitt 4).
 2. **Die Festschreibung lässt sich aufheben.** Das ist gewollt (Berichtigungen) und protokolliert, aber sie ist keine technische Endgültigkeit.
-3. **Das Format der Datenüberlassung ist nicht der Beschreibungsstandard.** Das Archiv enthält keine `index.xml` nach dem GDPdU-Beschreibungsstandard. Ob das für die Prüfung genügt, ist mit dem Steuerberater zu klären; gegebenenfalls ist der Export zu ergänzen.
+3. **Datenüberlassung noch nicht an einer Prüfsoftware erprobt.** `index.xml` und Tabellen folgen dem Beschreibungsstandard, sie wurden aber noch nicht in IDEA eingelesen. Die zugehörige DTD-Datei gehört neben `index.xml`; ob sie im Archiv liegt, steht in dessen Prüfbericht.
 4. **Versendete E-Mails sind nicht vollständig gespeichert.** Das Programm hält Empfänger, Betreff, die ersten 500 Zeichen des Textes und die Namen der Anhänge fest, nicht die ganze E-Mail. Handelsbriefe sind deshalb im E-Mail-Archiv des Unternehmens aufzubewahren. Die Rechnung selbst ist als aufbewahrte Fassung im Programm.
 5. **Eingang.** Belege, die per E-Mail kommen, gelangen nur durch Hochladen ins Programm. Bis dahin liegen sie im Postfach; dort sind sie zu sichern.
 6. **Elektronische Kassen.** Keine Anbindung, keine TSE.
@@ -272,5 +272,6 @@ Diese Dokumentation ist zu versionieren: Jede Änderung am Verfahren wird mit Da
 | 1.2 | 30.10.2026 | Entfernte Belege lassen sich wiederherstellen | de-invoice |
 | 1.3 | 30.10.2026 | AfA-Storno durch Gegenbuchung | de-invoice |
 | 1.4 | 30.10.2026 | Das Programm erzeugt die Dokumentation je Firma als Word-Datei | de-invoice |
+| 1.5 | 30.10.2026 | Datenüberlassung mit `index.xml` nach dem Beschreibungsstandard | de-invoice |
 <!-- erzeugt -->
 | | | **[Auszufüllen]** Übernahme durch das Unternehmen | |
