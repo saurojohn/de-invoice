@@ -1,4 +1,4 @@
-import { assertPeriodOpen } from '../reports/filed-period';
+import { assertBooksOpen, assertPeriodOpen } from '../reports/filed-period';
 import { withKeyLock } from '../../common/key-lock';
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -112,6 +112,10 @@ export class KassenbuchService {
    */
   private async assertDaysOpen(companyId: string, businessDates: Date[]) {
     if (!businessDates.length) return
+    // Tier 742: closed books hold the cash book too. Only entries with VAT
+    // asked (assertPeriodOpen above the callers); measured, a cash entry
+    // without VAT could be added, changed and deleted in closed books.
+    await assertBooksOpen(this.prisma, companyId, businessDates, 'eine Kassenbuchung')
     const unique = Array.from(new Set(businessDates.map((d) => d.toISOString().split('T')[0])))
     const closed = await this.prisma.cashBookDailyClose.findMany({
       where: {
@@ -633,6 +637,9 @@ export class KassenbuchService {
       await assertPeriodOpen(this.prisma, companyId, [original.businessDate], 'das Ändern einer Kassenbuchung mit Umsatzsteuer') // Tier 537
     }
     if (!original) throw new NotFoundException('Entry not found')
+    // Tier 742: the Storno is dated on the entry's day, so it stands in the
+    // closed period too. A closed day is corrected this way, closed books are not.
+    await assertBooksOpen(this.prisma, companyId, [original.businessDate], 'eine Storno-Buchung im Kassenbuch')
     if (original.reversesId) {
       throw new BadRequestException('Diese Buchung ist bereits eine Storno-Buchung und kann nicht selbst storniert werden. Stornieren Sie stattdessen die Originalbuchung.')
     }
