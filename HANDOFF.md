@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 755b — CI green for Tier 755
+
+Run 41239071166 (commit 8dedd7f0): backend **472 passed / 0 failed / 1 skipped**, Playwright **1113 passed, 0 flaky, no retry**, no Traceback and no `FATAL`. CI itself still runs `ts-node` and `next dev`: the production build was tested once, by hand, in Tier 755. Open with the owner: a look at a generated Word file in Word; the launch list (Hetzner IP and SSH key, the old token, Bundesland, Mein ELSTER, [Auszufüllen], the 6 additive migrations on the dev database); the yearly list in Tier 752. Not begun: deleting a closed company after its period.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 755 — the production build, tested for the first time
 
 The owner, 31.10.2026: „做第 1 项". CI runs `ts-node` and `next dev`; `docker-build.yml` only builds the images. So 471 specs and 1 113 UI tests had never seen what goes live. This run: `tsc` into `dist`, `node dist/main.js`, `next build`, the standalone `server.js`, a throwaway container `tmp-prod-pg` (removed afterwards), seeded as CI seeds.
