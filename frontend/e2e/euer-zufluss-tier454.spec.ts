@@ -9,8 +9,7 @@
  */
 import { test, expect } from "@playwright/test"
 
-const API = "http://localhost:3001"
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 test("an expense paid by card counts in the EÜR from its payment date", async ({ page, request }) => {
   const tag = `t454-${Date.now()}`
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {

@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 52: Skonto (cash discount for early payment).
  *
@@ -75,7 +77,7 @@ async function createSkontoInvoice(page: any, opts: {
   skontoDays: number
 }) {
   const custs = await page.request.get(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -89,7 +91,7 @@ async function createSkontoInvoice(page: any, opts: {
     : (cdata.data ?? cdata.items ?? [])[0]
   expect(cust).toBeDefined()
   const res = await page.request.post(
-    `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -166,7 +168,7 @@ test.describe("Tier 52 — Skonto (cash discount)", () => {
   }) => {
     await setupAuth(context, page)
     const custs = await page.request.get(
-      `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+      `${E2E_API}/api/v1/customers?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -181,7 +183,7 @@ test.describe("Tier 52 — Skonto (cash discount)", () => {
     expect(cust).toBeDefined()
 
     const res = await page.request.post(
-      `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+      `${E2E_API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -215,7 +217,7 @@ test.describe("Tier 52 — Skonto (cash discount)", () => {
       skontoDays: 7,
     })
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/invoices/${inv.id}?companyId=${testTokens!.companyId}`,
+      `${E2E_API}/api/v1/invoices/${inv.id}?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,

@@ -24,6 +24,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 const COMPANY_ID = (() => {
   const env = readFileSync(AUTH_CACHE, "utf-8")
@@ -196,7 +198,7 @@ test.describe("Tier 185 — frontend DATEV month bundle button", () => {
     // only offers 1-12, so we test the backend's
     // German 400 message directly.
     const res = await request.get(
-      "http://localhost:3001/api/v1/reports/datev-export-bundle?year=2026&month=13&companyId=" +
+      `${E2E_API}/api/v1/reports/datev-export-bundle?year=2026&month=13&companyId=` +
         COMPANY_ID,
       { headers: { "x-user-id": USER_ID, "x-company-id": COMPANY_ID } },
     )

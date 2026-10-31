@@ -35,6 +35,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -81,7 +83,7 @@ test.describe("Tier 195 — Admin: cron manual run", () => {
   }) => {
     // Read the current lastRunAt for webhook-retry-worker
     const before = await request.get(
-      "http://localhost:3001/api/v1/admin/cron-health",
+      `${API}/api/v1/admin/cron-health`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -96,7 +98,7 @@ test.describe("Tier 195 — Admin: cron manual run", () => {
     const beforeLastRun = beforeRow?.lastRunAt
     // Trigger manually
     const run = await request.post(
-      `http://localhost:3001/api/v1/admin/cron-health/webhook-retry-worker/run?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/admin/cron-health/webhook-retry-worker/run?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -120,7 +122,7 @@ test.describe("Tier 195 — Admin: cron manual run", () => {
     let afterLastRun: string | null = null
     for (let i = 0; i < 120; i++) {
       const after = await request.get(
-        "http://localhost:3001/api/v1/admin/cron-health",
+        `${API}/api/v1/admin/cron-health`,
         {
           headers: {
             "x-user-id": tokens!.userId,
@@ -151,7 +153,7 @@ test.describe("Tier 195 — Admin: cron manual run", () => {
     request,
   }) => {
     const res = await request.post(
-      `http://localhost:3001/api/v1/admin/cron-health/typo-bad-name/run?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/admin/cron-health/typo-bad-name/run?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -178,7 +180,7 @@ test.describe("Tier 195 — Admin: cron manual run", () => {
     // refuses it with 400 so a misclick doesn't
     // burn ~50MB of disk.
     const res = await request.post(
-      `http://localhost:3001/api/v1/admin/cron-health/daily-auto-backup/run?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/admin/cron-health/daily-auto-backup/run?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -211,7 +213,7 @@ test.describe("Tier 195 — Admin: backup restore-drill", () => {
     }
     type BackupItem = { id: string; isComplete: boolean; dbFile: string | null }
     const listBackups = async () => {
-      const res = await request.get("http://localhost:3001/api/v1/admin/backups", { headers })
+      const res = await request.get(`${API}/api/v1/admin/backups`, { headers })
       expect(res.status(), "GET /admin/backups").toBe(200)
       return res.json()
     }
@@ -233,7 +235,7 @@ test.describe("Tier 195 — Admin: backup restore-drill", () => {
         )
         return
       }
-      const run = await request.post("http://localhost:3001/api/v1/admin/backups/run", {
+      const run = await request.post(`${API}/api/v1/admin/backups/run`, {
         headers,
         data: {},
         timeout: 200_000,
@@ -249,7 +251,7 @@ test.describe("Tier 195 — Admin: backup restore-drill", () => {
 
     try {
       const res = await request.post(
-        `http://localhost:3001/api/v1/admin/backups/restore-drill?companyId=${tokens!.companyId}`,
+        `${API}/api/v1/admin/backups/restore-drill?companyId=${tokens!.companyId}`,
         { headers, timeout: 200_000 },
       )
       expect(res.status(), "drill endpoint should always 200 (ok=true|false)").toBe(200)
@@ -276,20 +278,20 @@ test.describe("Tier 195 — Admin: backup restore-drill", () => {
       // The throwaway DB must be dropped before the drill returns: a second
       // drill has to be able to CREATE DATABASE again.
       const res2 = await request.post(
-        `http://localhost:3001/api/v1/admin/backups/restore-drill?companyId=${tokens!.companyId}`,
+        `${API}/api/v1/admin/backups/restore-drill?companyId=${tokens!.companyId}`,
         { headers, timeout: 200_000 },
       )
       expect([200, 500]).toContain(res2.status())
     } finally {
       if (createdId) {
-        await request.delete(`http://localhost:3001/api/v1/admin/backups/${createdId}`, { headers })
+        await request.delete(`${API}/api/v1/admin/backups/${createdId}`, { headers })
       }
     }
   })
 
   test("5. backup list returns the standard envelope", async ({ request }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/admin/backups",
+      `${API}/api/v1/admin/backups`,
       {
         headers: {
           "x-user-id": tokens!.userId,

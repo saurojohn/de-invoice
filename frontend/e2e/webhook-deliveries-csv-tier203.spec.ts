@@ -46,6 +46,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -167,7 +169,7 @@ function parseCsvRows(body: string): string[][] {
 test.describe("Tier 203 — GET /webhooks/deliveries.csv", () => {
   test("1. CSV has the UTF-8 BOM + RFC 4180 header row", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=30`,
+      `${API}/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=30`,
       { headers: headers() },
     )
     expect(res.status()).toBe(200)
@@ -187,7 +189,7 @@ test.describe("Tier 203 — GET /webhooks/deliveries.csv", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=30`,
+      `${API}/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=30`,
       { headers: headers() },
     )
     const disposition = res.headers()["content-disposition"]
@@ -204,7 +206,7 @@ test.describe("Tier 203 — GET /webhooks/deliveries.csv", () => {
     // new row to find in the CSV.
     const tag = "tier203-csv-" + Date.now()
     const create = await request.post(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -222,13 +224,13 @@ test.describe("Tier 203 — GET /webhooks/deliveries.csv", () => {
     const whId = (await create.json()).id
 
     await request.post(
-      `http://localhost:3001/api/v1/webhooks/${whId}/test?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/${whId}/test?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     await new Promise((r) => setTimeout(r, 1500))
 
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=7`,
+      `${API}/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=7`,
       { headers: headers() },
     )
     const body = await res.text()
@@ -242,7 +244,7 @@ test.describe("Tier 203 — GET /webhooks/deliveries.csv", () => {
 
   test("4. eventType query param narrows the result", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=7&eventType=invoice.created`,
+      `${API}/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=7&eventType=invoice.created`,
       { headers: headers() },
     )
     const body = await res.text()
@@ -270,7 +272,7 @@ test.describe("Tier 203 — GET /webhooks/deliveries.csv", () => {
     // exceed the cap. days=1 keeps the result set small
     // enough to fit under the cap.
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=1&status=success`,
+      `${API}/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=1&status=success`,
       { headers: headers() },
     )
     const body = await res.text()
@@ -297,7 +299,7 @@ test.describe("Tier 203 — GET /webhooks/deliveries.csv", () => {
     // present) is a `# ...` line
     // that Excel skips on import.
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=1`,
+      `${API}/api/v1/webhooks/deliveries.csv?companyId=${tokens!.companyId}&days=1`,
       { headers: headers() },
     )
     const body = await res.text()

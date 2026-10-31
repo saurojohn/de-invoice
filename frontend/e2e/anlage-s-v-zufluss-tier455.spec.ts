@@ -7,8 +7,7 @@
  */
 import { test, expect } from "@playwright/test"
 
-const API = "http://localhost:3001"
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 test("an unpaid invoice is listed as open in Anlage S and Anlage V", async ({ page, request }) => {
   const tag = `t455-${Date.now()}`
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {

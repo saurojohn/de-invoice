@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 63: "Wiederkehrend" button on the invoice
  * detail page.
@@ -71,7 +73,7 @@ test.beforeAll(async ({ request }) => {
 
   // 1. Customer
   const custRes = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers,
       data: {
@@ -98,7 +100,7 @@ test.beforeAll(async ({ request }) => {
   // "property status should not exist".
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
   const invRes = await request.post(
-    `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {
       headers,
       data: {
@@ -140,7 +142,7 @@ test.afterAll(async ({ request }) => {
   if (TEST_INVOICE_ID) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/invoices/${TEST_INVOICE_ID}?companyId=${testTokens.companyId}`,
+        `${API}/api/v1/invoices/${TEST_INVOICE_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,
@@ -155,7 +157,7 @@ test.afterAll(async ({ request }) => {
   if (TEST_CUSTOMER_ID) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
+        `${API}/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,

@@ -55,8 +55,7 @@ import { execSync } from 'child_process'
 
 const COMPANY_ID = getTestEnv().companyId
 const USER_ID = getTestEnv().userId
-const API = 'http://localhost:3001'
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 const ADMIN_HEADERS = {
   'x-user-id': USER_ID,
   'x-company-id': COMPANY_ID,

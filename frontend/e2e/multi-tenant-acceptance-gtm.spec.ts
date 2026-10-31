@@ -53,8 +53,7 @@ const COMPANY_A = tokens.companyId
 // Login Tenant A admin to get their actual user UUID. The user
 // id from the auth cache IS the admin's id (single-tenant test
 // user), so we can use it directly — but to be safe we re-login.
-const API = 'http://localhost:3001'
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 async function loginTenantA(): Promise<{ userId: string; companyId: string }> {
   const ctx = await playwrightRequest.newContext()
   const r = await ctx.post(`${API}/api/v1/auth/login`, {

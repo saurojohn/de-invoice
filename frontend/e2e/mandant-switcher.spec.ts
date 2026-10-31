@@ -3,6 +3,8 @@ import { readFileSync } from "fs"
 import { execSync } from "child_process"
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 66: MandantSwitcher UI.
  *
@@ -240,9 +242,9 @@ SQL`,
     // Switch back to SH Leder via the API so subsequent
     // tests see the default Mandant.
     await page.evaluate(
-      async ({ userId, companyId }: { userId: string; companyId: string }) => {
+      async ({ userId, companyId, api }: { userId: string; companyId: string; api: string }) => {
         const r = await fetch(
-          "http://localhost:3001/api/v1/users/me/switch-company",
+          `${api}/api/v1/users/me/switch-company`,
           {
             method: "POST",
             headers: {
@@ -255,7 +257,7 @@ SQL`,
         )
         if (!r.ok) throw new Error(`reset switch failed: ${r.status}`)
       },
-      { userId: testTokens.userId, companyId: testTokens.companyId },
+      { userId: testTokens.userId, companyId: testTokens.companyId, api: E2E_API },
     )
   })
 })

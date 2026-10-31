@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 72: PDF Signature panel.
  *
@@ -77,7 +79,7 @@ test.describe("PDF Signature panel", () => {
     await injectAuth(page)
     // Find any invoice in the DB
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+      `${E2E_API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -102,7 +104,7 @@ test.describe("PDF Signature panel", () => {
     await injectAuth(page)
     // Find any invoice
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+      `${E2E_API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -130,7 +132,7 @@ test.describe("PDF Signature panel", () => {
   }) => {
     await injectAuth(page)
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+      `${E2E_API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,

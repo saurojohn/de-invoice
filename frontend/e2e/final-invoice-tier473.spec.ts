@@ -10,7 +10,7 @@ import { getTestEnv } from './fixtures/test-env'
  */
 
 const { userId: USER_ID, companyId: COMPANY_ID } = getTestEnv()
-const API = 'http://localhost:3001'
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 const HEADERS = { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID }
 
 test('a paid Proforma gets its final invoice from the detail page', async ({ page }) => {

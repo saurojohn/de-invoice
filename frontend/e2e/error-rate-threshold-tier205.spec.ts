@@ -57,6 +57,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -104,7 +106,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     request,
   }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       { headers: headers() },
     )
     expect(res.status()).toBe(200)
@@ -133,7 +135,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     const newCount = 7
     const newWindow = 45
     const put = await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: {
@@ -150,7 +152,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     expect(body.note).toBe(tag)
     // Verify GET reflects the new value.
     const get = await request.get(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       { headers: headers() },
     )
     const getBody = await get.json()
@@ -158,7 +160,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     expect(getBody.rateThresholdWindowMinutes).toBe(newWindow)
     // Verify the activity log captured it.
     const audit = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&actionPrefix=notification.`,
+      `${API}/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&actionPrefix=notification.`,
       { headers: headers() },
     )
     const auditRows = (await audit.json()).rows || []
@@ -175,7 +177,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     request,
   }) => {
     const res = await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: { rateThresholdCount: 0 },
@@ -188,7 +190,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     request,
   }) => {
     const res = await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: { rateThresholdWindowMinutes: 2000 },
@@ -204,7 +206,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     // so a single new fingerprint event
     // is well below the gate.
     await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: { rateThresholdCount: 100, rateThresholdWindowMinutes: 60 },
@@ -222,7 +224,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     // entry from this hot-path fire
     // (because no PUT happened).
     const res = await request.post(
-      "http://localhost:3001/api/v1/system/errors",
+      `${API}/api/v1/system/errors`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: {
@@ -242,7 +244,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     // Restore the default threshold so
     // subsequent tests aren't affected.
     await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: { rateThresholdCount: 5, rateThresholdWindowMinutes: 60 },
@@ -258,7 +260,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     // fires.
     const fp = "tier205-ratepass-" + Date.now()
     await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: { rateThresholdCount: 2, rateThresholdWindowMinutes: 60 },
@@ -270,7 +272,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     // (count=3 >= 2).
     for (let i = 0; i < 3; i++) {
       await request.post(
-        "http://localhost:3001/api/v1/system/errors",
+        `${API}/api/v1/system/errors`,
         {
           headers: { ...headers(), "Content-Type": "application/json" },
           data: {
@@ -291,7 +293,7 @@ test.describe("Tier 205 — GET / PUT /system/notifications/threshold", () => {
     // response codes.
     // Restore default.
     await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: { rateThresholdCount: 5, rateThresholdWindowMinutes: 60 },

@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 61: Customer detail page (Kunden-Detailansicht).
  *
@@ -81,7 +83,7 @@ test.beforeAll(async ({ request }) => {
   // Create a fresh customer so the spec is hermetic. No
   // open invoices are required for the tests below.
   const res = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -103,7 +105,7 @@ test.afterAll(async ({ request }) => {
   if (!TEST_CUSTOMER_ID || !testTokens) return
   try {
     await request.delete(
-      `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
+      `${API}/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
       {
         headers: {
           "x-user-id": testTokens.userId,
@@ -181,7 +183,7 @@ test.describe("Customer detail page UI (Tier 61)", () => {
     // the data is in fact empty (catches regressions where
     // the page would falsely show a table).
     const invoicesRes = await page.request.get(
-      `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}&customerId=${TEST_CUSTOMER_ID}`,
+      `${API}/api/v1/invoices?companyId=${testTokens!.companyId}&customerId=${TEST_CUSTOMER_ID}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,

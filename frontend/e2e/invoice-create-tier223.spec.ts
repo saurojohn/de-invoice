@@ -25,6 +25,8 @@ import { execSync } from 'child_process'
 import { readFileSync } from 'fs'
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'
 
 // Tier 207 — read auth IDs from the
@@ -51,7 +53,7 @@ function seedTier223Customer(): Promise<{ id: string; name: string; api: any }> 
   const { userId, companyId } = readCachedTokens()
   return (async () => {
     const api = await playwrightRequest.newContext({
-      baseURL: "http://localhost:3001",
+      baseURL: `${API}`,
       extraHTTPHeaders: {
         "x-user-id": userId,
         "x-company-id": companyId,

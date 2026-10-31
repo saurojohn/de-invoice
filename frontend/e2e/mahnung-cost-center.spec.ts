@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 40: Mahnung table column for cost-center.
  *
@@ -94,7 +96,7 @@ test.describe("Tier 40 — Mahnung cost-center column", () => {
     // assertion is about the SHAPE of the response, not
     // the count.
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/reminders/mahnungen?companyId=${testTokens.companyId}&status=all`,
+      `${API}/api/v1/reminders/mahnungen?companyId=${testTokens.companyId}&status=all`,
       {
         headers: {
           "x-user-id": testTokens.userId,
@@ -124,7 +126,7 @@ test.describe("Tier 40 — Mahnung cost-center column", () => {
     // such mahnung) which proves the route is mounted AND
     // forwards to the controller (no 401/403).
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/reminders/mahnungen/00000000-0000-0000-0000-000000000000/pdf?companyId=${testTokens.companyId}`,
+      `${API}/api/v1/reminders/mahnungen/00000000-0000-0000-0000-000000000000/pdf?companyId=${testTokens.companyId}`,
       {
         headers: {
           "x-user-id": testTokens.userId,

@@ -49,8 +49,7 @@ import { getTestEnv } from './fixtures/test-env'
 
 const COMPANY_ID = getTestEnv().companyId
 const USER_ID = getTestEnv().userId
-const API = 'http://localhost:3001'
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 // Hardcoded SH Leder seed invoice
 // (INV-2026-000203, status=sent). The
 // original spec created a fresh

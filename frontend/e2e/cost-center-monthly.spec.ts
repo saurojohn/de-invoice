@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 45: Cost-Center Monthly drill-in page +
  * yearly-table click-through.
@@ -82,7 +84,7 @@ test.beforeAll(async ({ request }) => {
   // groups by costCenter, not customer, so the
   // identity of the customer is irrelevant.
   const custRes = await request.get(
-    `http://localhost:3001/api/v1/customers?companyId=${companyId}`,
+    `${E2E_API}/api/v1/customers?companyId=${companyId}`,
     {
       headers: {
         "x-user-id": testTokens.userId,
@@ -104,7 +106,7 @@ test.beforeAll(async ({ request }) => {
   const issueDate = new Date(Date.UTC(year, 0, 1, 12, 0, 0)).toISOString()
   const dueDate = new Date(Date.UTC(year, 1, 15, 12, 0, 0)).toISOString()
   const inv = await request.post(
-    `http://localhost:3001/api/v1/invoices?companyId=${companyId}`,
+    `${E2E_API}/api/v1/invoices?companyId=${companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -133,7 +135,7 @@ test.beforeAll(async ({ request }) => {
   // relative to today — happened to fall into July; on 1 October it did not.
   const created = await inv.json()
   await request.put(
-    `http://localhost:3001/api/v1/invoices/${created.id}/status?companyId=${companyId}`,
+    `${E2E_API}/api/v1/invoices/${created.id}/status?companyId=${companyId}`,
     {
       headers: {
         "Content-Type": "application/json",

@@ -9,8 +9,7 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
-const API = "http://localhost:3001"
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 test("a stored file is downloaded with its content", async ({ page, request }) => {
   const tag = `t453-${Date.now()}`
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {

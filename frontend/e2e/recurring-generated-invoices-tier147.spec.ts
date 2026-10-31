@@ -60,8 +60,7 @@ const COMPANY_ID = getTestEnv().companyId
 const TEMPLATE_ID = '33333333-cccc-0000-0000-000000000001'
 // ci-seed 5e BWA Test Kunde customer id.
 const CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
-const API_BASE = 'http://localhost:3001'
-
+const API_BASE = process.env.E2E_API_URL || "http://localhost:3001"
 test.describe('Tier 147 — Recurring generated invoices', () => {
   test.beforeAll(() => {
     // 1. Drop the tier136-tpl-001 fixture owned by the

@@ -38,6 +38,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -80,7 +82,7 @@ test.describe("Tier 197 — Notification channel config + test push", () => {
     request,
   }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/system/notifications/config",
+      `${API}/api/v1/system/notifications/config`,
       { headers: headers() },
     )
     expect(res.status(), "config endpoint should be 200").toBe(200)
@@ -97,7 +99,7 @@ test.describe("Tier 197 — Notification channel config + test push", () => {
     request,
   }) => {
     const res = await request.post(
-      "http://localhost:3001/api/v1/system/notifications/test",
+      `${API}/api/v1/system/notifications/test`,
       { headers: headers() },
     )
     expect(res.status(), "test push should succeed").toBe(201)
@@ -131,7 +133,7 @@ test.describe("Tier 197 — Bulk error operations", () => {
   test.beforeAll(async ({ request }: { request: any }) => {
     for (let i = 0; i < 3; i++) {
       const res = await request.post(
-        "http://localhost:3001/api/v1/system/errors",
+        `${API}/api/v1/system/errors`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -159,7 +161,7 @@ test.describe("Tier 197 — Bulk error operations", () => {
     // bound (>= 3 from our seed) and the property
     // "after resolve-all, openCount === 0".
     const before = await request.get(
-      "http://localhost:3001/api/v1/system/errors?status=open&take=200",
+      `${API}/api/v1/system/errors?status=open&take=200`,
       { headers: headers() },
     )
     const beforeBody = await before.json()
@@ -167,7 +169,7 @@ test.describe("Tier 197 — Bulk error operations", () => {
     expect(minCount, "fixture seeded 3 open events").toBeGreaterThanOrEqual(3)
 
     const res = await request.post(
-      "http://localhost:3001/api/v1/system/errors/resolve-all",
+      `${API}/api/v1/system/errors/resolve-all`,
       { headers: headers() },
     )
     expect(res.status(), "resolve-all should be 201").toBe(201)
@@ -178,7 +180,7 @@ test.describe("Tier 197 — Bulk error operations", () => {
     // After the bulk op, the open count should be 0
     // (we resolve-all, not just our 3 fixture events).
     const after = await request.get(
-      "http://localhost:3001/api/v1/system/errors?status=open&take=200",
+      `${API}/api/v1/system/errors?status=open&take=200`,
       { headers: headers() },
     )
     const afterBody = await after.json()
@@ -197,7 +199,7 @@ test.describe("Tier 197 — Bulk error operations", () => {
     // out).
     const tag = "tier197-mute-" + Date.now()
     for (let i = 0; i < 2; i++) {
-      await request.post("http://localhost:3001/api/v1/system/errors", {
+      await request.post(`${API}/api/v1/system/errors`, {
         headers: {
           "Content-Type": "application/json",
           "x-user-id": tokens!.userId,
@@ -212,7 +214,7 @@ test.describe("Tier 197 — Bulk error operations", () => {
     }
 
     const res = await request.post(
-      "http://localhost:3001/api/v1/system/errors/mute-all",
+      `${API}/api/v1/system/errors/mute-all`,
       { headers: headers() },
     )
     expect(res.status(), "mute-all should be 201").toBe(201)
@@ -223,7 +225,7 @@ test.describe("Tier 197 — Bulk error operations", () => {
     // Verify by listing muted events — at least our 2
     // should be there.
     const after = await request.get(
-      "http://localhost:3001/api/v1/system/errors?status=muted&take=200",
+      `${API}/api/v1/system/errors?status=muted&take=200`,
       { headers: headers() },
     )
     const afterBody = await after.json()
@@ -241,7 +243,7 @@ test.describe("Tier 197 — Bulk error operations", () => {
     // A second resolve-all should return count=0, not
     // an error.
     const res = await request.post(
-      "http://localhost:3001/api/v1/system/errors/resolve-all",
+      `${API}/api/v1/system/errors/resolve-all`,
       { headers: headers() },
     )
     expect(res.status()).toBe(201)
@@ -260,7 +262,7 @@ test.describe("Tier 197 — System errors page bulk UI", () => {
   // disables the bulk buttons).
   const tag = "tier197-ui-" + Date.now()
   test.beforeAll(async ({ request }: { request: any }) => {
-    await request.post("http://localhost:3001/api/v1/system/errors", {
+    await request.post(`${API}/api/v1/system/errors`, {
       headers: {
         "Content-Type": "application/json",
         "x-user-id": tokens!.userId,

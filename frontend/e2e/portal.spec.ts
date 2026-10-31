@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 33: customer self-service portal.
  *
@@ -127,7 +129,7 @@ test.describe("Customer portal (Tier 33)", () => {
     // like 'T160-CLONE-SRC' that have non-standard
     // invoice numbers).
     const invResp = await page.request.get(
-      `http://localhost:3001/api/v1/invoices?companyId=${companyId}`,
+      `${API}/api/v1/invoices?companyId=${companyId}`,
       {
         headers: {
           "x-user-id": userId,
@@ -145,7 +147,7 @@ test.describe("Customer portal (Tier 33)", () => {
     expect(invoice, "ci-seed must provide at least one invoice").toBeTruthy()
     // Mint a fresh link via the authed API.
     const linkResp = await page.request.post(
-      `http://localhost:3001/api/v1/invoices/${invoice.id}/generate-payment-link?companyId=${companyId}`,
+      `${API}/api/v1/invoices/${invoice.id}/generate-payment-link?companyId=${companyId}`,
       {
         headers: {
           "Content-Type": "application/json",

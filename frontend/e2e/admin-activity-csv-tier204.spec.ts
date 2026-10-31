@@ -62,6 +62,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -192,7 +194,7 @@ function parseCsvRows(body: string): string[][] {
 test.describe("Tier 204 — GET /audit-logs/activity.csv", () => {
   test("1. CSV has the UTF-8 BOM + RFC 4180 header row", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=30`,
+      `${API}/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=30`,
       { headers: headers() },
     )
     expect(res.status()).toBe(200)
@@ -213,7 +215,7 @@ test.describe("Tier 204 — GET /audit-logs/activity.csv", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=30`,
+      `${API}/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=30`,
       { headers: headers() },
     )
     const disposition = res.headers()["content-disposition"]
@@ -239,24 +241,24 @@ test.describe("Tier 204 — GET /audit-logs/activity.csv", () => {
     // here so the CSV definitely
     // has data.
     await request.post(
-      "http://localhost:3001/api/v1/system/errors/resolve-all",
+      `${API}/api/v1/system/errors/resolve-all`,
       { headers: headers() },
     )
     await request.post(
-      "http://localhost:3001/api/v1/system/errors/mute-all",
+      `${API}/api/v1/system/errors/mute-all`,
       { headers: headers() },
     )
     await request.post(
-      "http://localhost:3001/api/v1/system/notifications/test",
+      `${API}/api/v1/system/notifications/test`,
       { headers: headers() },
     )
     await request.post(
-      `http://localhost:3001/api/v1/admin/cron-health/webhook-retry-worker/run?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/admin/cron-health/webhook-retry-worker/run?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
 
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=7`,
+      `${API}/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=7`,
       { headers: headers() },
     )
     const body = await res.text()
@@ -290,11 +292,11 @@ test.describe("Tier 204 — GET /audit-logs/activity.csv", () => {
     // subset of the wide CSV by
     // action name.
     const wide = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=7`,
+      `${API}/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=7`,
       { headers: headers() },
     )
     const narrow = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=7&actionPrefix=webhook.`,
+      `${API}/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=7&actionPrefix=webhook.`,
       { headers: headers() },
     )
     const wideRows = parseCsvRows(await wide.text()).slice(1) // drop header
@@ -328,7 +330,7 @@ test.describe("Tier 204 — GET /audit-logs/activity.csv", () => {
     // parsed with the `;`-aware
     // RFC 4180 parser.
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=7`,
+      `${API}/api/v1/audit-logs/activity.csv?companyId=${tokens!.companyId}&days=7`,
       { headers: headers() },
     )
     const body = await res.text()

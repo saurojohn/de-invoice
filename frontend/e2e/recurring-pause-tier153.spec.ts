@@ -50,7 +50,7 @@ import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
 const BWA_CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
-const API_BASE = 'http://localhost:3001'
+const API_BASE = process.env.E2E_API_URL || "http://localhost:3001"
 const TEMPLATE_ID = 'tier153-tpl'
 
 async function authedRequest() {

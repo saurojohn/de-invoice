@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 71: Steuerberater-Modus UI.
  *
@@ -145,7 +147,7 @@ test.describe("Steuerberater-Modus (Read-Only)", () => {
     // CORS) to verify the backend 403s. We hit
     // the backend directly with x-readonly: 1.
     const result = await request.post(
-      `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+      `${E2E_API}/api/v1/customers?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,

@@ -11,7 +11,7 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test"
 import { readFileSync } from "fs"
 
-const API = "http://localhost:3001"
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 let tokens: { userId: string; companyId: string }
 let H: Record<string, string>
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())

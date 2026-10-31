@@ -36,6 +36,8 @@ import { readFileSync } from "fs"
 import { execFileSync } from "child_process"
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -103,7 +105,7 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
     // 'company.update' (admin), so we pass
     // auth headers explicitly.
     const create = await request.post(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -127,7 +129,7 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
     // 3 failed attempts in 1 minute of CI
     // without changing the retry budget).
     const fire = await request.post(
-      `http://localhost:3001/api/v1/webhooks/${webhookId}/test?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/${webhookId}/test?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     expect(fire.status(), "fire test event").toBe(201)
@@ -158,7 +160,7 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
     let deliveryStatus = ""
     while (attempts < 80) {
       const list = await request.get(
-        `http://localhost:3001/api/v1/webhooks/${webhookId}/deliveries?companyId=${tokens!.companyId}&limit=5`,
+        `${API}/api/v1/webhooks/${webhookId}/deliveries?companyId=${tokens!.companyId}&limit=5`,
         { headers: headers() },
       )
       const arr = await list.json()
@@ -253,7 +255,7 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
     // status here is a real defect and must fail.
     expect(dbStatus, "seeded row must still be exhausted").toBe("exhausted")
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=100`,
+      `${API}/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=100`,
       { headers: headers() },
     )
     expect(res.status(), "dead-letter list should be 200").toBe(200)
@@ -274,7 +276,7 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
     request,
   }) => {
     const res = await request.post(
-      `http://localhost:3001/api/v1/webhooks/deliveries/${deliveryId}/requeue?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/deliveries/${deliveryId}/requeue?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     // Tier 350: was a test.skip() on any non-200, blamed on the cron
@@ -299,7 +301,7 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
     // longer be in the dead-letter list
     // (it became 'failed', not 'exhausted').
     const after = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=100`,
+      `${API}/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=100`,
       { headers: headers() },
     )
     const afterItems = await after.json()
@@ -318,7 +320,7 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
     // again should 400 — only exhausted
     // rows can be requeued.
     const res = await request.post(
-      `http://localhost:3001/api/v1/webhooks/deliveries/${deliveryId}/requeue?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/deliveries/${deliveryId}/requeue?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     expect(res.status(), "re-requeue should 400").toBe(400)
@@ -328,7 +330,7 @@ test.describe("Tier 198 — Dead-letter list + requeue", () => {
 
   test("4. requeue on a nonexistent row returns 404", async ({ request }) => {
     const res = await request.post(
-      `http://localhost:3001/api/v1/webhooks/deliveries/nonexistent-${seedTag}/requeue?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/deliveries/nonexistent-${seedTag}/requeue?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     expect(res.status(), "nonexistent requeue should 404").toBe(404)
@@ -347,7 +349,7 @@ test.describe("Tier 198 — Dead-Letter UI on webhooks page", () => {
 
   test.beforeAll(async ({ request }: { request: any }) => {
     const create = await request.post(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -365,7 +367,7 @@ test.describe("Tier 198 — Dead-Letter UI on webhooks page", () => {
     webhookId = (await create.json()).id
 
     await request.post(
-      `http://localhost:3001/api/v1/webhooks/${webhookId}/test?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/${webhookId}/test?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     // Tier 350: same terminal-state wait as the first describe -- see
@@ -377,7 +379,7 @@ test.describe("Tier 198 — Dead-Letter UI on webhooks page", () => {
     let deliveryStatus = ""
     while (attempts < 80) {
       const list = await request.get(
-        `http://localhost:3001/api/v1/webhooks/${webhookId}/deliveries?companyId=${tokens!.companyId}&limit=5`,
+        `${API}/api/v1/webhooks/${webhookId}/deliveries?companyId=${tokens!.companyId}&limit=5`,
         { headers: headers() },
       )
       const arr = await list.json()

@@ -36,6 +36,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 const COMPANY_ID = (() => {
   const env = readFileSync(AUTH_CACHE, "utf-8")
@@ -242,7 +244,7 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
     // setDownloadError(). This is the equivalent
     // backend assertion for the error path.
     const res = await page.request.get(
-      "http://localhost:3001/api/v1/ustva/ustva.pdf?year=1900&month=7&companyId=" + COMPANY_ID,
+      `${API}/api/v1/ustva/ustva.pdf?year=1900&month=7&companyId=` + COMPANY_ID,
       { headers: { "x-user-id": USER_ID, "x-company-id": COMPANY_ID } },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)

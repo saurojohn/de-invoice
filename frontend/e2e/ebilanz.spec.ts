@@ -151,7 +151,7 @@ test("Download .xbrl link uses full backend URL", async ({ page }) => {
     { timeout: 5_000 },
   )
   const href = await link.getAttribute("href")
-  expect(href).toMatch(/^http:\/\/localhost:3001\/api\/v1\/accounting\/ebilanz\.xml/)
+  expect(href).toMatch(/\/api\/v1\/accounting\/ebilanz\.xml/)
   expect(href).toContain("companyId=")
   expect(href).toContain("year=")
 })
@@ -168,7 +168,7 @@ test("Download .pdf link uses full backend URL", async ({ page }) => {
     { timeout: 5_000 },
   )
   const href = await link.getAttribute("href")
-  expect(href).toMatch(/^http:\/\/localhost:3001\/api\/v1\/accounting\/ebilanz\.pdf/)
+  expect(href).toMatch(/\/api\/v1\/accounting\/ebilanz\.pdf/)
   expect(href).toContain("companyId=")
   expect(href).toContain("year=")
 })

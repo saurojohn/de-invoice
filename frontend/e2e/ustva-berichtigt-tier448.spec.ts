@@ -8,8 +8,7 @@
  */
 import { test, expect } from "@playwright/test"
 
-const API = "http://localhost:3001"
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 test("a second submission becomes a corrected return, after asking", async ({ page, request }) => {
   const tag = `t448-${Date.now()}`
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {

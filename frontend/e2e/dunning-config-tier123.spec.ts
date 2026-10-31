@@ -21,6 +21,8 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { getTestEnv } from './fixtures/test-env'
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
 test.describe('Tier 123 — Dunning config card', () => {
@@ -44,7 +46,7 @@ test.describe('Tier 123 — Dunning config card', () => {
     // test is about the UI, but it needs a
     // predictable initial state.
     const reset = await context.request.put(
-      'http://localhost:3001/api/v1/reminders/dunning-config?companyId=' + COMPANY_ID,
+      `${E2E_API}/api/v1/reminders/dunning-config?companyId=` + COMPANY_ID,
       {
         headers: {
           'x-user-id': USER_ID,
@@ -126,7 +128,7 @@ test.describe('Tier 123 — Dunning config card', () => {
     // context.request would auto-send the cookies
     // but the backend wouldn't read them).
     const put = await request.put(
-      'http://localhost:3001/api/v1/reminders/dunning-config?companyId=' + COMPANY_ID,
+      `${E2E_API}/api/v1/reminders/dunning-config?companyId=` + COMPANY_ID,
       {
         headers: {
           'x-user-id': USER_ID,
@@ -152,7 +154,7 @@ test.describe('Tier 123 — Dunning config card', () => {
     let data: any = null
     for (let attempt = 0; attempt < 5; attempt++) {
       const get = await request.get(
-        'http://localhost:3001/api/v1/reminders/dunning-config?companyId=' + COMPANY_ID,
+        `${E2E_API}/api/v1/reminders/dunning-config?companyId=` + COMPANY_ID,
         {
           headers: { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID },
         },
@@ -175,7 +177,7 @@ test.describe('Tier 123 — Dunning config card', () => {
   test.afterAll(async () => {
     const ctx = await playwrightRequest.newContext()
     const reset = await ctx.put(
-      'http://localhost:3001/api/v1/reminders/dunning-config?companyId=' + COMPANY_ID,
+      `${E2E_API}/api/v1/reminders/dunning-config?companyId=` + COMPANY_ID,
       {
         headers: { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID, 'content-type': 'application/json' },
         data: { level1Days: 1, level2Days: 7, level3Days: 14, level1Fee: 0, level2Fee: 5, level3Fee: 10 },

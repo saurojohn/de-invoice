@@ -49,6 +49,8 @@ import { readFileSync } from "fs"
 import { execFileSync } from "child_process"
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -110,20 +112,20 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     // (the test's companyId).
 
     await request.post(
-      "http://localhost:3001/api/v1/system/errors/resolve-all",
+      `${API}/api/v1/system/errors/resolve-all`,
       { headers: headers() },
     )
     await request.post(
-      "http://localhost:3001/api/v1/system/errors/mute-all",
+      `${API}/api/v1/system/errors/mute-all`,
       { headers: headers() },
     )
     await request.post(
-      "http://localhost:3001/api/v1/system/notifications/test",
+      `${API}/api/v1/system/notifications/test`,
       { headers: headers() },
     )
 
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&take=200`,
+      `${API}/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&take=200`,
       { headers: headers() },
     )
     const data = await res.json()
@@ -145,11 +147,11 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     // includes these via the
     // includeNullCompanyId flag.
     await request.post(
-      `http://localhost:3001/api/v1/admin/cron-health/webhook-retry-worker/run?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/admin/cron-health/webhook-retry-worker/run?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&take=200`,
+      `${API}/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&take=200`,
       { headers: headers() },
     )
     const data = await res.json()
@@ -170,7 +172,7 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     // standard create + UPDATE
     // pattern.
     const create = await request.post(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -188,7 +190,7 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     const whId = (await create.json()).id
 
     await request.post(
-      `http://localhost:3001/api/v1/webhooks/${whId}/test?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/${whId}/test?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     // Tier 348: this was a fixed `setTimeout(1500)` followed by a
@@ -207,7 +209,7 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     // 'failed' too; the wait only has to outlast the delivery's own limit.
     for (let attempt = 0; attempt < 80; attempt++) {
       const list = await request.get(
-        `http://localhost:3001/api/v1/webhooks/${whId}/deliveries?companyId=${tokens!.companyId}&limit=1`,
+        `${API}/api/v1/webhooks/${whId}/deliveries?companyId=${tokens!.companyId}&limit=1`,
         { headers: headers() },
       )
       const rows = await list.json()
@@ -256,14 +258,14 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
 
     // Requeue.
     const rq = await request.post(
-      `http://localhost:3001/api/v1/webhooks/deliveries/${deliveryId}/requeue?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/deliveries/${deliveryId}/requeue?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     expect(rq.status()).toBe(200)
 
     // Verify activity row.
     const act = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&take=200`,
+      `${API}/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&take=200`,
       { headers: headers() },
     )
     const data = await act.json()
@@ -280,7 +282,7 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     // cron.run_manually should
     // appear.
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&actionPrefix=cron.&take=200`,
+      `${API}/api/v1/audit-logs/activity?companyId=${tokens!.companyId}&actionPrefix=cron.&take=200`,
       { headers: headers() },
     )
     const data = await res.json()
@@ -310,7 +312,7 @@ test.describe("Tier 202 — instrumented admin actions write activity rows", () 
     // indirectly via the row
     // insertion in tests 1-3).
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     const data = await res.json()

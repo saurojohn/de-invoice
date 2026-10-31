@@ -17,7 +17,9 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
+const API = process.env.NEXT_PUBLIC_API_URL || `${E2E_API}`
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function seedCompanyId(): string {

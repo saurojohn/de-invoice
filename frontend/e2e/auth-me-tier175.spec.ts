@@ -34,6 +34,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -56,7 +58,7 @@ test.beforeAll(() => {
 
 test.describe("Tier 175 — GET /api/v1/auth/me", () => {
   test("1. unauthenticated request: missing headers → 401", async ({ request }) => {
-    const res = await request.get(`http://localhost:3001/api/v1/auth/me`)
+    const res = await request.get(`${API}/api/v1/auth/me`)
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
@@ -65,7 +67,7 @@ test.describe("Tier 175 — GET /api/v1/auth/me", () => {
     // definitely has no UserCompany row for. The
     // HeaderAuthGuard should reject this with 401
     // "Kein Zugriff auf diese Firma".
-    const res = await request.get(`http://localhost:3001/api/v1/auth/me`, {
+    const res = await request.get(`${API}/api/v1/auth/me`, {
       headers: {
         "x-user-id": tokens!.userId,
         "x-company-id": "00000000-0000-0000-0000-000000000000",
@@ -81,7 +83,7 @@ test.describe("Tier 175 — GET /api/v1/auth/me", () => {
   })
 
   test("3. authenticated request: returns id, email, role, companies[]", async ({ request }) => {
-    const res = await request.get(`http://localhost:3001/api/v1/auth/me`, {
+    const res = await request.get(`${API}/api/v1/auth/me`, {
       headers: {
         "x-user-id": tokens!.userId,
         "x-company-id": tokens!.companyId,
@@ -106,7 +108,7 @@ test.describe("Tier 175 — GET /api/v1/auth/me", () => {
   })
 
   test("4. per-company role is returned (Tier 66 semantics)", async ({ request }) => {
-    const res = await request.get(`http://localhost:3001/api/v1/auth/me`, {
+    const res = await request.get(`${API}/api/v1/auth/me`, {
       headers: {
         "x-user-id": tokens!.userId,
         "x-company-id": tokens!.companyId,
@@ -121,7 +123,7 @@ test.describe("Tier 175 — GET /api/v1/auth/me", () => {
   })
 
   test("5. response shape: no sensitive fields leaked", async ({ request }) => {
-    const res = await request.get(`http://localhost:3001/api/v1/auth/me`, {
+    const res = await request.get(`${API}/api/v1/auth/me`, {
       headers: {
         "x-user-id": tokens!.userId,
         "x-company-id": tokens!.companyId,

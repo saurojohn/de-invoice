@@ -61,6 +61,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -94,14 +96,14 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
   // ─── UStJA-PDF (Tier 105) ─────────────────────────────────
   test("1. UStJA-PDF: unauthenticated → 401", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustja.pdf?year=2026&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustja.pdf?year=2026&companyId=${tokens!.companyId}`,
     )
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
   test("2. UStJA-PDF: missing companyId → 400", async ({ request }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/ustva/ustja.pdf?year=2026",
+      `${API}/api/v1/ustva/ustja.pdf?year=2026`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -109,7 +111,7 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
 
   test("3. UStJA-PDF: missing year → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustja.pdf?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustja.pdf?companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -119,7 +121,7 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustja.pdf?year=2026&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustja.pdf?year=2026&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -135,7 +137,7 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
 
   test("5. UStJA-PDF: year=1900 → 400 with German error", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustja.pdf?year=1900&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustja.pdf?year=1900&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -144,14 +146,14 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
   // ─── UStJA ELSTER-XML (Tier 107) ────────────────────────────
   test("6. UStJA ELSTER-XML: unauthenticated → 401", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustja/elster-xml?year=2026&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustja/elster-xml?year=2026&companyId=${tokens!.companyId}`,
     )
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
   test("7. UStJA ELSTER-XML: year=2026 → 200 + XML magic + filename", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustja/elster-xml?year=2026&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustja/elster-xml?year=2026&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -172,7 +174,7 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
 
   test("8. UStJA ELSTER-XML: missing year → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustja/elster-xml?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustja/elster-xml?companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -180,7 +182,7 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
 
   test("9. UStJA ELSTER-XML: year=1900 → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustja/elster-xml?year=1900&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustja/elster-xml?year=1900&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -189,14 +191,14 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
   // ─── OSS JSON (Tier 78) ────────────────────────────────────
   test("10. OSS JSON: unauthenticated → 401", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/oss?year=2026&quarter=3&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/oss?year=2026&quarter=3&companyId=${tokens!.companyId}`,
     )
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
   test("11. OSS JSON: year=2026&quarter=3 → 200 + JSON shape", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/oss?year=2026&quarter=3&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/oss?year=2026&quarter=3&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -214,7 +216,7 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
 
   test("12. OSS JSON: quarter=5 → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/oss?year=2026&quarter=5&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/oss?year=2026&quarter=5&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -225,14 +227,14 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
   // ─── OSS CSV (Tier 78) ─────────────────────────────────────
   test("13. OSS CSV: unauthenticated → 401", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/oss.csv?year=2026&quarter=3&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/oss.csv?year=2026&quarter=3&companyId=${tokens!.companyId}`,
     )
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
   test("14. OSS CSV: year=2026&quarter=3 → 200 + CSV + filename", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/oss.csv?year=2026&quarter=3&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/oss.csv?year=2026&quarter=3&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -249,7 +251,7 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
 
   test("15. OSS CSV: quarter=5 → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/oss.csv?year=2026&quarter=5&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/oss.csv?year=2026&quarter=5&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -257,7 +259,7 @@ test.describe("Tier 187 — UStJA-PDF + OSS endpoint e2e coverage", () => {
 
   test("16. OSS CSV: year=1900 → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/oss.csv?year=1900&quarter=3&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/oss.csv?year=1900&quarter=3&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)

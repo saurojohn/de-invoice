@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 50: VoucherTemplate auto-persist (capture-from-voucher).
  *
@@ -74,7 +76,7 @@ async function createSeedVoucher(page: any) {
   // seeded chart reliably contains 4960 (Sonstige
   // betriebliche Aufwendungen) and 1200 (Bank).
   const saccts = await page.request.get(
-    `http://localhost:3001/api/v1/accounting/accounts?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/accounting/accounts?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -86,7 +88,7 @@ async function createSeedVoucher(page: any) {
   const expense = accs.find((a: any) => a.accountNumber === "4960") || accs[0]
   const bank = accs.find((a: any) => a.accountNumber === "1200")
   const res = await page.request.post(
-    `http://localhost:3001/api/v1/accounting/vouchers?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/accounting/vouchers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -126,7 +128,7 @@ test.describe("Tier 50 — VoucherTemplate capture-from-voucher", () => {
     // Wipe any leftover Tier50% templates so the
     // assertions are deterministic.
     await page.request.get(
-      `http://localhost:3001/api/v1/voucher-templates?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/voucher-templates?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -175,7 +177,7 @@ test.describe("Tier 50 — VoucherTemplate capture-from-voucher", () => {
   }) => {
     await setupAuth(context, page)
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/voucher-templates/list-for-apply?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/voucher-templates/list-for-apply?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -215,7 +217,7 @@ test.describe("Tier 50 — VoucherTemplate capture-from-voucher", () => {
     // Find a captured template (one we just created in
     // the previous test, or any left over).
     const list = await page.request.get(
-      `http://localhost:3001/api/v1/voucher-templates/list-for-apply?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/voucher-templates/list-for-apply?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -229,7 +231,7 @@ test.describe("Tier 50 — VoucherTemplate capture-from-voucher", () => {
 
     // Apply via the existing /apply endpoint.
     const applyRes = await page.request.post(
-      `http://localhost:3001/api/v1/voucher-templates/${tpl.id}/apply?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/voucher-templates/${tpl.id}/apply?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",

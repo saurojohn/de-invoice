@@ -26,7 +26,7 @@ import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
-const API = 'http://localhost:3001'
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 // Three real invoices from the dev DB. The
 // hardcoded UUIDs were replaced (Tier 304) —
 // the previous INV-TEST-001/INV-2026-000203/

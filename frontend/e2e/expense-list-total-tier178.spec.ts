@@ -35,6 +35,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -75,7 +77,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/expenses?companyId=${tokens!.companyId}&pageSize=3`,
+      `${API}/api/v1/expenses?companyId=${tokens!.companyId}&pageSize=3`,
       { headers: { "x-user-id": tokens!.userId, "x-company-id": tokens!.companyId } },
     )
     expect(res.status()).toBe(200)
@@ -95,7 +97,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
     request,
   }) => {
     const res = await request.post(
-      `http://localhost:3001/api/v1/expenses?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/expenses?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -131,7 +133,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
     // as-is (≤ 20), and the response echoes it back ≤ 20.
     const longAccount = "A".repeat(20)
     const res = await request.post(
-      `http://localhost:3001/api/v1/expenses?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/expenses?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -161,7 +163,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
 
   test("4. accountNumber is null when not provided", async ({ request }) => {
     const res = await request.post(
-      `http://localhost:3001/api/v1/expenses?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/expenses?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -190,7 +192,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
   }) => {
     // Create with accountNumber
     const createRes = await request.post(
-      `http://localhost:3001/api/v1/expenses?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/expenses?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -214,7 +216,7 @@ test.describe("Tier 178 + 179 — expenses list/total + accountNumber echo", () 
 
     // List and find it
     const list = await request.get(
-      `http://localhost:3001/api/v1/expenses?companyId=${tokens!.companyId}&pageSize=500`,
+      `${API}/api/v1/expenses?companyId=${tokens!.companyId}&pageSize=500`,
       { headers: { "x-user-id": tokens!.userId, "x-company-id": tokens!.companyId } },
     )
     expect(list.status()).toBe(200)

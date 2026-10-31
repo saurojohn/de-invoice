@@ -50,6 +50,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -77,7 +79,7 @@ let originalDefaults: { defaultPaymentDays: number | null; defaultVatMode: strin
   null
 
 test.beforeAll(async ({ request }) => {
-  const res = await request.get(`http://localhost:3001/api/v1/companies/${tokens!.companyId}`, {
+  const res = await request.get(`${API}/api/v1/companies/${tokens!.companyId}`, {
     headers: { "x-user-id": tokens!.userId, "x-company-id": tokens!.companyId },
   })
   expect(res.status()).toBe(200)
@@ -90,7 +92,7 @@ test.beforeAll(async ({ request }) => {
 
 test.afterAll(async ({ request }) => {
   if (!originalDefaults) return
-  await request.put(`http://localhost:3001/api/v1/companies/${tokens!.companyId}`, {
+  await request.put(`${API}/api/v1/companies/${tokens!.companyId}`, {
     headers: {
       "Content-Type": "application/json",
       "x-user-id": tokens!.userId,
@@ -105,7 +107,7 @@ test.afterAll(async ({ request }) => {
 
 async function setDefaults(request: any, defaults: any) {
   const res = await request.put(
-    `http://localhost:3001/api/v1/companies/${tokens!.companyId}`,
+    `${API}/api/v1/companies/${tokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -125,7 +127,7 @@ async function setDefaults(request: any, defaults: any) {
 
 async function createInvoice(request: any, body: any) {
   const res = await request.post(
-    `http://localhost:3001/api/v1/invoices?companyId=${tokens!.companyId}`,
+    `${API}/api/v1/invoices?companyId=${tokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -144,7 +146,7 @@ let euCustomerId: string | null = null
 async function euCustomer(request: any): Promise<string> {
   if (euCustomerId) return euCustomerId
   const res = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${tokens!.companyId}`,
+    `${API}/api/v1/customers?companyId=${tokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -194,7 +196,7 @@ test.describe("Tier 176 — Company.defaultVatMode + defaultPaymentDays pre-fill
 
     // Reject invalid value
     const badRes = await request.put(
-      `http://localhost:3001/api/v1/companies/${tokens!.companyId}`,
+      `${API}/api/v1/companies/${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",

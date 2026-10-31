@@ -23,6 +23,8 @@
 import { test, expect } from '@playwright/test'
 import { getTestEnv } from './fixtures/test-env'
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
 const INVOICE_ID = '11deeb35-7147-4bdc-86d9-a302b4f80f3e'
@@ -30,7 +32,7 @@ const INVOICE_ID = '11deeb35-7147-4bdc-86d9-a302b4f80f3e'
 async function clearNotes(page: any) {
   const ctx = page.context()
   const res = await ctx.request.get(
-    `http://localhost:3001/api/v1/invoices/${INVOICE_ID}/internal-notes?companyId=${COMPANY_ID}`,
+    `${API}/api/v1/invoices/${INVOICE_ID}/internal-notes?companyId=${COMPANY_ID}`,
     {
       headers: {
         'x-user-id': USER_ID,
@@ -41,7 +43,7 @@ async function clearNotes(page: any) {
   const notes = (await res.json()) as Array<{ id: string }>
   for (const n of notes) {
     await ctx.request.delete(
-      `http://localhost:3001/api/v1/invoices/${INVOICE_ID}/internal-notes/${n.id}?companyId=${COMPANY_ID}`,
+      `${API}/api/v1/invoices/${INVOICE_ID}/internal-notes/${n.id}?companyId=${COMPANY_ID}`,
       { headers: { 'x-user-id': USER_ID, 'x-company-id': COMPANY_ID } },
     )
   }

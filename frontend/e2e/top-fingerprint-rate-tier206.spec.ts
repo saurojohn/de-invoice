@@ -46,6 +46,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -93,7 +95,7 @@ test.describe("Tier 206 — GET /system/errors/top-rate", () => {
     request,
   }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/system/errors/top-rate?limit=10&windowMinutes=1440",
+      `${API}/api/v1/system/errors/top-rate?limit=10&windowMinutes=1440`,
       { headers: headers() },
     )
     expect(res.status()).toBe(200)
@@ -130,11 +132,11 @@ test.describe("Tier 206 — GET /system/errors/top-rate", () => {
     // the smaller window excludes
     // events older than 5 min.
     const narrow = await request.get(
-      "http://localhost:3001/api/v1/system/errors/top-rate?windowMinutes=5&limit=50",
+      `${API}/api/v1/system/errors/top-rate?windowMinutes=5&limit=50`,
       { headers: headers() },
     )
     const wide = await request.get(
-      "http://localhost:3001/api/v1/system/errors/top-rate?windowMinutes=1440&limit=50",
+      `${API}/api/v1/system/errors/top-rate?windowMinutes=1440&limit=50`,
       { headers: headers() },
     )
     const narrowFps = new Set(
@@ -154,7 +156,7 @@ test.describe("Tier 206 — GET /system/errors/top-rate", () => {
 
   test("3. `limit` query param caps the result count", async ({ request }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/system/errors/top-rate?limit=3",
+      `${API}/api/v1/system/errors/top-rate?limit=3`,
       { headers: headers() },
     )
     const body = await res.json()
@@ -165,7 +167,7 @@ test.describe("Tier 206 — GET /system/errors/top-rate", () => {
     request,
   }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/system/errors/top-rate?limit=5&windowMinutes=1440",
+      `${API}/api/v1/system/errors/top-rate?limit=5&windowMinutes=1440`,
       { headers: headers() },
     )
     const body = await res.json()
@@ -204,11 +206,11 @@ test.describe("Tier 206 — GET /system/errors/top-rate", () => {
     // value (they read from the
     // same NotificationConfig row).
     const threshold = await request.get(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       { headers: headers() },
     )
     const topRate = await request.get(
-      "http://localhost:3001/api/v1/system/errors/top-rate?limit=5",
+      `${API}/api/v1/system/errors/top-rate?limit=5`,
       { headers: headers() },
     )
     const tBody = await threshold.json()
@@ -315,7 +317,7 @@ test.describe("Tier 206 — UI top-rate card on /dashboard/system-errors", () =>
     // least 1 occurrence in the last
     // hour will be "exceeded".
     await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: { rateThresholdCount: 1, rateThresholdWindowMinutes: 60 },
@@ -355,7 +357,7 @@ test.describe("Tier 206 — UI top-rate card on /dashboard/system-errors", () =>
     // threshold so subsequent
     // tests aren't affected.
     await request.put(
-      "http://localhost:3001/api/v1/system/notifications/threshold",
+      `${API}/api/v1/system/notifications/threshold`,
       {
         headers: { ...headers(), "Content-Type": "application/json" },
         data: { rateThresholdCount: 5, rateThresholdWindowMinutes: 60 },

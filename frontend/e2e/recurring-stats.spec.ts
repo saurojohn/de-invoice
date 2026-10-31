@@ -3,6 +3,8 @@ import { readFileSync } from "fs"
 import { execSync } from "child_process"
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 63: Recurring-invoice dashboard widget.
  *
@@ -69,7 +71,7 @@ test.beforeAll(async ({ request }) => {
     "x-company-id": testTokens!.companyId,
   }
   const custRes = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers,
       data: {
@@ -88,7 +90,7 @@ test.beforeAll(async ({ request }) => {
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     .toISOString()
   const tplRes = await request.post(
-    `http://localhost:3001/api/v1/recurring-invoices?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/recurring-invoices?companyId=${testTokens!.companyId}`,
     {
       headers,
       data: {
@@ -151,7 +153,7 @@ test.afterAll(async ({ request }) => {
   if (TEST_TEMPLATE_ID) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/recurring-invoices/${TEST_TEMPLATE_ID}?companyId=${testTokens.companyId}`,
+        `${API}/api/v1/recurring-invoices/${TEST_TEMPLATE_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,
@@ -166,7 +168,7 @@ test.afterAll(async ({ request }) => {
   if (TEST_CUSTOMER_ID) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
+        `${API}/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,

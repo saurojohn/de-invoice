@@ -43,7 +43,7 @@ import { getTestEnv } from './fixtures/test-env'
 
 const COMPANY_ID = getTestEnv().companyId
 const USER_ID = getTestEnv().userId
-const API = 'http://localhost:3001'
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 // A real invoice id from the seed data. The
 // invoice must exist + be in the seed company.
 const TEST_INVOICE_ID = '11deeb35-7147-4bdc-86d9-a302b4f80f3e'

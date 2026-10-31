@@ -28,6 +28,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -58,14 +60,14 @@ function authHeaders(): Record<string, string> {
 test.describe("Tier 177 — GET /api/v1/ustva/ustva.pdf", () => {
   test("1. unauthenticated request: missing headers → 401", async ({ request }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/ustva/ustva.pdf?year=2026&month=7&companyId=anything",
+      `${API}/api/v1/ustva/ustva.pdf?year=2026&month=7&companyId=anything`,
     )
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
   test("2. missing companyId → 400", async ({ request }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/ustva/ustva.pdf?year=2026&month=7",
+      `${API}/api/v1/ustva/ustva.pdf?year=2026&month=7`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -75,7 +77,7 @@ test.describe("Tier 177 — GET /api/v1/ustva/ustva.pdf", () => {
 
   test("3. missing month → 400 (Zahllast is per-month)", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustva.pdf?year=2026&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustva.pdf?year=2026&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -87,7 +89,7 @@ test.describe("Tier 177 — GET /api/v1/ustva/ustva.pdf", () => {
 
   test("4. month out of range (13) → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustva.pdf?year=2026&month=13&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustva.pdf?year=2026&month=13&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -95,7 +97,7 @@ test.describe("Tier 177 — GET /api/v1/ustva/ustva.pdf", () => {
 
   test("5. year out of range (1900) → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustva.pdf?year=1900&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustva.pdf?year=1900&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -103,7 +105,7 @@ test.describe("Tier 177 — GET /api/v1/ustva/ustva.pdf", () => {
 
   test("6. happy path: 200 + application/pdf + PDF magic bytes + Content-Disposition", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustva.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustva.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -130,7 +132,7 @@ test.describe("Tier 177 — GET /api/v1/ustva/ustva.pdf", () => {
 
   test("7. PDF body: A4 portrait MediaBox + FlateDecode content stream", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/ustva/ustva.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/ustva/ustva.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status()).toBe(200)

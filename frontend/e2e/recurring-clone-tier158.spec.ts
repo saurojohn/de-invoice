@@ -66,8 +66,7 @@ function readCachedTokens(): { userId: string; companyId: string } {
 const tokens = readCachedTokens()
 const COMPANY_ID = tokens.companyId
 const USER_ID = tokens.userId
-const API = 'http://localhost:3001'
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 const ADMIN_HEADERS = {
   'x-user-id': USER_ID,
   'x-company-id': COMPANY_ID,

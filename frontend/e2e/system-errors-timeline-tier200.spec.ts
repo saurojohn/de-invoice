@@ -36,6 +36,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -83,7 +85,7 @@ test.describe("Tier 200 — GET /system/errors/timeline", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/system/errors/timeline?days=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/system/errors/timeline?days=7&companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     expect(res.status()).toBe(200)
@@ -108,7 +110,7 @@ test.describe("Tier 200 — GET /system/errors/timeline", () => {
 
   test("2. each bucket has the expected numeric fields", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/system/errors/timeline?days=30&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/system/errors/timeline?days=30&companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     const body = await res.json()
@@ -130,7 +132,7 @@ test.describe("Tier 200 — GET /system/errors/timeline", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/system/errors/timeline?days=30&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/system/errors/timeline?days=30&companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     const body = await res.json()
@@ -154,7 +156,7 @@ test.describe("Tier 200 — GET /system/errors/timeline", () => {
     // a unique message so we can
     // distinguish it.
     const tag = "tier200-source-" + Date.now()
-    await request.post("http://localhost:3001/api/v1/system/errors", {
+    await request.post(`${API}/api/v1/system/errors`, {
       headers: {
         "Content-Type": "application/json",
         "x-user-id": tokens!.userId,
@@ -175,19 +177,19 @@ test.describe("Tier 200 — GET /system/errors/timeline", () => {
     // should include them too.
     const all = await (
       await request.get(
-        `http://localhost:3001/api/v1/system/errors/timeline?days=1&companyId=${tokens!.companyId}`,
+        `${API}/api/v1/system/errors/timeline?days=1&companyId=${tokens!.companyId}`,
         { headers: headers() },
       )
     ).json()
     const backend = await (
       await request.get(
-        `http://localhost:3001/api/v1/system/errors/timeline?days=1&companyId=${tokens!.companyId}&source=backend`,
+        `${API}/api/v1/system/errors/timeline?days=1&companyId=${tokens!.companyId}&source=backend`,
         { headers: headers() },
       )
     ).json()
     const frontend = await (
       await request.get(
-        `http://localhost:3001/api/v1/system/errors/timeline?days=1&companyId=${tokens!.companyId}&source=frontend`,
+        `${API}/api/v1/system/errors/timeline?days=1&companyId=${tokens!.companyId}&source=frontend`,
         { headers: headers() },
       )
     ).json()
@@ -214,7 +216,7 @@ test.describe("Tier 200 — GET /system/errors/timeline", () => {
 
   test("5. days=1 returns exactly 1 bucket", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/system/errors/timeline?days=1&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/system/errors/timeline?days=1&companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     const body = await res.json()

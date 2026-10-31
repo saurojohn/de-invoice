@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 39: Cost-Center CRUD form UI.
  *
@@ -144,7 +146,7 @@ test.describe("Tier 39 — Cost-Center form UI", () => {
     // Hit the endpoint directly via the page's request context
     // (cookies already set) — avoids reinventing fetch in the test.
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/invoices/cost-centers?companyId=${testTokens.companyId}`,
+      `${API}/api/v1/invoices/cost-centers?companyId=${testTokens.companyId}`,
       {
         headers: {
           "x-user-id": testTokens.userId,

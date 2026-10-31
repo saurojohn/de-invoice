@@ -27,6 +27,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -66,7 +68,7 @@ test.describe("Tier 193 — Prometheus /metrics", () => {
   test("1. /metrics returns prom text format with all business gauges", async ({
     request,
   }) => {
-    const res = await request.get("http://localhost:3001/metrics")
+    const res = await request.get(`${API}/metrics`)
     expect(res.status()).toBe(200)
     const ct = res.headers()["content-type"] || ""
     // prom text format starts with `text/plain; version=0.0.4`
@@ -97,7 +99,7 @@ test.describe("Tier 193 — Prometheus /metrics", () => {
   })
 
   test("2. business counts are non-zero (DB has data)", async ({ request }) => {
-    const res = await request.get("http://localhost:3001/metrics")
+    const res = await request.get(`${API}/metrics`)
     const body = await res.text()
     const matchInvoices = body.match(/^de_invoice_business_invoices\s+(\d+)$/m)
     expect(matchInvoices, "business_invoices line missing").not.toBeNull()
@@ -110,9 +112,9 @@ test.describe("Tier 193 — Prometheus /metrics", () => {
     // setGlobalPrefix excludes 'metrics'. Verifying
     // that /api/v1/metrics 404s proves the exclusion
     // is wired correctly.
-    const noPrefix = await request.get("http://localhost:3001/metrics")
+    const noPrefix = await request.get(`${API}/metrics`)
     expect(noPrefix.status()).toBe(200)
-    const withPrefix = await request.get("http://localhost:3001/api/v1/metrics")
+    const withPrefix = await request.get(`${API}/api/v1/metrics`)
     expect(withPrefix.status(), "/api/v1/metrics should 404").toBe(404)
   })
 })
@@ -125,7 +127,7 @@ function authHeaders(): Record<string, string> {
 
 test.describe("Tier 193 — /api/v1/health/summary", () => {
   test("4. returns the dashboard-friendly JSON shape", async ({ request }) => {
-    const res = await request.get("http://localhost:3001/api/v1/health/summary", { headers: authHeaders() })
+    const res = await request.get(`${API}/api/v1/health/summary`, { headers: authHeaders() })
     expect(res.status()).toBe(200)
     const body = await res.json()
     // Top-level keys
@@ -157,7 +159,7 @@ test.describe("Tier 193 — /api/v1/health/summary", () => {
   })
 
   test("5. healthy status with DB up + storage up", async ({ request }) => {
-    const res = await request.get("http://localhost:3001/api/v1/health/summary", { headers: authHeaders() })
+    const res = await request.get(`${API}/api/v1/health/summary`, { headers: authHeaders() })
     const body = await res.json()
     expect(body.status, "expected status=ok").toBe("ok")
     expect(body.dbOk, "expected dbOk=true").toBe(true)
@@ -167,9 +169,9 @@ test.describe("Tier 193 — /api/v1/health/summary", () => {
   test("6. requires auth; the public probes stay public", async ({ request }) => {
     // Tier 376: the summary carries business counts, so it is no longer a
     // public probe. Monitoring polls /api/v1/health and /metrics instead.
-    const summary = await request.get("http://localhost:3001/api/v1/health/summary")
+    const summary = await request.get(`${API}/api/v1/health/summary`)
     expect(summary.status()).toBe(401)
-    const liveness = await request.get("http://localhost:3001/api/v1/health")
+    const liveness = await request.get(`${API}/api/v1/health`)
     expect(liveness.status()).toBe(200)
   })
 })

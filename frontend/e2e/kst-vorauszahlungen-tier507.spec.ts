@@ -4,8 +4,7 @@
  */
 import { test, expect } from "@playwright/test"
 
-const API = "http://localhost:3001"
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 test("KSt prepayments are entered and reduce what is left to pay", async ({ page, request }) => {
   const tag = `t507-${Date.now()}`
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {

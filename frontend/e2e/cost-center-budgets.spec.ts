@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 48: Cost-Center Budgets page + bva column
  * on the yearly report.
@@ -49,7 +51,7 @@ test.beforeAll(async ({ request }) => {
   const companyId = testTokens.companyId
   const year = new Date().getFullYear()
   const res = await request.get(
-    `http://localhost:3001/api/v1/reports/cost-center-budgets?companyId=${companyId}&year=${year}`,
+    `${API}/api/v1/reports/cost-center-budgets?companyId=${companyId}&year=${year}`,
     {
       headers: {
         "x-user-id": testTokens.userId,
@@ -61,7 +63,7 @@ test.beforeAll(async ({ request }) => {
   const body = await res.json()
   for (const b of body.budgets || []) {
     await request.delete(
-      `http://localhost:3001/api/v1/reports/cost-center-budgets/${b.id}?companyId=${companyId}`,
+      `${API}/api/v1/reports/cost-center-budgets/${b.id}?companyId=${companyId}`,
       {
         headers: {
           "x-user-id": testTokens.userId,
@@ -138,7 +140,7 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     const year = new Date().getFullYear()
     // List current budgets and delete them.
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/reports/cost-center-budgets?companyId=${companyId}&year=${year}`,
+      `${API}/api/v1/reports/cost-center-budgets?companyId=${companyId}&year=${year}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -149,7 +151,7 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     const body = await res.json()
     for (const b of body.budgets || []) {
       await page.request.delete(
-        `http://localhost:3001/api/v1/reports/cost-center-budgets/${b.id}?companyId=${companyId}`,
+        `${API}/api/v1/reports/cost-center-budgets/${b.id}?companyId=${companyId}`,
         {
           headers: {
             "x-user-id": testTokens!.userId,
@@ -204,7 +206,7 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     // because tier-44 fixtures leave residual data
     // for that bucket.
     const create = await page.request.post(
-      `http://localhost:3001/api/v1/reports/cost-center-budgets?companyId=${companyId}`,
+      `${API}/api/v1/reports/cost-center-budgets?companyId=${companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -263,7 +265,7 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
 
     // Cleanup.
     const list = await page.request.get(
-      `http://localhost:3001/api/v1/reports/cost-center-budgets?companyId=${companyId}&year=${year}`,
+      `${API}/api/v1/reports/cost-center-budgets?companyId=${companyId}&year=${year}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -274,7 +276,7 @@ test.describe("Tier 48 — Cost-Center Budgets", () => {
     const lb = await list.json()
     for (const b of lb.budgets || []) {
       await page.request.delete(
-        `http://localhost:3001/api/v1/reports/cost-center-budgets/${b.id}?companyId=${companyId}`,
+        `${API}/api/v1/reports/cost-center-budgets/${b.id}?companyId=${companyId}`,
         {
           headers: {
             "x-user-id": testTokens!.userId,

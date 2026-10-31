@@ -23,6 +23,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 const COMPANY_ID = (() => {
   const env = readFileSync(AUTH_CACHE, "utf-8")
@@ -164,7 +166,7 @@ test.describe("Tier 183 — frontend GoBD month packager button", () => {
     // backend's German error message is what the
     // UI's setDownloadError would surface.
     const res = await page.request.get(
-      "http://localhost:3001/api/v1/gobd-export?year=2026&month=13&companyId=" +
+      `${API}/api/v1/gobd-export?year=2026&month=13&companyId=` +
         COMPANY_ID,
       { headers: { "x-user-id": USER_ID, "x-company-id": COMPANY_ID } },
     )

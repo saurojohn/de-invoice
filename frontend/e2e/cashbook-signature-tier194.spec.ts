@@ -34,6 +34,8 @@ import { readFileSync } from "fs"
 import { execFileSync } from "child_process"
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -100,7 +102,7 @@ function psql(sql: string): string {
 // Differenz is 0.00 (no Begründung required).
 async function getDayEnde(request: any): Promise<number> {
   const d = await request.get(
-    `http://localhost:3001/api/v1/cashbook/day?companyId=${tokens!.companyId}&date=${TEST_DATE}`,
+    `${E2E_API}/api/v1/cashbook/day?companyId=${tokens!.companyId}&date=${TEST_DATE}`,
     {
       headers: {
         "x-user-id": tokens!.userId,
@@ -146,7 +148,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
   }) => {
     const physicalCount = await getDayEnde(request)
     const res = await request.post(
-      `http://localhost:3001/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -174,7 +176,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
   }) => {
     const physicalCount = await getDayEnde(request)
     const close = await request.post(
-      `http://localhost:3001/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -190,7 +192,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     )
     const closeBody = await close.json()
     const list = await request.get(
-      `http://localhost:3001/api/v1/cashbook/closes?companyId=${tokens!.companyId}&from=${TEST_DATE}&to=${TEST_DATE}`,
+      `${E2E_API}/api/v1/cashbook/closes?companyId=${tokens!.companyId}&from=${TEST_DATE}&to=${TEST_DATE}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -202,7 +204,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     expect(listBody.length, "expected exactly one close").toBe(1)
     const closeId = listBody[0].id
     const verify = await request.get(
-      `http://localhost:3001/api/v1/cashbook/close-day/${closeId}/verify?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day/${closeId}/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -227,7 +229,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
   }) => {
     const physicalCount = await getDayEnde(request)
     const close = await request.post(
-      `http://localhost:3001/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -243,7 +245,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     )
     const closeBody = await close.json()
     const list = await request.get(
-      `http://localhost:3001/api/v1/cashbook/closes?companyId=${tokens!.companyId}&from=${TEST_DATE}&to=${TEST_DATE}`,
+      `${E2E_API}/api/v1/cashbook/closes?companyId=${tokens!.companyId}&from=${TEST_DATE}&to=${TEST_DATE}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -254,7 +256,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     const listBody = await list.json()
     const closeId = listBody[0].id
     const sign = await request.post(
-      `http://localhost:3001/api/v1/cashbook/close-day/${closeId}/sign?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day/${closeId}/sign?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -275,7 +277,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     // First close cleanly
     const physicalCount = await getDayEnde(request)
     const close = await request.post(
-      `http://localhost:3001/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -291,7 +293,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     )
     expect(close.status()).toBe(201)
     const list = await request.get(
-      `http://localhost:3001/api/v1/cashbook/closes?companyId=${tokens!.companyId}&from=${TEST_DATE}&to=${TEST_DATE}`,
+      `${E2E_API}/api/v1/cashbook/closes?companyId=${tokens!.companyId}&from=${TEST_DATE}&to=${TEST_DATE}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -303,7 +305,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     const closeId = listBody[0].id
     // Pre-tamper verify should pass
     const verify0 = await request.get(
-      `http://localhost:3001/api/v1/cashbook/close-day/${closeId}/verify?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day/${closeId}/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -321,7 +323,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     )
     // Post-tamper verify should fail
     const verify1 = await request.get(
-      `http://localhost:3001/api/v1/cashbook/close-day/${closeId}/verify?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day/${closeId}/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -344,7 +346,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     // 400 BadRequest — the sign endpoint will
     // not overwrite a mismatched row.
     const sign = await request.post(
-      `http://localhost:3001/api/v1/cashbook/close-day/${closeId}/sign?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day/${closeId}/sign?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -369,7 +371,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     )
     const physicalCount = await getDayEnde(request)
     const close = await request.post(
-      `http://localhost:3001/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -386,7 +388,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     )
     expect(close.status()).toBe(201)
     const res = await request.get(
-      `http://localhost:3001/api/v1/cashbook/kassenabschluss.pdf?companyId=${tokens!.companyId}&date=${TEST_DATE}`,
+      `${E2E_API}/api/v1/cashbook/kassenabschluss.pdf?companyId=${tokens!.companyId}&date=${TEST_DATE}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -418,7 +420,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     )
     const physicalCount = await getDayEnde(request)
     const close = await request.post(
-      `http://localhost:3001/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/cashbook/close-day?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -436,7 +438,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     expect(close.status()).toBe(201)
     const closeBody = await close.json()
     const res = await request.get(
-      `http://localhost:3001/api/v1/cashbook/kassenabschluss.pdf?companyId=${tokens!.companyId}&date=${TEST_DATE}`,
+      `${E2E_API}/api/v1/cashbook/kassenabschluss.pdf?companyId=${tokens!.companyId}&date=${TEST_DATE}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -477,7 +479,7 @@ test.describe("Tier 194 — Kassenbuch integrity signature", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/cashbook/kassenabschluss.pdf?companyId=${tokens!.companyId}&date=2030-01-01`,
+      `${E2E_API}/api/v1/cashbook/kassenabschluss.pdf?companyId=${tokens!.companyId}&date=2030-01-01`,
       {
         headers: {
           "x-user-id": tokens!.userId,

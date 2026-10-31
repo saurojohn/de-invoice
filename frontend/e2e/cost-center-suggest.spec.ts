@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 41: Voucher cost-center suggestion endpoints.
  *
@@ -98,7 +100,7 @@ test.describe("Tier 41 — Voucher cost-center suggestion", () => {
     // Random UUID — guaranteed not to match any seeded account,
     // so the result is the empty-suggestion shape.
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/accounting/vouchers/cost-center-suggestion?companyId=${testTokens.companyId}&accountId=00000000-0000-0000-0000-000000000000`,
+      `${API}/api/v1/accounting/vouchers/cost-center-suggestion?companyId=${testTokens.companyId}&accountId=00000000-0000-0000-0000-000000000000`,
       {
         headers: {
           "x-user-id": testTokens.userId,
@@ -119,7 +121,7 @@ test.describe("Tier 41 — Voucher cost-center suggestion", () => {
     await setupAuth(context, page)
     if (!testTokens) return
     const res = await page.request.get(
-      `http://localhost:3001/api/v1/accounting/vouchers/cost-center-suggestion/list?companyId=${testTokens.companyId}&accountId=00000000-0000-0000-0000-000000000000`,
+      `${API}/api/v1/accounting/vouchers/cost-center-suggestion/list?companyId=${testTokens.companyId}&accountId=00000000-0000-0000-0000-000000000000`,
       {
         headers: {
           "x-user-id": testTokens.userId,
@@ -137,7 +139,7 @@ test.describe("Tier 41 — Voucher cost-center suggestion", () => {
     await setupAuth(context, page)
     if (!testTokens) return
     let res = await page.request.get(
-      `http://localhost:3001/api/v1/accounting/vouchers/cost-center-suggestion?companyId=${testTokens.companyId}`,
+      `${API}/api/v1/accounting/vouchers/cost-center-suggestion?companyId=${testTokens.companyId}`,
       {
         headers: {
           "x-user-id": testTokens.userId,
@@ -147,7 +149,7 @@ test.describe("Tier 41 — Voucher cost-center suggestion", () => {
     )
     expect(res.status()).toBe(400)
     res = await page.request.get(
-      `http://localhost:3001/api/v1/accounting/vouchers/cost-center-suggestion?accountId=00000000-0000-0000-0000-000000000000`,
+      `${API}/api/v1/accounting/vouchers/cost-center-suggestion?accountId=00000000-0000-0000-0000-000000000000`,
       {
         headers: {
           "x-user-id": testTokens.userId,

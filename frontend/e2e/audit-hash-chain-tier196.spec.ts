@@ -35,6 +35,8 @@ import { execFileSync } from "child_process"
 // beforeAll, which is gone.
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -111,7 +113,7 @@ test.describe("Tier 196 — Audit hash chain", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -154,7 +156,7 @@ test.describe("Tier 196 — Audit hash chain", () => {
     const id = idOut.split("\n")[0].trim()
     expect(id.length, "expected a row with a hash to exist").toBeGreaterThan(0)
     const res = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/${id}/verify?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/audit-logs/${id}/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -182,7 +184,7 @@ test.describe("Tier 196 — Audit hash chain", () => {
     // First: ensure chain is ok so we can prove
     // that the SQL mutation is what flipped it.
     const before = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -211,7 +213,7 @@ test.describe("Tier 196 — Audit hash chain", () => {
     // Sanity: single-row verify should pass
     // before tampering.
     const pre = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/${id}/verify?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/audit-logs/${id}/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -247,7 +249,7 @@ test.describe("Tier 196 — Audit hash chain", () => {
     // The chain should now report brokenAt = this
     // row, reason = hash_mismatch.
     const after = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -266,7 +268,7 @@ test.describe("Tier 196 — Audit hash chain", () => {
     // And the single-row verify also reports
     // verified=false on the tampered row.
     const oneVerify = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/${id}/verify?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/audit-logs/${id}/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -290,7 +292,7 @@ test.describe("Tier 196 — Audit hash chain", () => {
       )
     }
     const restored = await request.get(
-      `http://localhost:3001/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/audit-logs/verify?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,

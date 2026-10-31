@@ -28,6 +28,8 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { readFileSync } from 'fs'
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = '/tmp/cashbook-e2e-auth.env'
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -82,7 +84,7 @@ let CREATED_CUSTOMER_ID: string | null = null
 test.beforeAll(async () => {
   const { userId, companyId } = readCachedTokens()
   const api = await playwrightRequest.newContext({
-    baseURL: "http://localhost:3001",
+    baseURL: `${API}`,
     extraHTTPHeaders: {
       "x-user-id": userId,
       "x-company-id": companyId,
@@ -155,7 +157,7 @@ test.afterAll(async () => {
   if (!CREATED_CUSTOMER_ID) return
   const { userId, companyId } = readCachedTokens()
   const api = await playwrightRequest.newContext({
-    baseURL: "http://localhost:3001",
+    baseURL: `${API}`,
     extraHTTPHeaders: {
       "x-user-id": userId,
       "x-company-id": companyId,

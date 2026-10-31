@@ -7,8 +7,7 @@
  */
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test"
 
-const API = "http://localhost:3001"
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 async function setup(page: Page, request: APIRequestContext) {
   const tag = `t493-${Date.now()}-${Math.floor(Math.random() * 1000)}`
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {

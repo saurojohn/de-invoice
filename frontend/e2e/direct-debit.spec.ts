@@ -20,8 +20,7 @@ function germanIban(blz: string, account: string): string {
 // before the frontend suite starts.
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
-const API_BASE = "http://localhost:3001"
-
+const API_BASE = process.env.E2E_API_URL || "http://localhost:3001"
 function readCachedTokens(): { userId: string; companyId: string } {
   const env = readFileSync(AUTH_CACHE, "utf-8")
   const map: Record<string, string> = {}

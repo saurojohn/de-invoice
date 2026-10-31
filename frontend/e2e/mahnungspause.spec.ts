@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 64: Mahnungspause (reminder pause) UI.
  *
@@ -54,7 +56,7 @@ let TEST_INVOICE_ID: string | null = null
 test.beforeAll(async ({ request }) => {
   // Create a hermetic customer for the tests.
   const res = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -77,7 +79,7 @@ test.beforeAll(async ({ request }) => {
   // isToday check (status='sent' or 'overdue').
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
   const invRes = await request.post(
-    `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -111,7 +113,7 @@ test.afterAll(async ({ request }) => {
   if (TEST_INVOICE_ID) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/invoices/${TEST_INVOICE_ID}?companyId=${testTokens.companyId}`,
+        `${E2E_API}/api/v1/invoices/${TEST_INVOICE_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,
@@ -127,7 +129,7 @@ test.afterAll(async ({ request }) => {
     // First, list + delete any pauses the test left.
     try {
       const list = await request.get(
-        `http://localhost:3001/api/v1/mahnungspausen?companyId=${testTokens.companyId}&customerId=${TEST_CUSTOMER_ID}`,
+        `${E2E_API}/api/v1/mahnungspausen?companyId=${testTokens.companyId}&customerId=${TEST_CUSTOMER_ID}`,
         {
           headers: {
             "x-user-id": testTokens.userId,
@@ -139,7 +141,7 @@ test.afterAll(async ({ request }) => {
         const pauses = await list.json()
         for (const p of pauses || []) {
           await request.delete(
-            `http://localhost:3001/api/v1/mahnungspausen/${p.id}?companyId=${testTokens.companyId}`,
+            `${E2E_API}/api/v1/mahnungspausen/${p.id}?companyId=${testTokens.companyId}`,
             {
               headers: {
                 "x-user-id": testTokens.userId,
@@ -154,7 +156,7 @@ test.afterAll(async ({ request }) => {
     }
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
+        `${E2E_API}/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,

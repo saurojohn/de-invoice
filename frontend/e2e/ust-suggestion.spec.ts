@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 62: USt-Behandlung auto-Erkennung (auto-suggestion).
  *
@@ -98,7 +100,7 @@ test.beforeAll(async ({ request }) => {
     "x-user-id": testTokens!.userId,
     "x-company-id": testTokens!.companyId,
   }
-  const api = `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`
+  const api = `${E2E_API}/api/v1/customers?companyId=${testTokens!.companyId}`
 
   const mk = async (suffix: string, vatId: string | null, country: string) => {
     const body: Record<string, unknown> = {
@@ -123,7 +125,7 @@ test.afterAll(async ({ request }) => {
   for (const f of fixtures) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/customers/${f.id}?companyId=${testTokens.companyId}`,
+        `${E2E_API}/api/v1/customers/${f.id}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,

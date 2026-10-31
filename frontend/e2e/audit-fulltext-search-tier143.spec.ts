@@ -38,8 +38,7 @@ import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
-const API_BASE = 'http://localhost:3001'
-
+const API_BASE = process.env.E2E_API_URL || "http://localhost:3001"
 test.describe('Tier 143 — Audit full-text search', () => {
   test.beforeEach(async ({ context, page }) => {
     await context.addCookies([

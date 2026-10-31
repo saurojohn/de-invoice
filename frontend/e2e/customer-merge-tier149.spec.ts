@@ -49,8 +49,7 @@ const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
 const TARGET_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47' // BWA Test Kunde
 const DUP_ID = '11111111-2222-3333-4444-555555555555' // BWA Test Kunde (duplicate)
-const API_BASE = 'http://localhost:3001'
-
+const API_BASE = process.env.E2E_API_URL || "http://localhost:3001"
 // Ensure the duplicate customer exists (it's
 // pre-created by the smoke test / previous
 // runs but might be missing on a fresh DB).

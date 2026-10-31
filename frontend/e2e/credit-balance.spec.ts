@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 58: Customer credit balance (Kundenguthaben) UI.
  *
@@ -95,7 +97,7 @@ test.beforeAll(async ({ request }) => {
   // with a timestamp so parallel test runs (or repeated
   // local runs) don't collide on the unique name.
   const res = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -119,7 +121,7 @@ test.afterAll(async ({ request }) => {
   // suite — the next test run wipes the same fixture.
   try {
     await request.delete(
-      `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,

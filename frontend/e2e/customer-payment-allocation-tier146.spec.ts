@@ -40,8 +40,7 @@ import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
 const CUSTOMER_ID = 'b3f7b274-7696-44b8-9345-8bfd460b3e47'
-const API_BASE = 'http://localhost:3001'
-
+const API_BASE = process.env.E2E_API_URL || "http://localhost:3001"
 // Reset: clear any prior payment rows for the
 // fixture customer, and reset all 4 invoices
 // to status='sent'. The Tier 146 spec

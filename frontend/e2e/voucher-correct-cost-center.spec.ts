@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 43: Korrektur modal pre-fills cost-center stamps.
  *
@@ -71,7 +73,7 @@ async function setupAuth(context: any, page: any) {
 
 async function createSeedVoucher(page: any) {
   const saccts = await page.request.get(
-    `http://localhost:3001/api/v1/accounting/accounts?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/accounting/accounts?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -83,7 +85,7 @@ async function createSeedVoucher(page: any) {
   const expense = accs.find((a: any) => a.accountNumber === "4960") || accs[0]
   const bank = accs.find((a: any) => a.accountNumber === "1200")
   const res = await page.request.post(
-    `http://localhost:3001/api/v1/accounting/vouchers?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/accounting/vouchers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -225,7 +227,7 @@ test.describe("Tier 43 — Korrektur auto-fills cost-center from suggestion", ()
     // the backend, and nothing here noticed.
     const correctRes = await sent.response()
     expect(correctRes?.url() ?? "", "correct must go to the backend API").toContain(
-      "localhost:3001",
+      new URL(E2E_API).host,
     )
     expect(correctRes?.status(), "POST /correct status").toBe(201)
     const body = JSON.parse(sent.postData() || "{}")

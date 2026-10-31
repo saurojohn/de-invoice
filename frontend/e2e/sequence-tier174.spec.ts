@@ -46,6 +46,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -86,7 +88,7 @@ test.beforeAll(async ({ request }) => {
   // other tier fixtures. Tier 174 doesn't care about the customer
   // object — we just need a valid FK to satisfy the create body.
   const res = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${tokens!.companyId}`,
+    `${API}/api/v1/customers?companyId=${tokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -113,7 +115,7 @@ test.afterAll(async ({ request }) => {
   if (!TEST_CUSTOMER_ID) return
   try {
     await request.delete(
-      `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${tokens!.companyId}`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -151,7 +153,7 @@ function buildInvoiceBody() {
 test.describe("Tier 174 — Postgres SEQUENCE for invoice numbering", () => {
   test("1. single create: invoice number + sequence* fields stamped", async ({ request }) => {
     const res = await request.post(
-      `http://localhost:3001/api/v1/invoices?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/invoices?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -180,7 +182,7 @@ test.describe("Tier 174 — Postgres SEQUENCE for invoice numbering", () => {
     const N = 5
     const promises = Array.from({ length: N }).map(() =>
       request.post(
-        `http://localhost:3001/api/v1/invoices?companyId=${tokens!.companyId}`,
+        `${API}/api/v1/invoices?companyId=${tokens!.companyId}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -234,7 +236,7 @@ test.describe("Tier 174 — Postgres SEQUENCE for invoice numbering", () => {
     // does NOT. If this test sees the second number ≤ the first,
     // the migration is broken.
     const res1 = await request.post(
-      `http://localhost:3001/api/v1/invoices?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/invoices?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -248,7 +250,7 @@ test.describe("Tier 174 — Postgres SEQUENCE for invoice numbering", () => {
     const n1 = parseInt(((await res1.json()) as any).invoiceNumber.split("-").pop()!, 10)
 
     const res2 = await request.post(
-      `http://localhost:3001/api/v1/invoices?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/invoices?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -275,7 +277,7 @@ test.describe("Tier 174 — Postgres SEQUENCE for invoice numbering", () => {
     // invoice.service.ts findAll), NOT on the `notes` field.
     // We filter by the customer's name (which is TIER174_TAG).
     const list = await request.get(
-      `http://localhost:3001/api/v1/invoices?companyId=${tokens!.companyId}&search=${encodeURIComponent(TIER174_TAG)}&pageSize=1`,
+      `${API}/api/v1/invoices?companyId=${tokens!.companyId}&search=${encodeURIComponent(TIER174_TAG)}&pageSize=1`,
       {
         headers: {
           "x-user-id": tokens!.userId,
@@ -289,7 +291,7 @@ test.describe("Tier 174 — Postgres SEQUENCE for invoice numbering", () => {
     expect(original, `no invoice found for ${TIER174_TAG} — did test 1 run?`).toBeTruthy()
 
     const cnRes = await request.post(
-      `http://localhost:3001/api/v1/invoices/${original.id}/credit-note?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/invoices/${original.id}/credit-note?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",

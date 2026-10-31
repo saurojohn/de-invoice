@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 59: Aging report surfaces customer credit balance
  * (Kundenguthaben) + net open amount.
@@ -96,7 +98,7 @@ test.beforeAll(async ({ request }) => {
   // lists every customer that has credit-balance ledger
   // rows.
   const res = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -118,7 +120,7 @@ test.beforeAll(async ({ request }) => {
   // this customer in the aggregate (totalCreditBalance)
   // even though the customer has no open invoices.
   await request.post(
-    `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}/credit-adjust?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/customers/${TEST_CUSTOMER_ID}/credit-adjust?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -136,7 +138,7 @@ test.afterAll(async ({ request }) => {
   if (!TEST_CUSTOMER_ID) return
   try {
     await request.delete(
-      `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens!.companyId}`,
+      `${E2E_API}/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -241,7 +243,7 @@ test.describe("Aging report + credit balance UI", () => {
     expect(TEST_CUSTOMER_ID, "beforeAll must have seeded a customer").toBeTruthy()
     await expect(async () => {
       const res = await page.request.get(
-        `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}/credit-balance?companyId=${testTokens!.companyId}`,
+        `${E2E_API}/api/v1/customers/${TEST_CUSTOMER_ID}/credit-balance?companyId=${testTokens!.companyId}`,
         {
           headers: {
             "x-user-id": testTokens!.userId,

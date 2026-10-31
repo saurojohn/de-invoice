@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 53: Gutschrift (credit note) generator.
  *
@@ -70,7 +72,7 @@ async function setupAuth(context: any, page: any) {
 
 async function createSeedInvoice(page: any) {
   const custs = await page.request.get(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -84,7 +86,7 @@ async function createSeedInvoice(page: any) {
     : (cdata.data ?? cdata.items ?? [])[0]
   expect(cust).toBeDefined()
   const res = await page.request.post(
-    `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -185,7 +187,7 @@ test.describe("Tier 53 — Gutschrift (credit note)", () => {
 
     // GET the new invoice to verify it's a CN.
     const newInv = await page.request.get(
-      `http://localhost:3001/api/v1/invoices/${newInvoiceId}?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/invoices/${newInvoiceId}?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "x-user-id": testTokens!.userId,
@@ -210,7 +212,7 @@ test.describe("Tier 53 — Gutschrift (credit note)", () => {
     const seed = await createSeedInvoice(page)
 
     const res = await page.request.post(
-      `http://localhost:3001/api/v1/invoices/${seed.id}/credit-note?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/invoices/${seed.id}/credit-note?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -236,7 +238,7 @@ test.describe("Tier 53 — Gutschrift (credit note)", () => {
     const seed = await createSeedInvoice(page)
     // Create a CN first.
     const cnRes = await page.request.post(
-      `http://localhost:3001/api/v1/invoices/${seed.id}/credit-note?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/invoices/${seed.id}/credit-note?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -250,7 +252,7 @@ test.describe("Tier 53 — Gutschrift (credit note)", () => {
     const cn = await cnRes.json()
     // Try to chain another CN — must 400.
     const chainedRes = await page.request.post(
-      `http://localhost:3001/api/v1/invoices/${cn.id}/credit-note?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/invoices/${cn.id}/credit-note?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",

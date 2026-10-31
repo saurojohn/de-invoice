@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 42: Voucher Korrektur endpoint + UI button.
  *
@@ -67,7 +69,7 @@ async function createSeedVoucher(page: any) {
   // Direct API call (faster than UI). We need a Sachkonto
   // id from the seeded SKR03 chart. 4960 ships reliably.
   const saccts = await page.request.get(
-    `http://localhost:3001/api/v1/accounting/accounts?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/accounting/accounts?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -79,7 +81,7 @@ async function createSeedVoucher(page: any) {
   const expense = accs.find((a: any) => a.accountNumber === "4960") || accs[0]
   const bank = accs.find((a: any) => a.accountNumber === "1200")
   const res = await page.request.post(
-    `http://localhost:3001/api/v1/accounting/vouchers?companyId=${testTokens!.companyId}`,
+    `${API}/api/v1/accounting/vouchers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -116,7 +118,7 @@ test.describe("Tier 42 — Voucher Korrektur", () => {
     await setupAuth(context, page)
     const seed = await createSeedVoucher(page)
     const res = await page.request.post(
-      `http://localhost:3001/api/v1/accounting/vouchers/${seed.id}/correct?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/accounting/vouchers/${seed.id}/correct?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -166,7 +168,7 @@ test.describe("Tier 42 — Voucher Korrektur", () => {
     await setupAuth(context, page)
     // missing companyId
     let res = await page.request.post(
-      `http://localhost:3001/api/v1/accounting/vouchers/00000000-0000-0000-0000-000000000000/correct`,
+      `${API}/api/v1/accounting/vouchers/00000000-0000-0000-0000-000000000000/correct`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -179,7 +181,7 @@ test.describe("Tier 42 — Voucher Korrektur", () => {
     expect(res.status()).toBe(400)
     // empty lines
     res = await page.request.post(
-      `http://localhost:3001/api/v1/accounting/vouchers/00000000-0000-0000-0000-000000000000/correct?companyId=${testTokens!.companyId}`,
+      `${API}/api/v1/accounting/vouchers/00000000-0000-0000-0000-000000000000/correct?companyId=${testTokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -226,7 +228,7 @@ test.describe("Tier 42 — Voucher Korrektur", () => {
     )
     await btn.click()
     const res = await pdfResponse
-    expect(res.url()).toContain("localhost:3001")
+    expect(res.url()).toContain(new URL(API).host)
     expect(res.status()).toBe(200)
     expect(res.headers()["content-type"] || "").toContain("application/pdf")
   })

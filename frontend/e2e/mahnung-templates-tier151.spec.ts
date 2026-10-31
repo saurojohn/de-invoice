@@ -46,8 +46,7 @@ import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
-const API_BASE = 'http://localhost:3001'
-
+const API_BASE = process.env.E2E_API_URL || "http://localhost:3001"
 async function authedRequest() {
   return await playwrightRequest.newContext({
     extraHTTPHeaders: {

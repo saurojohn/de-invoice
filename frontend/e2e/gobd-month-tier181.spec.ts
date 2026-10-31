@@ -53,6 +53,8 @@ import { mkdtempSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -96,7 +98,7 @@ function readZipEntry(zipBody: Buffer, entryPath: string): string {
 test.describe("Tier 181 — month-scoped GoBD packager", () => {
   test("1. legacy: no month → 200 (year archive, back-compat)", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/gobd-export?year=2026&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/gobd-export?year=2026&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -113,7 +115,7 @@ test.describe("Tier 181 — month-scoped GoBD packager", () => {
 
   test("2. month=7 → 200 + filename GoBD-2026-07-…zip", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/gobd-export?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/gobd-export?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -128,7 +130,7 @@ test.describe("Tier 181 — month-scoped GoBD packager", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/gobd-export?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/gobd-export?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status()).toBe(200)
@@ -154,7 +156,7 @@ test.describe("Tier 181 — month-scoped GoBD packager", () => {
 
   test("4. month=7 audit log filename is audit-logs-2026-07.csv", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/gobd-export?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/gobd-export?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status()).toBe(200)
@@ -171,7 +173,7 @@ test.describe("Tier 181 — month-scoped GoBD packager", () => {
 
   test("5. month=13 → 400 with German error", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/gobd-export?year=2026&month=13&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/gobd-export?year=2026&month=13&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -182,7 +184,7 @@ test.describe("Tier 181 — month-scoped GoBD packager", () => {
 
   test("6. month=0 → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/gobd-export?year=2026&month=0&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/gobd-export?year=2026&month=0&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -195,7 +197,7 @@ test.describe("Tier 181 — month-scoped GoBD packager", () => {
     // zip is small (manifest + company-snapshot +
     // verification-report, no invoices/ folder).
     const res = await request.get(
-      `http://localhost:3001/api/v1/gobd-export?year=2026&month=2&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/gobd-export?year=2026&month=2&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -212,7 +214,7 @@ test.describe("Tier 181 — month-scoped GoBD packager", () => {
 
   test("8. unauthenticated → 401", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/gobd-export?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/gobd-export?year=2026&month=7&companyId=${tokens!.companyId}`,
     )
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })

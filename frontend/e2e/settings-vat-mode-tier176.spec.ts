@@ -33,6 +33,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -78,7 +80,7 @@ test.beforeEach(async ({ context }: { context: any }) => {
 // Capture pre-test defaultVatMode so we can restore it.
 let originalVatMode: string | null = null
 test.beforeAll(async ({ request }) => {
-  const res = await request.get(`http://localhost:3001/api/v1/companies/${tokens!.companyId}`, {
+  const res = await request.get(`${E2E_API}/api/v1/companies/${tokens!.companyId}`, {
     headers: { "x-user-id": tokens!.userId, "x-company-id": tokens!.companyId },
   })
   expect(res.status()).toBe(200)
@@ -90,7 +92,7 @@ test.afterAll(async ({ request }) => {
   // Restore the original defaultVatMode so other e2e
   // suites see a clean state.
   if (originalVatMode === undefined) return
-  await request.put(`http://localhost:3001/api/v1/companies/${tokens!.companyId}`, {
+  await request.put(`${E2E_API}/api/v1/companies/${tokens!.companyId}`, {
     headers: {
       "Content-Type": "application/json",
       "x-user-id": tokens!.userId,
@@ -128,7 +130,7 @@ test.describe("Tier 176 frontend — settings page defaultVatMode", () => {
     request,
   }) => {
     // First set a known value via the API
-    await request.put(`http://localhost:3001/api/v1/companies/${tokens!.companyId}`, {
+    await request.put(`${E2E_API}/api/v1/companies/${tokens!.companyId}`, {
       headers: {
         "Content-Type": "application/json",
         "x-user-id": tokens!.userId,
@@ -169,7 +171,7 @@ test.describe("Tier 176 frontend — settings page defaultVatMode", () => {
 
     // Verify backend stored the value
     const get = await request.get(
-      `http://localhost:3001/api/v1/companies/${tokens!.companyId}`,
+      `${E2E_API}/api/v1/companies/${tokens!.companyId}`,
       {
         headers: { "x-user-id": tokens!.userId, "x-company-id": tokens!.companyId },
       },
@@ -183,7 +185,7 @@ test.describe("Tier 176 frontend — settings page defaultVatMode", () => {
     // should pick up the new default — verified via API.
     const issue = new Date().toISOString()
     const inv = await request.post(
-      `http://localhost:3001/api/v1/invoices?companyId=${tokens!.companyId}`,
+      `${E2E_API}/api/v1/invoices?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",

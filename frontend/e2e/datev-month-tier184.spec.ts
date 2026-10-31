@@ -35,6 +35,8 @@ import { mkdtempSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -75,7 +77,7 @@ function readZipEntry(zipBody: Buffer, entryPath: string): string {
 test.describe("Tier 184 — month-scoped DATEV-Buchungsstapel", () => {
   test("1. legacy: no month → 200 + EXTF_Buchungsstapel_<date>_L<n>.zip", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/datev-export-bundle?year=2026&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/datev-export-bundle?year=2026&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -90,7 +92,7 @@ test.describe("Tier 184 — month-scoped DATEV-Buchungsstapel", () => {
 
   test("2. month=7 → 200 + EXTF_Buchungsstapel_2026-07_L<n>.zip", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/datev-export-bundle?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/datev-export-bundle?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -108,7 +110,7 @@ test.describe("Tier 184 — month-scoped DATEV-Buchungsstapel", () => {
 
   test("3. month=7 MANIFEST: scope=month + periodLabel + periodStart/End", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/datev-export-bundle?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/datev-export-bundle?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status()).toBe(200)
@@ -135,7 +137,7 @@ test.describe("Tier 184 — month-scoped DATEV-Buchungsstapel", () => {
 
   test("4. month=13 → 400 with German error", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/datev-export-bundle?year=2026&month=13&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/datev-export-bundle?year=2026&month=13&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -148,7 +150,7 @@ test.describe("Tier 184 — month-scoped DATEV-Buchungsstapel", () => {
 
   test("5. month=0 → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/datev-export-bundle?year=2026&month=0&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/datev-export-bundle?year=2026&month=0&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -156,7 +158,7 @@ test.describe("Tier 184 — month-scoped DATEV-Buchungsstapel", () => {
 
   test("6. year=1900 + month=7 → 400 with German year error", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/datev-export-bundle?year=1900&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/datev-export-bundle?year=1900&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -171,7 +173,7 @@ test.describe("Tier 184 — month-scoped DATEV-Buchungsstapel", () => {
     // still a valid ZIP with the header +
     // MANIFEST + (no) buchungen rows.
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/datev-export-bundle?year=2026&month=2&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/datev-export-bundle?year=2026&month=2&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -183,7 +185,7 @@ test.describe("Tier 184 — month-scoped DATEV-Buchungsstapel", () => {
 
   test("8. unauthenticated → 401", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/datev-export-bundle?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/datev-export-bundle?year=2026&month=7&companyId=${tokens!.companyId}`,
     )
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })

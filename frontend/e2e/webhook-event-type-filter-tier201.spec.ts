@@ -32,6 +32,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -99,7 +101,7 @@ test.beforeAll(async ({ request }: { request: any }) => {
   // `eventType=webhook.test` returns
   // the fired rows.
   const create = await request.post(
-    `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+    `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -119,7 +121,7 @@ test.beforeAll(async ({ request }: { request: any }) => {
   // Fire one test event so there's
   // at least one row to filter.
   await request.post(
-    `http://localhost:3001/api/v1/webhooks/${multiWhId}/test?companyId=${tokens!.companyId}`,
+    `${API}/api/v1/webhooks/${multiWhId}/test?companyId=${tokens!.companyId}`,
     { headers: headers() },
   )
   await new Promise((r) => setTimeout(r, 1500))
@@ -130,7 +132,7 @@ test.describe("Tier 201 — Per-webhook drawer event-type filter", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/${multiWhId}/deliveries?companyId=${tokens!.companyId}&limit=10`,
+      `${API}/api/v1/webhooks/${multiWhId}/deliveries?companyId=${tokens!.companyId}&limit=10`,
       { headers: headers() },
     )
     expect(res.status()).toBe(200)
@@ -157,7 +159,7 @@ test.describe("Tier 201 — Per-webhook drawer event-type filter", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/${multiWhId}/deliveries?companyId=${tokens!.companyId}&limit=10&eventType=webhook.test`,
+      `${API}/api/v1/webhooks/${multiWhId}/deliveries?companyId=${tokens!.companyId}&limit=10&eventType=webhook.test`,
       { headers: headers() },
     )
     const rows = await res.json()
@@ -172,7 +174,7 @@ test.describe("Tier 201 — Per-webhook drawer event-type filter", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks/${multiWhId}/deliveries?companyId=${tokens!.companyId}&limit=10&eventType=invoice.created`,
+      `${API}/api/v1/webhooks/${multiWhId}/deliveries?companyId=${tokens!.companyId}&limit=10&eventType=invoice.created`,
       { headers: headers() },
     )
     const rows = await res.json()
@@ -183,12 +185,12 @@ test.describe("Tier 201 — Per-webhook drawer event-type filter", () => {
     request,
   }) => {
     const all = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=10`,
+      `${API}/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=10`,
       { headers: headers() },
     )
     const allRows = await all.json()
     const filtered = await request.get(
-      `http://localhost:3001/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=10&eventType=invoice.created`,
+      `${API}/api/v1/webhooks/deliveries/dead-letter?companyId=${tokens!.companyId}&limit=10&eventType=invoice.created`,
       { headers: headers() },
     )
     const filteredRows = await filtered.json()

@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 14.4: Webhook administration UI.
  *
@@ -280,10 +282,10 @@ test.describe("Webhooks UI", () => {
     // the full invoice-creation form,
     // which is out of scope for this test).
     await page.evaluate(
-      async ({ uid, cid }: { uid: string; cid: string }) => {
+      async ({ uid, cid, api }: { uid: string; cid: string; api: string }) => {
         // Create a customer first
         const custRes = await fetch(
-          `http://localhost:3001/api/v1/customers?companyId=${cid}`,
+          `${api}/api/v1/customers?companyId=${cid}`,
           {
             method: "POST",
             headers: {
@@ -303,7 +305,7 @@ test.describe("Webhooks UI", () => {
         const customer = await custRes.json()
         // Now create an invoice against that customer
         const invRes = await fetch(
-          `http://localhost:3001/api/v1/invoices?companyId=${cid}`,
+          `${api}/api/v1/invoices?companyId=${cid}`,
           {
             method: "POST",
             headers: {
@@ -332,7 +334,7 @@ test.describe("Webhooks UI", () => {
         if (invRes.status !== 201) throw new Error(`invoice create ${invRes.status}`)
         return customer
       },
-      { uid: testTokens!.userId, cid: testTokens!.companyId },
+      { uid: testTokens!.userId, cid: testTokens!.companyId, api: E2E_API },
     )
 
     // Tier 380: wait for the delivery row via the API before opening the
@@ -344,7 +346,7 @@ test.describe("Webhooks UI", () => {
     const auth = { "x-user-id": testTokens!.userId, "x-company-id": testTokens!.companyId }
     const hooks = await (
       await page.request.get(
-        `http://localhost:3001/api/v1/webhooks?companyId=${testTokens!.companyId}`,
+        `${E2E_API}/api/v1/webhooks?companyId=${testTokens!.companyId}`,
         { headers: auth },
       )
     ).json()
@@ -354,7 +356,7 @@ test.describe("Webhooks UI", () => {
       .poll(
         async () => {
           const r = await page.request.get(
-            `http://localhost:3001/api/v1/webhooks/${hook!.id}/deliveries?companyId=${testTokens!.companyId}`,
+            `${E2E_API}/api/v1/webhooks/${hook!.id}/deliveries?companyId=${testTokens!.companyId}`,
             { headers: auth },
           )
           return r.ok() ? ((await r.json()) as unknown[]).length : -1

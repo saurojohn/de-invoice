@@ -19,6 +19,8 @@
 import { test, expect } from '@playwright/test'
 import { getTestEnv } from './fixtures/test-env'
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const USER_ID = getTestEnv().userId
 const COMPANY_ID = getTestEnv().companyId
 test.describe('Tier 119 — System health page', () => {
@@ -47,7 +49,7 @@ test.describe('Tier 119 — System health page', () => {
     // has the webhook-retry-worker already, but we
     // make the test deterministic by also pre-seeding
     // via the admin endpoint).
-    const seedRes = await page.request.post('http://localhost:3001/api/v1/admin/cron-health/clean', {
+    const seedRes = await page.request.post(`${API}/api/v1/admin/cron-health/clean`, {
       headers: {
         'x-user-id': USER_ID,
         'x-company-id': COMPANY_ID,

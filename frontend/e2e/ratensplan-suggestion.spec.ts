@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 65: Auto-Ratenplan banner on the invoice detail page.
  *
@@ -57,7 +59,7 @@ let TEST_LOW_INV_ID: string | null = null
 test.beforeAll(async ({ request }) => {
   // Create a hermetic customer.
   const res = await request.post(
-    `http://localhost:3001/api/v1/customers?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/customers?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -88,7 +90,7 @@ test.beforeAll(async ({ request }) => {
   // the invoice as 'sent' via SQL after creation.
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date())
   const highRes = await request.post(
-    `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -118,7 +120,7 @@ test.beforeAll(async ({ request }) => {
 
   // Same for a LOW-amount invoice.
   const lowRes = await request.post(
-    `http://localhost:3001/api/v1/invoices?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/invoices?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -166,7 +168,7 @@ test.afterAll(async ({ request }) => {
   if (TEST_HIGH_INV_ID) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/invoices/${TEST_HIGH_INV_ID}?companyId=${testTokens.companyId}`,
+        `${E2E_API}/api/v1/invoices/${TEST_HIGH_INV_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,
@@ -181,7 +183,7 @@ test.afterAll(async ({ request }) => {
   if (TEST_LOW_INV_ID) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/invoices/${TEST_LOW_INV_ID}?companyId=${testTokens.companyId}`,
+        `${E2E_API}/api/v1/invoices/${TEST_LOW_INV_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,
@@ -196,7 +198,7 @@ test.afterAll(async ({ request }) => {
   if (TEST_CUSTOMER_ID) {
     try {
       await request.delete(
-        `http://localhost:3001/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
+        `${E2E_API}/api/v1/customers/${TEST_CUSTOMER_ID}?companyId=${testTokens.companyId}`,
         {
           headers: {
             "x-user-id": testTokens.userId,

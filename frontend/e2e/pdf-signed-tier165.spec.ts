@@ -54,7 +54,7 @@ import { getTestEnv } from './fixtures/test-env'
 
 const COMPANY_ID = getTestEnv().companyId
 const USER_ID = getTestEnv().userId
-const API = 'http://localhost:3001'
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 // Reuse the same seed invoice as Tier 164 —
 // the Mahngebühr test left it intact and the
 // PDF download is read-only.

@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 import { PG_CONTAINER } from './fixtures/test-env'
 
+const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
+
 /**
  * Tier 87: Anlagenverzeichnis AfA-Buchung flow.
  *
@@ -94,7 +96,7 @@ async function createTestAsset(page: any) {
   // 1 Maschine, 5000 EUR / 60 months / 2026-01-01
   // annualAfA = 5000 / 60 * 12 = 1000
   const res = await page.request.post(
-    `http://localhost:3001/api/v1/assets?companyId=${testTokens!.companyId}`,
+    `${E2E_API}/api/v1/assets?companyId=${testTokens!.companyId}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -189,7 +191,7 @@ test("after POST book-afa the page shows the 'AfA gebucht' badge", async ({ page
   const created = await createTestAsset(page)
   expect(created.id).toBeTruthy()
   const bookRes = await page.request.post(
-    `http://localhost:3001/api/v1/assets/book-afa?companyId=${testTokens!.companyId}&year=2026`,
+    `${E2E_API}/api/v1/assets/book-afa?companyId=${testTokens!.companyId}&year=2026`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -285,7 +287,7 @@ test("Tier 89: after POST book-afa-monthly the page shows monthly mode chip", as
   expect(created.id).toBeTruthy()
   const MONTHLY_YEAR = 2027
   const bookRes = await page.request.post(
-    `http://localhost:3001/api/v1/assets/book-afa-monthly?companyId=${testTokens!.companyId}&year=${MONTHLY_YEAR}`,
+    `${E2E_API}/api/v1/assets/book-afa-monthly?companyId=${testTokens!.companyId}&year=${MONTHLY_YEAR}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -330,7 +332,7 @@ test("Tier 90: storno button visible when booking exists, opens confirm modal", 
   const STORNO_YEAR = 2028
   // Book annual for 2028
   const bookRes = await page.request.post(
-    `http://localhost:3001/api/v1/assets/book-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
+    `${E2E_API}/api/v1/assets/book-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -362,7 +364,7 @@ test("Tier 90: after storno, the page shows the booking button again", async ({ 
   const STORNO_YEAR = 2028
   // Book + storno
   await page.request.post(
-    `http://localhost:3001/api/v1/assets/book-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
+    `${E2E_API}/api/v1/assets/book-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,
@@ -372,7 +374,7 @@ test("Tier 90: after storno, the page shows the booking button again", async ({ 
     },
   )
   const stornoRes = await page.request.post(
-    `http://localhost:3001/api/v1/assets/storno-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
+    `${E2E_API}/api/v1/assets/storno-afa?companyId=${testTokens!.companyId}&year=${STORNO_YEAR}`,
     {
       headers: {
         "x-user-id": testTokens!.userId,

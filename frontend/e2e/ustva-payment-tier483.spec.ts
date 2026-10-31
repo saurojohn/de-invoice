@@ -8,8 +8,7 @@
  */
 import { test, expect } from "@playwright/test"
 
-const API = "http://localhost:3001"
-
+const API = process.env.E2E_API_URL || "http://localhost:3001"
 test("a submitted return's payment is recorded from the filings list", async ({ page, request }) => {
   const tag = `t483-${Date.now()}`
   // Last year: from January to the month after, this year has nothing to submit yet

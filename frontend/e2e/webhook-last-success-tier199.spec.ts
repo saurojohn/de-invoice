@@ -43,6 +43,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -119,7 +121,7 @@ test.beforeAll(async ({ request }: { request: any }) => {
   // successful delivery are skipped and say why.
   for (const url of SUCCESS_TARGETS) {
     const ok = await request.post(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -132,13 +134,13 @@ test.beforeAll(async ({ request }: { request: any }) => {
     expect(ok.status(), "create success webhook").toBe(201)
     successWhId = (await ok.json()).id
     await request.post(
-      `http://localhost:3001/api/v1/webhooks/${successWhId}/test?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/${successWhId}/test?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     for (let i = 0; i < 12 && !successDelivered; i++) {
       await new Promise((r) => setTimeout(r, 1000))
       const rows = await (await request.get(
-        `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+        `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
         { headers: headers() },
       )).json()
       const row = Array.isArray(rows) ? rows.find((r: any) => r.id === successWhId) : null
@@ -148,7 +150,7 @@ test.beforeAll(async ({ request }: { request: any }) => {
     if (successDelivered) break
     // one webhook carries the name the page test looks for — remove this one
     await request.delete(
-      `http://localhost:3001/api/v1/webhooks/${successWhId}?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/${successWhId}?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     successWhId = ""
@@ -156,7 +158,7 @@ test.beforeAll(async ({ request }: { request: any }) => {
 
   // Fail webhook (postman-echo.com/status/200 actually returns 404)
   const fail = await request.post(
-    `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+    `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
     {
       headers: {
         "Content-Type": "application/json",
@@ -177,7 +179,7 @@ test.beforeAll(async ({ request }: { request: any }) => {
   // one was fired above).
   for (const whId of [failWhId]) {
     await request.post(
-      `http://localhost:3001/api/v1/webhooks/${whId}/test?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks/${whId}/test?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
   }
@@ -192,7 +194,7 @@ test.describe("Tier 199 — GET /webhooks enrichment", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     expect(res.status()).toBe(200)
@@ -213,7 +215,7 @@ test.describe("Tier 199 — GET /webhooks enrichment", () => {
   }) => {
     test.skip(!successDelivered, NO_ECHO)
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     const rows = await res.json()
@@ -231,7 +233,7 @@ test.describe("Tier 199 — GET /webhooks enrichment", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       { headers: headers() },
     )
     const rows = await res.json()
@@ -254,7 +256,7 @@ test.describe("Tier 199 — frontend last-success badge", () => {
   const neverFiredTag = "tier199-never-" + Date.now()
   test.beforeAll(async ({ request }: { request: any }) => {
     const res = await request.post(
-      `http://localhost:3001/api/v1/webhooks?companyId=${tokens!.companyId}`,
+      `${API}/api/v1/webhooks?companyId=${tokens!.companyId}`,
       {
         headers: {
           "Content-Type": "application/json",

@@ -50,6 +50,8 @@
 import { test, expect } from "@playwright/test"
 import { readFileSync } from "fs"
 
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
 
 function readCachedTokens(): { userId: string; companyId: string } {
@@ -82,14 +84,14 @@ function authHeaders(): Record<string, string> {
 test.describe("Tier 186 — BWA-PDF month-scoped coverage", () => {
   test("1. unauthenticated request: missing headers → 401", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/bwa.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/bwa.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
     )
     expect(res.status(), `expected 401, got ${res.status()}`).toBe(401)
   })
 
   test("2. missing companyId → 400", async ({ request }) => {
     const res = await request.get(
-      "http://localhost:3001/api/v1/reports/bwa.pdf?year=2026&month=7",
+      `${API}/api/v1/reports/bwa.pdf?year=2026&month=7`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -99,7 +101,7 @@ test.describe("Tier 186 — BWA-PDF month-scoped coverage", () => {
 
   test("3. missing year → 200 (defaults to current year)", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/bwa.pdf?month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/bwa.pdf?month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -110,7 +112,7 @@ test.describe("Tier 186 — BWA-PDF month-scoped coverage", () => {
     request,
   }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/bwa.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/bwa.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 200, got ${res.status()}`).toBe(200)
@@ -126,7 +128,7 @@ test.describe("Tier 186 — BWA-PDF month-scoped coverage", () => {
 
   test("5. month=13 → 400 with German error", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/bwa.pdf?year=2026&month=13&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/bwa.pdf?year=2026&month=13&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -137,7 +139,7 @@ test.describe("Tier 186 — BWA-PDF month-scoped coverage", () => {
 
   test("6. month=0 → 400", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/bwa.pdf?year=2026&month=0&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/bwa.pdf?year=2026&month=0&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -145,7 +147,7 @@ test.describe("Tier 186 — BWA-PDF month-scoped coverage", () => {
 
   test("7. year=1900 → 400 with German error", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/bwa.pdf?year=1900&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/bwa.pdf?year=1900&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status(), `expected 400, got ${res.status()}`).toBe(400)
@@ -155,7 +157,7 @@ test.describe("Tier 186 — BWA-PDF month-scoped coverage", () => {
 
   test("8. year=2026&month=7 → 200 + non-empty body", async ({ request }) => {
     const res = await request.get(
-      `http://localhost:3001/api/v1/reports/bwa.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
+      `${API}/api/v1/reports/bwa.pdf?year=2026&month=7&companyId=${tokens!.companyId}`,
       { headers: authHeaders() },
     )
     expect(res.status()).toBe(200)
