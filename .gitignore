@@ -61,3 +61,6 @@ infra/mustang/
 
 # Tier 339 audit: leftover Playwright failure-artifact directory
 tmp-pw-fail/
+
+# The publisher's DTD (Audicon / Caseware): placed by the operator, not ours to publish; backend/assets/README.md
+backend/assets/gdpdu-01-09-2004.dtd

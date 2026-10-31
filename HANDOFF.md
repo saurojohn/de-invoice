@@ -2669,6 +2669,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 749d — the DTD on this machine, index.xml valid against it
+
+The owner, 31.10.2026: „1，下载 DTD". Downloaded from the publisher (3 943 bytes, as announced), the DTD alone taken out of the ZIP and placed as `backend/assets/gdpdu-01-09-2004.dtd`. No entities, no external references. Spec 468's other branch ran for the first time: `index.xml` is valid against the DTD under `xmllint --valid`, and a document without `Version` is refused, so the check is a real one.
+
+- **It is git-ignored, not committed.** The repository is public and the publisher states no licence to pass the file on. So CI still takes the branch „not in this installation", and xmllint's check runs only where the file lies.
+- **Before the first deployment:** place the file in `backend/assets/` before the image is built, or the export's report says it is missing. Source and checksums: `backend/assets/README.md`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 749c — CI green for Tiers 749 and 749b
 
 Run 41145873980 (commit 65ba92e3): backend **468 passed / 0 failed / 1 skipped**, Playwright **1111 passed, 0 flaky, no retry**. Open with the owner: the DTD beside `index.xml` (download it, or leave it out), a look at a generated Word file in Word.
