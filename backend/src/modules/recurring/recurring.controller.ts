@@ -189,16 +189,18 @@ export class RecurringController {
    * Tier 519 — test-only: one template as the 06:00 scheduler runs it
    * (`trigger: 'scheduled'`), so a spec can see what the cron does without
    * running every company's due templates. Unreachable in production.
+   * Tier 756b: `now`, to hold that run at an hour of the night.
    */
   @Post(':id/_test/scheduled-run')
   @Require('admin.update')
   async scheduledRun(
     @Query('companyId') companyId: string,
     @Param('id') id: string,
+    @Query('now') now?: string,
   ) {
     if (process.env.NODE_ENV === 'production') throw new NotFoundException()
     if (!companyId) throw new BadRequestException('companyId is required');
-    return this.svc.runOne(companyId, id, { trigger: 'scheduled' });
+    return this.svc.runOne(companyId, id, { trigger: 'scheduled', ...(now ? { now: new Date(now) } : {}) });
   }
 
   /**

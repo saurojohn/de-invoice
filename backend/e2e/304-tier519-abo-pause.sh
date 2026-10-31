@@ -75,6 +75,21 @@ else
   assert_eq "…and waits for the next 1st" "$(next)" "$NEXT"
 fi
 
+note "=== half an hour after midnight on the 1st (Tier 756b) ==="
+# A run date is midnight UTC: until UTC's midnight it lay ahead of `now`, and the
+# month's run did not count as due. This spec met that hour at 00:00:01 on the
+# 1st of November 2026. Two templates, the clock held on 31.12.2026 / 01.01.2027.
+tpl "Midnight" "2024-05-01"
+AS PUT "/api/v1/recurring-invoices/$R?companyId=$C" '{"pausedUntil":"2026-12-30"}'
+AS POST "/api/v1/recurring-invoices/$R/_test/scheduled-run?companyId=$C&now=2026-12-31T22:30:00.000Z" '{}'
+assert_eq "23:30 in Germany on the 31st: nothing is due yet" "$STATUS/$(invoices)" "400/0"
+assert_eq "…the next run is the 1st" "$(next)" "2027-01-01"
+tpl "Midnight 2" "2024-05-01"
+AS PUT "/api/v1/recurring-invoices/$R?companyId=$C" '{"pausedUntil":"2026-12-30"}'
+AS POST "/api/v1/recurring-invoices/$R/_test/scheduled-run?companyId=$C&now=2026-12-31T23:30:00.000Z" '{}'
+assert_eq "00:30 in Germany on the 1st: today's run is due (UTC is still on the 31st)" "$STATUS/$(invoices)/$(next)" "201/1/2027-02-01"
+assert_eq "both reach through the same bound" "$(grep -c 'this.dueBy(now)' "$SCRIPT_DIR/../src/modules/recurring/recurring.service.ts")" "2"
+
 note "=== switched off and on again ==="
 tpl "Aus" "2024-05-01"
 AS PUT "/api/v1/recurring-invoices/$R?companyId=$C" '{"isActive":false}'

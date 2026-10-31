@@ -248,6 +248,17 @@ export class RecurringService {
     return this.firstRunAfter(next, until, tpl)
   }
 
+  /**
+   * Tier 756b: how far a scheduled run reaches. A run date is a day, kept as
+   * midnight UTC, and `now` a moment: from midnight in Germany until UTC's,
+   * today's date lay ahead of `now` and did not count as due. The 06:00 cron
+   * never met that hour, spec 304 did, at 00:00:01 on the 1st.
+   */
+  private dueBy(now: Date): Date {
+    const today = businessTodayDate(now)
+    return today.getTime() > now.getTime() ? today : now
+  }
+
   private advanceTo(from: Date, interval: RecurringInterval, count: number, dayOfMonth: number): Date {
     const d = new Date(from)
     d.setUTCHours(0, 0, 0, 0)
@@ -898,7 +909,7 @@ export class RecurringService {
       if (afterPause.getTime() !== new Date(tpl.nextRunAt).getTime()) {
         await tx.recurringInvoice.update({ where: { id: templateId }, data: { nextRunAt: afterPause } })
         tpl.nextRunAt = afterPause
-        if (options.trigger === 'scheduled' && afterPause.getTime() > now.getTime()) {
+        if (options.trigger === 'scheduled' && afterPause.getTime() > this.dueBy(now).getTime()) {
           return { __notDue: true, nextRunAt: afterPause } as any
         }
       }
@@ -948,7 +959,7 @@ export class RecurringService {
       // (or next manual runNow) once pausedUntil
       // has passed. The status flag stays as
       // 'paused_until' in the meantime.
-      if (tpl.pausedUntil && new Date(tpl.pausedUntil) >= new Date()) {
+      if (tpl.pausedUntil && new Date(tpl.pausedUntil) >= now) {
         const skipRun = await tx.recurringRun.create({
           data: {
             recurringInvoiceId: templateId,
@@ -1240,7 +1251,7 @@ export class RecurringService {
       where: {
         isActive: true,
         company: { closedAt: null }, // Tier 737
-        nextRunAt: { lte: now },
+        nextRunAt: { lte: this.dueBy(now) },
         OR: [
           { pausedUntil: null },
           { pausedUntil: { lt: now } },

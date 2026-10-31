@@ -2669,6 +2669,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 756b — the hour after midnight on the 1st; the first production run
+
+Run 41249461443 (commit d61cd690) went red on one assertion of spec 304, „today is the 1st: the scheduler bills this month", at `23:00:01Z`: 00:00:01 in Germany, on the 1st. No flake: a run date is midnight UTC and `now` a moment, so from midnight in Germany until UTC's, today's run was not due. Reproduced by hand in that very hour, 00:28 CET. Production did not meet it, the cron fires at 06:00.
+
+- `dueBy(now)` (`recurring.service.ts`): the later of `now` and the German day, for both comparisons. At 06:00 it is `now`, so the cron does what it did. The pause check inside `runOne` took the real clock instead of its `now`; it takes `now` too.
+- `_test/scheduled-run` takes `now`; spec 304 holds the run at 23:30 on the 31st (nothing due) and at 00:30 on the 1st (due), whatever the hour of CI.
+- **First production run, by hand:** 41249472396, same commit: backend 473 / 0 / 1 on `node dist/main.js`, Playwright 1 112 passed and 1 flaky, 18 minutes against 40 on `next dev`. `docker-build.yml` 41249461353 green: `scan: 201 in 593 ms` with the CDN blocked, `503 in 126 ms` without the data.
+- **The flaky one is not explained.** `invoices-chip-filter-tier239` test 4: `waitForLoadState("networkidle")` ran out its 15 s once, at 22:58 UTC, with no product assertion failing; its neighbours took a second, the retry 1,7 s. On a local production build, without retries: 20 of 20, under a second each. The log does not show what held the network, so the test was left as it is. If the weekly run shows it again, that is the moment to look, with a trace.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 756 — the production images, run for real; the production build every week
 
 The owner, 31.10.2026: „1 和 2 都做". `docker-build.yml` already started each image hardened; nobody had run the two together, behind the proxy, with what the compose file gives them. Done by hand: PostgreSQL, backend, frontend and Caddy with the compose file's flags and memory limits, crons on, the production Caddyfile with only the host changed (`localhost:8456`, `tls internal`), on a network and volumes of their own.
