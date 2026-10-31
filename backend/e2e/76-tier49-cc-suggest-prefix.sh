@@ -46,8 +46,8 @@ SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '4960' LIMIT 1")
 SACHKONTO_1200=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
-[[ -n "$SACHKONTO_4960" ]] || (echo "FATAL: 4960 not seeded" && exit 1)
-[[ -n "$SACHKONTO_1200" ]] || (echo "FATAL: 1200 not seeded" && exit 1)
+[[ -n "$SACHKONTO_4960" ]] || fail "FATAL: 4960 not seeded"
+[[ -n "$SACHKONTO_1200" ]] || fail "FATAL: 1200 not seeded"
 pass "Sachkonten seeded: 4960=$SACHKONTO_4960, 1200=$SACHKONTO_1200"
 
 # ───── 2. Seed a known stamp set on 4960 ─────

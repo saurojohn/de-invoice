@@ -108,7 +108,7 @@ curl -sS -o /tmp/t37_cust.json -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$CUST_BODY" > /tmp/t37_cust_status.txt
 CUST_STATUS=$(cat /tmp/t37_cust_status.txt)
-[ "$CUST_STATUS" = "201" ] || (echo "FATAL: customer create returned $CUST_STATUS — $(cat /tmp/t37_cust.json)" && exit 1)
+[ "$CUST_STATUS" = "201" ] || fail "FATAL: customer create returned $CUST_STATUS — $(cat /tmp/t37_cust.json)"
 CUSTOMER_ID=$(python3 -c "import json; print(json.load(open('/tmp/t37_cust.json'))['id'])")
 echo "customer: $CUSTOMER_ID"
 
@@ -141,7 +141,7 @@ curl -sS -o /tmp/t37_inv.json -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$INV_BODY" > /tmp/t37_inv_status.txt
 INV_STATUS=$(cat /tmp/t37_inv_status.txt)
-[ "$INV_STATUS" = "201" ] || (echo "FATAL: invoice create returned $INV_STATUS — $(cat /tmp/t37_inv.json)" && exit 1)
+[ "$INV_STATUS" = "201" ] || fail "FATAL: invoice create returned $INV_STATUS — $(cat /tmp/t37_inv.json)"
 INVOICE_ID=$(python3 -c "import json; print(json.load(open('/tmp/t37_inv.json'))['id'])")
 INVOICE_NUMBER=$(python3 -c "import json; print(json.load(open('/tmp/t37_inv.json'))['invoiceNumber'])")
 echo "invoice: $INVOICE_ID ($INVOICE_NUMBER)"
@@ -267,45 +267,47 @@ curl -sS -o /tmp/t37_list.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/reminders/mahnungen?companyId=$COMPANY_ID&status=all" > /dev/null
 COUNT=$(python3 -c "import json; print(json.load(open('/tmp/t37_list.json'))['count'])")
-[ "$COUNT" -ge 1 ] || (echo "FATAL: expected >= 1 mahnung, got $COUNT — $(cat /tmp/t37_list.json | head -c 500)" && exit 1)
+[ "$COUNT" -ge 1 ] || fail "FATAL: expected >= 1 mahnung, got $COUNT — $(cat /tmp/t37_list.json | head -c 500)"
 echo "  $COUNT mahnung row(s)"
 
 # Verify the row carries the fees we computed earlier.
-LEVEL=$(python3 -c "import json; print(json.load(open('/tmp/t37_list.json'))['mahnungen'][0]['level'])")
+# The seed company's list holds the other specs' reminders too: this one, by id.
+OURS="next(m for m in json.load(open('/tmp/t37_list.json'))['mahnungen'] if m['id'] == '$MAHNUNG_ID')"
+LEVEL=$(python3 -c "import json; print($OURS['level'])")
 assert_eq "level=second" "$LEVEL" "second"
-MAHNG=$(python3 -c "import json; print(float(json.load(open('/tmp/t37_list.json'))['mahnungen'][0]['mahngebuehr']))")
+MAHNG=$(python3 -c "import json; print(float($OURS['mahngebuehr']))")
 assert_eq "mahngebuehr=2.5" "$MAHNG" "2.5"
+# Basiszinssatz + 9 points (§ 288 Abs. 2 BGB) on 1 190 € since 31.01.2026: the
+# amount grows daily, so its bounds do too (the fixed 40–50 € ran out in spring).
 python3 -c "
-import json
-v = float(json.load(open('/tmp/t37_list.json'))['mahnungen'][0]['verzugszins'])
-assert v > 40 and v < 50, f'verzugszins out of range: {v}'
+import datetime, json
+v = float($OURS['verzugszins'])
+days = (datetime.date.today() - datetime.date(2026, 1, 31)).days
+low, high = 1190 * days * 0.09 / 365, 1190 * days * 0.14 / 365
+assert low < v < high, f'verzugszins {v} outside {low:.2f}..{high:.2f} after {days} days'
 print(f'verzugszins={v:.2f} EUR (within bounds)')
-"
+" && pass "verzugszins fits the days overdue" || fail "verzugszins"
 
 # ───── 5. Cancel the Mahnung ─────
 echo
 echo "=== 5. POST /mahnungen/:id/cancel ==="
-curl -sS -o /tmp/t37_cancel.json -w "%{http_code}" -X POST \
+STATUS=$(curl -sS -o /tmp/t37_cancel.json -w "%{http_code}" -X POST \
   -H "Content-Type: application/json" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d '{"reason":"admin test cancellation"}' \
-  "$API/api/v1/reminders/mahnungen/$MAHNUNG_ID/cancel?companyId=$COMPANY_ID" > /dev/null
-STATUS=$(cat /tmp/t37_cancel_status.txt 2>/dev/null || echo 200)
-[ "$STATUS" = "200" ] || (echo "FATAL: cancel returned $STATUS — $(cat /tmp/t37_cancel.json)" && exit 1)
-echo "  cancel ok"
+  "$API/api/v1/reminders/mahnungen/$MAHNUNG_ID/cancel?companyId=$COMPANY_ID")
+assert_eq "cancel answers as a POST does" "$STATUS" "201"
 
 curl -sS -o /tmp/t37_cancelled.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/reminders/mahnungen?companyId=$COMPANY_ID&status=cancelled" > /dev/null
-CCOUNT=$(python3 -c "import json; print(json.load(open('/tmp/t37_cancelled.json'))['count'])")
-[ "$CCOUNT" -ge 1 ] || (echo "FATAL: cancelled count should be >=1, got $CCOUNT" && exit 1)
+listed() { python3 -c "import json,sys; print(any(m['id'] == sys.argv[2] for m in json.load(open(sys.argv[1]))['mahnungen']))" "$1" "$MAHNUNG_ID"; }
+assert_eq "the cancelled list holds it" "$(listed /tmp/t37_cancelled.json)" "True"
 
 curl -sS -o /tmp/t37_open.json -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/reminders/mahnungen?companyId=$COMPANY_ID&status=open" > /dev/null
-OCOUNT=$(python3 -c "import json; print(json.load(open('/tmp/t37_open.json'))['count'])")
-[ "$OCOUNT" -eq 0 ] || (echo "FATAL: open count should be 0, got $OCOUNT" && exit 1)
-echo "  cancelled=$CCOUNT, open=$OCOUNT"
+assert_eq "the open list does not (other specs' reminders may be there)" "$(listed /tmp/t37_open.json)" "False"
 
 # Cancel-idempotent (cancelling an already-cancelled row is a no-op).
 curl -sS -o /tmp/t37_cancel2.json -w "%{http_code}" -X POST \
@@ -330,7 +332,7 @@ SIZE=$(wc -c < /tmp/t37_mahnung.pdf | tr -d ' ')
 # A minimal Mahnung PDF is ~3 KB; with the fee block added
 # in Tier 37 it's ~3-4 KB. Threshold of 2 KB guards against
 # "we accidentally returned the error JSON as a 'PDF'".
-[ "$SIZE" -gt 2000 ] || (echo "FATAL: PDF too small ($SIZE B)" && exit 1)
+[ "$SIZE" -gt 2000 ] || fail "FATAL: PDF too small ($SIZE B)"
 echo "  PDF size: $SIZE bytes"
 
 # ───── 7. Bad inputs ─────

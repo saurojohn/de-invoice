@@ -46,7 +46,7 @@ SQL
 # ───── 1. Seed customer ─────
 CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: customer not seeded"
 pass "seeded customer: $CUST_ID"
 
 # Helper: create an overdue invoice + a Mahnung row +

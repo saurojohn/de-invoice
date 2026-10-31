@@ -76,7 +76,7 @@ SQL
 # ───── 1. Seed an invoice ─────
 CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: customer not seeded"
 pass "seeded customer: $CUST_ID"
 
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" \
@@ -108,7 +108,7 @@ assert_eq "CN type" "$CN_TYPE" "CN"
 assert_eq "CN total = -original total" "$CN_TOTAL" "-1309"
 assert_eq "CN references original" "$CN_REF" "$INV_ID"
 # CN number starts with "CN-"
-[[ "$CN_NUM" == CN-* ]] || (echo "FATAL: CN number should start with CN- (got $CN_NUM)" && exit 1)
+[[ "$CN_NUM" == CN-* ]] || fail "FATAL: CN number should start with CN- (got $CN_NUM)"
 pass "CN invoice number: $CN_NUM"
 assert_eq "CN preserved costCenter" "$CN_COSTCENTER" "VERTRIEB"
 
@@ -152,8 +152,8 @@ CN2_TOTAL=$(json_field "$BODY" total)
 assert_eq "partial CN total" "$CN2_TOTAL" "-357"
 
 CN2_DESC=$(json_field "$BODY" notes)
-[[ "$CN2_DESC" == *"Gutschrift"* ]] || (echo "FATAL: CN notes should mention Gutschrift" && exit 1)
-[[ "$CN2_DESC" == *"3 of 10 not delivered"* ]] || (echo "FATAL: CN notes should carry the reason" && exit 1)
+[[ "$CN2_DESC" == *"Gutschrift"* ]] || fail "FATAL: CN notes should mention Gutschrift"
+[[ "$CN2_DESC" == *"3 of 10 not delivered"* ]] || fail "FATAL: CN notes should carry the reason"
 pass "CN notes carry the reason"
 
 # Original still has open balance: 1190 - 357 = 833.

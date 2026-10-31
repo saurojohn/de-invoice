@@ -67,7 +67,7 @@ SQL
 # ───── 1. Seed customer ─────
 CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: customer not seeded"
 pass "seeded customer: $CUST_ID"
 
 # ───── 2. POST /invoices with skontoPercent + skontoDays ─────
@@ -198,7 +198,7 @@ assert_status "201" "confirm Skonto recon"
 # gross, with the Forderung credited 1190.00 and no VAT correction.
 VOUCHER_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"voucherRefId\" FROM \"Invoice\" WHERE id = '$INV_ID'")
-[[ -n "$VOUCHER_ID" ]] || (echo "FATAL: voucherRefId not set on invoice" && exit 1)
+[[ -n "$VOUCHER_ID" ]] || fail "FATAL: voucherRefId not set on invoice"
 pass "voucher: $VOUCHER_ID"
 
 LINE_COUNT=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \

@@ -67,7 +67,7 @@ BEFORE_MAR_GROSS=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoi
 # ───── 2. Seed customer (use existing first one) ─────
 CUSTOMER_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
-[[ -n "$CUSTOMER_ID" ]] || (echo "FATAL: no customer seeded" && exit 1)
+[[ -n "$CUSTOMER_ID" ]] || fail "FATAL: no customer seeded"
 pass "customer seeded: $CUSTOMER_ID"
 
 # ───── 3. Create invoices ─────

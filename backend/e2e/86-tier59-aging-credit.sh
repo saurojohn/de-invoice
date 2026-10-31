@@ -78,7 +78,7 @@ curl -sS -o /tmp/tier59_cust.json -w "%{http_code}" -X POST \
   -H "Content-Type: application/json" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$CUST_BODY" > /tmp/tier59_cust_status.txt
-[[ "$(cat /tmp/tier59_cust_status.txt)" = "201" ]] || (echo "FATAL: cust=$(cat /tmp/tier59_cust_status.txt) — $(cat /tmp/tier59_cust.json | head -c 200)" && exit 1)
+[[ "$(cat /tmp/tier59_cust_status.txt)" = "201" ]] || fail "FATAL: cust=$(cat /tmp/tier59_cust_status.txt) — $(cat /tmp/tier59_cust.json | head -c 200)"
 CUST_ID=$(python3 -c "import json; print(json.load(open('/tmp/tier59_cust.json'))['id'])")
 pass "seeded customer: Tier59 Test GmbH ($CUST_ID)"
 
@@ -99,7 +99,7 @@ JSON
 api_post "/api/v1/invoices?companyId=$COMPANY_ID" "$INV_BODY"
 assert_status 201 "create overdue invoice"
 INV_ID=$(json_field "$BODY" "id")
-[[ -n "$INV_ID" ]] || (echo "FATAL: no invoice id" && exit 1)
+[[ -n "$INV_ID" ]] || fail "FATAL: no invoice id"
 pass "seeded invoice: $INV_ID (1000 EUR net, overdue)"
 
 # Move invoice to status=sent so the aging report picks
@@ -132,7 +132,7 @@ for r in rows:
 else:
     print(rows[0]['customerId'] if rows else '')
 ")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: no customer in aging report" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: no customer in aging report"
 CUST_NAME=$(python3 -c "
 import json
 d = json.load(open('/tmp/tier59-aging-init.json'))

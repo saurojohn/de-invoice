@@ -47,7 +47,7 @@ for r in rows:
 else:
     print(rows[0]['customerId'] if rows else '')
 " <<< "$BODY")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: no customer in aging" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: no customer in aging"
 CUST_NAME=$(python3 -c "
 import json, sys
 d=json.load(sys.stdin)

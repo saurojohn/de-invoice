@@ -45,6 +45,7 @@ DELETE FROM "Installment"        WHERE "planId" IN (
   SELECT id FROM "InstallmentPlan" WHERE "companyId" = '$COMPANY_ID' AND ("notes" LIKE 'Tier51%' OR "notes" IS NULL)
 );
 DELETE FROM "InstallmentPlan"    WHERE "companyId" = '$COMPANY_ID' AND ("notes" LIKE 'Tier51%' OR "notes" IS NULL);
+DELETE FROM "Payment"            WHERE "invoiceId" LIKE 'e2e00051-%';
 DELETE FROM "InvoiceItem"        WHERE "invoiceId" IN (
   SELECT id FROM "Invoice"        WHERE "companyId" = '$COMPANY_ID' AND "invoiceNumber" LIKE 'Tier51%'
 );
@@ -54,7 +55,7 @@ SQL
 # ───── 1. Seed customer + invoice via SQL ─────
 CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: customer not seeded"
 pass "seeded customer: $CUST_ID"
 
 # Use SQL seed — faster + skips the invoice-create DTO
@@ -84,7 +85,7 @@ echo
 note "=== 1. Create 3-Raten plan ==="
 # First due = 2026-08-01 (well in the future)
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
-  "{\"invoiceId\":\"$INVOICE_ID\",\"installmentCount\":3,\"totalAmount\":1200,\"firstDueDate\":\"2026-12-01\",\"intervalDays\":30,\"notes\":\"Tier51-001\"}"
+  "{\"invoiceId\":\"$INVOICE_ID\",\"installmentCount\":3,\"totalAmount\":1200,\"firstDueDate\":\"2029-12-01\",\"intervalDays\":30,\"notes\":\"Tier51-001\"}"
 assert_status "201" "create plan returns 201"
 
 PLAN_ID=$(json_field "$BODY" id)
@@ -136,21 +137,21 @@ import json,sys
 d=json.loads(sys.stdin.read())
 print(d['installments'][0]['dueDate'][:10])
 " <<< "$BODY")
-assert_eq "first Rate dueDate" "$DUE_1" "2026-12-01"
+assert_eq "first Rate dueDate" "$DUE_1" "2029-12-01"
 
 DUE_2=$(python3 -c "
 import json,sys
 d=json.loads(sys.stdin.read())
 print(d['installments'][1]['dueDate'][:10])
 " <<< "$BODY")
-assert_eq "second Rate dueDate (first + 30 days)" "$DUE_2" "2026-12-31"
+assert_eq "second Rate dueDate (first + 30 days)" "$DUE_2" "2029-12-31"
 
 DUE_3=$(python3 -c "
 import json,sys
 d=json.loads(sys.stdin.read())
 print(d['installments'][2]['dueDate'][:10])
 " <<< "$BODY")
-assert_eq "third Rate dueDate (first + 60 days)" "$DUE_3" "2027-01-30"
+assert_eq "third Rate dueDate (first + 60 days)" "$DUE_3" "2030-01-30"
 
 # ───── 3. Rounding remainder on the LAST installment ─────
 echo
@@ -172,7 +173,7 @@ SQL
 pass "seeded rounding invoice: $ROUND_INVOICE_ID"
 # 100 / 3 = 33.33, 33.33, 33.34 (last absorbs the 0.01 remainder)
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
-  "{\"invoiceId\":\"$ROUND_INVOICE_ID\",\"installmentCount\":3,\"totalAmount\":100,\"firstDueDate\":\"2026-12-01\",\"intervalDays\":30,\"notes\":\"Tier51-rounding\"}"
+  "{\"invoiceId\":\"$ROUND_INVOICE_ID\",\"installmentCount\":3,\"totalAmount\":100,\"firstDueDate\":\"2029-12-01\",\"intervalDays\":30,\"notes\":\"Tier51-rounding\"}"
 assert_status "201" "rounding plan returns 201"
 
 ROUND_AMOUNTS=$(python3 -c "
@@ -188,12 +189,12 @@ echo
 note "=== 3. Bad inputs ==="
 # Duplicate plan on same invoice
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
-  "{\"invoiceId\":\"$INVOICE_ID\",\"installmentCount\":2,\"totalAmount\":1200,\"firstDueDate\":\"2026-12-15\",\"notes\":\"Tier51-dup\"}"
+  "{\"invoiceId\":\"$INVOICE_ID\",\"installmentCount\":2,\"totalAmount\":1200,\"firstDueDate\":\"2029-12-15\",\"notes\":\"Tier51-dup\"}"
 assert_status "400" "duplicate plan → 400"
 
 # Non-existent invoice
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
-  '{"invoiceId":"00000000-0000-0000-0000-000000000000","installmentCount":2,"totalAmount":100,"firstDueDate":"2026-12-15"}'
+  '{"invoiceId":"00000000-0000-0000-0000-000000000000","installmentCount":2,"totalAmount":100,"firstDueDate":"2029-12-15"}'
 assert_status "404" "non-existent invoice → 404"
 
 # Past firstDueDate
@@ -204,7 +205,7 @@ assert_status "400" "firstDueDate in past → 400"
 
 # installmentCount = 1
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
-  "{\"invoiceId\":\"$ROUND_INVOICE_ID\",\"installmentCount\":1,\"totalAmount\":100,\"firstDueDate\":\"2026-12-15\",\"notes\":\"Tier51-count1\"}"
+  "{\"invoiceId\":\"$ROUND_INVOICE_ID\",\"installmentCount\":1,\"totalAmount\":100,\"firstDueDate\":\"2029-12-15\",\"notes\":\"Tier51-count1\"}"
 assert_status "400" "installmentCount=1 → 400"
 
 # ───── 5. Pay a partial installment ─────
@@ -339,7 +340,7 @@ VALUES ('$CANCEL_INVOICE_ID', '$COMPANY_ID', '$CUST_ID', 'Tier51-cancel', 9953,
 SQL
 pass "seeded cancel invoice: $CANCEL_INVOICE_ID"
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
-  "{\"invoiceId\":\"$CANCEL_INVOICE_ID\",\"installmentCount\":2,\"totalAmount\":600,\"firstDueDate\":\"2026-12-01\",\"notes\":\"Tier51-cancel\"}"
+  "{\"invoiceId\":\"$CANCEL_INVOICE_ID\",\"installmentCount\":2,\"totalAmount\":600,\"firstDueDate\":\"2029-12-01\",\"notes\":\"Tier51-cancel\"}"
 assert_status "201" "create cancel-target plan"
 CANCEL_PLAN_ID=$(json_field "$BODY" id)
 api_delete "/api/v1/installment-plans/$CANCEL_PLAN_ID?companyId=$COMPANY_ID"

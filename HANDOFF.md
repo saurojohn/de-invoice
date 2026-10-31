@@ -2669,6 +2669,26 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 751 — specs that could not fail
+
+The owner, 31.10.2026: „先做第 1 项，再做第 2 项". Specs 65 and 66 printed a Traceback in every CI run and stayed green.
+
+- Spec 65: the interest of 92,41 € is right (hand-computed: 1 190 € from 01.02. to 31.10.2026, Basiszinssatz 1,27 % then 1,52 % + 9 points). Its bound of 40–50 € was fixed and ran out in spring; now it follows the days overdue. It read the first row of the seed company's list, not its own reminder; the cancel's status came from a file nobody wrote (the answer is 201, not 200); „open count 0" could not hold on a shared company.
+- Spec 66: no product fault. The drafts never became sent (`PATCH /invoices/:id` does not exist, its answer went to /dev/null), and the expense was refused with a 400 (`supplierName`, `status`, `costCenter` are not in the DTO), so the breakdown was never tested with a cost centre.
+- **The cause:** `[ … ] || (echo "FATAL…" && exit 1)` leaves the subshell only, and a Python `assert` in a heredoc fails nothing under `set -uo`. 58 lines in specs 65–88 are now `|| fail "…"`, and the Python blocks of 40, 65, 66 count. No other `FATAL` line appears in a CI log (run 41145873980 had the one in spec 65), so nothing else was hiding behind it.
+- Spec 78 and 83: `firstDueDate` 2026-12-01 would have been refused as past from 02.12.2026 on, so CI would have gone red by itself; now 2029. Spec 78 removes its payments and can run twice.
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 750 — half an hour after midnight, on purpose
+
+The owner, 31.10.2026: „先做第 1 项". CI found the bugs of Tier 749b by chance; this looks for the rest on purpose.
+
+- **How:** a run of 464 backend specs with the business day ahead of the UTC day, as just after midnight in Germany: TZ=Pacific/Kiritimati for backend and shell, a `--require` shim turning every `Europe/Berlin` of Intl and `toLocale*` into that zone, and the backend's `[2, 1]` offsets extended by 14 for the run. At 11:00 UTC on 31.10. that is 00:56 on 01.11., so it crosses a month too. Left out: 20, 191, 342 (they restart the backend), 192 (needs crons), 257 (stops the database).
+- **Result in the backend: no further fault.** 30 failed. 25 of them ran again with their own `Europe/Berlin` moved too: 24 passed, and 220 pays at 14:30Z, which is tomorrow at +14. 304, 411, 469 hand over fixed instants or Berlin offsets that this zone does not have. 78 and 90 fail without the shift as well, on the local database only. A static pass over all of `backend/src` found nothing else that cuts a date out of an instant; `system.controller`'s error chart counts UTC days and stays so.
+- **The frontend had them:** the customer statement proposed the month before last from 00:00 to 02:00 on the 1st, an instalment plan's first due date and a scanned receipt without a date fell a day early, and time stamps on the customer page and in the transfers list stood on the UTC day. `lib/today.ts` existed; these did not use it. The credit ledger printed UTC at every hour, one or two behind the clock on the wall.
+- File names of `meine-daten` and the aging CSV, and the due date proposed for an empty issue date, likewise.
+
+`frontend/e2e/midnight-german-day-tier750.spec.ts`, the clock at 23:30 UTC on 31.10.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 749d — the DTD on this machine, index.xml valid against it
 
 The owner, 31.10.2026: „1，下载 DTD". Downloaded from the publisher (3 943 bytes, as announced), the DTD alone taken out of the ZIP and placed as `backend/assets/gdpdu-01-09-2004.dtd`. No entities, no external references. Spec 468's other branch ran for the first time: `index.xml` is valid against the DTD under `xmllint --valid`, and a document without `Version` is refused, so the check is a real one.

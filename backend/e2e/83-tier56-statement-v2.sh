@@ -23,7 +23,7 @@ SQL
 
 CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: customer not seeded"
 pass "seeded customer: $CUST_ID"
 
 echo
@@ -93,7 +93,7 @@ RP_INV_ID=$(json_field "$BODY" id)
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "UPDATE \"Invoice\" SET status='sent' WHERE id='$RP_INV_ID'" >/dev/null
 api_post "/api/v1/installment-plans?companyId=$COMPANY_ID" \
-  "{\"invoiceId\":\"$RP_INV_ID\",\"installmentCount\":3,\"totalAmount\":600,\"firstDueDate\":\"2026-12-01\",\"intervalDays\":30,\"notes\":\"Tier56-rp\"}"
+  "{\"invoiceId\":\"$RP_INV_ID\",\"installmentCount\":3,\"totalAmount\":600,\"firstDueDate\":\"2029-12-01\",\"intervalDays\":30,\"notes\":\"Tier56-rp\"}"
 assert_status "201" "create Ratenplan"
 
 api_get "/api/v1/customers/$CUST_ID/statement?companyId=$COMPANY_ID&from=2026-01-01&to=2026-12-31"
@@ -153,7 +153,7 @@ PDF_PATH="/tmp/tier56-stmt.pdf"
 curl -s "$API/api/v1/customers/$CUST_ID/statement.pdf?companyId=$COMPANY_ID&from=2026-01-01&to=2026-12-31" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -o "$PDF_PATH"
-[[ -s "$PDF_PATH" ]] || (echo "FATAL: PDF is empty" && exit 1)
+[[ -s "$PDF_PATH" ]] || fail "FATAL: PDF is empty"
 pass "downloaded PDF ($(wc -c < "$PDF_PATH") bytes)"
 
 PDF_TEXT=$(python3 -c "

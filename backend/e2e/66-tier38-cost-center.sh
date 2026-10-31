@@ -52,7 +52,7 @@ curl -sS -o /tmp/t38_cust.json -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$CUST_BODY" > /tmp/t38_cust_status.txt
 CUST_STATUS=$(cat /tmp/t38_cust_status.txt)
-[ "$CUST_STATUS" = "201" ] || (echo "FATAL: customer create returned $CUST_STATUS — $(cat /tmp/t38_cust.json | head -c 300)" && exit 1)
+[ "$CUST_STATUS" = "201" ] || fail "FATAL: customer create returned $CUST_STATUS — $(cat /tmp/t38_cust.json | head -c 300)"
 CUSTOMER_ID=$(python3 -c "import json; print(json.load(open('/tmp/t38_cust.json'))['id'])")
 echo "customer: $CUSTOMER_ID"
 
@@ -93,7 +93,7 @@ JSON
     -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
     -d "$body" > /tmp/t38_inv_${qty}_status.txt
   local s=$(cat /tmp/t38_inv_${qty}_status.txt)
-  [ "$s" = "201" ] || (echo "FATAL: invoice create $qty returned $s — $(cat "$outfile" | head -c 200)" && exit 1)
+  [ "$s" = "201" ] || fail "FATAL: invoice create $qty returned $s — $(cat "$outfile" | head -c 200)"
 }
 mk_invoice "100"
 mk_invoice "200"
@@ -106,16 +106,14 @@ UPDATE "Invoice" SET "costCenter" = '100'
   );
 SQL
 
-# Flip both to 'sent' (default is draft — irrelevant for
-# the costCenter breakdown, but matches the dashboard's
-# "live" semantic).
+# Flip both to 'sent': the breakdown counts issued invoices (Tier 658).
+# This was a PATCH /invoices/:id, a route that does not exist, its answer sent
+# to /dev/null: the drafts never reached the report and the check below failed
+# in every run, unnoticed, as nothing read its exit code.
 for q in 100 200; do
   INV_ID=$(python3 -c "import json; print(json.load(open('/tmp/t38_inv_${q}.json'))['id'])")
-  curl -sS -o /dev/null -X PATCH \
-    "$API/api/v1/invoices/$INV_ID?companyId=$COMPANY_ID" \
-    -H "Content-Type: application/json" \
-    -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-    -d '{"status":"sent"}' > /dev/null
+  api_put "/api/v1/invoices/$INV_ID/status?companyId=$COMPANY_ID" '{"status":"sent"}'
+  assert_status 200 "invoice $q set to sent"
 done
 
 # One expense stamped with costCenter=200, grossAmount=50.
@@ -124,16 +122,13 @@ done
 EXP_BODY=$(cat <<JSON
 {
   "description": "Tier 38 test expense",
-  "supplierName": "Tier38 Test Lieferant",
   "invoiceNumber": "T38-EXP-1",
   "invoiceDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "netAmount": 42.0168,
   "vatRate": 0.19,
   "vatAmount": 7.9832,
   "grossAmount": 50,
-  "category": "Bürobedarf",
-  "status": "booked",
-  "costCenter": "200"
+  "category": "Bürobedarf"
 }
 JSON
 )
@@ -143,13 +138,12 @@ curl -sS -o /tmp/t38_exp.json -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$EXP_BODY" > /tmp/t38_exp_status.txt
 EXP_STATUS=$(cat /tmp/t38_exp_status.txt)
-[ "$EXP_STATUS" = "201" ] || echo "  WARN: expense create returned $EXP_STATUS (continuing)"
+assert_eq "the expense is created" "$EXP_STATUS" "201"
 
-# Stamp expense costCenter=200 via SQL — same reason
-# as the invoices: the API round-trip might not persist
-# this column depending on service-layer handling.
+# costCenter=200 and booked via SQL: CreateExpenseDto has neither. (The body
+# named them, and supplierName, and was refused with a 400 nobody counted.)
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "UPDATE \"Expense\" SET \"costCenter\"='200' WHERE \"description\" = 'Tier 38 test expense';" > /dev/null
+  "UPDATE \"Expense\" SET \"costCenter\"='200', status='booked' WHERE \"description\" = 'Tier 38 test expense';" > /dev/null
 
 # Sanity-fetch the dashboard v2 + confirm the costCenterBreakdown
 # contains a "100" bucket with the expected sums.
@@ -170,7 +164,7 @@ print(','.join(sorted(r['costCenter'] for r in d['costCenterBreakdown'])))
 echo "  breakdown centers: $CC_LIST"
 
 # Verify the "100" bucket sums.
-python3 <<PY
+python3 <<PY || fail "see the check above"
 import json
 d = json.load(open('/tmp/t38_dash.json'))
 rows = d.get('costCenterBreakdown') or []
@@ -183,8 +177,8 @@ if not bucket100 or abs(bucket100['revenue'] - 357) > 0.05:
 if bucket100 and abs(bucket100['invoiceCount']) != 2:
     print(f'FAIL: 100-bucket invoiceCount={bucket100["invoiceCount"]}, expected 2')
     ok = False
-if bucket200 and abs(bucket200['expense'] - 50) > 0.05:
-    print(f'FAIL: 200-bucket expense={bucket200["expense"]}, expected ~50')
+if not bucket200 or abs(bucket200['expense'] - 50) > 0.05:
+    print(f'FAIL: 200-bucket expense={bucket200.get("expense") if bucket200 else None}, expected ~50')
     ok = False
 assert ok, 'bucket sums out of range'
 print('  cc=100 → revenue=357, invoiceCount=2 ✓')
@@ -194,7 +188,7 @@ PY
 # ───── 2. NULL coalesce ─────
 echo
 echo "=== 2. NULL costCenter coalesces into 'Nicht zugewiesen' ==="
-python3 <<'PY'
+python3 <<'PY' || fail "see the check above"
 import json
 d = json.load(open('/tmp/t38_dash.json'))
 rows = d.get('costCenterBreakdown') or []
@@ -206,7 +200,7 @@ PY
 # ───── 3. Sort order ─────
 echo
 echo "=== 3. Sort order: largest net first ==="
-python3 <<'PY'
+python3 <<'PY' || fail "see the check above"
 import json
 d = json.load(open('/tmp/t38_dash.json'))
 rows = d.get('costCenterBreakdown') or []
@@ -218,7 +212,7 @@ PY
 # ───── 4. Sum invariant ─────
 echo
 echo "=== 4. Sum of revenue breakdown ≥ sum of seeded 100-bucket revenue ==="
-python3 <<'PY'
+python3 <<'PY' || fail "see the check above"
 import json
 d = json.load(open('/tmp/t38_dash.json'))
 rows = d.get('costCenterBreakdown') or []

@@ -58,7 +58,7 @@ CUST_RESP=$(curl -sS -X POST "$API/api/v1/customers?companyId=$COMPANY_ID" \
   -H "x-company-id: $COMPANY_ID" \
   -d "{\"name\":\"Tier58-CreditTest-$(date +%s)\",\"type\":\"business\",\"address\":{\"city\":\"Berlin\"}}")
 CUST_ID=$(echo "$CUST_RESP" | python3 -c "import json,sys;print(json.load(sys.stdin).get('id',''))")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: customer not created: $CUST_RESP" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: customer not created: $CUST_RESP"
 pass "seeded customer: $CUST_ID"
 
 # ───── 2. Initial balance = 0, ledger = [] ─────
@@ -126,7 +126,7 @@ note "=== 4. credit-payout 25 EUR → Voucher (1200/1400) + payout row ==="
 # Look up the 1200 (Bank) account id
 BANK_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
-[[ -n "$BANK_ID" ]] || (echo "FATAL: Bank account 1200 not seeded" && exit 1)
+[[ -n "$BANK_ID" ]] || fail "FATAL: Bank account 1200 not seeded"
 api_post "/api/v1/customers/$CUST_ID/credit-payout?companyId=$COMPANY_ID" \
   "{\"amount\": 25, \"paymentDate\": \"2026-07-16\", \"bankAccountId\": \"$BANK_ID\", \"description\": \"Tier58-Auszahlung Test\"}"
 assert_status 201 "POST credit-payout 25 EUR"

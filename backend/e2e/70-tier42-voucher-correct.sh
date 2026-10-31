@@ -38,7 +38,7 @@ SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice
 SACHKONTO_1200=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
 echo "4960=$SACHKONTO_4960  1200=$SACHKONTO_1200"
-[ -n "$SACHKONTO_4960" ] && [ -n "$SACHKONTO_1200" ] || (echo "FATAL: SKR03 seed missing" && exit 1)
+[ -n "$SACHKONTO_4960" ] && [ -n "$SACHKONTO_1200" ] || fail "FATAL: SKR03 seed missing"
 
 # ───── Seed: a posted Voucher (typical typo-correction scenario) ─────
 echo
@@ -86,7 +86,7 @@ curl -sS -o /tmp/t42_correct.json -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$CORRECT_BODY" > /tmp/t42_correct_status.txt
 CORRECT_STATUS=$(cat /tmp/t42_correct_status.txt)
-[ "$CORRECT_STATUS" = "201" ] || [ "$CORRECT_STATUS" = "200" ] || (echo "FATAL: correct returned $CORRECT_STATUS — $(cat /tmp/t42_correct.json | head -c 300)" && exit 1)
+[ "$CORRECT_STATUS" = "201" ] || [ "$CORRECT_STATUS" = "200" ] || fail "FATAL: correct returned $CORRECT_STATUS — $(cat /tmp/t42_correct.json | head -c 300)"
 echo "  HTTP $CORRECT_STATUS ✓"
 
 # Shape: { reversal: {...}, correction: {...} }
@@ -102,10 +102,10 @@ echo "  correction: $CORR_ID ($CORR_NUMBER, $CORR_REFTYPE)"
 assert_eq "reversal referenceType=VoucherReversal" "$REV_REFTYPE" "VoucherReversal"
 assert_eq "correction referenceType=VoucherCorrection" "$CORR_REFTYPE" "VoucherCorrection"
 # Reversal voucher number ends with -S1 (first reversal).
-echo "$REV_NUMBER" | grep -qE '\-S1$' || (echo "FATAL: reversal number $REV_NUMBER doesn't end in -S1" && exit 1)
+echo "$REV_NUMBER" | grep -qE '\-S1$' || fail "FATAL: reversal number $REV_NUMBER doesn't end in -S1"
 echo "  ✓ reversal numbered $REV_NUMBER"
 # Correction voucher number ends with -K1.
-echo "$CORR_NUMBER" | grep -qE '\-K1$' || (echo "FATAL: correction number $CORR_NUMBER doesn't end in -K1" && exit 1)
+echo "$CORR_NUMBER" | grep -qE '\-K1$' || fail "FATAL: correction number $CORR_NUMBER doesn't end in -K1"
 echo "  ✓ correction numbered $CORR_NUMBER"
 
 # ───── 3. Storno lines negate original (Soll ↔ Haben swap) ─────
@@ -118,7 +118,7 @@ REV_D_CREDIT=$(python3 -c "import json, sys; d=json.load(open('/tmp/t42_correct.
 # Actually the existing reversal logic swaps, so original.debit=1.20 becomes storno.credit=1.20.
 # Let me double-check: original line[0] was debit=1.20, credit=0. Storno line[0] should be debit=0, credit=1.20.
 if [ "$REV_D_DEBIT" = "0" ]; then SWAP_OK=1; else SWAP_OK=0; fi
-[ "$SWAP_OK" = "1" ] || (echo "FATAL: reversal line[0].debit expected 0, got $REV_D_DEBIT" && exit 1)
+[ "$SWAP_OK" = "1" ] || fail "FATAL: reversal line[0].debit expected 0, got $REV_D_DEBIT"
 echo "  ✓ debit ↔ credit swap applied"
 
 # ───── 4. K-voucher carries the corrected lines ─────
@@ -142,7 +142,7 @@ ORIG_DEBIT_NOW=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice
 ORIG_REV_BY=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COALESCE(\"reversedById\"::text, 'null') FROM \"Voucher\" WHERE \"id\" = '$ORIG_ID';")
 assert_eq "Original still has debit=1.20" "$ORIG_DEBIT_NOW" "1.2000"
-[ "$ORIG_REV_BY" = "null" ] || (echo "FATAL: original reversedById leaked: $ORIG_REV_BY" && exit 1)
+[ "$ORIG_REV_BY" = "null" ] || fail "FATAL: original reversedById leaked: $ORIG_REV_BY"
 echo "  ✓ original number + lines + reversedById all intact"
 
 # ───── 6. Bad inputs ─────
@@ -178,7 +178,7 @@ curl -sS -o /tmp/t42_unbal.json -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$UNBAL_BODY" > /tmp/t42_unbal_status.txt
 UNBAL_STATUS=$(cat /tmp/t42_unbal_status.txt)
-[ "$UNBAL_STATUS" = "400" ] || (echo "FATAL: unbalanced expected 400, got $UNBAL_STATUS" && exit 1)
+[ "$UNBAL_STATUS" = "400" ] || fail "FATAL: unbalanced expected 400, got $UNBAL_STATUS"
 echo "  ✓ unbalanced → 400"
 
 # Empty lines.
@@ -189,7 +189,7 @@ curl -sS -o /tmp/t42_empty.json -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$EMPTY_BODY" > /tmp/t42_empty_status.txt
 EMPTY_STATUS=$(cat /tmp/t42_empty_status.txt)
-[ "$EMPTY_STATUS" = "400" ] || (echo "FATAL: empty expected 400, got $EMPTY_STATUS" && exit 1)
+[ "$EMPTY_STATUS" = "400" ] || fail "FATAL: empty expected 400, got $EMPTY_STATUS"
 echo "  ✓ empty lines → 400"
 
 # ───── Cleanup ─────

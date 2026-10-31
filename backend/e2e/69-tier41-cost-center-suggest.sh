@@ -39,8 +39,8 @@ SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice
 COUNTERPART=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
 echo "sachkonto 4960: $SACHKONTO_4960  bank 1200: $COUNTERPART"
-[ -n "$SACHKONTO_4960" ] || (echo "FATAL: Sachkonto 4960 not seeded" && exit 1)
-[ -n "$COUNTERPART" ] || (echo "FATAL: Sachkonto 1200 not seeded" && exit 1)
+[ -n "$SACHKONTO_4960" ] || fail "FATAL: Sachkonto 4960 not seeded"
+[ -n "$COUNTERPART" ] || fail "FATAL: Sachkonto 1200 not seeded"
 
 mk_voucher() {
   local desc="$1" cc="$2" co="$3" amt="$4"
@@ -85,7 +85,7 @@ echo "=== 1. POST /vouchers stamped costCenter + costObject on VoucherLine ==="
 # directly to verify).
 LINE_COUNT_CC=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT COUNT(*) FROM \"VoucherLine\" vl JOIN \"Voucher\" v ON v.id = vl.\"voucherId\" WHERE v.\"description\" LIKE 'Tier41%' AND v.\"companyId\" = '$COMPANY_ID' AND vl.\"costCenter\" IS NOT NULL;")
-[ "$LINE_COUNT_CC" -eq 3 ] || (echo "FATAL: expected 3 non-null costCenter rows, got $LINE_COUNT_CC" && exit 1)
+[ "$LINE_COUNT_CC" -eq 3 ] || fail "FATAL: expected 3 non-null costCenter rows, got $LINE_COUNT_CC"
 echo "  3 lines have non-null costCenter ✓"
 
 # ───── 2. GET /cost-center-suggestion returns top-1 ─────
@@ -104,7 +104,7 @@ TOP_CO=$(python3 -c "import json; print(json.load(open('/tmp/t41_sug.json'))['co
 TOTAL_LINES=$(python3 -c "import json; print(json.load(open('/tmp/t41_sug.json'))['totalLines'])")
 assert_eq "top cc is Tier41-V100" "$TOP_CC" "Tier41-V100"
 assert_eq "top co is Tier41-PQ3" "$TOP_CO" "Tier41-PQ3"
-[ "$TOTAL_LINES" -eq 3 ] || (echo "FATAL: totalLines expected 3, got $TOTAL_LINES" && exit 1)
+[ "$TOTAL_LINES" -eq 3 ] || fail "FATAL: totalLines expected 3, got $TOTAL_LINES"
 echo "  top: Tier41-V100 / Tier41-PQ3 (3 lines) ✓"
 
 # ───── 3. GET /cost-center-suggestion/list returns ranked distinct list ─────
@@ -119,9 +119,9 @@ TOP_CC=$(python3 -c "import json; print(json.load(open('/tmp/t41_list.json'))['i
 SECOND_CC=$(python3 -c "import json; print(json.load(open('/tmp/t41_list.json'))['items'][1]['costCenter'])")
 SECOND_COUNT=$(python3 -c "import json; print(json.load(open('/tmp/t41_list.json'))['items'][1]['count'])")
 assert_eq "list[0] cc Tier41-V100" "$TOP_CC" "Tier41-V100"
-[ "$TOP_COUNT" -eq 2 ] || (echo "FATAL: list[0].count expected 2, got $TOP_COUNT" && exit 1)
+[ "$TOP_COUNT" -eq 2 ] || fail "FATAL: list[0].count expected 2, got $TOP_COUNT"
 assert_eq "list[1] cc Tier41-S200" "$SECOND_CC" "Tier41-S200"
-[ "$SECOND_COUNT" -eq 1 ] || (echo "FATAL: list[1].count expected 1, got $SECOND_COUNT" && exit 1)
+[ "$SECOND_COUNT" -eq 1 ] || fail "FATAL: list[1].count expected 1, got $SECOND_COUNT"
 echo "  list[0]: Tier41-V100 (×2)  list[1]: Tier41-S200 (×1) ✓"
 
 # ───── 4. Bad inputs ─────
@@ -148,7 +148,7 @@ echo "=== 5. /vouchers/cost-center-suggestion isn't swallowed by /vouchers/:id =
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/accounting/vouchers/cost-center-suggestion?companyId=$COMPANY_ID&accountId=not-a-uuid")
-[ "$STATUS" = "400" ] || [ "$STATUS" = "200" ] || (echo "FATAL: expected 400/200, got $STATUS — likely /:id swallowed it" && exit 1)
+[ "$STATUS" = "400" ] || [ "$STATUS" = "200" ] || fail "FATAL: expected 400/200, got $STATUS — likely /:id swallowed it"
 echo "  suggest route still reachable (HTTP $STATUS) ✓"
 
 # ───── Cleanup ─────

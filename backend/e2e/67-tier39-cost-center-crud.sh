@@ -109,8 +109,8 @@ curl -sS -o /tmp/t39_cc.json -w "%{http_code}" \
   "$API/api/v1/invoices/cost-centers?companyId=$COMPANY_ID" > /dev/null
 LIST=$(python3 -c "import json; print(','.join(json.load(open('/tmp/t39_cc.json'))['costCenters']))")
 echo "  costCenters: $LIST"
-echo "$LIST" | grep -q "VERTRIEB" || (echo "FATAL: VERTRIEB not in list" && exit 1)
-echo "$LIST" | grep -q "SERVICE" || (echo "FATAL: SERVICE not in list" && exit 1)
+echo "$LIST" | grep -q "VERTRIEB" || fail "FATAL: VERTRIEB not in list"
+echo "$LIST" | grep -q "SERVICE" || fail "FATAL: SERVICE not in list"
 echo "  ✓ both VERTRIEB + SERVICE present"
 
 # ───── 4. GET with ?costCenter= filter returns costObjects ─────
@@ -121,7 +121,7 @@ curl -sS -o /tmp/t39_cc_filt.json -w "%{http_code}" \
   "$API/api/v1/invoices/cost-centers?companyId=$COMPANY_ID&costCenter=VERTRIEB" > /dev/null
 OBJS=$(python3 -c "import json; print(','.join(json.load(open('/tmp/t39_cc_filt.json'))['costObjects']))")
 echo "  costObjects(VERTRIEB): $OBJS"
-echo "$OBJS" | grep -q "PROJ-2026-Q3" || (echo "FATAL: PROJ-2026-Q3 not in filter result" && exit 1)
+echo "$OBJS" | grep -q "PROJ-2026-Q3" || fail "FATAL: PROJ-2026-Q3 not in filter result"
 echo "  ✓ PROJ-2026-Q3 present"
 
 # ───── 5. Bad inputs ─────

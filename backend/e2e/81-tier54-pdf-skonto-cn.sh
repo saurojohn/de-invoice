@@ -48,7 +48,7 @@ SQL
 # ───── 1. Seed customer ─────
 CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' LIMIT 1")
-[[ -n "$CUST_ID" ]] || (echo "FATAL: customer not seeded" && exit 1)
+[[ -n "$CUST_ID" ]] || fail "FATAL: customer not seeded"
 pass "seeded customer: $CUST_ID"
 
 # ───── 2. Create a Skonto invoice ─────
@@ -66,7 +66,7 @@ PDF_PATH="/tmp/tier54-skonto.pdf"
 curl -s "$API/api/v1/invoices/$INV_ID/pdf?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -o "$PDF_PATH"
-[[ -s "$PDF_PATH" ]] || (echo "FATAL: PDF is empty" && exit 1)
+[[ -s "$PDF_PATH" ]] || fail "FATAL: PDF is empty"
 pass "downloaded PDF ($(wc -c < "$PDF_PATH") bytes)"
 
 # Extract text via pypdf (installed in venv or system-wide).
@@ -78,7 +78,7 @@ for p in r.pages:
     out += p.extract_text() or ''
 print(out)
 ")
-[[ -n "$PDF_TEXT" ]] || (echo "FATAL: no text extracted" && exit 1)
+[[ -n "$PDF_TEXT" ]] || fail "FATAL: no text extracted"
 
 # The Skonto line must be present.
 echo "$PDF_TEXT" | grep -q "Zahlbar bis 19.07.2026 mit 2% Skonto, bis 31.07.2026 ohne Abzug" \

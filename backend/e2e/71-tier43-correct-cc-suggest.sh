@@ -44,8 +44,8 @@ SACHKONTO_4960=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '4960' LIMIT 1")
 SACHKONTO_1200=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '1200' LIMIT 1")
-[ -n "$SACHKONTO_4960" ] || (echo "FATAL: 4960 not seeded" && exit 1)
-[ -n "$SACHKONTO_1200" ] || (echo "FATAL: 1200 not seeded" && exit 1)
+[ -n "$SACHKONTO_4960" ] || fail "FATAL: 4960 not seeded"
+[ -n "$SACHKONTO_1200" ] || fail "FATAL: 1200 not seeded"
 
 # ───── Seed: Tier 39-style Voucher + 1 historical Voucher
 #         that we'll seed manually via SQL with cc stamps
@@ -169,7 +169,7 @@ curl -sS -o /tmp/t43_correct.json -w "%{http_code}" -X POST \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   -d "$CORRECT_BODY" > /tmp/t43_correct_status.txt
 CORRECT_STATUS=$(cat /tmp/t43_correct_status.txt)
-[ "$CORRECT_STATUS" = "201" ] || [ "$CORRECT_STATUS" = "200" ] || (echo "FATAL: correct returned $CORRECT_STATUS — $(cat /tmp/t43_correct.json | head -c 200)" && exit 1)
+[ "$CORRECT_STATUS" = "201" ] || [ "$CORRECT_STATUS" = "200" ] || fail "FATAL: correct returned $CORRECT_STATUS — $(cat /tmp/t43_correct.json | head -c 200)"
 
 # Verify the K-booking's cc was persisted.
 K_CC=$(python3 -c "import json; print(json.load(open('/tmp/t43_correct.json'))['correction']['lines'][0].get('costCenter'))")

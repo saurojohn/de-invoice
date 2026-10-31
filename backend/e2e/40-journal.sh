@@ -157,7 +157,7 @@ assert_eq "9. dateFrom > dateTo → 400" "$HTTP_CODE" "400"
 # with hex string segments). We decode
 # the streams and the hex segments to
 # get a flat byte string we can search.
-python3 << PYEOF
+python3 << PYEOF || fail "the Journal PDF lacks what the checks above name"
 import re, zlib
 with open('/tmp/t40_pdf1.pdf', 'rb') as f:
     pdf = f.read()
