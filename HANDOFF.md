@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 751b — spec 90 on the last day of a month
+
+CI run 41198061150 (Tiers 750 and 751, commit 6e12f3ed): red, 467 passed / 1 failed / 1 skipped, Playwright 1112 passed, no Traceback, no retry. The failure was spec 90: it set its template to „tomorrow" and expected it first in the list. The list is soonest first, and on 31.10. the seed company's monthly templates, due on 01.11. at 00:00, come before tomorrow's midday, which is why it passed on the 30th. No product fault. The same failure on this machine had been put down to the local database, wrongly: it would have gone red at every month's end. The template now runs in two minutes.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 751 — specs that could not fail
 
 The owner, 31.10.2026: „先做第 1 项，再做第 2 项". Specs 65 and 66 printed a Traceback in every CI run and stayed green.
@@ -2683,7 +2687,7 @@ The owner, 31.10.2026: „先做第 1 项，再做第 2 项". Specs 65 and 66 pr
 The owner, 31.10.2026: „先做第 1 项". CI found the bugs of Tier 749b by chance; this looks for the rest on purpose.
 
 - **How:** a run of 464 backend specs with the business day ahead of the UTC day, as just after midnight in Germany: TZ=Pacific/Kiritimati for backend and shell, a `--require` shim turning every `Europe/Berlin` of Intl and `toLocale*` into that zone, and the backend's `[2, 1]` offsets extended by 14 for the run. At 11:00 UTC on 31.10. that is 00:56 on 01.11., so it crosses a month too. Left out: 20, 191, 342 (they restart the backend), 192 (needs crons), 257 (stops the database).
-- **Result in the backend: no further fault.** 30 failed. 25 of them ran again with their own `Europe/Berlin` moved too: 24 passed, and 220 pays at 14:30Z, which is tomorrow at +14. 304, 411, 469 hand over fixed instants or Berlin offsets that this zone does not have. 78 and 90 fail without the shift as well, on the local database only. A static pass over all of `backend/src` found nothing else that cuts a date out of an instant; `system.controller`'s error chart counts UTC days and stays so.
+- **Result in the backend: no further fault.** 30 failed. 25 of them ran again with their own `Europe/Berlin` moved too: 24 passed, and 220 pays at 14:30Z, which is tomorrow at +14. 304, 411, 469 hand over fixed instants or Berlin offsets that this zone does not have. 78 fails without the shift as well, from payments its own earlier run left. 90 too, and here this entry first said „the local database only", which was wrong: see Tier 751b. A static pass over all of `backend/src` found nothing else that cuts a date out of an instant; `system.controller`'s error chart counts UTC days and stays so.
 - **The frontend had them:** the customer statement proposed the month before last from 00:00 to 02:00 on the 1st, an instalment plan's first due date and a scanned receipt without a date fell a day early, and time stamps on the customer page and in the transfers list stood on the UTC day. `lib/today.ts` existed; these did not use it. The credit ledger printed UTC at every hour, one or two behind the clock on the wall.
 - File names of `meine-daten` and the aging CSV, and the due date proposed for an empty issue date, likewise.
 

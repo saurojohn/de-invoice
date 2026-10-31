@@ -288,20 +288,22 @@ fi
 # ───── 7. Stats aggregate: dueThisWeek includes templates due in 0-7 days ─────
 echo
 note "=== 7. dueThisWeek counts templates due in 0-7 days ==="
-# Set TPL1's nextRunAt to tomorrow. TPL1 should be counted.
-TOMORROW=$(date -v+1d -u +"%Y-%m-%dT%H:%M:%S.000Z" 2>/dev/null || date -u -d "+1 day" +"%Y-%m-%dT%H:%M:%S.000Z")
+# Set TPL1's nextRunAt to two minutes from now: the first in the list, which is
+# soonest first. Tomorrow was not: on the last day of a month the seed company's
+# monthly templates, due on the 1st at 00:00, came before it.
+SOON=$(python3 -c "import datetime as d;print((d.datetime.now(d.timezone.utc)+d.timedelta(minutes=2)).strftime('%Y-%m-%dT%H:%M:%S.000Z'))")
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL >/dev/null
 UPDATE "RecurringInvoice"
-  SET "nextRunAt" = '$TOMORROW'::timestamptz
+  SET "nextRunAt" = '$SOON'::timestamptz
   WHERE id = '$TPL1_ID';
 SQL
-pass "set TPL1 nextRunAt to tomorrow"
+pass "set TPL1 nextRunAt to two minutes from now"
 
 api_get "/api/v1/recurring-invoices/stats?companyId=$COMPANY_ID"
 TMP10=$(mktemp); stash "$TMP10"
 DUE=$(jsf dueThisWeek "$TMP10")
 if [[ "$DUE" -ge 1 ]]; then
-  pass "dueThisWeek=$DUE (>=1, includes TPL1 due tomorrow)"
+  pass "dueThisWeek=$DUE (>=1, includes TPL1)"
 else
   fail "expected dueThisWeek >= 1, got '$DUE'"
 fi
