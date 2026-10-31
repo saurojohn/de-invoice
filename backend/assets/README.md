@@ -1,11 +1,13 @@
 # Bundled assets (Tier 693)
 
-Files the invoice PDF needs to be a real PDF/A-3 (ZUGFeRD / Factur-X):
+Files the invoice PDF needs to be a real PDF/A-3 (ZUGFeRD / Factur-X), and the
+language data of the receipt scanner:
 
 | file | source | licence |
 |---|---|---|
 | `fonts/LiberationSans-*.ttf`, `LiberationSerif-*.ttf`, `LiberationMono-*.ttf` | liberation-fonts-ttf-2.1.5, github.com/liberationfonts/liberation-fonts | SIL Open Font License 1.1 (`fonts/LICENSE-Liberation-Fonts.txt`) |
 | `icc/sRGB-v2-micro.icc` | github.com/saucecontrol/Compact-ICC-Profiles | CC0 1.0 |
+| `ocr/deu.traineddata` (Tier 756, the receipt scanner) | tesseract.js's own default for German: `@tesseract.js-data/deu`, `4.0.0_best_int`, unpacked; 2 070 514 bytes, SHA-256 `a1b72cc25753eac167edfef5af4448a8dc34973503a2265c34c84520f896eb03` | Apache 2.0 (`ocr/LICENSE-Apache-2.0.txt`) |
 
 Liberation Sans / Serif / Mono have the metrics of Helvetica / Times / Courier,
 so the layout of an invoice does not move when they replace PDFKit's

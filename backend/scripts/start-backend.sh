@@ -69,4 +69,10 @@ export VIES_MOCK="${VIES_MOCK:-}"
 # (no X-RateLimit-Limit / -Remaining headers when disabled).
 export THROTTLE_DISABLED="${THROTTLE_DISABLED:-}"
 
+# Tier 756: the weekly production run of ci.yml — what a spec restarts is the
+# compiled program too.
+if [ "${PRODUCTION_BUILD:-}" = "true" ]; then
+  exec node dist/main.js
+fi
+
 exec npx ts-node src/main.ts

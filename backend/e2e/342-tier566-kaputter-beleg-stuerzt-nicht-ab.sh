@@ -64,9 +64,8 @@ assert_eq "a PDF that is only its header: 400 (was 500)" "$(scan "$D/header-only
 assert_eq "…still there" "$(alive)" "200"
 
 note "=== a file tesseract itself rejects ==="
-# PNG magic, noise behind it: this one reaches the worker. Whether the worker
-# can start here (it fetches its language data on first use) or not — the
-# answer is a 400 and the process lives.
+# PNG magic, noise behind it: this one reaches the worker. The answer is a 400
+# and the process lives.
 assert_eq "a damaged PNG: 400" "$(scan "$D/fake.png" image/png)" "400"
 assert_eq "…the server is still there (was: exit 1)" "$(alive)" "200"
 ST=$(scan "$D/real.png" image/png)

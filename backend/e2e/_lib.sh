@@ -2,13 +2,20 @@
 # Common helpers for Kassenbuch GoBD e2e tests.
 # Each test file `source`s this, then runs the assertions.
 #
-# Tests against the live backend at http://localhost:3001.
-# Run with: `./e2e/run-all.sh` (starts backend if needed)
-# Or individually: `bash e2e/01-eroeffnung-only-once.sh`
+# Tests against the live backend at $API (CI: http://localhost:3001).
+# Run with: `API=http://localhost:3011 ./e2e/run-all.sh` (starts backend if needed)
+# Or individually: `API=http://localhost:3011 bash e2e/01-eroeffnung-only-once.sh`
 
 set -uo pipefail
 
 # ---- Config ----
+# Tier 756: on the developer's machine :3001 may be another project's server,
+# and a spec started without API sent its requests there six times. The address
+# is named, or the spec does not start. (CI has this port to itself.)
+if [[ -z "${API:-}" && -z "${CI:-}" ]]; then
+  echo "REFUSED: API is not set — :3001 may be another project here. Run through local-ci-stack.sh, or name it: API=http://localhost:3011 bash $0" >&2
+  exit 2
+fi
 API="${API:-http://localhost:3001}"
 EMAIL="${TEST_EMAIL:-info@shleder.de}"
 PASSWORD="${TEST_PASSWORD:-Test1234!}"

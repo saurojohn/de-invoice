@@ -247,8 +247,11 @@ function extractIban(text: string): string | null {
 
 /** 8 or 11 chars: 4 alpha + 2 alpha + 2 alnum + 3 alnum. */
 function extractBic(text: string): string | null {
-  const m = text.match(/\b[A-Z]{4}[A-Z]{2}(?:[A-Z0-9]{2}(?:[A-Z0-9]{3})?)?\b/)
-  return m ? m[0] : null
+  // Tier 756: only after its label. RECHNUNG and DEUTSCHE have the shape of a
+  // BIC, and a valid country code at that (NU, CH): the first capitalised word
+  // of eight letters on a receipt was proposed as the supplier's BIC.
+  const m = text.match(/\b(?:BIC|Bic|SWIFT|Swift)\b[\s/:.-]*(?:(?:BIC|Bic|SWIFT|Swift|Code|code)\b[\s:.-]*)?([A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/)
+  return m ? m[1] : null
 }
 
 /** "Rechnung Nr." / "RG-Nr" / "Rechnungsnummer" / "Nr." prefix. */
@@ -350,10 +353,8 @@ export abstract class OcrService {
 /**
  * v1 mock: always returns the OCR_FIXTURE.
  *
- * Use this in dev / CI where you don't want
- * tesseract.js's first-run traineddata download
- * (~15MB, ~5s) and you want deterministic
- * responses for tests.
+ * Use this in dev / CI where you want
+ * deterministic responses for tests.
  *
  * Env switch in OcrModule:
  *   OCR_ENGINE=mock (default)

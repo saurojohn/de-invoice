@@ -30,7 +30,14 @@ on:
       - 'frontend/package-lock.json'
       - 'frontend/next.config.*'
       - 'infra/kosit/**'
+      # Tier 756: the image's own data, and what checks it
+      - 'backend/assets/**'
+      - 'backend/scripts/ci-ocr-check.js'
       - '.github/workflows/docker-build.yml'
+  # Tier 756: what the images are made of changes without a push (the base
+  # images, the Debian packages); weekly, next to the production run of ci.yml.
+  schedule:
+    - cron: '30 3 * * 0'
   workflow_dispatch:
 
 concurrency:
@@ -122,7 +129,8 @@ jobs:
                 -e "DATABASE_URL=postgresql://de_invoice:ci-only@postgres:5432/de_invoice?schema=public"
                 -e JWT_SECRET=ci-only-0123456789abcdef0123456789abcdef -e FRONTEND_URL=http://localhost:3000)
           docker run --rm "${ENVS[@]}" -v harden-storage:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci npx prisma migrate deploy | tail -2
-          docker run -d --name harden-be "${ENVS[@]}" -v harden-storage:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci
+          # Tier 756: with the CDN of tesseract.js out of reach, as below
+          docker run -d --name harden-be --add-host cdn.jsdelivr.net:127.0.0.1 "${ENVS[@]}" -v harden-storage:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci
           for i in $(seq 1 60); do docker exec harden-be wget -qO- http://localhost:3001/api/v1/health/deep >/dev/null 2>&1 && break; sleep 2; done
           docker exec harden-be sh -ec '
             test "$(id -un)" = app
@@ -132,6 +140,13 @@ jobs:
             ! touch /app/written 2>/dev/null
             touch /data/invoice-system/written
           ' || { docker logs harden-be | tail -40; exit 1; }
+          # Tier 756: the scanner reads a receipt without the CDN, and without
+          # its language data it says so at once (it hung, 60 s and for good)
+          docker exec harden-be node scripts/ci-ocr-check.js 201 || { docker logs harden-be | tail -40; exit 1; }
+          docker rm -f harden-be
+          docker run -d --name harden-be "${ENVS[@]}" -v harden-storage:/data/invoice-system "${HARD[@]}" --tmpfs /app/assets/ocr de-invoice-backend:ci
+          for i in $(seq 1 60); do docker exec harden-be wget -qO- http://localhost:3001/api/v1/health/deep >/dev/null 2>&1 && break; sleep 2; done
+          docker exec harden-be node scripts/ci-ocr-check.js 503 || { docker logs harden-be | tail -40; exit 1; }
           # a volume that belongs to root, with a file in it (an image from before
           # Tier 654; Docker gives an EMPTY volume the image's owner again by
           # itself): refused in words

@@ -6,4 +6,6 @@ node_modules
 # tesseract.js downloads traineddata files
 # to the cwd by default. They're 2-15MB
 # per language and regenerated on demand.
+# Tier 756: the one the program uses is in assets/ocr.
 *.traineddata
+!assets/ocr/deu.traineddata

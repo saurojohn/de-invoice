@@ -1,8 +1,8 @@
 // Tier 31: Real OCR via tesseract.js.
 //
 // This module wraps the `tesseract.js` npm package
-// (pure-JS OCR engine — no native binary needed,
-// traineddata is downloaded on first run).
+// (pure-JS OCR engine — no native binary needed; the
+// language data is in assets/ocr, see OCR_DATA_DIR).
 //
 // Pipeline:
 //
@@ -22,23 +22,24 @@
 //   Nest DI lets us swap the provider via useClass
 //   in OcrModule. The controller depends on the
 //   abstract OcrService class, so the swap is
-//   transparent. This keeps the worker + traineddata
-//   download out of the dev / CI path where we use
-//   the mock (faster, deterministic, no network).
+//   transparent. This keeps the worker out of the
+//   dev / CI path where we use the mock (faster,
+//   deterministic).
 //
 // Env switch:
 //
 //   OCR_ENGINE=tesseract   → use TesseractOcrService
 //   OCR_ENGINE=mock (default) → use MockOcrService
 //
-// First-run latency: ~3-5s (tesseract.js loads the
-// 'deu' traineddata from the CDN or local cache).
+// First-run latency: under a second (tesseract.js
+// loads the 'deu' traineddata from assets/ocr).
 // Subsequent calls reuse the same worker — ~1s per
 // page. We instantiate the worker lazily on the
 // first extractReceipt() call so cold-start cost
 // doesn't block Nest's boot.
 
-import { BadRequestException, HttpException, Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
+import { BadRequestException, HttpException, Injectable, Logger, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common'
+import * as path from 'path'
 import {
   ReceiptData,
   extractFieldsFromText,
@@ -48,6 +49,14 @@ import { PdfTextService } from './pdf-text.service'
 // tesseract.js has no official type exports in v7 —
 // import the runtime + use the bare API.
 import { createWorker, Worker as TesseractWorker } from 'tesseract.js'
+
+/**
+ * Tier 756: the language data travels with the program. tesseract.js fetched
+ * it from a CDN at the first scan after every start (the read-only root
+ * filesystem of the container keeps no copy), so a scan needed that CDN to
+ * answer. Three levels up from src/modules/ocr and dist/modules/ocr alike.
+ */
+const OCR_DATA_DIR = path.resolve(__dirname, '..', '..', '..', 'assets', 'ocr')
 
 /** The image formats tesseract reads, by their first bytes. */
 function looksLikeImage(b: Buffer): boolean {
@@ -90,8 +99,8 @@ export class TesseractOcrService
    * Lazily instantiate the tesseract.js worker on
    * first call. Subsequent calls reuse the same
    * worker — creating a fresh one per scan would
-   * re-download the 15MB 'deu' traineddata every
-   * time and dominate the request latency.
+   * reload the 'deu' traineddata every time and
+   * dominate the request latency.
    *
    * The worker init is wrapped in a promise so
    * parallel scan requests don't race to create
@@ -101,7 +110,7 @@ export class TesseractOcrService
     if (this.worker) return this.worker
     if (this.workerPromise) return this.workerPromise
 
-    this.workerPromise = (async () => {
+    this.workerPromise = new Promise<TesseractWorker>((resolve, reject) => {
       this.logger.log(
         'Initialising tesseract.js worker (deu traineddata)…',
       )
@@ -111,15 +120,26 @@ export class TesseractOcrService
       // upload of a file that is not an image ("Error attempting to read
       // image") took the server down for every company. The job's own promise
       // is rejected as well; that is what the caller sees.
-      const w = await createWorker('deu', 1, {
-        errorHandler: (e: unknown) => this.logger.warn(`tesseract job failed: ${String(e).slice(0, 200)}`),
-      })
+      // Tier 756: a START that fails reaches only this handler: createWorker's
+      // own promise never settles (its chain ends in `.catch(() => {})`), so
+      // this scan and every later one waited for ever. Measured: 504 from the
+      // proxy after 60 s, until the backend was restarted. (After the start
+      // the reject does nothing.)
+      createWorker('deu', 1, {
+        langPath: OCR_DATA_DIR,
+        gzip: false,
+        cacheMethod: 'none',
+        errorHandler: (e: unknown) => {
+          this.logger.warn(`tesseract job failed: ${String(e).slice(0, 200)}`)
+          reject(new ServiceUnavailableException('Die Belegerkennung steht gerade nicht zur Verfügung — bitte die Angaben von Hand eintragen.'))
+        },
+      }).then(resolve, reject)
+    }).then((w) => {
       this.logger.log('tesseract.js worker ready')
       this.worker = w
       return w
-    })()
-    // A failed start (no language data, no network) must not be remembered
-    // for good: the next scan tries again.
+    })
+    // A failed start must not be remembered for good: the next scan tries again.
     this.workerPromise.catch(() => {
       this.workerPromise = null
     })

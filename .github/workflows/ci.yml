@@ -40,12 +40,29 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Tier 756: once a week the compiled backend and the production frontend go
+  # through the same specs. Every other run has ts-node and `next dev`, and
+  # what differs there stays unseen: Tier 755 found a race in a form that only
+  # the production build shows. Weekly, not nightly: about an hour of runner
+  # time, and the account has hit its spending limit once.
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      production_build:
+        description: Run the specs on the production build
+        type: boolean
+        default: true
 
 # Cancel any in-flight CI run for the same ref
 # when a new commit is pushed.
+# Tier 756: per event, so a push does not cancel the weekly run, nor it a push.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
+
+env:
+  PRODUCTION_BUILD: ${{ github.event_name == 'schedule' || inputs.production_build == true }}
 
 jobs:
   backend-typecheck:
@@ -354,9 +371,15 @@ jobs:
       - name: Build frontend (typecheck)
         run: npx tsc --noEmit
         working-directory: frontend
+      - name: Compile backend
+        if: env.PRODUCTION_BUILD == 'true'
+        run: npm run build
+        working-directory: backend
       - name: Start backend
         run: |
           mkdir -p /tmp/de-invoice-storage
+          BACKEND_CMD="npx ts-node src/main.ts"
+          if [ "$PRODUCTION_BUILD" = "true" ]; then BACKEND_CMD="node dist/main.js"; fi
           # Tier 328: pass VIES_MOCK + THROTTLE_DISABLED
           # explicitly via `env`. `nohup` sometimes
           # drops job-level env vars when the child
@@ -373,7 +396,7 @@ jobs:
           # 29 subsequent assertions failed with
           # 'connection refused'.
           nohup env VIES_MOCK=1 EXCHANGE_RATES_MOCK=1 THROTTLE_DISABLED=1 \
-            npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
+            $BACKEND_CMD > /tmp/backend.log 2>&1 &
           # 15s — slightly more than the 8s we
           # need locally because CI runners are
           # slower for cold-start Postgres + tsc.
@@ -538,6 +561,10 @@ jobs:
           npx prisma db push --accept-data-loss --skip-generate
           cat prisma/migrations/20260701000001_search_tsv/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma
         working-directory: backend
+      - name: Compile backend
+        if: env.PRODUCTION_BUILD == 'true'
+        run: npm run build
+        working-directory: backend
       - name: Start backend
         env:
           # Tier 328: the Playwright job sets
@@ -555,10 +582,12 @@ jobs:
           PORT: 3001
         run: |
           mkdir -p /tmp/de-invoice-storage
+          BACKEND_CMD="npx ts-node src/main.ts"
+          if [ "$PRODUCTION_BUILD" = "true" ]; then BACKEND_CMD="node dist/main.js"; fi
           # Tier 328: explicit env passthrough (see e2e
           # job comment for the nohup-env rationale).
           nohup env VIES_MOCK=1 EXCHANGE_RATES_MOCK=1 THROTTLE_DISABLED=1 \
-            npx ts-node src/main.ts > /tmp/backend.log 2>&1 &
+            $BACKEND_CMD > /tmp/backend.log 2>&1 &
           for i in $(seq 1 30); do
             H=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/api/v1/health 2>/dev/null || true)
             if [ "$H" = "200" ]; then
@@ -594,8 +623,19 @@ jobs:
           # This is inlined at build time, so
           # setting it in the environment here is
           # enough.
-          NEXT_PUBLIC_API_URL=http://localhost:3001 \
-            nohup npx next dev -p 3100 > /tmp/frontend.log 2>&1 &
+          if [ "$PRODUCTION_BUILD" = "true" ]; then
+            # Tier 756: the standalone server, as the image runs it. Its place
+            # under .next/standalone follows the tracing root; the static files
+            # are not part of it (frontend/Dockerfile).
+            NODE_ENV=production NEXT_PUBLIC_API_URL=http://localhost:3001 npx next build
+            SERVER=$(find .next/standalone -name server.js -not -path '*/node_modules/*' | head -1)
+            cp -r .next/static "$(dirname "$SERVER")/.next/static"
+            cp -r public "$(dirname "$SERVER")/public"
+            NODE_ENV=production HOSTNAME=0.0.0.0 nohup node "$SERVER" > /tmp/frontend.log 2>&1 &
+          else
+            NEXT_PUBLIC_API_URL=http://localhost:3001 \
+              nohup npx next dev -p 3100 > /tmp/frontend.log 2>&1 &
+          fi
           # Next.js dev server is fast to start
           # (~5s) but `npm ci` cold caches add
           # another 10s for the first request to

@@ -11,8 +11,8 @@ import { PdfTextService } from './pdf-text.service'
  * OCR engine selector.
  *
  *   OCR_ENGINE=tesseract → TesseractOcrService
- *                           (real OCR, ~15MB traineddata
- *                            download on first scan)
+ *                           (real OCR, language data in
+ *                            assets/ocr)
  *   OCR_ENGINE=mock (default) → MockOcrService
  *                           (deterministic fixture, no
  *                            network or native deps)
