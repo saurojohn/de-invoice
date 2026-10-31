@@ -29,7 +29,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
 # we use baseline-snapshot (capture the SUM, then
 # assert the SUM-after equals the SUM-before).
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=$(date +%Y)-12-31" \
   -o /tmp/datev-vnd-dt-before.csv
 NET_4900_BEFORE=$(datev_balance /tmp/datev-vnd-dt-before.csv 4900)
 note "baseline sum account 4900 = $NET_4900_BEFORE (before test)"
@@ -70,7 +70,7 @@ STO_ID=$(json_field "$BODY" id)
 
 # DATEV export for the WHOLE YEAR — both vouchers in
 curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
-  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=2026-12-31" \
+  "$API/api/v1/reports/datev-export?companyId=$COMPANY_ID&startDate=2026-01-01&endDate=$(date +%Y)-12-31" \
   -o /tmp/datev-vnd-dt.csv
 echo "DATEV export size: $(wc -l < /tmp/datev-vnd-dt.csv) lines"
 

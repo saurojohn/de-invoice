@@ -88,7 +88,7 @@ assert_eq "ER-RICHTIG paid" "$(paid "$E2")" "$Y-06-02"
 assert_eq "ER-FALSCH still open" "$(paid "$E1")" "-"
 assert_eq "owed: ER-FALSCH only" "$(owed)" "119"
 curl -sS -o /tmp/t444.csv -H "x-user-id: $U" -H "x-company-id: $C" \
-  "$API/api/v1/reports/datev-export?companyId=$C&startDate=$Y-01-01&endDate=$Y-12-31"
+  "$API/api/v1/reports/datev-export?companyId=$C&startDate=$Y-01-01&endDate=$(date +%Y)-12-31"
 assert_eq "DATEV: the Kreditor owes ER-FALSCH only" "$(datev_balance /tmp/t444.csv 70001)" "-119.00"
 AS POST "/api/v1/bank-statements/$SID/transactions/$TXN/book-expense?companyId=$C" '{"expenseId":"'$E1'"}'
 assert_eq "booked once: a second booking is refused" "$STATUS" "400"

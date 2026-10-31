@@ -82,7 +82,7 @@ test.describe('Tier 152 — Manual Mahnung send', () => {
       `INSERT INTO "Invoice" (id, "companyId", "customerId", "invoiceNumber", "sequencePrefix", "sequenceYear", "sequenceNumber", type, status, "issueDate", "dueDate", subtotal, "totalVat", total, currency, language, "createdAt", "updatedAt")`,
       `VALUES`,
       `  ('${OVERDUE_INVOICE_ID}', '${COMPANY_ID}', '${BWA_CUSTOMER_ID}', 'TIER152-OVERDUE', 'TIER152-', 2026, 1, 'INV', 'sent', '2026-06-01', '2026-07-01', 200, 38, 238, 'EUR', 'de-DE', NOW(), NOW()),`,
-      `  ('${FUTURE_INVOICE_ID}', '${COMPANY_ID}', '${BWA_CUSTOMER_ID}', 'TIER152-FUTURE', 'TIER152-', 2026, 2, 'INV', 'sent', '2026-08-01', '2026-12-01', 100, 19, 119, 'EUR', 'de-DE', NOW(), NOW())`,
+      `  ('${FUTURE_INVOICE_ID}', '${COMPANY_ID}', '${BWA_CUSTOMER_ID}', 'TIER152-FUTURE', 'TIER152-', 2026, 2, 'INV', 'sent', '2026-08-01', '2099-12-01', 100, 19, 119, 'EUR', 'de-DE', NOW(), NOW())`,
       `ON CONFLICT (id) DO NOTHING;`,
     ].join('\n')
     // Write the SQL to a temp file and pipe it through

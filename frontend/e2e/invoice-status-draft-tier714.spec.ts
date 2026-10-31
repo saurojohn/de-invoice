@@ -27,7 +27,7 @@ test("an issued invoice of an earlier day offers no „Entwurf“; today's untou
   const issue = async (issueDate: string) => {
     const inv = await (await request.post(`${API}/api/v1/invoices?companyId=${companyId}`, {
       headers: H,
-      data: { customerId: customer.id, issueDate, dueDate: "2026-12-31", items: [{ description: "Leistung", quantity: 1, unit: "Stk", unitPrice: 100, vatRate: 0.19 }] },
+      data: { customerId: customer.id, issueDate, dueDate: "2099-12-31", items: [{ description: "Leistung", quantity: 1, unit: "Stk", unitPrice: 100, vatRate: 0.19 }] },
     })).json()
     expect((await request.put(`${API}/api/v1/invoices/${inv.id}/status?companyId=${companyId}`, { headers: H, data: { status: "sent" } })).status()).toBe(200)
     return inv.id as string

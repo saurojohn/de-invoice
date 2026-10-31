@@ -329,7 +329,7 @@ ON CONFLICT (id) DO UPDATE SET status = 'posted';
 -- fixture-survival lesson — 'BK-HIST-001' is a
 -- stable, dev-DB-cleanup-safe identifier.)
 INSERT INTO "Voucher" (id, "companyId", "voucherNumber", date, description, status, "createdAt")
-VALUES ('BK-HIST-001', '$COMPANY_ID', 'BK-HIST-001', '2026-01-15', 'Tier 49 VERTRIEB fixture', 'posted', NOW())
+VALUES ('BK-HIST-001', '$COMPANY_ID', 'BK-HIST-001', '$(date +%Y)-01-01', 'Tier 49 VERTRIEB fixture', 'posted', NOW())
 ON CONFLICT (id) DO UPDATE SET status = 'posted';
 
 -- Tier 347: 4960 is NOT in seedDefaultAccounts() (Tier 467: SKR03 —

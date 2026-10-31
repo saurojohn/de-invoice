@@ -97,12 +97,12 @@ test.beforeAll(async ({ request }) => {
     : cdata.data ?? cdata.items ?? cdata.customers ?? []
   const cust = customers[0]
   if (!cust) return
-  // Create a single July invoice (119€ gross, 19% VAT)
-  // and a single July expense (50€) for VERTRIEB so
-  // the monthly report returns ≥1 row.
-  const day = 15
-  const issueDate = new Date(Date.UTC(year, 6, day, 12, 0, 0)).toISOString()
-  const dueDate = new Date(Date.UTC(year, 7, day, 12, 0, 0)).toISOString()
+  // Create a single January invoice (119€ gross, 19% VAT) for VERTRIEB so the
+  // monthly report returns ≥1 row. January, as it is the one month of the
+  // current year that is past on every day of it: July was refused as a date
+  // in the future from January to June.
+  const issueDate = new Date(Date.UTC(year, 0, 1, 12, 0, 0)).toISOString()
+  const dueDate = new Date(Date.UTC(year, 1, 15, 12, 0, 0)).toISOString()
   const inv = await request.post(
     `http://localhost:3001/api/v1/invoices?companyId=${companyId}`,
     {
@@ -156,12 +156,12 @@ test.describe("Tier 45 — Cost-Center Monthly drill-in", () => {
   }) => {
     await setupAuth(context, page)
     const year = new Date().getFullYear()
-    // Use a month that always has data — the prior
+    // Use the month of the invoice above — the prior
     // tier e2es (29/38/41 etc.) seed July invoices
     // (5 in 2026). A direct hit on a known-empty
     // month like 1 in 2026 would render an empty
     // report and skip the rows/heading assertions.
-    const month = 7
+    const month = 1
 
     const reportPromise = page.waitForResponse(
       (r) =>
@@ -193,8 +193,7 @@ test.describe("Tier 45 — Cost-Center Monthly drill-in", () => {
     ).toBeVisible({ timeout: 10_000 })
 
     // At least one cc-monthly-row should be rendered
-    // (July always has residual data from prior tier
-    // tests).
+    // (the invoice of beforeAll).
     await expect(
       page.locator('[data-testid="cc-monthly-row"]').first(),
     ).toBeVisible({ timeout: 10_000 })

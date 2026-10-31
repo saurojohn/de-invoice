@@ -166,12 +166,12 @@ test.describe("Tier 174 — Postgres SEQUENCE for invoice numbering", () => {
     // The number is INV-2026-NNNNNN (6-digit zero-pad). Tier 172's k6
     // left some higher numbers in the DB, so we just assert the
     // structural pattern — not the absolute value.
-    expect(body.invoiceNumber).toMatch(/^INV-2026-\d{6}$/)
+    expect(body.invoiceNumber).toMatch(new RegExp(`^INV-${new Date().getFullYear()}-\\d{6}$`))
     // Tier 174 stamps the sequence metadata on the row. The old
     // gap-fill code left sequenceNumber=null. If these come back
     // null the migration is incomplete.
     expect(body.sequencePrefix).toBe("INV")
-    expect(body.sequenceYear).toBe(2026)
+    expect(body.sequenceYear).toBe(new Date().getFullYear())
     expect(typeof body.sequenceNumber).toBe("number")
     expect(body.sequenceNumber).toBeGreaterThan(0)
   })
@@ -315,10 +315,10 @@ test.describe("Tier 174 — Postgres SEQUENCE for invoice numbering", () => {
     )
     expect(cnRes.status(), `CN create failed: ${await cnRes.text()}`).toBe(201)
     const cn = await cnRes.json()
-    expect(cn.invoiceNumber).toMatch(/^CN-2026-\d+$/)
+    expect(cn.invoiceNumber).toMatch(new RegExp(`^CN-${new Date().getFullYear()}-\\d+$`))
     // CN should be in its own counter (sequencePrefix=CN), not
     // collide with the INV counter.
     expect(cn.sequencePrefix).toBe("CN")
-    expect(cn.sequenceYear).toBe(2026)
+    expect(cn.sequenceYear).toBe(new Date().getFullYear())
   })
 })

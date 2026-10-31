@@ -148,8 +148,8 @@ test.describe("Tier 183 — frontend GoBD month packager button", () => {
     // Disclosure (GoBD-2026-07-CompanyName-…zip)
     // and the JS-side fallback (GoBD-2026-07.zip).
     // Both forms contain "GoBD-2026-07".
-    expect(suggested, `expected GoBD-2026-07*.zip, got: ${suggested}`).toMatch(
-      /GoBD-2026-07/,
+    expect(suggested, `expected GoBD-<year>-07*.zip, got: ${suggested}`).toMatch(
+      new RegExp(`GoBD-${new Date().getFullYear()}-07`),
     )
     expect(suggested, `filename should end in .zip, got: ${suggested}`).toMatch(
       /\.zip$/,

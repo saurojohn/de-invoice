@@ -86,7 +86,7 @@ rm -f "$TMP1"
 # ───── 2. Create customer-level pause ─────
 echo
 note "=== 2. create customer-level pause ==="
-BODY="{\"customerId\":\"$CUST_ID\",\"reason\":\"Tier64-Active-1\",\"pausedFrom\":\"2026-07-18\",\"pausedUntil\":\"2026-12-31\"}"
+BODY="{\"customerId\":\"$CUST_ID\",\"reason\":\"Tier64-Active-1\",\"pausedFrom\":\"2026-07-18\",\"pausedUntil\":\"2099-12-31\"}"
 api_post "/api/v1/mahnungspausen?companyId=$COMPANY_ID" "$BODY"
 assert_eq "create 201" "$STATUS" "201"
 TMP2=$(mktemp); stash "$TMP2"
@@ -167,7 +167,7 @@ fi
 rm -f "$TMP_BEFORE"
 
 # Create the invoice-level pause
-BODY="{\"invoiceId\":\"$INV_ID\",\"reason\":\"Tier64-Invoice-1\",\"pausedFrom\":\"2026-07-18\",\"pausedUntil\":\"2026-12-31\"}"
+BODY="{\"invoiceId\":\"$INV_ID\",\"reason\":\"Tier64-Invoice-1\",\"pausedFrom\":\"2026-07-18\",\"pausedUntil\":\"2099-12-31\"}"
 api_post "/api/v1/mahnungspausen?companyId=$COMPANY_ID" "$BODY"
 assert_eq "invoice-pause 201" "$STATUS" "201"
 TMP9=$(mktemp); stash "$TMP9"
@@ -206,12 +206,12 @@ rm -f "$TMP10"
 # ───── 11. PATCH extends pausedUntil ─────
 echo
 note "=== 11. PATCH extends pausedUntil ==="
-BODY="{\"pausedUntil\":\"2027-06-30\"}"
+BODY="{\"pausedUntil\":\"2098-06-30\"}"
 api_patch "/api/v1/mahnungspausen/$PAUSE1_ID?companyId=$COMPANY_ID" "$BODY"
 assert_eq "patch 200" "$STATUS" "200"
 TMP11=$(mktemp); stash "$TMP11"
 NEW_UNTIL=$(jsf pausedUntil "$TMP11")
-[[ "$NEW_UNTIL" == "2027-06-30T00:00:00.000Z" ]] && pass "pausedUntil updated" || fail "expected 2027-06-30, got $NEW_UNTIL"
+[[ "$NEW_UNTIL" == "2098-06-30T00:00:00.000Z" ]] && pass "pausedUntil updated" || fail "expected 2098-06-30, got $NEW_UNTIL"
 rm -f "$TMP11"
 
 # ───── 12. PATCH on cancelled pause → 400 ─────
@@ -222,7 +222,7 @@ api_delete "/api/v1/mahnungspausen/$PAUSE2_ID?companyId=$COMPANY_ID"
 assert_eq "delete 200" "$STATUS" "200"
 
 # Now PATCH the cancelled one
-BODY="{\"pausedUntil\":\"2027-01-01\"}"
+BODY="{\"pausedUntil\":\"2097-01-01\"}"
 api_patch "/api/v1/mahnungspausen/$PAUSE2_ID?companyId=$COMPANY_ID" "$BODY"
 assert_eq "patch cancelled 400" "$STATUS" "400"
 

@@ -28,7 +28,7 @@ AS() { # method path [body]
 AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde AG\",\"type\":\"business\",\"address\":{\"street\":\"Ring 2\",\"postalCode\":\"80331\",\"city\":\"München\",\"country\":\"DE\"}}"
 K=$(json_field "$BODY" id)
 inv() { # unitPrice extra-json [draft] → I, N
-  AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"$TODAY\",\"dueDate\":\"2026-12-31\"$2,\"items\":[{\"description\":\"Leistung\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$1,\"vatRate\":0.19}]}"
+  AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"$TODAY\",\"dueDate\":\"2099-12-31\"$2,\"items\":[{\"description\":\"Leistung\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$1,\"vatRate\":0.19}]}"
   I=$(json_field "$BODY" id); N=$(json_field "$BODY" invoiceNumber)
   [[ "${3:-}" == "draft" ]] || AS PUT "/api/v1/invoices/$I/status?companyId=$C" '{"status":"sent"}'
 }

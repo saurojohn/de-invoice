@@ -87,7 +87,7 @@ test.describe("P&L tab — /dashboard/reports", () => {
     await page.getByTestId("tab-pnl").click()
     await expect(page.getByTestId("pnl-tab")).toBeVisible({ timeout: 30_000 })
     // 12 month rows
-    const rows = page.locator("[data-testid^='pnl-row-2026-']")
+    const rows = page.locator(`[data-testid^='pnl-row-${new Date().getFullYear()}-']`)
     await expect(rows).toHaveCount(12, { timeout: 15_000 })
     // YTD row
     await expect(page.getByTestId("pnl-ytd-row")).toBeVisible()
@@ -105,7 +105,7 @@ test.describe("P&L tab — /dashboard/reports", () => {
     // Read each monthly operating result from the
     // 5th cell of each row, then read the YTD.
     const monthlyCells = await page
-      .locator("[data-testid^='pnl-row-2026-'] td:nth-child(5)")
+      .locator(`[data-testid^='pnl-row-${new Date().getFullYear()}-'] td:nth-child(5)`)
       .allTextContents()
     // Strip currency formatting and sum.
     const parseEur = (s: string) => {
@@ -115,7 +115,8 @@ test.describe("P&L tab — /dashboard/reports", () => {
     const sum = monthlyCells.reduce((s, c) => s + parseEur(c), 0)
     const ytdText = await page.getByTestId("pnl-ytd-result").textContent()
     const ytd = parseEur(ytdText || "")
-    expect(Math.abs(sum - ytd)).toBeLessThan(1)
+    // The page shows whole euros: twelve months, each up to 50 cents off
+    expect(Math.abs(sum - ytd)).toBeLessThanOrEqual(6)
   })
 
   test("changing year + recompute reloads the table", async ({ page }) => {

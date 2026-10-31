@@ -161,7 +161,7 @@ DEFAULT_YEAR=$(curl -sS \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['year'])")
 # 2026 in our env → default = 2025
-assert_eq "default year is 2025" "$DEFAULT_YEAR" "2025"
+assert_eq "default year is the last one" "$DEFAULT_YEAR" "$(($(date +%Y) - 1))"
 
 # ── 10. Missing companyId → 400 ──
 echo

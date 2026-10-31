@@ -11,7 +11,8 @@ const API = "http://localhost:3001"
 
 test("an expense entered after submission flags the filing until it is corrected", async ({ page, request }) => {
   const tag = `t449-${Date.now()}`
-  const year = new Date().getFullYear()
+  // Last year: from January to the month after, this year has nothing to submit yet
+  const year = new Date().getFullYear() - 1
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {
     data: { email: `${tag}@example.test`, password: "Tier449-e2e", companyName: `${tag} GmbH` },
   })).json()
@@ -29,7 +30,7 @@ test("an expense entered after submission flags the filing until it is corrected
   // refused until the period is released for the correction.
   const refused = await request.post(`${API}/api/v1/ustva/expenses?${q}`, {
     headers: H,
-    data: { description: tag, invoiceDate: `${year}-01-15`, netAmount: 100, vatRate: 0.19, vatAmount: 19, grossAmount: 119 },
+    data: { description: tag, invoiceDate: `${year}-01-01`, netAmount: 100, vatRate: 0.19, vatAmount: 19, grossAmount: 119 },
   })
   expect(refused.status(), "expense into the locked period").toBe(400)
   const rel = await request.put(`${API}/api/v1/ustva/filings/${filing.id}/release?${q}`, { headers: H, data: { released: true } })
@@ -37,7 +38,7 @@ test("an expense entered after submission flags the filing until it is corrected
   // …then an expense of that year turns up.
   const exp = await request.post(`${API}/api/v1/ustva/expenses?${q}`, {
     headers: H,
-    data: { description: tag, invoiceDate: `${year}-01-15`, netAmount: 100, vatRate: 0.19, vatAmount: 19, grossAmount: 119 },
+    data: { description: tag, invoiceDate: `${year}-01-01`, netAmount: 100, vatRate: 0.19, vatAmount: 19, grossAmount: 119 },
   })
   expect(exp.status(), "expense").toBe(201)
 

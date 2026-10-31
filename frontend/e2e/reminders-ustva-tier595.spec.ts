@@ -62,9 +62,9 @@ test("the reminders page and the UStVA sum row", async ({ page, request }) => {
   const [y, m] = [d.getFullYear(), d.getMonth() + 1]
   const kz = await (await request.get(`${API}/api/v1/ustva/compute?${q}&year=${y}&month=${m}`, { headers: H })).json()
   expect(kz.umsatzsteuer, "fixture: the month's output VAT is 380 + 190 (§ 13b)").toBe(570)
-  await page.goto("/dashboard/accounting/ustva")
+  // the invoice's month: forty days ago, in January that is last year
+  await page.goto(`/dashboard/accounting/ustva?year=${y}&month=${m}`)
   await page.waitForLoadState("networkidle")
-  // the page opens on the current period; choose the year so the invoice's month is included
   const sum = page.getByTestId("ustva-sales-vat-sum")
   await expect(sum).toBeVisible({ timeout: 60_000 })
   const shown = (await sum.innerText()).replace(/[^\d,]/g, "")

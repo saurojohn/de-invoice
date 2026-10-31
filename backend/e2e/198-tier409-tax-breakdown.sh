@@ -17,6 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 login
 TAG="e2e-198-$(date +%s%N | cut -c1-13)"
+YR=$(date +%Y) # the number takes the year it is issued in, not the invoice date's
 TODAY=$(date +%F)
 sql() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1" 2>/dev/null; }
 
@@ -66,8 +67,8 @@ curl -sS -o "$SCRIPT_DIR/../.t198.csv" "$API/api/v1/reports/datev-export?company
 # with DATEV's tax key (3 = 19 %, 2 = 7 %); DATEV splits the tax off itself.
 ROWS=$(datev_rows "$SCRIPT_DIR/../.t198.csv" | awk -F'\t' 'index($8, "Rechnung ") {print $1":"$4":"$5":"($7==""?"-":$7)}' | sort | tr '\n' ' ')
 note "invoice rows: $ROWS"
-[[ "$ROWS" == *"INV-2026-000001:8400:1071.00:3"* ]] && pass "A: 1 071 gross on 8400, key 3 — after the discount (was 1 000 on 8125, key 0)" || fail "A row: $ROWS"
-[[ "$ROWS" == *"INV-2026-000002:8400:119.00:3"* && "$ROWS" == *"INV-2026-000002:8300:107.00:2"* ]] \
+[[ "$ROWS" == *"INV-$YR-000001:8400:1071.00:3"* ]] && pass "A: 1 071 gross on 8400, key 3 — after the discount (was 1 000 on 8125, key 0)" || fail "A row: $ROWS"
+[[ "$ROWS" == *"INV-$YR-000002:8400:119.00:3"* && "$ROWS" == *"INV-$YR-000002:8300:107.00:2"* ]] \
   && pass "B: 19 % part on 8400 key 3, 7 % part on 8300 key 2 (was: all on 8125, key 0)" || fail "B rows: $ROWS"
 assert_eq "nothing domestic lands on the tax-free intra-EU account 8125" \
   "$(datev_rows "$SCRIPT_DIR/../.t198.csv" | awk -F'\t' '$4=="8125"' | wc -l | tr -d ' ')" "0"

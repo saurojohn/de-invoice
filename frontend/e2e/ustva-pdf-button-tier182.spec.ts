@@ -223,8 +223,8 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
     await btn.click()
     const download = await downloadPromise
     const suggested = download.suggestedFilename()
-    expect(suggested, `expected UStVA-2026-07.pdf, got: ${suggested}`).toMatch(
-      /UStVA-2026-07\.pdf/,
+    expect(suggested, `expected UStVA-<year>-07.pdf, got: ${suggested}`).toMatch(
+      new RegExp(`UStVA-${new Date().getFullYear()}-07\\.pdf`),
     )
   })
 

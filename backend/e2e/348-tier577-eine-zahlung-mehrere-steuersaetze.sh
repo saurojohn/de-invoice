@@ -86,7 +86,7 @@ book "${T[2]}" "$A7" 0.07 7.5
 assert_eq "a second debit of the same amount: the invoice is paid, refused" "$STATUS" "400"
 
 note "=== DATEV ==="
-curl -sS -o "$MT.csv" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/reports/datev-export?companyId=$C&startDate=$Y-01-01&endDate=$Y-12-31"
+curl -sS -o "$MT.csv" -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/reports/datev-export?companyId=$C&startDate=$Y-01-01&endDate=$(date +%Y)-12-31"
 KRED=$(datev_rows "$MT.csv" | awk -F'\t' '$1 ~ /ER-MIX/ || $2 ~ /ER-MIX/ { print ($3 ~ /^7/ ? $3 : $4) }' | sort -u | head -1)
 assert_eq "one payment row for the invoice, of the whole amount" "$(datev_rows "$MT.csv" | awk -F'\t' -v k="$KRED" '$4 == k && $2 ~ /ER-MIX/ && $3 !~ /^7/ { n++; s += $5 } END { printf "%d %.2f\n", n, s }')" "1 352.64"
 # the Kreditor still owes ER-BAR's 7 % part (107) and ER-ANDERS (59.50); ER-MIX is settled

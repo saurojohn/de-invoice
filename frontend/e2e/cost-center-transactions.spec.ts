@@ -72,11 +72,10 @@ test.describe("Tier 46 — Cost-Center Transactions drill-in", () => {
     await setupAuth(context, page)
     const year = new Date().getFullYear()
 
-    // June has the most residual data — 144 expense
-    // receipts from prior tier e2es (T13/T19/T29/etc.)
-    // and they're all on null-cc.
-    const month = 6
-    const cc = "Nicht zugewiesen"
+    // January of the current year: the seed's VERTRIEB voucher and the invoice
+    // of cost-center-monthly.spec.ts. June was empty until it had come.
+    const month = 1
+    const cc = "VERTRIEB"
 
     const reportPromise = page.waitForResponse(
       (r) =>
@@ -110,10 +109,10 @@ test.describe("Tier 46 — Cost-Center Transactions drill-in", () => {
     // differs across DE/EN/ZH.
     expect(
       heading || "",
-    ).toMatch(/Nicht zugewiesen|Not assigned|未分配|{costCenter}/)
+    ).toMatch(/VERTRIEB|{costCenter}/)
 
     // The transactions table renders at least one row
-    // (June always has data).
+    // (January always has data).
     await expect(
       page.locator('[data-testid="cc-tx-row"]').first(),
     ).toBeVisible({ timeout: 10_000 })
@@ -137,15 +136,14 @@ test.describe("Tier 46 — Cost-Center Transactions drill-in", () => {
     const year = new Date().getFullYear()
 
     // Visit the monthly page first to establish the
-    // data context. We use June (heavy residual
-    // data).
-    await page.goto(`/dashboard/cost-center-report/${year}/6`, {
+    // data context. We use January, as above.
+    await page.goto(`/dashboard/cost-center-report/${year}/1`, {
       waitUntil: "domcontentloaded",
     })
     await page.waitForResponse(
       (r) =>
         r.url().includes("/api/v1/reports/cost-center-monthly") &&
-        r.url().includes(`month=6`),
+        r.url().includes(`month=1`),
       { timeout: 15_000 },
     )
 
@@ -161,7 +159,7 @@ test.describe("Tier 46 — Cost-Center Transactions drill-in", () => {
     const txPromise = page.waitForResponse(
       (r) =>
         r.url().includes("/api/v1/reports/cost-center-transactions") &&
-        r.url().includes(`month=6`),
+        r.url().includes(`month=1`),
       { timeout: 15_000 },
     )
 
@@ -172,7 +170,7 @@ test.describe("Tier 46 — Cost-Center Transactions drill-in", () => {
     // space, like "Nicht zugewiesen").
     await expect(page).toHaveURL(
       new RegExp(
-        `/dashboard/cost-center-report/${year}/6/${encodeURIComponent(expectedCc).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        `/dashboard/cost-center-report/${year}/1/${encodeURIComponent(expectedCc).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
       ),
       { timeout: 15_000 },
     )
@@ -189,7 +187,7 @@ test.describe("Tier 46 — Cost-Center Transactions drill-in", () => {
     const year = new Date().getFullYear()
 
     await page.goto(
-      `/dashboard/cost-center-report/${year}/6/${encodeURIComponent("Nicht zugewiesen")}`,
+      `/dashboard/cost-center-report/${year}/1/${encodeURIComponent("Nicht zugewiesen")}`,
       { waitUntil: "domcontentloaded" },
     )
     await page.waitForResponse(
@@ -203,7 +201,7 @@ test.describe("Tier 46 — Cost-Center Transactions drill-in", () => {
       .click()
 
     await expect(page).toHaveURL(
-      new RegExp(`/dashboard/cost-center-report/${year}/6$`),
+      new RegExp(`/dashboard/cost-center-report/${year}/1$`),
       { timeout: 10_000 },
     )
   })

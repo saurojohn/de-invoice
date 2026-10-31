@@ -82,7 +82,7 @@ note "=== 4b. EÜR files zero-VAT revenue by what it is ==="
 AS POST "/api/v1/invoices/$IGL/payments?companyId=$C" '{"amount":1000,"paymentDate":"'$TODAY'","paymentMethod":"bank_transfer"}'
 assert_status 201 "fixture: the igL invoice paid"
 EUR_LINE() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(next((l['amount'] for l in d['einnahmen'] if l['kennziffer']==sys.argv[2]),'-'))" "$BODY" "$1"; }
-AS GET "/api/v1/accounting/euer?companyId=$C&year=2026"
+AS GET "/api/v1/accounting/euer?companyId=$C&year=${TODAY:0:4}"
 assert_eq "igL revenue on the tax-free line 4170" "$(EUR_LINE 4170)" "1000"
 assert_eq "…not on the §19 line 4120" "$(EUR_LINE 4120)" "0"
 # A company that IS a Kleinunternehmer: its zero-VAT revenue is §19 revenue.

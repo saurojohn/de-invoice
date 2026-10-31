@@ -93,7 +93,7 @@ test.describe("GoBD-Archiv — /dashboard/accounting", () => {
     // Set the year to 2026 (current year — has data
     // in the dev DB; the default = previous year
     // is 2025 which is empty in our seed).
-    await page.getByTestId("gobd-year").fill("2026")
+    await page.getByTestId("gobd-year").fill(String(new Date().getFullYear()))
     await page.getByTestId("gobd-recompute").click()
     await expect(page.getByTestId("gobd-invoice-count")).toBeVisible({
       timeout: 15_000,
@@ -134,7 +134,7 @@ test.describe("GoBD-Archiv — /dashboard/accounting", () => {
       timeout: 30_000,
     })
     // Set year to 2026
-    await page.getByTestId("gobd-year").fill("2026")
+    await page.getByTestId("gobd-year").fill(String(new Date().getFullYear()))
     await page.getByTestId("gobd-recompute").click()
     // The count should be different (2025 has fewer
     // invoices than 2026 in the dev DB).

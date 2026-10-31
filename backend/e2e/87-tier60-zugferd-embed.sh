@@ -213,7 +213,7 @@ checks = {
   "no invented header elements":   "<ram:TestIndicator>false" not in data and "SupplierTradeParty" not in data,
   "has supplier name":             "SH Leder" in data,
   "has issue date (format 102)":   '<ram:IssueDateTime>' in data and 'format="102"' in data,
-  "has invoice number":            "INV-2026" in data,
+  "has invoice number":            "INV-20" in data,
   # Tier 693: a single name, Alternative for EN 16931 (Factur-X 1.0) — was Source (+ an array [Source Data])
   "AFRelationship = Alternative":  names[1].get_object().get('/AFRelationship') == '/Alternative',
   "MIME type text/xml":            ref['/EF']['/F'].get_object().get('/Subtype') == '/text/xml',

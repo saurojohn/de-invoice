@@ -75,6 +75,8 @@ AS GET "/api/v1/invoices?companyId=$C&status=overdue&pageSize=50"
 assert_eq "the list's „Überfällig“: the two" "$(P "sorted(r['id'] for r in d['data']) == sorted(['$PAST', '$PART'])")" "True"
 pay "$PART" 690
 assert_eq "the rest paid: bezahlt" "$(status_of "$PART")" "paid"
+# It counts this year's: in another year than the fixtures' they move along.
+q "update \"Invoice\" set \"issueDate\"='$(date +%Y)-01-01' where \"companyId\"='$C' and \"issueDate\" < '$(date +%Y)-01-01'" >/dev/null
 AS GET "/api/v1/reports/dashboard?companyId=$C"
 assert_eq "the dashboard counts the 5 issued invoices, not the credit note (was 6)" "$(P "d['ytd']['countInvoices']")" "5"
 

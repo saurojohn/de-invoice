@@ -12,7 +12,8 @@ const API = "http://localhost:3001"
 
 test("a submitted return's payment is recorded from the filings list", async ({ page, request }) => {
   const tag = `t483-${Date.now()}`
-  const year = new Date().getFullYear()
+  // Last year: from January to the month after, this year has nothing to submit yet
+  const year = new Date().getFullYear() - 1
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {
     data: { email: `${tag}@example.test`, password: "Tier483-e2e", companyName: `${tag} GmbH` },
   })).json()
@@ -23,7 +24,7 @@ test("a submitted return's payment is recorded from the filings list", async ({ 
 
   const exp = await request.post(`${API}/api/v1/ustva/expenses?${q}`, {
     headers: H,
-    data: { description: tag, invoiceDate: `${year}-01-15`, netAmount: 100, vatRate: 0.19, vatAmount: 19, grossAmount: 119 },
+    data: { description: tag, invoiceDate: `${year}-01-01`, netAmount: 100, vatRate: 0.19, vatAmount: 19, grossAmount: 119 },
   })
   expect(exp.status(), "expense").toBe(201)
   const data = await (await request.get(`${API}/api/v1/ustva/compute?${q}&year=${year}&month=1`, { headers: H })).json()
