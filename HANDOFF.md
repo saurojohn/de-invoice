@@ -2669,13 +2669,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 754b — CI green for Tiers 753 and 754
+
+Run 41230596052 (commit 60bdf001): backend **471 passed / 0 failed / 1 skipped**, Playwright **1113 passed, 0 flaky, no retry**, no Traceback and no `FATAL`. Open with the owner: a look at a generated Word file in Word; the launch list (Hetzner IP and SSH key, the old token, Bundesland, Mein ELSTER, [Auszufüllen], the 6 additive migrations on the dev database); the yearly list in Tier 752. Not begun: deleting a closed company after its period.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 754 — every Playwright spec takes the address from E2E_API_URL
 
 The owner, 31.10.2026: „先做第 1 项，再做第 2 项". 114 specs named `http://localhost:3001`, so `pw.sh` rightly refused them and they could only run in CI; Tier 752 had to move the port with a temporary edit, after a run without the guard had tried it.
 
 - All of them now read `E2E_API_URL`; the address is written once per spec, as its fallback, so CI behaves as before. 203 specs in all name the fallback, and none names the port elsewhere: spec `472-tier754-playwright-kennt-keinen-festen-port.sh` holds that.
 - Two traps of the change. Code in `page.evaluate` runs in the browser and does not see a module constant (`mandant-switcher`, `webhooks`: the address is now passed in; 472 holds that too). A regular expression with the host only asked the frontend's address: `ebilanz`, `voucher-correct*` now check the path or `new URL(API).host`.
-- Locally, on the used `tmp-ci-pg`: 569 passed, 22 failed, 0 connections refused, none to :3001. Of the 22, two were the trap above. The rest are the seed company's state or crons being off locally: `credit-limit-warning`, `customer-email-history`, `customer-tag-filter`, `invoice-duplicate-check`, `ust-suggestion` passed on a freshly seeded database in Tier 752 (the database holds three customers called „BWA Test Kunde" by now), `admin-ops` needs its job. So a local run is meaningful on a rebuilt database.
+- Locally, on the used `tmp-ci-pg`: 569 passed, 22 failed, 0 connections refused, none to :3001. Of the 22, two were the trap above. The rest are the seed company's state or crons being off locally: `credit-limit-warning`, `customer-email-history`, `customer-tag-filter`, `ust-suggestion` passed on a freshly seeded database in Tier 752 (the database holds three customers called „BWA Test Kunde" by now), `invoice-duplicate-check` and `admin-ops` pass in CI, the latter needs its job. So a local run is meaningful on a rebuilt database.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 753 — a half year whose Basiszinssatz is not in the table yet
 
