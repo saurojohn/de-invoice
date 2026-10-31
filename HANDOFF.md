@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 749c — CI green for Tiers 749 and 749b
+
+Run 41145873980 (commit 65ba92e3): backend **468 passed / 0 failed / 1 skipped**, Playwright **1111 passed, 0 flaky, no retry**. Open with the owner: the DTD beside `index.xml` (download it, or leave it out), a look at a generated Word file in Word.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 749b — the day is Germany's, also in the hour after midnight
 
 CI run 41136273199 (Tiers 748 and 747b, commit 91536051): green, 466 passed / 0 failed / 1 skipped, Playwright 1111 passed, no retry. CI run 41140816615 (Tier 749, commit 813c79ad): red, 465 / 2 / 1, Playwright 1111. Neither failure was Tier 749's: the run reached specs 458 and 464 at 23:18 UTC, 00:18 on 31.10. in Germany, and both have dates. The specs were right (CI has `TZ: Europe/Berlin`), the code had the UTC day.
