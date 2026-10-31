@@ -182,6 +182,11 @@ export class UstvaDataDto {
   @IsOptional() @IsArray()
   kennzahlen?: unknown[]
 
+  // Tier 752: comes back with the computed data the page saves
+  @IsOptional()
+  @IsString()
+  formNotice?: string | null
+
   @ValidateNested()
   @Type(() => UstvaVorsteuerDto)
   vorsteuer!: UstvaVorsteuerDto

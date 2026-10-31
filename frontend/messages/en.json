@@ -2245,7 +2245,7 @@
   "ustva": {
     "ossNote": "Sales to consumers in other EU states at the rate of those states: net {net} — included in Kz 45, as a base only. Their tax ({vat}) is not in this return; it is declared through the OSS scheme at the BZSt (§ 18j UStG), see Reports → OSS.",
     "title": "UStVA — VAT Advance Return",
-    "subtitle": "Tax office filing (UStVA 2026) — select period",
+    "subtitle": "Tax office filing (UStVA) — select period",
     "period": "Filing period",
     "yearly": "Yearly",
     "quarterly": "Quarterly",

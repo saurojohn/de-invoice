@@ -15,7 +15,7 @@ import { taxedAbroad } from './oss-scope';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
-import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
+import { formYearNotice, KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 import { privateCarUse } from '../company-car/private-use';
 import { nonDeductibleGiftIds } from '../accounting/gifts';
 import { assertNotFuture, businessDayIso } from '../../common/business-date';
@@ -131,6 +131,8 @@ export interface UstvaData {
 
   /** Tier 417: the amounts under their USt 1 A 2026 Kennzahlen (ust-kennzahlen.ts) */
   kennzahlen?: KzEntry[];
+  /** Tier 752: set for a year later than the forms this was compared with */
+  formNotice?: string | null;
 }
 
 @Injectable()
@@ -581,6 +583,7 @@ export class UstvaService {
       }
     }
     result.kennzahlen = ustvaKennzahlen(result);
+    result.formNotice = formYearNotice(result.year);
     return result;
   }
 

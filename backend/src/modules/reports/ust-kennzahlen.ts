@@ -53,6 +53,17 @@ function byRate(d: UstvaData) {
   }
 }
 
+/**
+ * The year of the forms below. The forms change with the year, and the BMF
+ * publishes the next ones around the turn of it: a later period says so until
+ * they have been compared and this is raised.
+ */
+export const UST_FORM_YEAR = 2026;
+export const formYearNotice = (year: number): string | null =>
+  year > UST_FORM_YEAR
+    ? `Kennzahlen nach dem Vordruck ${UST_FORM_YEAR}; der Vordruck ${year} ist in diesem Programm noch nicht geprüft.`
+    : null;
+
 /** USt 1 A 2026 — Umsatzsteuer-Voranmeldung. */
 export function ustvaKennzahlen(d: UstvaData): KzEntry[] {
   const b = byRate(d)

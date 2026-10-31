@@ -2245,7 +2245,7 @@
   "ustva": {
     "ossNote": "Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz: netto {net} — in Kz 45 enthalten, nur als Bemessungsgrundlage. Ihre Steuer ({vat}) steht nicht in dieser Voranmeldung; sie wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG), siehe Berichte → OSS.",
     "title": "UStVA — Umsatzsteuervoranmeldung",
-    "subtitle": "Finanzamt-Anmeldung (UStVA 2026) — Voranmeldungszeitraum wählen",
+    "subtitle": "Finanzamt-Anmeldung (UStVA) — Voranmeldungszeitraum wählen",
     "period": "Voranmeldungszeitraum",
     "yearly": "Jahr",
     "quarterly": "Quartal",

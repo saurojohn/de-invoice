@@ -2,7 +2,7 @@ import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { UstvaData, UstvaService } from './ustva.service'
-import { sumUstva, ustjaKennzahlen } from './ust-kennzahlen'
+import { formYearNotice, sumUstva, ustjaKennzahlen } from './ust-kennzahlen'
 import PDFDocument from 'pdfkit'
 
 /**
@@ -206,7 +206,8 @@ export class UstjaService {
         'Summe der berechneten Monatswerte; maßgeblich ist das vom Finanzamt ' +
         'festgesetzte Soll einschließlich einer Sondervorauszahlung. Sonstige ' +
         'steuerfreie Umsätze sind nach ihrer Befreiungsvorschrift einer Kennzahl ' +
-        'zuzuordnen. Der Berater prüft die Werte vor der Übermittlung.',
+        'zuzuordnen. Der Berater prüft die Werte vor der Übermittlung.' +
+        (formYearNotice(year) ? ` ${formYearNotice(year)}` : ''),
     }
   }
 

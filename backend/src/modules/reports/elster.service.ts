@@ -43,7 +43,7 @@ import { BadRequestException } from '@nestjs/common';
 import { businessTodayIso } from '../../common/business-date'
 import { UstvaData } from './ustva.service';
 import { UstjaResult } from './ustja.service';
-import { KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
+import { formYearNotice, KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 
 /** Tier 734: the company as the data supplier (<DatenLieferant>). */
 export interface ElsterCompany {
@@ -211,7 +211,7 @@ export function generateUstvaAsciiPreview(input: ElsterUstvaExportInput): string
   if (Math.abs(kz83 - kz83Invoices) >= 0.005) {
     footer.unshift(`# Kz 83 wie ELSTER sie aus den Bemessungsgrundlagen in vollen Euro berechnet; nach der Steuer laut Rechnungen ${kz83Invoices.toFixed(2)} €.`);
   }
-  const text = fillInList('UStVA', 'USt 1 A 2026', company.name, steuernummer, data.periodLabel, entries, ['83'], footer);
+  const text = fillInList('UStVA', 'USt 1 A 2026', data.year, company.name, steuernummer, data.periodLabel, entries, ['83'], footer);
   // Tier 465: a corrected return — Kz 10 above the amounts.
   return input.berichtigt
     ? text.replace(/\n\n/, `\n\n${KZ10_LINE}   # Berichtigte Anmeldung (§ 153 AO)\n`)
@@ -226,6 +226,7 @@ export function generateUstvaAsciiPreview(input: ElsterUstvaExportInput): string
 function fillInList(
   what: string,
   form: string,
+  year: number,
   companyName: string,
   steuernummer: string,
   period: string,
@@ -235,6 +236,8 @@ function fillInList(
 ): string {
   const lines: string[] = [];
   lines.push(`# ${what} — Kennzahlen zur Übertragung in Mein ELSTER (Vordruck ${form})`);
+  const notice = formYearNotice(year);
+  if (notice) lines.push(`# Achtung: ${notice}`);
   lines.push(`# Keine amtliche Upload-Datei. Bemessungsgrundlagen werden im Formular in vollen Euro eingetragen;`);
   lines.push(`# die Steuer zu Kz 81/86/89/93 (bzw. 177/275/781/793) berechnet ELSTER selbst.`);
   lines.push(`# Firma:        ${companyName}`);
@@ -358,7 +361,7 @@ export function generateUstjaElsterXml(input: ElsterUstjaExportInput): string {
  */
 export function generateUstjaAsciiPreview(input: ElsterUstjaExportInput): string {
   const { data, steuernummer, companyName } = input
-  return fillInList('UStJA', 'USt 2 A 2026', companyName, steuernummer, data.periodLabel, ustjaEntries(data), [], [
+  return fillInList('UStJA', 'USt 2 A 2026', data.year, companyName, steuernummer, data.periodLabel, ustjaEntries(data), [], [
     `# Umsatzsteuer ${data.totals.umsatzsteuer.toFixed(2)} € − Vorsteuer ${data.totals.vorsteuer.toFixed(2)} € = verbleibende Umsatzsteuer ${data.totals.zahllast.toFixed(2)} €`,
     `# Vorauszahlungssoll (berechnet) ${data.totals.vorauszahlungssoll.toFixed(2)} € — maßgeblich ist das festgesetzte Soll`,
     `# ${data.counts.monthsWithData}/12 Monate mit Daten konsolidiert.`,

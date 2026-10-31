@@ -102,7 +102,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="py-8 text-center text-gray-500 dark:text-gray-400">
-        <p>© 2026 {t("common.appName")}. {t("home.footer")}</p>
+        <p>© {new Date().getFullYear()} {t("common.appName")}. {t("home.footer")}</p>
       </footer>
     </main>
   )

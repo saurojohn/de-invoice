@@ -32,6 +32,7 @@ interface UstvaData {
   reverseChargeSales?: number
   euServicesSales?: number
   nonTaxableOther?: number
+  formNotice?: string | null
   kennzahlen?: Array<{ kz: string; label: string; value: number; kind: "base" | "tax" | "amount"; tax?: number }>
   vorsteuer: {
     from19: number
@@ -848,6 +849,9 @@ function UstvaPageInner() {
                   <CardTitle>Kennzahlen (Vordruck USt 1 A 2026)</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  {data.formNotice && (
+                    <p className="mb-3 text-sm text-amber-800 dark:text-amber-300" data-testid="ustva-form-notice">{data.formNotice}</p>
+                  )}
                   <table className="w-full text-sm">
                     <tbody>
                       {data.kennzahlen

@@ -2245,7 +2245,7 @@
   "ustva": {
     "ossNote": "按目的国税率开给其他欧盟国家消费者的销售额：净额 {net} — 已计入 Kz 45，仅作为计税基础。其税额（{vat}）不在本期申报内，通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",
     "title": "UStVA — 增值税预申报",
-    "subtitle": "税务局申报 (UStVA 2026) — 选择申报期",
+    "subtitle": "税务局申报 (UStVA) — 选择申报期",
     "period": "申报期",
     "yearly": "年度",
     "quarterly": "季度",
