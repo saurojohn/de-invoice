@@ -178,6 +178,11 @@ function UstvaPageInner() {
     paidAt: "",
   })
   const [exForm, setExForm] = useState(emptyExpenseForm)
+  // Tier 755: on the current state, not this render's: the effect below sets VAT
+  // and gross after a keystroke, and a change right behind it wrote the old
+  // ones back (net 1 000, VAT 0,19, refused on saving). Seen on the production
+  // build only, whose renders leave that gap.
+  const patchExForm = (patch: Partial<ReturnType<typeof emptyExpenseForm>>) => setExForm((f) => ({ ...f, ...patch }))
   // Tier 582: further VAT rates of the same invoice (beyond the net / rate
   // above) — each a rate and a net amount; its VAT is net × rate.
   const [extraRates, setExtraRates] = useState<{ vatRate: string; netAmount: string }[]>([])
@@ -919,7 +924,7 @@ function UstvaPageInner() {
                         <input
                           type="date"
                           value={exForm.invoiceDate}
-                          onChange={(e) => setExForm({ ...exForm, invoiceDate: e.target.value })}
+                          onChange={(e) => patchExForm({ invoiceDate: e.target.value })}
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         />
                       </div>
@@ -929,7 +934,7 @@ function UstvaPageInner() {
                         </label>
                         <input
                           value={exForm.invoiceNumber}
-                          onChange={(e) => setExForm({ ...exForm, invoiceNumber: e.target.value })}
+                          onChange={(e) => patchExForm({ invoiceNumber: e.target.value })}
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         />
                       </div>
@@ -939,7 +944,7 @@ function UstvaPageInner() {
                         </label>
                         <select
                           value={exForm.supplierId}
-                          onChange={(e) => setExForm({ ...exForm, supplierId: e.target.value })}
+                          onChange={(e) => patchExForm({ supplierId: e.target.value })}
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         >
                           <option value="">—</option>
@@ -956,7 +961,7 @@ function UstvaPageInner() {
                         </label>
                         <input
                           value={exForm.description}
-                          onChange={(e) => setExForm({ ...exForm, description: e.target.value })}
+                          onChange={(e) => patchExForm({ description: e.target.value })}
                           data-testid="ustva-expense-description"
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         />
@@ -967,7 +972,7 @@ function UstvaPageInner() {
                         </label>
                         <input
                           value={exForm.category}
-                          onChange={(e) => setExForm({ ...exForm, category: e.target.value })}
+                          onChange={(e) => patchExForm({ category: e.target.value })}
                           placeholder="z.B. Material, Miete"
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         />
@@ -979,7 +984,7 @@ function UstvaPageInner() {
                           </label>
                           <input
                             value={exForm.giftRecipient || ""}
-                            onChange={(e) => setExForm({ ...exForm, giftRecipient: e.target.value })}
+                            onChange={(e) => patchExForm({ giftRecipient: e.target.value })}
                             title={t("ustva.giftRecipientHint")}
                             className="w-full px-2 py-1.5 border rounded text-sm"
                             data-testid="expense-gift-recipient"
@@ -994,7 +999,7 @@ function UstvaPageInner() {
                           </label>
                           <input
                             value={exForm.bewirtungAnlass || ""}
-                            onChange={(e) => setExForm({ ...exForm, bewirtungAnlass: e.target.value })}
+                            onChange={(e) => patchExForm({ bewirtungAnlass: e.target.value })}
                             className="w-full px-2 py-1.5 border rounded text-sm"
                             data-testid="expense-bewirtung-anlass"
                           />
@@ -1003,7 +1008,7 @@ function UstvaPageInner() {
                           </label>
                           <input
                             value={exForm.bewirtungTeilnehmer || ""}
-                            onChange={(e) => setExForm({ ...exForm, bewirtungTeilnehmer: e.target.value })}
+                            onChange={(e) => patchExForm({ bewirtungTeilnehmer: e.target.value })}
                             className="w-full px-2 py-1.5 border rounded text-sm"
                             data-testid="expense-bewirtung-teilnehmer"
                           />
@@ -1017,7 +1022,7 @@ function UstvaPageInner() {
                         <input
                           type="date"
                           value={exForm.paidAt}
-                          onChange={(e) => setExForm({ ...exForm, paidAt: e.target.value })}
+                          onChange={(e) => patchExForm({ paidAt: e.target.value })}
                           data-testid="ustva-expense-paid-at"
                           title={t("expenses.paidAtHint")}
                           className="w-full px-2 py-1.5 border rounded text-sm"
@@ -1031,7 +1036,7 @@ function UstvaPageInner() {
                           type="number"
                           step="0.01"
                           value={exForm.netAmount}
-                          onChange={(e) => setExForm({ ...exForm, netAmount: e.target.value })}
+                          onChange={(e) => patchExForm({ netAmount: e.target.value })}
                           data-testid="ustva-expense-net"
                           className="w-full px-2 py-1.5 border rounded text-sm text-right"
                         />
@@ -1042,7 +1047,7 @@ function UstvaPageInner() {
                         </label>
                         <select
                           value={exForm.vatRate}
-                          onChange={(e) => setExForm({ ...exForm, vatRate: e.target.value })}
+                          onChange={(e) => patchExForm({ vatRate: e.target.value })}
                           className="w-full px-2 py-1.5 border rounded text-sm"
                         >
                           <option value="0.19">19%</option>
@@ -1129,7 +1134,7 @@ function UstvaPageInner() {
                             type="checkbox"
                             checked={exForm.isIntraEU}
                             onChange={(e) =>
-                              setExForm({ ...exForm, isIntraEU: e.target.checked })
+                              patchExForm({ isIntraEU: e.target.checked })
                             }
                           />
                           igE (innergemeinschaftlicher Erwerb)
@@ -1139,7 +1144,7 @@ function UstvaPageInner() {
                             type="checkbox"
                             checked={exForm.isReverseCharge}
                             onChange={(e) =>
-                              setExForm({ ...exForm, isReverseCharge: e.target.checked })
+                              patchExForm({ isReverseCharge: e.target.checked })
                             }
                           />
                           Reverse Charge (§13b UStG)
@@ -1149,7 +1154,7 @@ function UstvaPageInner() {
                             type="checkbox"
                             checked={exForm.creditNote}
                             onChange={(e) =>
-                              setExForm({ ...exForm, creditNote: e.target.checked })
+                              patchExForm({ creditNote: e.target.checked })
                             }
                             data-testid="ustva-expense-credit-note"
                           />

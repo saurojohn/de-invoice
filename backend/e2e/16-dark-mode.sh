@@ -82,7 +82,8 @@ if [[ -z "$CSS_URL" ]]; then
   fail "could not find compiled CSS URL in page HTML"
 fi
 CSS=$(curl -sS "http://localhost:3100${CSS_URL}")
-HAS_DARK_VARIANT=$(echo "$CSS" | grep -cE ':where\(\.dark' || echo 0)
+# occurrences, not lines: the production build's CSS is one line (Tier 755)
+HAS_DARK_VARIANT=$(echo "$CSS" | grep -oE ':where\(\.dark' | wc -l | tr -d ' ')
 if [[ "$HAS_DARK_VARIANT" -gt 20 ]]; then
   echo "✓ Tailwind v4 .dark variant compiled (${HAS_DARK_VARIANT} selectors)"
 else

@@ -127,6 +127,8 @@ export default function TimeTrackingPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ ...BLANK })
+  // on the current state: an effect below sets the default rate after a change (Tier 755)
+  const patchForm = (patch: Partial<typeof BLANK>) => setForm((f) => ({ ...f, ...patch }))
   // the rate in the form is the default of the chosen customer / project until the user types one
   const [rateIsDefault, setRateIsDefault] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -602,7 +604,7 @@ export default function TimeTrackingPage() {
             <div className="grid gap-3 md:grid-cols-4">
               <label className="block text-sm">
                 <span className="block font-medium mb-1">{t("time.date")}</span>
-                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} data-testid="time-date" />
+                <Input type="date" value={form.date} onChange={(e) => patchForm({ date: e.target.value })} data-testid="time-date" />
               </label>
               <label className="block text-sm">
                 <span className="block font-medium mb-1">{t("time.customer")}</span>
@@ -640,7 +642,7 @@ export default function TimeTrackingPage() {
                 <span className="block font-medium mb-1">{t("time.duration")}</span>
                 <Input
                   value={form.duration}
-                  onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                  onChange={(e) => patchForm({ duration: e.target.value })}
                   placeholder="1:30"
                   data-testid="time-duration"
                   aria-invalid={form.duration !== "" && minutes === null}
@@ -654,7 +656,7 @@ export default function TimeTrackingPage() {
                 <Input
                   value={form.description}
                   maxLength={500}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  onChange={(e) => patchForm({ description: e.target.value })}
                   data-testid="time-description"
                 />
               </label>
@@ -665,7 +667,7 @@ export default function TimeTrackingPage() {
                   value={form.hourlyRate}
                   onChange={(e) => {
                     setRateIsDefault(false)
-                    setForm({ ...form, hourlyRate: e.target.value })
+                    patchForm({ hourlyRate: e.target.value })
                   }}
                   placeholder="90"
                   data-testid="time-rate"
@@ -676,7 +678,7 @@ export default function TimeTrackingPage() {
                 <input
                   type="checkbox"
                   checked={form.billable}
-                  onChange={(e) => setForm({ ...form, billable: e.target.checked })}
+                  onChange={(e) => patchForm({ billable: e.target.checked })}
                   data-testid="time-billable"
                 />
                 {t("time.billable")}
