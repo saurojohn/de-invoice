@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 751c — CI green for Tiers 750, 751 and 751b
+
+Run 41200783799 (commit e4177e12): backend **468 passed / 0 failed / 1 skipped**, Playwright **1112 passed, 0 flaky, no retry**, no Traceback and no `FATAL` in the log for the first time. Open with the owner: a look at a generated Word file in Word; the launch list (Hetzner IP and SSH key, the old token, Bundesland, Mein ELSTER, [Auszufüllen], the 6 additive migrations on the dev database). Not begun: deleting a closed company after its period. Specs hold many fixed dates of 2026: nothing has tried them after New Year.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 751b — spec 90 on the last day of a month
 
 CI run 41198061150 (Tiers 750 and 751, commit 6e12f3ed): red, 467 passed / 1 failed / 1 skipped, Playwright 1112 passed, no Traceback, no retry. The failure was spec 90: it set its template to „tomorrow" and expected it first in the list. The list is soonest first, and on 31.10. the seed company's monthly templates, due on 01.11. at 00:00, come before tomorrow's midday, which is why it passed on the 30th. No product fault. The same failure on this machine had been put down to the local database, wrongly: it would have gone red at every month's end. The template now runs in two minutes.
