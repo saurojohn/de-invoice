@@ -200,10 +200,8 @@ function fmtEur(n: number, locale: string = "de-DE"): string {
 
 function fmtDateDE(d: string | null): string {
   if (!d) return "—"
-  const date = new Date(d)
-  const day = String(date.getUTCDate()).padStart(2, "0")
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
-  return `${day}.${month}.${date.getUTCFullYear()}`
+  // The German day: a date-only value is midnight UTC, a time stamp may be the next day here
+  return todayIso(new Date(d)).split("-").reverse().join(".")
 }
 
 function getTypeLabel(type: string, t: (k: string) => string): string {
@@ -1690,7 +1688,7 @@ export default function CustomerDetailPage() {
                 {pauses.map((p) => {
                   const isActive = !p.cancelledAt
                   const isOpenEnded = !p.pausedUntil
-                  const fromShort = p.pausedFrom.slice(0, 10)
+                  const fromShort = todayIso(new Date(p.pausedFrom))
                   const untilShort = isOpenEnded
                     ? "∞"
                     : p.pausedUntil!.slice(0, 10)

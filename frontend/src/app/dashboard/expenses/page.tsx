@@ -11,6 +11,7 @@ import { apiGet, apiFetch, apiPost, isDuplicateExpense } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 import { EInvoiceDialog } from "@/components/EInvoiceDialog"
 import { BLANK_EXPENSE, ExpenseEditForm } from "@/components/ExpenseEditForm"
+import { todayIso } from "@/lib/today"
 
 // Expense = Eingangsrechnung (vendor bill). The list
 // page is the Berater's overview of all incoming
@@ -445,9 +446,7 @@ export default function ExpensesPage() {
                               .reverse()
                               .join("-")
                           : "") ||
-                        new Date()
-                          .toISOString()
-                          .slice(0, 10),
+                        todayIso(),
                       netAmount:
                         data.netAmount != null
                           ? String(data.netAmount)

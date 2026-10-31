@@ -154,7 +154,7 @@ export default function InvoiceDetailPage() {
   const [planForm, setPlanForm] = useState({
     installmentCount: '3',
     intervalDays: '30',
-    firstDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    firstDueDate: new Date(Date.parse(todayIso()) + 30 * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10),
     notes: '',

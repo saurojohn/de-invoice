@@ -56,14 +56,18 @@ function fmtEur(n: number, locale: string = "de-DE"): string {
 
 // fmtDateDE removed (Tier 322) — was unused; consumers use Intl.DateTimeFormat instead
 
+// German time: this printed UTC, one or two hours behind the clock on the wall
+const dateTimeDE = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
 function fmtDateTimeDE(d: string): string {
-  const date = new Date(d)
-  const day = String(date.getUTCDate()).padStart(2, "0")
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
-  const year = date.getUTCFullYear()
-  const hh = String(date.getUTCHours()).padStart(2, "0")
-  const mm = String(date.getUTCMinutes()).padStart(2, "0")
-  return `${day}.${month}.${year} ${hh}:${mm}`
+  return dateTimeDE.format(new Date(d)).replace(",", "")
 }
 
 // Human-readable label for each ledger type. Used in

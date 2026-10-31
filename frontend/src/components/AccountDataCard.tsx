@@ -24,6 +24,7 @@ import { signOut } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
+import { todayIso } from "@/lib/today"
 
 type DeletionCheck = {
   blockers: Array<{ companyId: string; companyName: string; reason: string }>
@@ -49,7 +50,7 @@ export function AccountDataCard() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `meine-daten-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = `meine-daten-${todayIso()}.json`
       document.body.appendChild(a)
       a.click()
       a.remove()

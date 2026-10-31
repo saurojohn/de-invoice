@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { todayIso } from "@/lib/today"
 
 interface FinTsConnection {
   id: string
@@ -503,7 +504,7 @@ export default function TransfersPage() {
                           className="border-b border-gray-100 dark:border-gray-800"
                         >
                           <td className="py-2 pr-3 text-xs font-mono">
-                            {tr.startedAt.slice(0, 10)}
+                            {todayIso(new Date(tr.startedAt))}
                           </td>
                           <td className="py-2 pr-3 text-xs">
                             {tr.kind === "credit_transfer"

@@ -9,6 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 import { formatMoney } from "@/lib/money" // Tier 722: „2.866,82 €“ — it wrote „€ 2.866,82“
+import { todayIso } from "@/lib/today"
 
 type Bucket = 'current' | '1-30' | '31-60' | '61-90' | '90+'
 
@@ -125,7 +126,7 @@ export default function AgingReportPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `Aging_${report.asOf.split('T')[0]}.csv`
+    a.download = `Aging_${todayIso(new Date(report.asOf))}.csv`
     document.body.appendChild(a)
     a.click()
     a.remove()

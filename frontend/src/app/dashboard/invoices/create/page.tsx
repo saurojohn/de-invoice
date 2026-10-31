@@ -678,7 +678,7 @@ function CreateInvoicePageInner() {
   // the customer's when it is picked. The select used to change nothing: the
   // backend had no column for it and read only the company default.
   const dueFrom = (issueDate: string, terms: number) => {
-    const issue = issueDate ? new Date(issueDate) : new Date()
+    const issue = new Date(issueDate || todayIso())
     if (isNaN(issue.getTime())) return ""
     return new Date(issue.getTime() + terms * 86400_000).toISOString().split("T")[0]
   }

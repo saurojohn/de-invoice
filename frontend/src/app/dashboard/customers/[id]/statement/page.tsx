@@ -9,6 +9,7 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiFetch, ApiError } from "@/lib/api"
+import { todayIso } from "@/lib/today"
 
 interface StatementLine {
   date: string
@@ -74,9 +75,9 @@ function fmtDateDE(d: string): string {
 // Default period: previous calendar month (the most common
 // "monthly statement" use case in Germany).
 function defaultRange(): { from: string; to: string } {
-  const now = new Date()
-  // First day of current month
-  const firstOfThisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  // First day of current month, in Germany: at 00:30 on the 1st the UTC month is the last one
+  const [year, month] = todayIso().split("-").map(Number)
+  const firstOfThisMonth = new Date(Date.UTC(year, month - 1, 1))
   // Last day of previous month
   const lastOfPrevMonth = new Date(firstOfThisMonth.getTime() - 1)
   const from = new Date(Date.UTC(lastOfPrevMonth.getUTCFullYear(), lastOfPrevMonth.getUTCMonth(), 1))
