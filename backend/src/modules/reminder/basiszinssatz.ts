@@ -12,6 +12,8 @@
  * has to be extended every half year; `basiszinssatzAt` uses the latest known
  * value for later dates.
  */
+import { businessTodayIso } from '../../common/business-date'
+
 const TABLE: Array<[string, number]> = [
   ['2016-07-01', -0.88],
   ['2023-01-01', 1.62],
@@ -25,6 +27,20 @@ const TABLE: Array<[string, number]> = [
 ]
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10)
+
+/**
+ * Tier 753: the rate changes on 1 January and 1 July, the table in a release.
+ * From the day a half year has begun without its rate here the interest is
+ * reckoned with the last one, and this says so.
+ */
+export function basiszinssatzWarning(now: Date = new Date()): string | null {
+  const [year, month] = businessTodayIso(now).split('-').map(Number)
+  const due = `${year}-${month >= 7 ? '07' : '01'}-01`
+  const [lastFrom, lastRate] = TABLE[TABLE.length - 1]
+  if (lastFrom >= due) return null
+  const day = due.split('-').reverse().join('.')
+  return `Der Basiszinssatz ab ${day} ist noch nicht hinterlegt. Verzugszinsen werden mit dem letzten bekannten Satz (${String(lastRate).replace('.', ',')} %) berechnet.`
+}
 
 export function basiszinssatzAt(day: Date): number {
   const k = dayKey(day)

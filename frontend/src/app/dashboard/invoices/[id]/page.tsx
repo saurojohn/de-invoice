@@ -1091,6 +1091,7 @@ export default function InvoiceDetailPage() {
     basiszinssatz?: number
     zinsaufschlag?: number
     totalDue: number
+    basiszinssatzWarning?: string | null // Tier 753
   }
   const [mahnungFees, setMahnungFees] = useState<MahnungFees | null>(null)
   const [mahnungFeesLoading, setMahnungFeesLoading] = useState(false)
@@ -4492,6 +4493,11 @@ export default function InvoiceDetailPage() {
                         })}
                       </span>
                     </div>
+                    {mahnungFees.basiszinssatzWarning && (
+                      <p className="text-amber-800 dark:text-amber-300" data-testid="send-mahnung-rate-warning">
+                        {mahnungFees.basiszinssatzWarning}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-400">—</p>

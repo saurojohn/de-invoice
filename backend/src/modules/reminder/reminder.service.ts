@@ -2,7 +2,7 @@ import { businessTodayDate } from '../../common/business-date';
 import { greetingLine } from '../mail/templates/invoice-email.template' // Tier 705
 import { NON_FISCAL_TYPES, isNonFiscal } from '../invoice/document-scope';
 import { daysOverdue as daysOverdueOf } from './days-overdue';
-import { verzugszinsen } from './basiszinssatz';
+import { basiszinssatzWarning, verzugszinsen } from './basiszinssatz';
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MahnungspauseService } from './mahnungspause.service';
@@ -936,6 +936,7 @@ Mit freundlichen Grüßen,
       basiszinssatz: interest.currentBasiszinssatz,
       zinsaufschlag: surcharge,
       totalDue,
+      basiszinssatzWarning: dueDate ? basiszinssatzWarning() : null, // Tier 753
     };
   }
 

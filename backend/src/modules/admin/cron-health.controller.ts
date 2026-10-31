@@ -30,6 +30,7 @@ import { Request } from 'express'
 import { Require } from '../../auth/roles.decorator'
 import { CronHealthService, CronStatus } from './cron-health.service'
 import { AuditService } from '../audit/audit.service'
+import { basiszinssatzWarning } from '../reminder/basiszinssatz'
 
 // Tier 548: the installation's operator only (auth/system-admin.guard.ts)
 @SystemAuth()
@@ -44,6 +45,13 @@ export class CronHealthController {
   @Require('admin.read')
   async list() {
     return this.health.list()
+  }
+
+  /** Tier 753: what an operator has to look after, apart from the jobs */
+  @Get('warnings')
+  @Require('admin.read')
+  warnings() {
+    return [basiszinssatzWarning()].filter(Boolean)
   }
 
   @Get(':name/history')

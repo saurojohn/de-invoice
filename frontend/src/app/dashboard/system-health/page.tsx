@@ -44,6 +44,7 @@ export default function SystemHealthPage() {
   const { t, getDateLocale } = useI18n()
   const toast = useToast()
   const [rows, setRows] = useState<CronHealthRow[]>([])
+  const [warnings, setWarnings] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [cleaning, setCleaning] = useState(false)
   const [now, setNow] = useState(() => Date.now())
@@ -54,6 +55,7 @@ export default function SystemHealthPage() {
         `/api/v1/admin/cron-health`,
       )
       setRows(res || [])
+      setWarnings((await apiGet<string[]>(`/api/v1/admin/cron-health/warnings`)) || [])
     } catch (e: any) {
       toast.error(t("systemHealth.loadingError") + ": " + (e?.message || e))
     } finally {
@@ -148,6 +150,15 @@ export default function SystemHealthPage() {
         <HealthChip color="grey" label={t("systemHealth.healthGrey")} count={counts.grey} />
       </div>
 
+      {warnings.map((w) => (
+        <p
+          key={w}
+          className="mb-4 rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 p-3 text-sm text-amber-900 dark:text-amber-200"
+          data-testid="system-health-warning"
+        >
+          {w}
+        </p>
+      ))}
       <Card>
         <CardContent className="pt-6">
           {loading && rows.length === 0 ? (
