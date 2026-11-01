@@ -52,15 +52,20 @@ export async function expenseLockReasons(
       companyId,
       referenceType: 'Expense',
       reversals: { none: {} },
-      OR: ids.map((id) => ({ description: { contains: `[expense:${id}]` } })),
     },
     select: { voucherNumber: true, description: true },
   })
-  const bankVoucher = (id: string) =>
-    vouchers.find((v) => (v.description || '').includes(`[expense:${id}]`))
+  // Tier 763: read here. One `contains` per expense, in the query, took 86 seconds
+  // over 20 000 expenses.
+  const bankVoucher = new Map<string, { voucherNumber: string }>()
+  for (const v of vouchers) {
+    for (const m of (v.description || '').matchAll(/\[expense:([^\]]+)\]/g)) {
+      if (!bankVoucher.has(m[1])) bankVoucher.set(m[1], v)
+    }
+  }
 
   for (const e of expenses) {
-    const voucher = bankVoucher(e.id)
+    const voucher = bankVoucher.get(e.id)
     if (e.relatedAssetId) {
       reasons.set(e.id, 'Die Ausgabe ist eine AfA-Buchung des Anlagenverzeichnisses. Nehmen Sie sie dort mit „AfA stornieren“ zurück.')
     } else if (e.paidBySepaBatchId) {

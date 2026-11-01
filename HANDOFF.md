@@ -2669,6 +2669,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 763 — one `contains` per expense
+
+`expenseLockReasons` asked for the bank vouchers with an `OR` of one `description contains` per expense. Over 20 000 expenses: 503 after 86 s, in `GET /ustva/expenses` without a year. The page sends a year, so it took 2 s there, and the cost grew with every expense. The vouchers of type `Expense` are read once and their `[expense:<id>]` taken into a map: all 20 000 in 2,3 s, 5 000 of them locked by a bank voucher as seeded. Specs 232, 233, 236, 375 pass.
+
+The last sweep of all GET routes in the 1 GiB container, with and without dates, before this tier: no 500, `oom_kill 0`, no restart. `/reports/datev-export-bundle` without dates ran past 180 s: its default is this year and it first renders each invoice that has no kept copy, about 100 ms each. Slow on the first run only. `/storage/list` took 82 s over Docker Desktop's file sharing and 225 ms natively; it uses synchronous `readdir`/`stat`, not changed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 762 — the archives of a year, in a container of 1 GiB
 
 Measured in the production image with `--memory=1g`, read-only, no capabilities, 8 161 invoices and 3 000 receipts of 1 MiB in one year (`t760-be`; the Prisma query engine is a child process and shares the limit, 220 to 300 MiB of it after a large query):
@@ -2689,7 +2695,7 @@ Measured in the production image with `--memory=1g`, read-only, no capabilities,
 - **`ENV MALLOC_ARENA_MAX=2` in the image.** With everything above and without it the export was still killed on 2 of 2 runs; with it, 2 of 2 passed with `oom_kill 0`.
 - My first `appendAndWait` chained `.then` on one promise per entry, and that closure held the document: a leak of exactly what it was meant to save, visible only in the container (killed again, at 240 MB). It adds and removes a `close` listener now. Spec 477 keeps that line.
 
-**Still tight:** the export peaks at 893 MiB of anonymous memory of 1 024 (Node 581, engine 304). That is 8 000 invoices a year, more than this product's market, but the margin is thin. `gobd-export` makes every PDF first if none is stored (`ensureIssuedCopies`, about 100 ms each): the first export of an old year takes minutes. `/ustva/expenses` without a year answered 503 after 86 s on 20 000 expenses; the page always sends a year (2 s), not changed.
+**Still tight:** the export peaks at 893 MiB of anonymous memory of 1 024 (Node 581, engine 304). That is 8 000 invoices a year, more than this product's market, but the margin is thin. `gobd-export` makes every PDF first if none is stored (`ensureIssuedCopies`, about 100 ms each): the first export of an old year takes minutes. `/ustva/expenses` without a year: Tier 763.
 
 Spec `477-tier762-archive-ohne-speicherlast.sh`: the shape of the code (what memory needs a container to show), both archives delivered, `Stored` for a PDF, `Defl:N` for text. Local failures of 103 and 183 are the same on the code before.
 
