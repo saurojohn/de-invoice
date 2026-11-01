@@ -202,7 +202,7 @@ export class StorageService {
 
     // Tier 762: not synchronously. Over a year's PDFs that held every other
     // request of the process for seconds, the health check too.
-    const buffer = await fs.promises.readFile(fullPath).catch((e: NodeJS.ErrnoException) => {
+    const buffer = await fs.promises.readFile(fullPath).catch((e: { code?: string }) => {
       if (e.code === 'ENOENT') return null;
       throw e;
     });

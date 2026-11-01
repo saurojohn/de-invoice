@@ -1,3 +1,5 @@
+import type { EventEmitter } from 'events'
+
 /**
  * Tier 762 — a ZIP one entry at a time.
  *
@@ -14,7 +16,7 @@ export function appendAndWait(
   zip: any,
   data: Buffer | string,
   options: { name: string; store?: boolean },
-  reader?: NodeJS.EventEmitter,
+  reader?: EventEmitter,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     // The listeners go with the entry: one left on the reader would hold `data`.
