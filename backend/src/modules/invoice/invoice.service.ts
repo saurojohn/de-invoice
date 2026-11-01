@@ -36,7 +36,6 @@ import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 import { servicePeriodOf } from './service-period';
 import { assertInvoiceDetails } from './mandatory-details';
-import { invoiceEurFactor } from './tax-breakdown';
 
 /**
  * Tier 410 — a line's VAT rate, defaulting only when none was given.
@@ -167,7 +166,7 @@ export class InvoiceService {
         { customer: { name: { contains: q, mode: 'insensitive' } } },
       ]
     }
-    const [data, total, all] = await Promise.all([
+    const [data, total, sums] = await Promise.all([
       this.prisma.invoice.findMany({
         where,
         include: {
@@ -181,22 +180,8 @@ export class InvoiceService {
       }),
       this.prisma.invoice.count({ where }),
       // Tier 723: the sums of the whole filtered list, not of the page
-      this.prisma.invoice.findMany({
-        where,
-        select: {
-          type: true, status: true, total: true, eurTotal: true,
-          payments: { select: { amount: true } },
-          creditNotes: CREDIT_NOTE_FIELDS, // Tier 760: this one is the whole company
-        },
-      }),
+      this.listSums(companyId, filters),
     ])
-    let totalEur = 0
-    let openEur = 0
-    for (const r of all) {
-      const f = invoiceEurFactor({ total: r.total, totalVat: 0, eurTotal: r.eurTotal })
-      totalEur += Number(r.total) * f
-      openEur += (openAmountOf(r, coversWhole(r, crediting(r.creditNotes))) ?? 0) * f
-    }
     // Tier 696: an invoice cancelled by a Storno credit note is settled by it
     // ("paid") — the list says what it is
     const rows = data.map(({ creditNotes, ...row }) => {
@@ -209,8 +194,55 @@ export class InvoiceService {
       page: pg,
       pageSize: ps,
       totalPages: Math.ceil(total / ps) || 1,
-      sums: { totalEur: Math.round(totalEur * 100) / 100, openEur: Math.round(openEur * 100) / 100 }, // Tier 723
+      sums, // Tier 723
     }
+  }
+
+  /**
+   * Tier 764: the list's sums, added up by the database. Every opening of the
+   * list read all documents with their payments and credit notes into the
+   * process for two numbers: with 50 000 of them, five users at once ended it.
+   * What is open is `openAmountOf` and `coversWhole`, the filters are `findAll`'s.
+   */
+  private async listSums(companyId: string, filters: { status?: string; customerId?: string; type?: string; search?: string; dateFrom?: string; dateTo?: string }) {
+    const { status, customerId, type, search, dateFrom, dateTo } = filters
+    const on: Prisma.Sql[] = [Prisma.sql`i."companyId" = ${companyId}`]
+    const statusList = (status ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+    if (statusList.length) on.push(Prisma.sql`i.status IN (${Prisma.join(statusList)})`)
+    if (customerId) on.push(Prisma.sql`i."customerId" = ${customerId}`)
+    on.push(type ? Prisma.sql`i.type = ${type}` : Prisma.sql`i.type NOT IN (${Prisma.join(NON_FISCAL_TYPES)})`)
+    if (dateFrom) on.push(Prisma.sql`i."issueDate" >= ${new Date(`${dateFrom}T00:00:00.000Z`)}`)
+    if (dateTo) on.push(Prisma.sql`i."issueDate" <= ${new Date(`${dateTo}T23:59:59.999Z`)}`)
+    if (search && search.trim()) {
+      const like = `%${search.trim()}%`
+      on.push(Prisma.sql`(i."invoiceNumber" ILIKE ${like} OR EXISTS (SELECT 1 FROM "Customer" k WHERE k.id = i."customerId" AND k.name ILIKE ${like}))`)
+    }
+    const [row] = await this.prisma.$queryRaw<{ total: unknown; open: unknown }[]>`
+      WITH paid AS (
+        SELECT p."invoiceId" AS id, SUM(ROUND(p.amount * 100)) AS cents
+        FROM "Payment" p JOIN "Invoice" o ON o.id = p."invoiceId"
+        WHERE o."companyId" = ${companyId}
+        GROUP BY 1
+      ), credited AS (
+        SELECT "referenceInvoiceId" AS id, SUM(ABS(total)) AS amount
+        FROM "Invoice"
+        WHERE "companyId" = ${companyId} AND type = 'CN' AND status NOT IN ('draft', 'cancelled') AND "referenceInvoiceId" IS NOT NULL
+        GROUP BY 1
+      ), rows AS (
+        SELECT i.total,
+          CASE WHEN i."eurTotal" IS NOT NULL AND i.total <> 0 AND i."eurTotal" / i.total > 0 THEN i."eurTotal" / i.total ELSE 1 END AS f,
+          CASE
+            WHEN i.type NOT IN (${Prisma.join(CLAIM_TYPES)}) OR i.status IN ('draft', 'cancelled') THEN 0
+            WHEN i.type <> 'CN' AND ABS(i.total) > 0 AND COALESCE(c.amount, 0) >= ABS(i.total) - 0.005 THEN 0
+            ELSE GREATEST(0, ROUND(i.total * 100) - COALESCE(s.cents, 0)) / 100
+          END AS open
+        FROM "Invoice" i
+        LEFT JOIN paid s ON s.id = i.id
+        LEFT JOIN credited c ON c.id = i.id
+        WHERE ${Prisma.join(on, ' AND ')}
+      )
+      SELECT COALESCE(SUM(total * f), 0) AS total, COALESCE(SUM(open * f), 0) AS open FROM rows`
+    return { totalEur: Math.round(Number(row.total) * 100) / 100, openEur: Math.round(Number(row.open) * 100) / 100 }
   }
 
   /** Tier 621: none | partial | full — how much of the lines' quantities is taken */
