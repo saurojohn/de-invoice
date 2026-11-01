@@ -178,7 +178,9 @@ jobs:
     # Tier 364: GitHub's default job limit is 360 minutes; a hung step would
     # burn that on every run (and the account has already hit its spending
     # limit once). Limits are ~2x the normal runtime, with headroom.
-    timeout-minutes: 30
+    # Tier 756d: 45. The suite grew to 474 specs at 30: 21 to 29 minutes, and a
+    # slow runner went over it at spec 450 of 474 (run 41255735005, cancelled).
+    timeout-minutes: 45
     env:
       DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
       NODE_ENV: test

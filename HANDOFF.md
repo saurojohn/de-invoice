@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 756d — the e2e job's limit had caught up with the suite
+
+Run 41255735005 (commit 73e69b76): Playwright **1113 passed, 0 flaky, no retry**, on the German day. The backend job was **cancelled** at its limit of 30 minutes, at spec 450, with no assertion failed so far. Not this tier's doing: spec by spec against the 21-minute run, what grew were the Java and compile-heavy specs (KoSIT, Mustang, a `ts-node` restart), 50 to 100 %; the runner was slow. And the 21 minutes were the exception: the five runs before took 24 to 29. Tier 364 set the limits at about twice the normal time, and the suite has grown into this one. 45 minutes now.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 756c — the Playwright job on the German day; a language read too soon
 
 Run 41253015108 (commit a1d5f045): backend **473 / 0 / 1**, Playwright 1 111 passed, **1 failed, 1 flaky**, the job starting in the first hour of 1 November. Neither is a fault of the product.
