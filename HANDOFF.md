@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 763b — CI green for Tiers 760 to 763, both modes
+
+Commit c056dd31: push 41319792614 backend **476 passed / 0 failed / 1 skipped**, Playwright **1113 passed, 0 flaky, no retry**, 34 minutes; production mode 41319804165 **476 / 0 / 1** on `node dist/main.js`, Playwright **1113, 0 flaky, no retry**, 19 minutes. No Traceback, no `✗`, no `REFUSED`. Docker images 41316989722 on 687651fa green, with `MALLOC_ARENA_MAX=2` in the image. Production mode covers Tiers 757c to 763. The throwaway stack (`t760-pg`, `t760-be`, its image, 3,4 GB of files) is removed. Still no scheduled run: the check after Sunday 2026-11-08 stands (Tier 757).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 763 — one `contains` per expense
 
 `expenseLockReasons` asked for the bank vouchers with an `OR` of one `description contains` per expense. Over 20 000 expenses: 503 after 86 s, in `GET /ustva/expenses` without a year. The page sends a year, so it took 2 s there, and the cost grew with every expense. The vouchers of type `Expense` are read once and their `[expense:<id>]` taken into a map: all 20 000 in 2,3 s, 5 000 of them locked by a bank voucher as seeded. Specs 232, 233, 236, 375 pass.
