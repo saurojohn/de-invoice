@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 759b — CI green for Tier 759
+
+Run 41304163317 (commit 7a025e29): backend **473 passed / 0 failed / 1 skipped**, Playwright **1113 passed, 0 flaky, no retry**, no Traceback, no `✗`, no `REFUSED`. The push mode only; production mode last ran on a159cc18.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 759 — for a moment, the form still offered to create the customer anew
 
 `ust-suggestion.spec.ts` failed locally in three tests since `tmp-ci-pg` holds more than 200 customers (247 at the time); CI has fewer. Its click took the first `div.hover:bg-blue-50` with the name, and the row „+ Neuen Kunden … anlegen" has that class too: it stands in the list until the server's answer arrives, so the spec opened the create dialog and never saw the hint. The spec now clicks `invoice-customer-option`, 4 of 4 locally.
