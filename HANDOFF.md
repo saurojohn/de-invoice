@@ -2669,6 +2669,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 761 — one click on „Kette prüfen" ended the process
+
+`GET /audit-logs/verify` loaded all audit rows of a company. On the code before, with 303 309 rows and the heap of a 1 GiB container: `FATAL ERROR: Reached heap limit … JavaScript heap out of memory` after 5 seconds, the process gone, for every user. It now reads 2 000 rows at a time by `seq`: 303 309 rows, a valid chain built for the test, `ok: true` in 6,1 s at 358 MiB, the process alive.
+
+Spec `476-tier761-pruefkette-seitenweise.sh`: a tampered row on the second page is found, the counts are the company's. It guards the paging and passes on the old code too: the crash needs 300 000 rows, which is more than a spec should write. Specs 170, 171, 195, 196, 197, 349, 464 pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 760 — above 32 767 invoices the list of invoices did not open
 
 First result of a large-data run: a throwaway `postgres:16` with the production limit of 1 GiB, `prisma migrate deploy`, the compiled backend with the 524 MiB heap a 1 GiB container gives Node 22, and one company with 3 000 customers, 2 000 articles, 50 000 documents (150 000 lines), 45 000 payments, 20 000 expenses, 70 000 vouchers (210 000 lines), 60 000 bank transactions, 300 000 audit rows: 458 MB. All GET routes were requested, with and without date filters.

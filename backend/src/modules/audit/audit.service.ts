@@ -179,6 +179,8 @@ const MAX_TAKE = 200
 
 @Injectable()
 export class AuditService {
+  private static readonly VERIFY_PAGE = 2000
+
   constructor(private prisma: PrismaService) {}
 
   /**
@@ -1170,92 +1172,102 @@ export class AuditService {
     // can agree on — createdAt is rounded to whole seconds and ids are random
     // UUIDs, so (createdAt, id) put same-second rows in an order the writer
     // never used.
-    const rows = await this.prisma.auditLog.findMany({
-      where: { companyId },
-      orderBy: { seq: 'asc' },
-    })
+    // Tier 761: a page at a time. All rows at once ended the process at 300 000
+    // of them, for every user, on one click.
+    const totalRows = await this.prisma.auditLog.count({ where: { companyId } })
     let expectedPreviousHash = ''
-    for (const r of rows) {
-      if (!r.hash) {
-        // Pre-Tier 196 rows have null hash. We
-        // accept them as "signed=false" entries
-        // that don't break the chain for post-
-        // Tier 196 rows. The chain is broken
-        // here only if a post-Tier 196 row
-        // (which we detect by the algorithm
-        // string) is missing its hash.
-        if (r.hashAlgorithm) {
+    let newestAlgorithm: string | null = null
+    let after: bigint | undefined
+    for (;;) {
+      const rows = await this.prisma.auditLog.findMany({
+        where: { companyId, ...(after === undefined ? {} : { seq: { gt: after } }) },
+        orderBy: { seq: 'asc' },
+        take: AuditService.VERIFY_PAGE,
+      })
+      if (rows.length === 0) break
+      after = rows[rows.length - 1].seq
+      for (const r of rows) {
+        if (!r.hash) {
+          // Pre-Tier 196 rows have null hash. We
+          // accept them as "signed=false" entries
+          // that don't break the chain for post-
+          // Tier 196 rows. The chain is broken
+          // here only if a post-Tier 196 row
+          // (which we detect by the algorithm
+          // string) is missing its hash.
+          if (r.hashAlgorithm) {
+            return {
+              ok: false,
+              totalRows,
+              verifiedRows: 0,
+              brokenAt: {
+                id: r.id,
+                createdAt: r.createdAt.toISOString(),
+                reason: 'missing_hash',
+                expectedHash: null,
+                actualHash: null,
+              },
+              algorithm: r.hashAlgorithm,
+              verifiedAt: new Date().toISOString(),
+            }
+          }
+          continue
+        }
+        const recomputed = computeAuditHash({
+          action: r.action,
+          entityType: r.entityType,
+          entityId: r.entityId,
+          userId: r.userId,
+          companyId: r.companyId,
+          oldData: r.oldData,
+          newData: r.newData,
+          previousHash: r.previousHash ?? '',
+          createdAt: r.createdAt,
+        }, r.hashAlgorithm || AUDIT_HASH_V1)
+        if (recomputed !== r.hash) {
           return {
             ok: false,
-            totalRows: rows.length,
+            totalRows,
             verifiedRows: 0,
             brokenAt: {
               id: r.id,
               createdAt: r.createdAt.toISOString(),
-              reason: 'missing_hash',
-              expectedHash: null,
-              actualHash: null,
+              reason: 'hash_mismatch',
+              expectedHash: r.hash,
+              actualHash: recomputed,
             },
-            algorithm: r.hashAlgorithm,
+            algorithm: r.hashAlgorithm || 'UNKNOWN',
             verifiedAt: new Date().toISOString(),
           }
         }
-        continue
-      }
-      const recomputed = computeAuditHash({
-        action: r.action,
-        entityType: r.entityType,
-        entityId: r.entityId,
-        userId: r.userId,
-        companyId: r.companyId,
-        oldData: r.oldData,
-        newData: r.newData,
-        previousHash: r.previousHash ?? '',
-        createdAt: r.createdAt,
-      }, r.hashAlgorithm || AUDIT_HASH_V1)
-      if (recomputed !== r.hash) {
-        return {
-          ok: false,
-          totalRows: rows.length,
-          verifiedRows: 0,
-          brokenAt: {
-            id: r.id,
-            createdAt: r.createdAt.toISOString(),
-            reason: 'hash_mismatch',
-            expectedHash: r.hash,
-            actualHash: recomputed,
-          },
-          algorithm: r.hashAlgorithm || 'UNKNOWN',
-          verifiedAt: new Date().toISOString(),
+        if ((r.previousHash ?? '') !== expectedPreviousHash) {
+          return {
+            ok: false,
+            totalRows,
+            verifiedRows: 0,
+            brokenAt: {
+              id: r.id,
+              createdAt: r.createdAt.toISOString(),
+              reason: 'previous_hash_mismatch',
+              expectedHash: expectedPreviousHash,
+              actualHash: r.previousHash ?? '',
+            },
+            algorithm: r.hashAlgorithm || 'UNKNOWN',
+            verifiedAt: new Date().toISOString(),
+          }
         }
+        expectedPreviousHash = r.hash
+        newestAlgorithm = r.hashAlgorithm
       }
-      if ((r.previousHash ?? '') !== expectedPreviousHash) {
-        return {
-          ok: false,
-          totalRows: rows.length,
-          verifiedRows: 0,
-          brokenAt: {
-            id: r.id,
-            createdAt: r.createdAt.toISOString(),
-            reason: 'previous_hash_mismatch',
-            expectedHash: expectedPreviousHash,
-            actualHash: r.previousHash ?? '',
-          },
-          algorithm: r.hashAlgorithm || 'UNKNOWN',
-          verifiedAt: new Date().toISOString(),
-        }
-      }
-      expectedPreviousHash = r.hash
     }
     // Tier 366: a chain can hold V1 rows (written before Tier 366) and V2 rows;
     // report the algorithm of the newest signed row rather than a constant.
-    const newestSigned = [...rows].reverse().find((r) => r.hash)
     return {
       ok: true,
-      totalRows: rows.length,
-      verifiedRows: rows.length,
+      totalRows,
+      verifiedRows: totalRows,
       brokenAt: null,
-      algorithm: newestSigned?.hashAlgorithm || AUDIT_HASH_ALGORITHM,
+      algorithm: newestAlgorithm || AUDIT_HASH_ALGORITHM,
       verifiedAt: new Date().toISOString(),
     }
   }
