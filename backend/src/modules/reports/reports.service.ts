@@ -101,9 +101,11 @@ export class ReportsService {
         status: { in: ['paid', 'sent', 'overdue'] },
         type: { in: SALES_TYPES }, // Tier 424: not a Proforma
       },
-      include: {
-        customer: { select: { id: true, name: true } },
-        items: true,
+      // Tier 765: what the report reads. Every column and every line of a year's
+      // invoices were held for it, and the dashboard asks for it on each opening.
+      select: {
+        customerId: true, issueDate: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true,
+        customer: { select: { name: true } },
       },
       orderBy: { issueDate: 'asc' },
     });
@@ -308,9 +310,10 @@ export class ReportsService {
         status: { in: ['paid', 'sent', 'overdue'] },
         type: { in: SALES_TYPES },
       },
-      include: {
-        customer: { select: { id: true, name: true } },
-        payments: true,
+      select: {
+        customerId: true, issueDate: true, status: true, total: true, totalVat: true, eurTotal: true,
+        customer: { select: { name: true } },
+        payments: { select: { amount: true } },
       },
       orderBy: { issueDate: 'desc' },
     });

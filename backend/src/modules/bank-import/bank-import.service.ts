@@ -350,7 +350,35 @@ export class BankImportService {
 
   /** For a given transaction, find candidate invoices
    *  ranked by match score (0-100). Returns the top 5. */
-  async getCandidates(companyId: string, bankTransactionId: string) {
+  /** Open invoices: status = 'sent' (draft is too early, paid/cancelled is final). We also include 'overdue'. */
+  private openInvoices(companyId: string) {
+    return this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { in: ['sent', 'overdue'] },
+      },
+      include: {
+        customer: { select: { name: true, customerNumber: true } },
+        payments: { select: { amount: true } },
+      },
+      orderBy: { issueDate: 'desc' },
+      // Tier 297: bumped 200 → 2000. The previous cap
+      // silently excluded any invoice older than the 200
+      // most-recent ones — Tier 8 spec creates its test
+      // invoice at issueDate=2026-06-02 which falls below
+      // the 200-row ceiling in the shared dev DB (225+
+      // invoices). This is also a real-world footgun for
+      // customers with high invoice volume.
+      take: 2000,
+    });
+  }
+
+  /** Tier 765: `open` is the list of a whole statement, read once. */
+  async getCandidates(
+    companyId: string,
+    bankTransactionId: string,
+    open?: Awaited<ReturnType<BankImportService['openInvoices']>>,
+  ) {
     const txn = await this.prisma.bankTransaction.findFirst({
       where: { id: bankTransactionId, companyId },
     });
@@ -371,27 +399,7 @@ export class BankImportService {
       return { transaction: txn, candidates: [], collective: [] };
     }
 
-    // Open invoices: status = 'sent' (draft is too early,
-    // paid/cancelled is final). We also include 'overdue'.
-    const openInvoices = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        status: { in: ['sent', 'overdue'] },
-      },
-      include: {
-        customer: { select: { name: true, customerNumber: true } },
-        payments: { select: { amount: true } },
-      },
-      orderBy: { issueDate: 'desc' },
-      // Tier 297: bumped 200 → 2000. The previous cap
-      // silently excluded any invoice older than the 200
-      // most-recent ones — Tier 8 spec creates its test
-      // invoice at issueDate=2026-06-02 which falls below
-      // the 200-row ceiling in the shared dev DB (225+
-      // invoices). This is also a real-world footgun for
-      // customers with high invoice volume.
-      take: 2000,
-    });
+    const openInvoices = open ?? await this.openInvoices(companyId);
 
     const candidates: Array<{
       invoiceId: string
@@ -409,6 +417,7 @@ export class BankImportService {
     }> = [];
 
     const purposeText = (txn.purpose || '') + ' ' + (txn.counterpartyName || '');
+    const purposeKey = purposeText.toLowerCase().replace(/\//g, '-');
 
     // Tier 639: the amount was compared with the invoice's total, and an
     // invoice whose amount differed was no candidate — whatever the purpose
@@ -429,7 +438,9 @@ export class BankImportService {
       .map((inv) => {
         const total = Number(inv.total);
         const open = Math.round((total - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)) * 100) / 100;
-        const named = new RegExp(inv.invoiceNumber.replace(/[-/]/g, '[-/]') + '(?![0-9])', 'i').test(purposeText);
+        // Tier 765: the plain comparison first; a pattern for each invoice was most of the 177 seconds
+        const named = purposeKey.includes(inv.invoiceNumber.toLowerCase().replace(/\//g, '-'))
+          && new RegExp(inv.invoiceNumber.replace(/[-/]/g, '[-/]') + '(?![0-9])', 'i').test(purposeText);
         return { inv, total, open, named };
       })
       .filter((r) => r.open > 0);
@@ -566,6 +577,9 @@ export class BankImportService {
     let suggested = 0;
     let autoConfirmed = 0;
     let errors = 0;
+    // Tier 765: read once. For each line of the statement it took 177 seconds
+    // for 1 000 lines; a confirmation below changes it, so it is read again then.
+    let open = await this.openInvoices(companyId);
 
     for (const txn of stmt.transactions) {
       try {
@@ -584,7 +598,7 @@ export class BankImportService {
         // invoices — getCandidates returns []).
         if (Number(txn.amount) < 0) continue;
 
-        const { candidates, collective } = await this.getCandidates(companyId, txn.id);
+        const { candidates, collective } = await this.getCandidates(companyId, txn.id, open);
         if (candidates.length === 0) continue;
         // Tier 639: a transfer for several invoices gets a suggestion for each.
         const picked = collective.length > 1 ? collective : [candidates[0]];
@@ -612,6 +626,7 @@ export class BankImportService {
           if (threshold > 0 && top.confidence >= threshold) {
             await this.confirmMatch(companyId, created.id, opts.userId);
             autoConfirmed++;
+            open = await this.openInvoices(companyId);
           }
         }
       } catch (e: any) {
