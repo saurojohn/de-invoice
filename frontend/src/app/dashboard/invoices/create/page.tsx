@@ -1375,7 +1375,7 @@ function CreateInvoicePageInner() {
               {/* Invoice Type Selector */}
               <div>
                 <label className="block text-sm font-medium mb-1">{t("invoice.invoiceType")}</label>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2" role="group" aria-label={t("invoice.invoiceType")}>
                   {(['INV', 'CN', 'PI', 'RCV', 'QU', 'OC', 'DN'] as InvoiceType[]).map((type) => (
                     <button
                       key={type}
@@ -1768,7 +1768,7 @@ function CreateInvoicePageInner() {
                   still save (we don't block, some
                   micro-business customers don't
                   have one) but the warning is loud. */}
-              <div className="mt-4 p-3 border rounded-md bg-gray-50" data-testid="invoice-tax-treatment">
+              <div className="mt-4 p-3 border rounded-md bg-gray-50" data-testid="invoice-tax-treatment" role="radiogroup" aria-label={t("invoice.taxTreatment")}>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium">
                     {t("invoice.taxTreatment")}

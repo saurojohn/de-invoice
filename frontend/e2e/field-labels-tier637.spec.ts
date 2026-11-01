@@ -82,6 +82,9 @@ test("the fields of the forms have names, and the label's word reaches its field
   await expect(page.getByTestId("invoice-notes-input")).toBeFocused()
   found = await unnamed(page)
   expect(found.fields, found.fields.join(" ")).toEqual([])
+  // a word over a group of choices names no one field: the group carries it
+  await expect(page.getByRole("radiogroup", { name: "USt-Behandlung" }).getByTestId("invoice-tax-standard")).toBeVisible()
+  await expect(page.getByRole("group", { name: "Rechnungsart" }).getByTestId("invoice-type-INV")).toBeVisible()
 
   // a form that appears later: the customer dialog
   await page.goto("/dashboard/customers")
@@ -90,6 +93,15 @@ test("the fields of the forms have names, and the label's word reaches its field
   const dialog = await unnamed(page)
   // the list's search field has a placeholder; no field of the dialog is without a label
   expect(dialog.fields.filter((f) => !f.includes("customer-search-input")), dialog.fields.join(" ")).toEqual([])
+
+  await page.goto("/dashboard/payments/direct-debit")
+  await page.getByTestId("add-mandate-button").click()
+  await expect(page.getByRole("radiogroup", { name: "Typ" }).getByTestId("mandate-type-core")).toBeVisible({ timeout: 30_000 })
+  await page.goto("/dashboard/settings/webhooks")
+  await page.locator("button", { hasText: /Webhook hinzufügen/ }).first().click({ timeout: 30_000 })
+  await expect(page.getByRole("group", { name: "Ereignisse" }).getByTestId("webhook-event-invoiceCreated")).toBeVisible({ timeout: 30_000 })
+  await page.goto("/dashboard/audit")
+  await expect(page.getByRole("group", { name: "Aktion (Präfix)" })).toBeVisible({ timeout: 30_000 })
 
   // the pages whose fields had nothing at all
   for (const path of ["/dashboard/accounting", "/dashboard/expenses", "/dashboard/email", "/dashboard/cost-center-report", "/dashboard/cost-center-budgets", "/dashboard/mahnungen/templates", "/dashboard/settings/webhooks", "/dashboard/reports", "/dashboard/audit", "/dashboard/assets", "/dashboard/accounting/ustva"]) {

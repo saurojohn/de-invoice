@@ -1064,7 +1064,10 @@ export default function WebhooksPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                     {t("webhooks.eventsHelp")}
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2"
+                    role="group"
+                    aria-label={t("webhooks.events")}
+                  >
                     {ALL_EVENT_TYPES.map((ev) => (
                       <label
                         key={ev.type}

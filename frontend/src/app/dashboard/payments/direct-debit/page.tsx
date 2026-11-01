@@ -546,7 +546,7 @@ export default function DirectDebitPage() {
 
                 <div>
                   <Label>{t("directDebit.mandatesCard.form.type")}</Label>
-                  <div className="flex flex-wrap items-center gap-4 mt-1">
+                  <div className="flex flex-wrap items-center gap-4 mt-1" role="radiogroup" aria-label={t("directDebit.mandatesCard.form.type")}>
                     <label className="inline-flex items-center gap-2 text-sm">
                       <input
                         type="radio"

@@ -1079,6 +1079,8 @@ export default function AuditPage() {
                 <div
                   className="flex flex-wrap gap-1.5"
                   data-testid="audit-filter-action-chips"
+                  role="group"
+                  aria-label={t("audit.actionPrefix") || "Aktion (Präfix)"}
                 >
                   {actionPrefixChips.length === 0 ? (
                     <span className="text-xs text-gray-400 italic">
