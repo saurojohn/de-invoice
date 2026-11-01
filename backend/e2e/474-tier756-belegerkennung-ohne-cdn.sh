@@ -60,4 +60,8 @@ assert_eq "both backends run the compiled program" "$(grep -c 'BACKEND_CMD="node
 assert_eq "the frontend runs the production server" "$(grep -c 'next build' "$CI")" "1"
 assert_eq "what a spec restarts is the compiled program too" "$(grep -c 'exec node dist/main.js' "$ROOT/backend/scripts/start-backend.sh")" "1"
 assert_eq "docker-build.yml runs weekly as well" "$(grep -c "cron: '30 3 \* \* 0'" "$IMG")" "1"
+
+note "=== both spec jobs live on the German day (Tier 756c) ==="
+assert_eq "TZ in the e2e and the Playwright job" "$(grep -c 'TZ: Europe/Berlin' "$CI")" "2"
+assert_eq "no Playwright spec takes today from UTC" "$(grep -lE 'new Date\(\)\.toISOString\(\)\.(slice|split|substring)' "$ROOT"/frontend/e2e/*.spec.ts | wc -l | tr -d ' ')" "0"
 summary

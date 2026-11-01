@@ -22,7 +22,7 @@ test("the invoice page in German, Chinese and English", async ({ page, request }
     headers: H, data: { name: `${tag} Kunde`, type: "business", address: { street: "Ring 2", postalCode: "80331", city: "München", country: "DE" } },
   })).json()
   const inv = await (await request.post(`${API}/api/v1/invoices?${q}`, {
-    headers: H, data: { customerId: customer.id, issueDate: new Date().toISOString().slice(0, 10), items: [{ description: "Beratung", quantity: 2, unit: "Std", unitPrice: 150, vatRate: 0.19 }] },
+    headers: H, data: { customerId: customer.id, issueDate: new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }), items: [{ description: "Beratung", quantity: 2, unit: "Std", unitPrice: 150, vatRate: 0.19 }] },
   })).json()
   expect(inv.id, "fixture: an invoice").toBeTruthy()
   await page.context().addCookies([

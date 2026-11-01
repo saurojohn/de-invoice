@@ -495,6 +495,10 @@ jobs:
     env:
       DATABASE_URL: postgresql://de_invoice:de_invoice_pass@localhost:5432/de_invoice?schema=public
       NODE_ENV: test
+      # Tier 756c: as the e2e job since Tier 478. A spec's `new Date().getMonth()`
+      # was UTC's here: in the first hour of a month it expected October while
+      # the backend, rightly, had November (run 41253015108, company-cars).
+      TZ: Europe/Berlin
       SMTP_HOST: ""
       STORAGE_PATH: /tmp/de-invoice-storage
       VIES_MOCK: "1"

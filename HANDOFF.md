@@ -2669,6 +2669,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 756c — the Playwright job on the German day; a language read too soon
+
+Run 41253015108 (commit a1d5f045): backend **473 / 0 / 1**, Playwright 1 111 passed, **1 failed, 1 flaky**, the job starting in the first hour of 1 November. Neither is a fault of the product.
+
+- **`company-cars-tier502`, failed:** `new Date().getMonth()` in the spec; the Playwright job had no `TZ`, so that was UTC's October, 10 months against the backend's 11, and the backend was right. The job has `TZ: Europe/Berlin` now, as the e2e job has since Tier 478. It covers the 29 specs that take a month or year this way. Four more took an invoice's date from `toISOString()`; they ask for the German day now, and spec 474 holds both.
+- **`reports-languages-tier601`, flaky:** the page renders German and takes the language after hydration; the spec read the body once after `networkidle`. It now waits for a word of the language it opened.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 756b — the hour after midnight on the 1st; the first production run
 
 Run 41249461443 (commit d61cd690) went red on one assertion of spec 304, „today is the 1st: the scheduler bills this month", at `23:00:01Z`: 00:00:01 in Germany, on the 1st. No flake: a run date is midnight UTC and `now` a moment, so from midnight in Germany until UTC's, today's run was not due. Reproduced by hand in that very hour, 00:28 CET. Production did not meet it, the cron fires at 06:00.

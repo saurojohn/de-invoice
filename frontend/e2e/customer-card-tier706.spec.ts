@@ -61,7 +61,7 @@ test("the cards: Aktiv by the last invoice, the company's term, the whole name",
   await customer("Lange Firmenbezeichnung Handelsgesellschaft mbH") // never invoiced
   const inv = await (await request.post(`${API}/api/v1/invoices?companyId=${companyId}`, {
     headers: H,
-    data: { customerId: busy.id, issueDate: new Date().toISOString().slice(0, 10), items: [{ description: "Leistung", quantity: 1, unit: "Stk", unitPrice: 100, vatRate: 0.19 }] },
+    data: { customerId: busy.id, issueDate: new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }), items: [{ description: "Leistung", quantity: 1, unit: "Stk", unitPrice: 100, vatRate: 0.19 }] },
   })).json()
   expect((await request.put(`${API}/api/v1/invoices/${inv.id}/status?companyId=${companyId}`, { headers: H, data: { status: "sent" } })).status()).toBe(200)
 

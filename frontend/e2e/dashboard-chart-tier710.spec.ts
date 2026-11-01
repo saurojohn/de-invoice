@@ -31,7 +31,7 @@ test("the revenue chart's labels: text of a readable size, light on the dark pag
   })).json()
   const inv = await (await request.post(`${API}/api/v1/invoices?companyId=${companyId}`, {
     headers: H,
-    data: { customerId: customer.id, issueDate: new Date().toISOString().slice(0, 10), items: [{ description: "Leistung", quantity: 1, unit: "Stk", unitPrice: 4000, vatRate: 0.19 }] },
+    data: { customerId: customer.id, issueDate: new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }), items: [{ description: "Leistung", quantity: 1, unit: "Stk", unitPrice: 4000, vatRate: 0.19 }] },
   })).json()
   await request.put(`${API}/api/v1/invoices/${inv.id}/status?companyId=${companyId}`, { headers: H, data: { status: "sent" } })
 

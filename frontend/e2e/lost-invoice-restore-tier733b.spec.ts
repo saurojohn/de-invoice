@@ -35,7 +35,7 @@ test("a lost invoice is listed and restored from its copy", async ({ page, reque
     headers: H, data: { name: `Kunde ${tag} GmbH`, type: "business", address: { street: "Ring 2", postalCode: "80331", city: "München", country: "DE" }, contact: { email: `ap@${tag}.example.test` } },
   })).json()
   const inv = await (await request.post(`${API}/api/v1/invoices?${q}`, {
-    headers: H, data: { customerId: customer.id, issueDate: new Date().toISOString().slice(0, 10), items: [{ description: "Beratung", quantity: 2, unit: "Std", unitPrice: 100, vatRate: 0.19 }] },
+    headers: H, data: { customerId: customer.id, issueDate: new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }), items: [{ description: "Beratung", quantity: 2, unit: "Std", unitPrice: 100, vatRate: 0.19 }] },
   })).json()
   expect((await request.put(`${API}/api/v1/invoices/${inv.id}/status?${q}`, { headers: H, data: { status: "sent" } })).status()).toBe(200)
 
