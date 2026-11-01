@@ -2669,6 +2669,34 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 767 — the receivables are added up by the database
+
+The Bilanz read all invoices and payments of the company for one sum, for the Anhang and the E-Bilanz as well. It is a SQL sum now, with the rules of Tier 426: payments up to the snapshot, a hand-set „paid" without a payment is settled, an overpayment is no negative receivable. Specs 107 and 475 (hand-computed) pass. The Bilanz went from 4,8 to 3,7 s: the rest is `ustva.compute` for twelve months, not changed. `/dashboard/accounting` still takes 16 s at this size: all sections load at once, 24 requests. Lazy loading of the sections is the remedy if a real company gets there.
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 766 — from the 501st invoice on, the dashboard's figures were the newest 500's
+
+**The dashboard fetched `pageSize=500` and added up in the browser.** Overdue invoices are old, so with more than 500 invoices the tile showed too little. Measured: 3 overdue invoices behind 520 newer ones, tile „0". This needs no large company. It reads three pages with `pageSize=1` and their `sums` now, and shows 3 and 357,00 €. Pending and paid were in the invoice's currency and are in euros now.
+
+**`/dashboard/expenses` sent one request per row**, 502 for one opening. The limit of the whole app is 600 a minute per IP, so a second opening could have answered 429 everywhere. `GET /expenses` brings `attachmentCount` by one `groupBy`, and after a change of Belege only that expense is asked again.
+
+`GET /expenses` said `total: items.length`, so 500 of 20 000 looked like everything. `total` is a real count now, and above the table stands „Die neuesten 500 von 20000 Eingangsrechnungen. Ältere finden Sie über die Suche oder den Lieferanten." in three languages.
+
+Spec `dashboard-figures-tier766.spec.ts`: the first test fails on the code before with „0" for „3". All 48 pages opened in the production frontend on the large company: no 5xx, no page error; before and after, the largest page DOM is the year's expenses on `/accounting/ustva` (34 553 nodes, 3,5 MB), not changed. 182 Playwright tests of these pages pass, on the system Chrome.
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 765 — reports read what they use; a statement reads the open invoices once
+
+With the list fixed, ten users on a mix of the main pages (closed loop, no pause between requests, far more than ten real people) reached 989 MiB of 1 024, `oom_kill 4`, and the killed one was the query engine: `other side closed`, then 500 for everybody until it restarted. `reports/sales` read all columns and all lines of a year's invoices and used neither; the dashboard asks for it on each opening. `reports/customers` the same. Both `select` what they use now: peak 449 MiB, `oom_kill 0`, no error; 1,3 s to 0,4 s alone.
+
+**The suggestions for a bank statement of 1 000 lines took 177 seconds:** all open invoices were read again for each line, and one `RegExp` built per line and invoice. They are read once per statement, and again after an auto-confirmation, which changes them; a plain comparison goes in front of the pattern, which still decides. 3,5 s, `/health` 14 ms meanwhile. All 256 specs touching banks, reports and lists pass; 384 fails locally in the same three assertions on the code before.
+
+`take: 2000` on the open invoices stays: an invoice older than the newest 2 000 open ones gets no suggestion. Noted, not changed.
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 764 — five users on the invoice list ended the process
+
+Measured in the 1 GiB container: one user 1,65 s per opening; **five at once: exit 137.** Every `GET /invoices` read all documents with payments and credit notes into the process for the two sums above the list (Tier 723). `listSums` asks the database: one user 129 ms, fifty at once no error, 202 MiB, and about 10 requests a second, which is the database's 2 CPUs of this test.
+
+Two copies of a rule is the risk of this, so it was measured: old and new code over 60 companies of the test database with 15 filters each, foreign currencies and credit notes among them: **900 combinations, 0 differences.** Spec `478-tier764-summen-in-der-datenbank.sh` keeps it with hand-computed amounts.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 763b — CI green for Tiers 760 to 763, both modes
 
 Commit c056dd31: push 41319792614 backend **476 passed / 0 failed / 1 skipped**, Playwright **1113 passed, 0 flaky, no retry**, 34 minutes; production mode 41319804165 **476 / 0 / 1** on `node dist/main.js`, Playwright **1113, 0 flaky, no retry**, 19 minutes. No Traceback, no `✗`, no `REFUSED`. Docker images 41316989722 on 687651fa green, with `MALLOC_ARENA_MAX=2` in the image. Production mode covers Tiers 757c to 763. The throwaway stack (`t760-pg`, `t760-be`, its image, 3,4 GB of files) is removed. Still no scheduled run: the check after Sunday 2026-11-08 stands (Tier 757).

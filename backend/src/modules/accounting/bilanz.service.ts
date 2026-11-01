@@ -223,34 +223,28 @@ export class BilanzService {
     // *today*: a 1 190 € invoice with 500 € paid stood at 1 190, an invoice
     // paid after the snapshot was missing altogether, and an overpaid one
     // would have turned negative.
-    const openInvoices = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        status: { notIn: ['draft', 'cancelled'] },
-        type: { in: CLAIM_TYPES }, // Tier 424: not a Proforma
-        issueDate: { lte: snapshot },
-      },
-      select: {
-        total: true,
-        status: true,
-        // Tier 760: not filtered here: a filter on the relation fails at 32 768 invoices
-        payments: { select: { amount: true, paymentDate: true } },
-      },
-    })
-    const forderungenLUL = openInvoices.reduce((s, inv) => {
-      const paid = inv.payments.filter((x) => x.paymentDate <= snapshot).reduce(
-        (p, x) => p.plus(x.amount ?? new Prisma.Decimal(0)),
-        new Prisma.Decimal(0),
-      )
-      // An invoice whose status was set to "paid" by hand, without a payment
-      // ever being recorded, is settled — we have no date for it, so it is
-      // not a receivable at any snapshot.
-      if (inv.status === 'paid' && inv.payments.length === 0) return s
-      const open = new Prisma.Decimal(inv.total).minus(paid)
-      // An overpayment is a liability, not a negative receivable — it is on
-      // 4500 through the credit ledger.
-      return open.greaterThan(0) ? s.plus(open) : s
-    }, new Prisma.Decimal(0)).toNumber()
+    // Tier 767: added up by the database. All invoices and payments of the company
+    // were read for this one sum, for the Bilanz, the Anhang and the E-Bilanz alike:
+    // 5 seconds each with 50 000 invoices, and the accounting page asks for them at
+    // once. An invoice whose status was set to "paid" by hand, without a payment ever
+    // being recorded, is settled — we have no date for it, so it is not a receivable
+    // at any snapshot. An overpayment is a liability, not a negative receivable —
+    // it is on 4500 through the credit ledger.
+    const [receivables] = await this.prisma.$queryRaw<{ open: unknown }[]>`
+      SELECT COALESCE(SUM(GREATEST(i.total - COALESCE(p.paid, 0), 0)), 0) AS open
+      FROM "Invoice" i
+      LEFT JOIN (
+        SELECT y."invoiceId", COUNT(*) AS n, SUM(y.amount) FILTER (WHERE y."paymentDate" <= ${snapshot}) AS paid
+        FROM "Payment" y JOIN "Invoice" o ON o.id = y."invoiceId"
+        WHERE o."companyId" = ${companyId}
+        GROUP BY 1
+      ) p ON p."invoiceId" = i.id
+      WHERE i."companyId" = ${companyId}
+        AND i.status NOT IN ('draft', 'cancelled')
+        AND i.type IN (${Prisma.join(CLAIM_TYPES)}) -- Tier 424: not a Proforma
+        AND i."issueDate" <= ${snapshot}
+        AND NOT (i.status = 'paid' AND p."invoiceId" IS NULL)`
+    const forderungenLUL = Number(receivables.open)
 
     // 1600/1700 Liquide Mittel: cash book
     // balance at snapshot. The cash book is
