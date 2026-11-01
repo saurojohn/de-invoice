@@ -35,13 +35,15 @@ export interface PeriodBeleg {
 
 const safe = (s: string) => s.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(0, 120)
 
-export async function belegeInPeriod(
+// Tier 762: one at a time. Together they are the largest part of an archive,
+// and a list of them was the whole of it in memory.
+export async function* belegeInPeriod(
   prisma: PrismaService,
   storage: StorageService,
   companyId: string,
   from: Date,
   to: Date,
-): Promise<PeriodBeleg[]> {
+): AsyncGenerator<PeriodBeleg> {
   const inPeriod = { gte: from, lte: to }
   const [expenses, vouchers, invoices] = await Promise.all([
     prisma.expense.findMany({ where: { companyId, invoiceDate: inPeriod }, select: { id: true, invoiceNumber: true } }),
@@ -52,21 +54,20 @@ export async function belegeInPeriod(
   for (const e of expenses) records.set(`expense:${e.id}`, { kind: 'expense', number: e.invoiceNumber || e.id.slice(0, 8) })
   for (const v of vouchers) records.set(`voucher:${v.id}`, { kind: 'voucher', number: v.voucherNumber || v.id.slice(0, 8) })
   for (const i of invoices) records.set(`invoice:${i.id}`, { kind: 'invoice', number: i.invoiceNumber || i.id.slice(0, 8) })
-  if (records.size === 0) return []
+  if (records.size === 0) return
   const ids = [...records.keys()].map((k) => k.split(':')[1])
   const rows = await prisma.attachment.findMany({
     where: { companyId, entityType: { in: ['expense', 'voucher', 'invoice'] }, entityId: { in: ids } },
     orderBy: { createdAt: 'asc' },
     select: { id: true, entityType: true, entityId: true, originalName: true, mimeType: true, storagePath: true, contentHash: true, deletedAt: true },
   })
-  const out: PeriodBeleg[] = []
   for (const a of rows) {
     const record = records.get(`${a.entityType}:${a.entityId}`)
     if (!record) continue
     const file = await storage.getFile(a.storagePath).catch(() => null)
     const buffer = file?.buffer ?? null
     const removed = !!a.deletedAt
-    out.push({
+    yield {
       kind: record.kind,
       relativePath: `${safe(record.number)}/${removed ? 'entfernt/' : ''}${a.id.slice(0, 8)}_${safe(a.originalName)}`,
       recordNumber: record.number,
@@ -76,7 +77,6 @@ export async function belegeInPeriod(
       removed,
       buffer,
       changed: !!buffer && crypto.createHash('sha256').update(buffer).digest('hex') !== a.contentHash,
-    })
+    }
   }
-  return out
 }

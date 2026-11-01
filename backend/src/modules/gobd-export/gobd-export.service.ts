@@ -24,6 +24,9 @@ import { SigningService } from '../signing/signing.service'
  
 const archiverLib: any = require('archiver')
 import * as crypto from 'crypto'
+import * as fs from 'fs'
+import { finished } from 'stream/promises'
+import { appendAndWait } from '../../common/zip-entry'
 
 /**
  * Tier 166: GoBD § 147 AO archive export.
@@ -125,7 +128,8 @@ export interface GobdFileEntry {
 }
 
 export interface GobdExportResult {
-  zipBuffer: Buffer
+  /** Tier 762: on the storage volume; the caller sends it and removes it */
+  zipPath: string
   filename: string
   stats: {
     invoices: number
@@ -381,8 +385,11 @@ export class GobdExportService {
     // passes through so the per-file sha256 is
     // computed in a single pass.
     const zip = new archiverLib.ZipArchive({ zlib: { level: 6 } })
-    const chunks: Buffer[] = []
-    zip.on('data', (chunk: Buffer) => chunks.push(chunk))
+    // Tier 762: to a file. This was a Buffer of the whole archive, which with a
+    // year's documents and Belege is more than the process may hold.
+    const zipPath = await this.storageService.tempPath(`gobd-${crypto.randomUUID()}.zip`)
+    const zipFile = fs.createWriteStream(zipPath)
+    zip.pipe(zipFile)
 
     const fileEntries: GobdFileEntry[] = []
 
@@ -398,7 +405,7 @@ export class GobdExportService {
         .createHash('sha256')
         .update(data)
         .digest('hex')
-      zip.append(data, { name: archivePath })
+      await appendAndWait(zip, data, { name: archivePath, store: /^(application\/pdf|image\/)/.test(mimeType) })
       fileEntries.push({
         path: archivePath,
         size: data.length,
@@ -559,9 +566,10 @@ export class GobdExportService {
     }
 
     // 3b. Tier 741: the received invoices and every other Beleg of the period
-    const belege = await belegeInPeriod(this.prisma, this.storageService, opts.companyId, yearStart, new Date(yearEnd.getTime() - 1))
+    let belegCount = 0
     const belegeProblems: Array<{ record: string; file: string; problem: string; sha256: string }> = []
-    for (const b of belege) {
+    for await (const b of belegeInPeriod(this.prisma, this.storageService, opts.companyId, yearStart, new Date(yearEnd.getTime() - 1))) {
+      belegCount += 1
       if (!b.buffer) {
         belegeProblems.push({ record: b.recordNumber, file: b.originalName, problem: 'Datei fehlt', sha256: b.contentHash })
         continue
@@ -713,7 +721,7 @@ export class GobdExportService {
         signedPdfs,
         unsignedPdfs,
         totalSize: fileEntries.reduce((s, f) => s + f.size, 0),
-        belege: belege.length,
+        belege: belegCount,
         belegeProblems, // Tier 741: missing or changed since upload
         // Tier 749: index.xml needs its DTD beside it
         datenueberlassung: {
@@ -807,7 +815,8 @@ export class GobdExportService {
 
     // Finalise the zip.
     await zip.finalize()
-    const zipBuffer = Buffer.concat(chunks)
+    await finished(zipFile)
+    const { size: totalSize } = await fs.promises.stat(zipPath)
 
     const stamp = businessTodayIso()
     const safeCompanyName = company.name.replace(/[^\w.-]/g, '_')
@@ -823,7 +832,7 @@ export class GobdExportService {
         : `GoBD-${year}-${safeCompanyName}-${stamp}.zip`
 
     return {
-      zipBuffer,
+      zipPath,
       filename,
       stats: {
         invoices: regularInvoices.length,
@@ -832,11 +841,11 @@ export class GobdExportService {
         recurrings: recurrings.length,
         emailSends: emailSends.length,
         auditLogRows: auditLogs.length,
-        belege: belege.length,
+        belege: belegCount,
         expenses: expenseRows.length,
         signedPdfs,
         unsignedPdfs,
-        totalSize: zipBuffer.length,
+        totalSize,
       },
     }
   }

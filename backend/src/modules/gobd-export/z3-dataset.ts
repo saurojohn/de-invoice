@@ -118,28 +118,28 @@ export function z3IndexXml(input: {
 /** The tables of a period. `to` is the period's last moment. */
 export async function z3Tables(prisma: PrismaService, companyId: string, from: Date, to: Date): Promise<Z3Table[]> {
   const inPeriod = { gte: from, lte: to }
-  const [buchungen, accounts, customers, suppliers, invoices, expenses, payments, cash] = await Promise.all([
-    buildBuchungenFromDb(prisma, companyId, from, to),
-    prisma.account.findMany({ where: { companyId }, orderBy: { accountNumber: 'asc' } }),
-    prisma.customer.findMany({ where: { companyId }, orderBy: { name: 'asc' } }),
-    prisma.supplier.findMany({ where: { companyId }, orderBy: { name: 'asc' } }),
-    prisma.invoice.findMany({
-      where: { companyId, issueDate: inPeriod, status: { not: 'draft' } },
-      orderBy: { invoiceNumber: 'asc' },
-      include: { items: { orderBy: { sortOrder: 'asc' } } },
-    }),
-    prisma.expense.findMany({
-      where: { companyId, invoiceDate: inPeriod },
-      orderBy: [{ invoiceDate: 'asc' }, { id: 'asc' }],
-      include: { taxLines: { orderBy: { position: 'asc' } }, supplier: { select: { name: true } } },
-    }),
-    prisma.payment.findMany({
-      where: { paymentDate: inPeriod, invoice: { companyId } },
-      orderBy: { paymentDate: 'asc' },
-      include: { invoice: { select: { invoiceNumber: true } } },
-    }),
-    prisma.cashBookEntry.findMany({ where: { companyId, businessDate: inPeriod }, orderBy: [{ businessDate: 'asc' }, { createdAt: 'asc' }] }),
-  ])
+  // Tier 762: one after the other. Together they were the peak of the export:
+  // the query engine shares the container's memory with the process.
+  const buchungen = await buildBuchungenFromDb(prisma, companyId, from, to)
+  const accounts = await prisma.account.findMany({ where: { companyId }, orderBy: { accountNumber: 'asc' } })
+  const customers = await prisma.customer.findMany({ where: { companyId }, orderBy: { name: 'asc' } })
+  const suppliers = await prisma.supplier.findMany({ where: { companyId }, orderBy: { name: 'asc' } })
+  const invoices = await prisma.invoice.findMany({
+    where: { companyId, issueDate: inPeriod, status: { not: 'draft' } },
+    orderBy: { invoiceNumber: 'asc' },
+    include: { items: { orderBy: { sortOrder: 'asc' } } },
+  })
+  const expenses = await prisma.expense.findMany({
+    where: { companyId, invoiceDate: inPeriod },
+    orderBy: [{ invoiceDate: 'asc' }, { id: 'asc' }],
+    include: { taxLines: { orderBy: { position: 'asc' } }, supplier: { select: { name: true } } },
+  })
+  const payments = await prisma.payment.findMany({
+    where: { paymentDate: inPeriod, invoice: { companyId } },
+    orderBy: { paymentDate: 'asc' },
+    include: { invoice: { select: { invoiceNumber: true } } },
+  })
+  const cash = await prisma.cashBookEntry.findMany({ where: { companyId, businessDate: inPeriod }, orderBy: [{ businessDate: 'asc' }, { createdAt: 'asc' }] })
   const address = (a: unknown) => {
     const x = (a ?? {}) as { street?: string; postalCode?: string; city?: string; country?: string }
     return [x.street, [x.postalCode, x.city].filter(Boolean).join(' '), x.country].filter(Boolean).join(', ')

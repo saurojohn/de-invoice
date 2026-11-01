@@ -7,6 +7,8 @@ import {
   Logger,
 } from '@nestjs/common'
 import type { Response } from 'express'
+import * as fs from 'fs'
+import { pipeline } from 'stream/promises'
 import { GobdExportService } from './gobd-export.service'
 import { Auth, Require } from '../../auth/roles.decorator'
 
@@ -115,10 +117,16 @@ export class GobdExportController {
     res.set({
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="${result.filename}"`,
-      'Content-Length': String(result.zipBuffer.length),
+      'Content-Length': String(result.stats.totalSize),
       'X-GoBD-Stats': JSON.stringify(result.stats),
       'X-GoBD-Generation-Ms': String(ms),
     })
-    res.end(result.zipBuffer)
+    try {
+      await pipeline(fs.createReadStream(result.zipPath), res)
+    } catch (e) {
+      this.logger.warn(`GoBD export not delivered: ${String(e).slice(0, 120)}`) // the reader left
+    } finally {
+      await fs.promises.rm(result.zipPath, { force: true })
+    }
   }
 }

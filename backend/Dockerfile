@@ -142,6 +142,10 @@ RUN mkdir -p /usr/share/man/man1 \
   && rm -rf /var/lib/apt/lists/* \
   && addgroup --system app && adduser --system --ingroup app app
 
+# Tier 762: in a container of 1 GiB, glibc's arenas decided whether a yearly
+# export lived: the query engine and Node share that limit, and without this
+# the kernel ended the process on two runs of two.
+ENV MALLOC_ARENA_MAX=2
 ENV NODE_ENV=production \
     PORT=3001 \
     # Storage dir is mounted as a volume

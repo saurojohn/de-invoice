@@ -359,7 +359,7 @@ export class DatevExportController {
       const ext = extFromPath(b.relativePath)
       const safeName = sanitizeFilename(b.belegfeld1)
       const arcName = `Belegbilder/${safeName}.${ext}`
-      archive.file(fullPath, { name: arcName })
+      archive.file(fullPath, { name: arcName, store: true })
       includedCount++
     }
 
@@ -555,6 +555,7 @@ export class DatevExportController {
           const safeName = sanitizeFilename(b.belegfeld1)
           archive.file(fullPath, {
             name: `${monthKey}/Belegbilder/${safeName}.${ext}`,
+            store: true, // Tier 762: a PDF or a scan is compressed already
           })
           includedCount++
         }

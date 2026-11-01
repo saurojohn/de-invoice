@@ -9,6 +9,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { SALES_TYPES, NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { belegeInPeriod } from './gobd-belege'
+import { appendAndWait } from '../../common/zip-entry'
 
 /**
  * Tier 77: GoBD-compliant Document Archive (§ 147 AO).
@@ -77,6 +78,8 @@ export interface GobdArchiveSummary {
 
 @Injectable()
 export class GobdArchiveService {
+  private static readonly INVOICE_PAGE = 200
+
   private readonly logger = new Logger(GobdArchiveService.name)
 
   constructor(
@@ -128,18 +131,17 @@ export class GobdArchiveService {
       }
     })
     archive.pipe(res)
+    const append = (data: Buffer, name: string) => appendAndWait(archive, data, { name, store: true }, res)
 
-    // Run the assembly in parallel: invoices,
-    // expenses, audit log, DATEV CSV. Each
-    // populates its own sub-folder; the manifest
-    // is built last once we know the counts.
+    // Run the assembly in parallel: expenses,
+    // audit log, DATEV CSV. Each populates its
+    // own sub-folder; the manifest is built last
+    // once we know the counts.
     const [
-      invoiceEntries,
       expenseEntries,
       auditCsv,
       datevCsv,
     ] = await Promise.all([
-      this.collectInvoices(companyId, yearStart, yearEnd, company),
       this.collectExpenses(companyId, yearStart, yearEnd),
       this.buildAuditCsv(companyId, yearStart, yearEnd),
       this.buildDatevCsv(companyId, yearStart, yearEnd, company),
@@ -153,11 +155,13 @@ export class GobdArchiveService {
     let totalVat = 0
     let totalVorsteuer = 0
 
-    for (const inv of invoiceEntries) {
+    // Tier 762: written as they are read
+    let invoiceCount = 0
+    for await (const inv of this.issuedInvoices(companyId, yearStart, yearEnd, company)) {
+      if (res.destroyed) break
       const safeName = this.sanitizeName(inv.invoiceNumber || inv.id)
-      archive.append(inv.pdfBuffer, {
-        name: `Invoices/${safeName}.pdf`,
-      })
+      await append(inv.pdfBuffer, `Invoices/${safeName}.pdf`)
+      invoiceCount += 1
       if (inv.counts) {
         totalRevenueNet += inv.subtotal
         totalVat += inv.vat
@@ -193,12 +197,20 @@ export class GobdArchiveService {
     }
 
     // Tier 741: the Belege themselves (gobd-belege.ts)
-    const belege = await belegeInPeriod(this.prisma, this.storage, companyId, yearStart, yearEnd)
     const folder = { expense: 'Expenses', voucher: 'Vouchers', invoice: 'Invoices' }
-    for (const b of belege) {
+    const belegeProblems: Array<{ record: string; file: string; problem: string; sha256: string }> = []
+    for await (const b of belegeInPeriod(this.prisma, this.storage, companyId, yearStart, yearEnd)) {
+      if (res.destroyed) break
+      if (!b.buffer || b.changed) {
+        belegeProblems.push({ record: b.recordNumber, file: b.originalName, problem: b.buffer ? 'Inhalt weicht vom gespeicherten Hash ab' : 'Datei fehlt', sha256: b.contentHash })
+      }
       if (!b.buffer) continue
-      archive.append(b.buffer, { name: `${folder[b.kind]}/${b.relativePath}` })
+      await append(b.buffer, `${folder[b.kind]}/${b.relativePath}`)
       attachmentCount += 1
+    }
+    if (res.destroyed) {
+      archive.abort()
+      return
     }
 
     archive.append(encodeDatevCsv(datevCsv), { name: 'Buchungsstapel.csv' })
@@ -217,15 +229,13 @@ export class GobdArchiveService {
       year,
       generatedAt: new Date().toISOString(),
       counts: {
-        invoices: invoiceEntries.length,
+        invoices: invoiceCount,
         expenses: expenseEntries.length,
         attachments: attachmentCount,
         auditLogLines: auditCsv.split('\n').length - 2, // minus header + trailing newline
       },
       // Tier 741: what could not be handed over as it was stored
-      belegeProblems: belege
-        .filter((b) => !b.buffer || b.changed)
-        .map((b) => ({ record: b.recordNumber, file: b.originalName, problem: b.buffer ? 'Inhalt weicht vom gespeicherten Hash ab' : 'Datei fehlt', sha256: b.contentHash })),
+      belegeProblems,
       totals: {
         revenueNet: this.round2(totalRevenueNet),
         expenseNet: this.round2(totalExpenseNet),
@@ -385,61 +395,67 @@ export class GobdArchiveService {
 
   // ── helpers ──
 
-  private async collectInvoices(
+  private async *issuedInvoices(
     companyId: string,
     yearStart: Date,
     yearEnd: Date,
     company: any,
-  ): Promise<Array<{ id: string; invoiceNumber: string | null; subtotal: number; vat: number; counts: boolean; pdfBuffer: Buffer }>> {
+  ): AsyncGenerator<{ id: string; invoiceNumber: string | null; subtotal: number; vat: number; counts: boolean; pdfBuffer: Buffer }> {
     // Tier 420: drafts were never issued, so they are not archived; a
     // cancelled invoice was, and is. Only issued, not cancelled invoices count
     // towards the totals (`counts`).
-    const invoices = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        issueDate: { gte: yearStart, lte: yearEnd },
-        status: { not: 'draft' },
-        type: { notIn: NON_FISCAL_TYPES }, // Tier 610
-      },
-      // Tier 473: payments for a final invoice's prepaid amount (BT-113)
-      include: INVOICE_DOCUMENT_INCLUDE, // Tier 684: as every outlet reads it (the product's SKU was missing here)
-      orderBy: { issueDate: 'asc' },
-    })
-    const result = []
-    for (const inv of invoices) {
-      try {
-        // Tier 420: archive the document that was issued. This re-rendered
-        // every invoice from `{ name, taxId }` alone — the archived copy had
-        // no seller address, no USt-IdNr., no bank details, so it was not the
-        // invoice the customer received (§ 14 Abs. 4 / § 147 AO). The stored
-        // PDF (saved on the first download, as sent) comes first; without
-        // one, it is rendered exactly as GET /invoices/:id/pdf renders it.
-        let pdfBuffer: Buffer | null = null
-        if (inv.pdfPath) {
-          pdfBuffer = (await this.storage.getFile(inv.pdfPath))?.buffer ?? null
+    const where = {
+      companyId,
+      issueDate: { gte: yearStart, lte: yearEnd },
+      status: { not: 'draft' },
+      type: { notIn: NON_FISCAL_TYPES }, // Tier 610
+    }
+    const orderBy = [{ issueDate: 'asc' as const }, { id: 'asc' as const }]
+    // Tier 762: the ids first, the documents a page at a time
+    const ids = (await this.prisma.invoice.findMany({ where, orderBy, select: { id: true } })).map((i) => i.id)
+    for (let at = 0; at < ids.length; at += GobdArchiveService.INVOICE_PAGE) {
+      const invoices = await this.prisma.invoice.findMany({
+        where: { companyId, id: { in: ids.slice(at, at + GobdArchiveService.INVOICE_PAGE) } },
+        // Tier 473: payments for a final invoice's prepaid amount (BT-113)
+        include: INVOICE_DOCUMENT_INCLUDE, // Tier 684: as every outlet reads it (the product's SKU was missing here)
+        orderBy,
+      })
+      for (const inv of invoices) {
+        let entry: { id: string; invoiceNumber: string | null; subtotal: number; vat: number; counts: boolean; pdfBuffer: Buffer } | null = null
+        try {
+          // Tier 420: archive the document that was issued. This re-rendered
+          // every invoice from `{ name, taxId }` alone — the archived copy had
+          // no seller address, no USt-IdNr., no bank details, so it was not the
+          // invoice the customer received (§ 14 Abs. 4 / § 147 AO). The stored
+          // PDF (saved on the first download, as sent) comes first; without
+          // one, it is rendered exactly as GET /invoices/:id/pdf renders it.
+          let pdfBuffer: Buffer | null = null
+          if (inv.pdfPath) {
+            pdfBuffer = (await this.storage.getFile(inv.pdfPath))?.buffer ?? null
+          }
+          if (!pdfBuffer) {
+            const doc = await renderInvoiceDocument(this.prisma, inv, company)
+            await keepIssuedCopy(this.prisma, inv, doc) // Tier 684: the next export hands over this one
+            pdfBuffer = doc.buffer
+          }
+          entry = {
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            // Tier 411: net after the invoice discount (was subtotal, before it).
+            // The field keeps its name; the manifest sums it as revenue.
+            subtotal: Number(inv.total) - Number(inv.totalVat),
+            vat: Number(inv.totalVat),
+            counts: inv.status !== 'cancelled',
+            pdfBuffer: pdfBuffer as Buffer,
+          }
+        } catch (e: any) {
+          this.logger.warn(
+            `Skipping invoice ${inv.id} (${inv.invoiceNumber}): ${e?.message}`,
+          )
         }
-        if (!pdfBuffer) {
-          const doc = await renderInvoiceDocument(this.prisma, inv, company)
-          await keepIssuedCopy(this.prisma, inv, doc) // Tier 684: the next export hands over this one
-          pdfBuffer = doc.buffer
-        }
-        result.push({
-          id: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          // Tier 411: net after the invoice discount (was subtotal, before it).
-          // The field keeps its name; the manifest sums it as revenue.
-          subtotal: Number(inv.total) - Number(inv.totalVat),
-          vat: Number(inv.totalVat),
-          counts: inv.status !== 'cancelled',
-          pdfBuffer,
-        })
-      } catch (e: any) {
-        this.logger.warn(
-          `Skipping invoice ${inv.id} (${inv.invoiceNumber}): ${e?.message}`,
-        )
+        if (entry) yield entry
       }
     }
-    return result
   }
 
   private async collectExpenses(

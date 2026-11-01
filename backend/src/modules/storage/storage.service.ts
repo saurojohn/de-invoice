@@ -149,9 +149,7 @@ export class StorageService {
     const dirPath = path.join(this.config.localPath, year, month, type, companyId);
 
     // Create directory if it doesn't exist
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
+    await fs.promises.mkdir(dirPath, { recursive: true });
 
     // Generate unique filename with timestamp
     const timestamp = Date.now();
@@ -160,7 +158,7 @@ export class StorageService {
     const filePath = path.join(dirPath, newFilename);
 
     // Write file
-    fs.writeFileSync(filePath, buffer);
+    await fs.promises.writeFile(filePath, buffer);
 
     // Calculate relative path for storage
     const relativePath = path.join(year, month, type, companyId, newFilename);
@@ -186,8 +184,8 @@ export class StorageService {
   async saveAt(relativePath: string, buffer: Buffer): Promise<void> {
     const fullPath = path.join(this.config.localPath, relativePath);
     if (!this.isPathSafe(fullPath)) throw new BadRequestException('Ungültiger Speicherpfad.');
-    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-    fs.writeFileSync(fullPath, buffer, { flag: 'wx' });
+    await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.promises.writeFile(fullPath, buffer, { flag: 'wx' });
   }
 
   /**
@@ -202,11 +200,15 @@ export class StorageService {
       return null;
     }
 
-    if (!fs.existsSync(fullPath)) {
+    // Tier 762: not synchronously. Over a year's PDFs that held every other
+    // request of the process for seconds, the health check too.
+    const buffer = await fs.promises.readFile(fullPath).catch((e: NodeJS.ErrnoException) => {
+      if (e.code === 'ENOENT') return null;
+      throw e;
+    });
+    if (!buffer) {
       return null;
     }
-
-    const buffer = fs.readFileSync(fullPath);
     const ext = path.extname(fullPath).toLowerCase();
 
     return {
@@ -428,6 +430,23 @@ export class StorageService {
    */
   async getInvoicePdf(relativePath: string) {
     return this.getFile(relativePath);
+  }
+
+  /**
+   * Tier 762: a place for a file being built, on the storage volume: /tmp is a
+   * tmpfs and counts towards the container's memory. What an interrupted run
+   * left there goes with the next one.
+   */
+  async tempPath(name: string): Promise<string> {
+    const dir = path.join(this.config.localPath, '.tmp');
+    await fs.promises.mkdir(dir, { recursive: true });
+    const dayAgo = Date.now() - 24 * 3600 * 1000;
+    for (const left of await fs.promises.readdir(dir)) {
+      const full = path.join(dir, left);
+      const st = await fs.promises.stat(full).catch(() => null);
+      if (st && st.mtimeMs < dayAgo) await fs.promises.rm(full, { force: true });
+    }
+    return path.join(dir, name);
   }
 
   /**

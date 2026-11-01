@@ -2669,6 +2669,30 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 762 — the archives of a year, in a container of 1 GiB
+
+Measured in the production image with `--memory=1g`, read-only, no capabilities, 8 161 invoices and 3 000 receipts of 1 MiB in one year (`t760-be`; the Prisma query engine is a child process and shares the limit, 220 to 300 MiB of it after a large query):
+
+| Route | Code before | Now |
+|---|---|---|
+| `GET /accounting/gobd-archive` | process killed (137) | 200, 3,4 GB, 40 s, first byte 6 s |
+| `GET /gobd-export` | process killed (137) | 200, 3,4 GB, 55 s, 2 of 2 runs |
+| `GET /reports/datev-export-bundle`, `-monthly` | not measured with the limit | 200, 3,4 GB, 2 min |
+| `GET /accounting/berater-packager` | no answer in 180 s while PDFs were rendered | 200, 16 s |
+| `/health` during the archive | 28 s without an answer | 0,22 s at worst |
+
+- `storage.getFile`, `save`, `saveAt` were synchronous: `await` of a function that never gives way lets nothing else run, so a loop over a year's PDFs stopped every other request. They use `fs.promises` now. The Docker healthcheck has 5 s.
+- `gobd-archive` held every PDF and every Beleg in memory; `archive.append` only queues. `common/zip-entry.ts` `appendAndWait` waits for the entry to be written, the invoices come in pages of 200 from a generator, `belegeInPeriod` is a generator too.
+- `gobd-export` held the whole ZIP in one Buffer. It writes to `<storage>/.tmp/` (the volume: `/tmp` is a tmpfs and counts as memory); the controller streams the file and removes it, `tempPath` clears what an interrupted run left after a day. `Content-Length` and `X-GoBD-Stats` stay.
+- PDFs and scans are `store: true`. They are compressed already, and each compressed entry was a zlib stream.
+- `z3Tables` asks one table after the other: `Promise.all` was the peak of the export.
+- **`ENV MALLOC_ARENA_MAX=2` in the image.** With everything above and without it the export was still killed on 2 of 2 runs; with it, 2 of 2 passed with `oom_kill 0`.
+- My first `appendAndWait` chained `.then` on one promise per entry, and that closure held the document: a leak of exactly what it was meant to save, visible only in the container (killed again, at 240 MB). It adds and removes a `close` listener now. Spec 477 keeps that line.
+
+**Still tight:** the export peaks at 893 MiB of anonymous memory of 1 024 (Node 581, engine 304). That is 8 000 invoices a year, more than this product's market, but the margin is thin. `gobd-export` makes every PDF first if none is stored (`ensureIssuedCopies`, about 100 ms each): the first export of an old year takes minutes. `/ustva/expenses` without a year answered 503 after 86 s on 20 000 expenses; the page always sends a year (2 s), not changed.
+
+Spec `477-tier762-archive-ohne-speicherlast.sh`: the shape of the code (what memory needs a container to show), both archives delivered, `Stored` for a PDF, `Defl:N` for text. Local failures of 103 and 183 are the same on the code before.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 761 — one click on „Kette prüfen" ended the process
 
 `GET /audit-logs/verify` loaded all audit rows of a company. On the code before, with 303 309 rows and the heap of a 1 GiB container: `FATAL ERROR: Reached heap limit … JavaScript heap out of memory` after 5 seconds, the process gone, for every user. It now reads 2 000 rows at a time by `seq`: 303 309 rows, a valid chain built for the test, `ok: true` in 6,1 s at 358 MiB, the process alive.
