@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 757d — CI green for Tiers 757 to 757c
+
+Commit a159cc18, both modes: push 41296002143 backend **473 / 0 / 1**, Playwright **1113, 0 flaky, no retry**, 40 minutes; production mode 41296011817 backend **473 / 0 / 1** on `node dist/main.js`, Playwright **1113, 0 flaky, no retry**, 18 minutes. No Traceback, no `✗`, no `REFUSED`. Docker images 41290465510 on d4216d44 green; 757b and 757c touched no file of its path list. No scheduled run has appeared yet: see Tier 757 for the check after Sunday 2026-11-08.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 757c — the word "Bemerkungen" took the template picker for its field
 
 Runs on deea14dd: push 41292774242 backend **473 / 0 / 1**, Playwright **1113, 0 flaky**, 38 minutes; production mode 41292784601 backend **473 / 0 / 1**, Playwright 1112 + **1 flaky**, 17 minutes. The flaky one, `field-labels-tier637`: `select[invoice-notes-template-select]` without a name.
