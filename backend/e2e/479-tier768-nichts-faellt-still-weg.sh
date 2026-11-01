@@ -63,7 +63,7 @@ assert_eq "all purchases reach the Anlage SO" "$(printf '%s' "$IMP" | py "len(r[
 curl -sS -m 60 "${H[@]}" "$API/api/v1/audit-logs/export.csv?companyId=$C" -o /tmp/t768.csv
 ROWS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select count(*) from \"AuditLog\" where \"companyId\"='$C'")
 assert_eq "the audit CSV holds every row" "$(( $(wc -l < /tmp/t768.csv | tr -d ' ') ))" "$ROWS"
-assert_eq "with its header" "$(head -1 /tmp/t768.csv | cut -c4-14)" "Zeitstempel"
+assert_eq "with its header" "$(head -1 /tmp/t768.csv | grep -c 'Zeitstempel;Aktion')" "1"
 # Tier 772
 assert_eq "a customer's payments in one answer" "$(get "customers/$TAG-c205/payments?companyId=$C" | py "[(p['invoiceNumber'], p['amount']) for p in r]")" "[('R-2', '119'), ('R-1', '119')]"
 assert_eq "every supplier in the list" "$(get "suppliers?companyId=$C" | py "len(r['data'] if isinstance(r, dict) else r)")" "510"
