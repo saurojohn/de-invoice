@@ -995,6 +995,7 @@
     "hideOcr": "Volltext ausblenden",
     "noOcr": "Kein OCR-Text verfügbar",
     "attachmentCount": "{count} Beleg(e)",
+    "listCapped": "Die neuesten {shown} von {total} Eingangsrechnungen. Ältere finden Sie über die Suche oder den Lieferanten.",
     "size": "Größe",
     "uploadedBy": "Hochgeladen von",
     "uploadedAt": "Hochgeladen am",

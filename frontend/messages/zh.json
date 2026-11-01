@@ -995,6 +995,7 @@
     "hideOcr": "隐藏全文",
     "noOcr": "无可用 OCR 文本",
     "attachmentCount": "{count} 个凭证",
+    "listCapped": "显示最新的 {shown} 张，共 {total} 张进项发票。较早的发票请通过搜索或供应商查找。",
     "size": "大小",
     "uploadedBy": "上传者",
     "uploadedAt": "上传时间",

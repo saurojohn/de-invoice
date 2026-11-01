@@ -73,6 +73,7 @@ export default function ExpensesPage() {
   // lazily on first render of the table so the column
   // shows a paperclip + count without making the list
   // endpoint return nested attachments.
+  const [matching, setMatching] = useState(0)
   const [receiptCounts, setReceiptCounts] = useState<Record<string, number>>({})
   // Detail modal — which expense's receipts we're
   // looking at, if any. Null = modal closed.
@@ -197,10 +198,8 @@ export default function ExpensesPage() {
         // count (was `items.length`).
       } else if (data && Array.isArray(data.data)) {
         setItems(data.data)
-        // If a total field is present, surface it via
-        // the parent's count line. (The parent doesn't
-        // currently render a count; this is for a future
-        // tier that adds one.)
+        setReceiptCounts(Object.fromEntries(data.data.map((e: any) => [e.id, e.attachmentCount ?? 0])))
+        setMatching(typeof data.total === "number" ? data.total : data.data.length) // Tier 766
       } else {
         setItems([])
       }
@@ -212,35 +211,15 @@ export default function ExpensesPage() {
     }
   }, [router, debouncedSearch, supplierId])
 
-  // Fetch attachment counts for the currently-visible
-  // expenses. The /attachments endpoint takes one
-  // entityId at a time, so we fire N parallel
-  // requests — fine for a list page (typical N is
-  // 10-50). The response is cached in receiptCounts
-  // so re-renders don't refetch.
-  const refreshReceiptCounts = useCallback(async () => {
+  // Tier 766: the counts come with the list; this is the open expense's after a change.
+  const refreshReceiptCount = useCallback(async (id: string) => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
-    const ids = items.map((e) => e.id)
-    if (ids.length === 0) return
-    const results = await Promise.all(
-      ids.map(async (id) => {
-        try {
-          const list = await apiGet<any[]>(
-            `/api/v1/attachments?companyId=${companyId}&entityType=expense&entityId=${id}`,
-          )
-          return [id, Array.isArray(list) ? list.length : 0] as const
-        } catch {
-          return [id, 0] as const
-        }
-      }),
-    )
-    setReceiptCounts(Object.fromEntries(results))
-  }, [items])
-
-  useEffect(() => {
-    if (items.length > 0) refreshReceiptCounts()
-  }, [items]) // eslint-disable-line react-hooks/exhaustive-deps
+    const list = await apiGet<any[]>(
+      `/api/v1/attachments?companyId=${companyId}&entityType=expense&entityId=${id}`,
+    ).catch(() => null)
+    if (Array.isArray(list)) setReceiptCounts((c) => ({ ...c, [id]: list.length }))
+  }, [])
 
   useEffect(() => {
     load()
@@ -630,6 +609,11 @@ export default function ExpensesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {matching > items.length && (
+              <p className="mb-3 text-sm text-amber-700 dark:text-amber-400" data-testid="expenses-capped">
+                {t("expenses.listCapped").replace("{shown}", String(items.length)).replace("{total}", String(matching))}
+              </p>
+            )}
             {loading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
@@ -835,7 +819,7 @@ export default function ExpensesPage() {
                 companyId={localStorage.getItem("companyId") || ""}
                 entityType="expense"
                 entityId={detailExpense.id}
-                onChange={refreshReceiptCounts}
+                onChange={() => refreshReceiptCount(detailExpense.id)}
               />
               <div className="mt-4 flex justify-end">
                 <Button variant="outline" onClick={() => setDetailExpense(null)}>

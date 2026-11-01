@@ -41,7 +41,7 @@ export class ExpenseService {
         { description: { contains: opts.search, mode: 'insensitive' } },
       ];
     }
-    const items = await this.prisma.expense.findMany({
+    const [items, total] = await Promise.all([this.prisma.expense.findMany({
       where,
       include: {
         supplier: { select: { id: true, name: true, vatId: true } },
@@ -50,7 +50,7 @@ export class ExpenseService {
       },
       orderBy: { invoiceDate: 'desc' },
       take: 500,
-    });
+    }), this.prisma.expense.count({ where })]);
     if (items.length === 0) return { data: [], total: 0 };
     // Tier 447: the payment state comes from the expense itself (paidAt —
     // bank, SEPA, cash book), not from bank vouchers alone. The voucher search
@@ -65,7 +65,6 @@ export class ExpenseService {
       where: {
         companyId,
         referenceType: 'Expense',
-        OR: expenseIds.map((id) => ({ description: { contains: `[expense:${id}]` } })),
       },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -76,6 +75,22 @@ export class ExpenseService {
         _count: { select: { reversals: true } },
       },
     });
+    // Tier 766: read once, as in expense-lock.ts
+    const shown = new Set(expenseIds);
+    const bookings = new Map<string, typeof vouchers>();
+    for (const v of vouchers) {
+      for (const m of (v.description || '').matchAll(/\[expense:([^\]]+)\]/g)) {
+        if (shown.has(m[1])) bookings.set(m[1], [...(bookings.get(m[1]) ?? []), v]);
+      }
+    }
+    // Tier 766: the page asked for each row's Belege on its own: 500 requests for
+    // one opening, and the limit of the whole app is 600 a minute.
+    const belege = await this.prisma.attachment.groupBy({
+      by: ['entityId'],
+      where: { companyId, entityType: 'expense', entityId: { in: expenseIds }, deletedAt: null },
+      _count: { _all: true },
+    });
+    const belegCount = new Map(belege.map((b) => [b.entityId, b._count._all]));
     const locks = await expenseLockReasons(this.prisma, companyId, items);
     return {
       // Tier 178: wrap the array in {data, total} so
@@ -84,7 +99,7 @@ export class ExpenseService {
       // /products. Phase 3 Berater-Walkthrough flagged
       // this as a consistency gap.
       data: items.map((e) => {
-        const own = vouchers.filter((v) => (v.description || '').includes(`[expense:${e.id}]`));
+        const own = bookings.get(e.id) ?? [];
         const active = own.find((v) => v._count.reversals === 0);
         const reversed = own.find((v) => v._count.reversals > 0);
         const v = active ?? reversed;
@@ -98,17 +113,11 @@ export class ExpenseService {
             : null,
           lockReason: locks.get(e.id) ?? null,
           bewirtungNachweisFehlt: bewirtungNachweisFehlt(e), // Tier 539
+          attachmentCount: belegCount.get(e.id) ?? 0, // Tier 766
         };
       }),
-      // Tier 178: total = total rows the list page
-      // would see if it asked for all pages. With
-      // take: 500 hard-coded above, we lose the
-      // ability to do a real COUNT — but for the
-      // typical case (< 500 expenses per year) total
-      // equals items.length. For larger data sets
-      // a future tier should drop the `take: 500`
-      // and add a separate prisma.expense.count.
-      total: items.length,
+      // Tier 766: all that match; `data` holds the newest 500 of them
+      total,
     };
   }
 

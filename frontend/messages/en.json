@@ -995,6 +995,7 @@
     "hideOcr": "Hide full text",
     "noOcr": "No OCR text available",
     "attachmentCount": "{count} attachment(s)",
+    "listCapped": "The newest {shown} of {total} supplier invoices. Find older ones by searching or by supplier.",
     "size": "Size",
     "uploadedBy": "Uploaded by",
     "uploadedAt": "Uploaded at",

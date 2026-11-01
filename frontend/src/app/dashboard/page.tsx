@@ -50,6 +50,12 @@ interface RecurringStats {
   }>
 }
 
+interface InvoicePage {
+  data: any[]
+  total: number
+  sums: { totalEur: number; openEur: number }
+}
+
 interface DashboardKpis {
   ytd: {
     revenue: number
@@ -209,7 +215,11 @@ export default function DashboardPage() {
     // the failed fetches resolved to undefined and the
     // .reduce() ran over an empty list.
     Promise.all([
-      apiGet<{ data: any[]; total: number }>(`/api/v1/invoices?companyId=${companyId}&pageSize=500`),
+      apiGet<InvoicePage>(`/api/v1/invoices?companyId=${companyId}&pageSize=8`),
+      // Tier 766: the tiles are the company's, not the newest 500 invoices'
+      apiGet<InvoicePage>(`/api/v1/invoices?companyId=${companyId}&pageSize=1&status=overdue`),
+      apiGet<InvoicePage>(`/api/v1/invoices?companyId=${companyId}&pageSize=1&status=sent,draft,overdue`),
+      apiGet<InvoicePage>(`/api/v1/invoices?companyId=${companyId}&pageSize=1&status=paid`),
       apiGet<{ byMonth: any[] }>(`/api/v1/reports/sales?companyId=${companyId}&startDate=${startDate}&endDate=${endDate}`),
       apiGet<DashboardKpis>(`/api/v1/reports/dashboard?companyId=${companyId}`),
       // Tier 63: recurring-invoice aggregate for the
@@ -270,38 +280,17 @@ export default function DashboardPage() {
           return null
         }),
     ])
-      .then(([invoiceList, salesReport, dashboardKpis, recurring, creditRows, ustvaRows, sysHealth]) => {
+      .then(([invoiceList, overdueList, pendingList, paidList, salesReport, dashboardKpis, recurring, creditRows, ustvaRows, sysHealth]) => {
         const invoices = invoiceList?.data || []
-        const pending = invoices
-          .filter((inv: any) => inv.status === "sent" || inv.status === "draft" || inv.status === "overdue")
-          .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0)
-        // Tier 710: what is open of them, in euros — it added the totals (a part-paid
-        // invoice in full, an invoice in USD as if in euros)
-        const openEurOf = (inv: any) => {
-          const total = Number(inv.total || 0)
-          const paid = (inv.payments || []).reduce((p: number, x: any) => p + Number(x.amount || 0), 0)
-          const toEur = inv.eurTotal != null && total !== 0 ? Number(inv.eurTotal) / total : 1
-          return Math.max(0, Math.round((total - paid) * toEur * 100) / 100)
-        }
-        const overdue = invoices
-          .filter((inv: any) => inv.status === "overdue")
-          .reduce((sum: number, inv: any) => Math.round((sum + openEurOf(inv)) * 100) / 100, 0)
-        const paid = invoices
-          .filter((inv: any) => inv.status === "paid")
-          .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0)
-
         setStats({
           totalInvoices: invoiceList?.total ?? invoices.length,
-          pendingAmount: pending,
-          overdueAmount: overdue,
-          // Tier 236: count of overdue invoices. Cheap
-          // O(N) over the already-fetched list — no
-          // second API call. Powers the new Overdue
-          // Counter KPI tile on the dashboard.
-          overdueCount: invoices.filter(
-            (inv: any) => inv.status === "overdue",
-          ).length,
-          paidAmount: paid,
+          pendingAmount: pendingList?.sums.totalEur ?? 0,
+          // Tier 710: what is open of them, in euros
+          overdueAmount: overdueList?.sums.openEur ?? 0,
+          // Tier 236: count of overdue invoices. Powers the
+          // Overdue Counter KPI tile on the dashboard.
+          overdueCount: overdueList?.total ?? 0,
+          paidAmount: paidList?.sums.totalEur ?? 0,
         })
         setRecurringStats(recurring)
         setMonthlyRevenue(salesReport?.byMonth || [])
