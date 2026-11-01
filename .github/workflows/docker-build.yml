@@ -37,7 +37,7 @@ on:
   # Tier 756: what the images are made of changes without a push (the base
   # images, the Debian packages); weekly, next to the production run of ci.yml.
   schedule:
-    - cron: '30 3 * * 0'
+    - cron: '47 3 * * 0'
   workflow_dispatch:
 
 concurrency:

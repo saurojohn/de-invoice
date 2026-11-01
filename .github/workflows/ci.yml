@@ -45,8 +45,10 @@ on:
   # what differs there stays unseen: Tier 755 found a race in a form that only
   # the production build shows. Weekly, not nightly: about an hour of runner
   # time, and the account has hit its spending limit once.
+  # Tier 757: not on the hour. GitHub's scheduler is at its busiest then and may
+  # drop a run; the slot at 03:00 on 2026-11-01 never came.
   schedule:
-    - cron: '0 3 * * 0'
+    - cron: '17 3 * * 0'
   workflow_dispatch:
     inputs:
       production_build:
