@@ -31,10 +31,13 @@ import { notAnExpense } from '../accounting/expense-cost';
 export class ExpenseService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(companyId: string, opts: { supplierId?: string; status?: string; search?: string } = {}) {
+  async findAll(companyId: string, opts: { supplierId?: string; status?: string; search?: string; unpaid?: boolean } = {}) {
     const where: any = { companyId };
     if (opts.supplierId) where.supplierId = opts.supplierId;
     if (opts.status) where.status = opts.status;
+    // Tier 773: the bank page's offer. Out of the newest 500 of all, an open
+    // invoice older than those could not be matched.
+    if (opts.unpaid) where.AND = [{ OR: [{ paidAt: null }, { paidBySepaBatchId: { not: null } }] }];
     if (opts.search) {
       where.OR = [
         { invoiceNumber: { contains: opts.search, mode: 'insensitive' } },

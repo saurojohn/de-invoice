@@ -2669,6 +2669,29 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tiers 768 to 773 — nothing falls off the end without a word
+
+After the dashboard (Tier 766) every hard-coded limit was read: 46 `take:` in the backend, every `pageSize` and every list request without one in the frontend. The pattern: a list with a limit, and a page or a sum that treats it as everything. Nothing fails, every figure looks right, and it needs no large company.
+
+| Tier | Where | Above the limit | Now |
+|---|---|---|---|
+| 768 | Recurring invoices, time entries, SEPA mandates | asked `pageSize=500`, `/customers` gives 200: the 201st customer could not be chosen | `GET /customers/options`, all of them |
+| 769 | Time page's sums | those of the newest 2 000 entries; open amount 0 for 300 open hours behind them | sums of all that match, `total`, a notice above the sums |
+| 769 | Time sheet (`timesheet.pdf`), a document for a customer | ended at the 5 000th entry | refused with a message |
+| 770 | Anlage SO import from expenses | the same first 500 purchases on every run: the 501st never reached the tax form | no limit |
+| 771 | Audit log CSV, the GoBD export | ended at the newest 10 000 rows, without a word | all rows, 2 000 at a time, streamed |
+| 772 | Customer page | 50 invoices without a word; payments invoice by invoice, of the last 200 at most | 200 and a notice; `GET /customers/:id/payments` |
+| 772 | `/suppliers` | 500 | 5 000 |
+| 773 | Inventory | the first 50 of `/products`, filtered: from the 51st product on, no stock page | `GET /inventory/tracked` |
+| 773 | Bank page's open expenses | out of the newest 500 of all: an older unpaid one could not be matched | `GET /expenses?unpaid=true` |
+| 773 | Statement page's header | the name was looked for in the first 50 customers | `GET /customers/:id` |
+
+Spec `479-tier768-nichts-faellt-still-weg.sh`: 12 assertions fail on the code before, with the very numbers: 10 000 CSV rows, 500 purchases, 200 customers, 120 000 minutes for 300 060. Tier 773 was added to it afterwards.
+
+Kept, because they only limit what is shown and the page says so or it does not add up: the 2 000 entries of the time list, the 500 expenses, the 200 of a list page. Open: the 2 000 open invoices of the bank suggestions (Tier 765), the 50 000 entries of the time report by group, the audit activity views at 10 000 (a screen, not an export). `/ustva/expenses` lists a period in full.
+
+Local failures, the same on the code before: 72, 90, 192 (needs crons), 384; Playwright `admin-ops-tier195` (needs crons), `credit-limit-warning-tier159`. `customer-email-history-tier144` failed only inside a long run on the shared database and passes alone.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 767b — CI green for Tiers 764 to 767, both modes
 
 Commit 7d8d01b1: push 41335487731 backend **477 passed / 0 failed / 1 skipped**, Playwright **1115 passed, 0 flaky, no retry**, 39 minutes; production mode 41335501575 **477 / 0 / 1**, Playwright **1115, 0 flaky, no retry**, 18 minutes. No Traceback, no `✗`, no `REFUSED`.
@@ -2681,7 +2704,7 @@ The Bilanz read all invoices and payments of the company for one sum, for the An
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 766 — from the 501st invoice on, the dashboard's figures were the newest 500's
 
-**The dashboard fetched `pageSize=500` and added up in the browser.** Overdue invoices are old, so with more than 500 invoices the tile showed too little. Measured: 3 overdue invoices behind 520 newer ones, tile „0". This needs no large company. It reads three pages with `pageSize=1` and their `sums` now, and shows 3 and 357,00 €. Pending and paid were in the invoice's currency and are in euros now.
+**The dashboard fetched `pageSize=500` and added up in the browser.** `GET /invoices` gives 200 at most, so it was the newest 200 (corrected in Tier 768; this entry first said 500, as does the commit's title). Overdue invoices are old, so with more than 200 invoices the tile showed too little. Measured: 3 overdue invoices behind 520 newer ones, tile „0". This needs no large company. It reads three pages with `pageSize=1` and their `sums` now, and shows 3 and 357,00 €. Pending and paid were in the invoice's currency and are in euros now.
 
 **`/dashboard/expenses` sent one request per row**, 502 for one opening. The limit of the whole app is 600 a minute per IP, so a second opening could have answered 429 everywhere. `GET /expenses` brings `attachmentCount` by one `groupBy`, and after a change of Belege only that expense is asked again.
 

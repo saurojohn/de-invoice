@@ -601,6 +601,7 @@
     "status": "状态"
   },
   "customerDetail": {
+    "invoicesCapped": "显示该客户最新的 {shown} 张发票，共 {total} 张。",
     "openBalance": "未付余额",
     "openInvoices": "未付发票",
     "overdueCount": "逾期",
@@ -4319,6 +4320,7 @@
     "progress_DN_full": "已交货"
   },
   "time": {
+    "listCapped": "显示最新的 {shown} 条，共 {total} 条。合计包含全部记录。",
     "title": "工时记录",
     "newEntry": "记录工时",
     "editEntry": "编辑工时记录",

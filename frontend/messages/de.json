@@ -601,6 +601,7 @@
     "status": "Status"
   },
   "customerDetail": {
+    "invoicesCapped": "Die neuesten {shown} von {total} Rechnungen dieses Kunden.",
     "openBalance": "Offener Saldo",
     "openInvoices": "offene Rechnungen",
     "overdueCount": "Überfällig",
@@ -4319,6 +4320,7 @@
     "progress_DN_full": "geliefert"
   },
   "time": {
+    "listCapped": "Die neuesten {shown} von {total} Einträgen. Die Summen gelten für alle.",
     "title": "Zeiterfassung",
     "newEntry": "Zeit erfassen",
     "editEntry": "Zeiteintrag bearbeiten",

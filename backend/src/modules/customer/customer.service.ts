@@ -52,6 +52,25 @@ export class CustomerService {
     private moduleRef: ModuleRef,
   ) {}
 
+  /** Tier 772: every payment on the customer's invoices, newest first. */
+  async payments(companyId: string, customerId: string) {
+    const rows = await this.prisma.payment.findMany({
+      where: { invoice: { customerId, companyId } },
+      orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      include: { invoice: { select: { invoiceNumber: true } } },
+    })
+    return rows.map(({ invoice, ...p }) => ({ ...p, invoiceNumber: invoice.invoiceNumber }))
+  }
+
+  /** Tier 768: all customers, what a select shows of them. */
+  options(companyId: string) {
+    return this.prisma.customer.findMany({
+      where: { companyId },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, customerNumber: true, defaultHourlyRate: true },
+    })
+  }
+
   /**
    * Paginated list. Returns `{ data, total, page, pageSize, totalPages }`.
    *

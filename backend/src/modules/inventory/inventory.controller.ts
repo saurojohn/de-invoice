@@ -24,6 +24,14 @@ export class InventoryController {
     return this.inventoryService.getLowStockProducts(companyId);
   }
 
+  // Tier 773: all tracked products. The page read the first 50 of /products and
+  // kept the tracked ones: the rest had no stock page at all.
+  @Require('product.read')
+  @Get('tracked')
+  async getTracked(@Query('companyId') companyId: string) {
+    return this.inventoryService.getTrackedProducts(companyId);
+  }
+
   @Require('product.read')
   @Get(':productId')
   async getStock(@Param('productId') productId: string, @Headers('x-company-id') companyId: string) {

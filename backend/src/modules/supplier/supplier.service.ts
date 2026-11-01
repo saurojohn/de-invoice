@@ -42,7 +42,7 @@ export class SupplierService {
     return this.prisma.supplier.findMany({
       where,
       orderBy: { name: 'asc' },
-      take: 500,
+      take: 5000, // Tier 772: every select of the app reads this list
     });
   }
 

@@ -180,6 +180,7 @@ const MAX_TAKE = 200
 @Injectable()
 export class AuditService {
   private static readonly VERIFY_PAGE = 2000
+  private static readonly EXPORT_PAGE = 2000
 
   constructor(private prisma: PrismaService) {}
 
@@ -1042,68 +1043,12 @@ export class AuditService {
     return lines.join('\n') + '\n'
   }
 
-  async exportCsv(f: AuditLogFilters): Promise<string> {
-    // Tier 143: when q is set, route to the text-search
-    // path so the jsonb fields are searched correctly.
-    // Otherwise stick with the Prisma path (faster,
-    // because no JOIN to User for the email).
-    let rawRows: Array<{
-      action: string
-      entityType: string | null
-      entityId: string | null
-      userId: string | null
-      ipAddress: string | null
-      oldData: unknown
-      newData: unknown
-      createdAt: Date
-      user?: { email: string | null } | null
-      userEmail?: string | null
-    }>
-    if (f.q && f.q.trim().length > 0) {
-      const page = await this.listWithTextSearch(f, 10_000, 0)
-      // listWithTextSearch now returns newData +
-      // oldData (Tier 207 — the text-search SELECT
-      // was missing these, which silently degraded
-      // the GoBD-grade CSV export for any audit-log
-      // search). userEmail comes back flat, so we
-      // fold it into a user-shaped stub for the
-      // CSV row builder below.
-      rawRows = page.rows.map((r) => ({
-        action: r.action,
-        entityType: r.entityType,
-        entityId: r.entityId,
-        userId: r.userId,
-        ipAddress: r.ipAddress,
-        oldData: r.oldData ?? null,
-        newData: r.newData ?? null,
-        createdAt: r.createdAt,
-        user: { email: r.userEmail },
-      }))
-    } else {
-      const where = this.buildWhere(f)
-      rawRows = await this.prisma.auditLog.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: 10_000, // cap — exports beyond 10k rows
-                       // should be paginated via a
-                       // background job, not a sync
-                       // HTTP response
-        select: {
-          action: true,
-          entityType: true,
-          entityId: true,
-          userId: true,
-          ipAddress: true,
-          oldData: true,
-          newData: true,
-          createdAt: true,
-        },
-      })
-      // Tier 368: relation removed — resolve e-mails in one batched lookup.
-      // (The raw-SQL branch above already carries userEmail from its own
-      // LEFT JOIN, which never needed the foreign key.)
-      rawRows = await this.attachUserEmails(rawRows)
-    }
+  /**
+   * Tier 771: a page at a time, to the end. It stopped at the newest 10 000
+   * rows and said nothing: a GoBD export of a long-running company left out
+   * its oldest years. The caller streams what this yields.
+   */
+  async *exportCsv(f: AuditLogFilters): AsyncGenerator<string> {
     const header = [
       'Zeitstempel',
       'Aktion',
@@ -1114,24 +1059,83 @@ export class AuditService {
       'Alt-Daten',
       'Neu-Daten',
     ]
-    const lines: string[] = [header.map(esc).join(';')]
-    for (const r of rawRows) {
-      lines.push(
-        [
-          r.createdAt.toISOString(),
-          r.action,
-          r.entityType ?? '',
-          r.entityId ?? '',
-          r.user?.email ?? r.userId ?? '',
-          r.ipAddress ?? '',
-          r.oldData ? JSON.stringify(r.oldData) : '',
-          r.newData ? JSON.stringify(r.newData) : '',
-        ]
-          .map(esc)
-          .join(';'),
-      )
+    yield header.map(esc).join(';')
+    const lines = (rows: Array<{
+      action: string
+      entityType: string | null
+      entityId: string | null
+      userId: string | null
+      ipAddress: string | null
+      oldData: unknown
+      newData: unknown
+      createdAt: Date
+      user?: { email: string | null } | null
+    }>) => rows.map((r) => '\n' + [
+      r.createdAt.toISOString(),
+      r.action,
+      r.entityType ?? '',
+      r.entityId ?? '',
+      r.user?.email ?? r.userId ?? '',
+      r.ipAddress ?? '',
+      r.oldData ? JSON.stringify(r.oldData) : '',
+      r.newData ? JSON.stringify(r.newData) : '',
+    ].map(esc).join(';')).join('')
+
+    // Tier 143: when q is set, route to the text-search
+    // path so the jsonb fields are searched correctly.
+    // Otherwise stick with the Prisma path (faster,
+    // because no JOIN to User for the email).
+    if (f.q && f.q.trim().length > 0) {
+      for (let skip = 0; ; skip += AuditService.EXPORT_PAGE) {
+        const page = await this.listWithTextSearch(f, AuditService.EXPORT_PAGE, skip)
+        // listWithTextSearch now returns newData +
+        // oldData (Tier 207 — the text-search SELECT
+        // was missing these, which silently degraded
+        // the GoBD-grade CSV export for any audit-log
+        // search). userEmail comes back flat, so we
+        // fold it into a user-shaped stub for the
+        // CSV row builder below.
+        yield lines(page.rows.map((r) => ({
+          action: r.action,
+          entityType: r.entityType,
+          entityId: r.entityId,
+          userId: r.userId,
+          ipAddress: r.ipAddress,
+          oldData: r.oldData ?? null,
+          newData: r.newData ?? null,
+          createdAt: r.createdAt,
+          user: { email: r.userEmail },
+        })))
+        if (page.rows.length < AuditService.EXPORT_PAGE) return
+      }
     }
-    return lines.join('\n')
+    const where = this.buildWhere(f)
+    let before: bigint | undefined
+    for (;;) {
+      const rows = await this.prisma.auditLog.findMany({
+        where: before === undefined ? where : { AND: [where, { seq: { lt: before } }] },
+        // Newest first, as ever: seq is that order without createdAt's ties
+        orderBy: { seq: 'desc' },
+        take: AuditService.EXPORT_PAGE,
+        select: {
+          seq: true,
+          action: true,
+          entityType: true,
+          entityId: true,
+          userId: true,
+          ipAddress: true,
+          oldData: true,
+          newData: true,
+          createdAt: true,
+        },
+      })
+      if (rows.length === 0) return
+      before = rows[rows.length - 1].seq
+      // Tier 368: relation removed — resolve e-mails in one batched lookup.
+      // (The raw-SQL branch above already carries userEmail from its own
+      // LEFT JOIN, which never needed the foreign key.)
+      yield lines(await this.attachUserEmails(rows))
+    }
   }
 
   // ========== Tier 196 — hash-chain verify ==========

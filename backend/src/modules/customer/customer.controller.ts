@@ -47,6 +47,18 @@ export class CustomerController {
     });
   }
 
+  /**
+   * Tier 768: every customer, for a form's select. A page asked `pageSize=500`,
+   * the list gives 200 at most, and the 201st customer could not be chosen for a
+   * recurring invoice, a time entry or a SEPA mandate.
+   */
+  @Get('options')
+  @Require('customer.read')
+  async options(@Query('companyId') companyId: string) {
+    this.assertCompanyId(companyId)
+    return this.customerService.options(companyId)
+  }
+
   @Get('next-number')
   @Require('customer.read')
   async previewNextNumber(@Query('companyId') companyId: string) {
@@ -126,6 +138,14 @@ export class CustomerController {
    * memory: Nest route-order is declaration order, not
    * parameter-vs-literal preference).
    */
+  /** Tier 772: the customer's payments in one answer; the page asked invoice by invoice. */
+  @Get(':id/payments')
+  @Require('customer.read')
+  async payments(@Param('id') id: string, @Query('companyId') companyId: string) {
+    this.assertCompanyId(companyId)
+    return this.customerService.payments(companyId, id)
+  }
+
   @Get(':id/summary')
   @Require('customer.read')
   async summary(

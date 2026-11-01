@@ -18,9 +18,10 @@ export class ExpenseController {
     @Query('supplierId') supplierId?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
+    @Query('unpaid') unpaid?: string,
   ) {
     this.assertCompanyId(companyId);
-    return this.expenseService.findAll(companyId, { supplierId, status, search });
+    return this.expenseService.findAll(companyId, { supplierId, status, search, unpaid: unpaid === 'true' });
   }
 
   @Get(':id')

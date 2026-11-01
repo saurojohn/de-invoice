@@ -122,6 +122,7 @@ export default function TimeTrackingPage() {
   const toast = useToast()
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [summary, setSummary] = useState<Summary>({ minutes: 0, openBillableMinutes: 0, openAmount: 0 })
+  const [matching, setMatching] = useState(0)
   const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -169,10 +170,11 @@ export default function TimeTrackingPage() {
       const qs = new URLSearchParams({ companyId, state: filterState })
       if (filterCustomer) qs.set("customerId", filterCustomer)
       if (filterProject) qs.set("projectId", filterProject)
-      const r = await apiGet<{ data: TimeEntry[]; summary: Summary }>(`/api/v1/time-entries?${qs.toString()}`)
+      const r = await apiGet<{ data: TimeEntry[]; total?: number; summary: Summary }>(`/api/v1/time-entries?${qs.toString()}`)
       if (seq !== loadSeq.current) return
       setEntries(r.data)
       setSummary(r.summary)
+      setMatching(r.total ?? r.data.length) // Tier 769
     } catch (err) {
       fail(err, t("time.loadFailed"))
     } finally {
@@ -206,8 +208,8 @@ export default function TimeTrackingPage() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setForm((f) => ({ ...f, date: f.date || todayIso() }))
-    apiGet<{ data: CustomerOption[] }>(`/api/v1/customers?companyId=${companyId}&pageSize=500`)
-      .then((r) => setCustomers((r.data || []).map((c) => ({ id: c.id, name: c.name, defaultHourlyRate: c.defaultHourlyRate ?? null }))))
+    apiGet<CustomerOption[]>(`/api/v1/customers/options?companyId=${companyId}`) // Tier 768
+      .then((r) => setCustomers((r || []).map((c) => ({ id: c.id, name: c.name, defaultHourlyRate: c.defaultHourlyRate ?? null }))))
       .catch(() => setCustomers([]))
     loadProjects()
     apiGet<{ rounding: Rounding }>(`/api/v1/time-entries/settings?companyId=${companyId}`)
@@ -996,6 +998,11 @@ export default function TimeTrackingPage() {
                 ))}
               </div>
               <div className="ml-auto text-sm text-right" data-testid="time-summary">
+                {matching > entries.length && (
+                  <div className="text-amber-700 dark:text-amber-400" data-testid="time-capped">
+                    {t("time.listCapped").replace("{shown}", String(entries.length)).replace("{total}", String(matching))}
+                  </div>
+                )}
                 <div>
                   {t("time.sumHours")}: <strong data-testid="time-sum-hours">{hhmm(summary.minutes)}</strong>
                 </div>

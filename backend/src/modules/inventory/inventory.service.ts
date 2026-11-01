@@ -99,6 +99,13 @@ export class InventoryService {
     };
   }
 
+  getTrackedProducts(companyId: string) {
+    return this.prisma.product.findMany({
+      where: { companyId, active: true, trackInventory: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async getLowStockProducts(companyId: string) {
     // Get all products where trackInventory is true and stock <= threshold
     const products = await this.prisma.product.findMany({

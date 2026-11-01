@@ -208,7 +208,7 @@ export default function BankImportPage() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     try {
-      const res = await apiGet<{ data: any[] }>(`/api/v1/expenses?companyId=${companyId}`)
+      const res = await apiGet<{ data: any[] }>(`/api/v1/expenses?companyId=${companyId}&unpaid=true`) // Tier 773
       const rows = res.data || []
       setOpenCreditNotes(rows.filter((e) => Number(e.grossAmount) < 0 && e.paymentState !== "bezahlt"))
       setOpenExpenses(

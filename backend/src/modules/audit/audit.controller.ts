@@ -12,6 +12,8 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { isSystemAdmin } from '../../auth/system-admin.guard'
 import { businessTodayIso } from '../../common/business-date'
 import type { Response } from 'express'
+import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
 import { AuditService, AuditLogFilters } from './audit.service'
 import { Auth, Require } from '../../auth/roles.decorator'
 
@@ -141,7 +143,6 @@ export class AuditController {
       dateFrom,
       dateTo,
     })
-    const csv = await this.svc.exportCsv(f)
     const stamp = businessTodayIso()
     res.setHeader(
       'Content-Disposition',
@@ -150,7 +151,8 @@ export class AuditController {
     // BOM so Excel correctly detects UTF-8 (German
     // umlauts in entityType / JSON values would
     // otherwise render as mojibake).
-    res.send('\ufeff' + csv)
+    res.write('\ufeff')
+    await pipeline(Readable.from(this.svc.exportCsv(f)), res) // Tier 771
   }
 
   /**

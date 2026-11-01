@@ -846,7 +846,8 @@ export class AnlageSOV2Service {
     const expenses = await this.prisma.expense.findMany({
       where: { ...this.purchaseWhere(companyId, year), ...(ids ? { id: { in: ids } } : {}) },
       orderBy: { invoiceDate: 'asc' },
-      take: 500,
+      // Tier 770: no limit. The first 500 came back on every import, so the
+      // 501st purchase of a year never reached the tax form.
     })
 
     const newTransactions: VgTransaction[] = []
@@ -908,7 +909,6 @@ export class AnlageSOV2Service {
     const expenses = await this.prisma.expense.findMany({
       where: this.purchaseWhere(companyId, year),
       orderBy: { invoiceDate: 'desc' },
-      take: 500,
     })
     return {
       year,

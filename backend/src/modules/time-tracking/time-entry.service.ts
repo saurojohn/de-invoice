@@ -73,6 +73,8 @@ type Parsed = {
 
 @Injectable()
 export class TimeEntryService {
+  private static readonly SHEET_MAX = 5000
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly invoices: InvoiceService,
@@ -180,23 +182,29 @@ export class TimeEntryService {
   }
 
   async list(companyId: string, filter: { customerId?: string; projectId?: string; invoiceId?: string; from?: string; to?: string; state?: string }) {
-    const data = await this.prisma.timeEntry.findMany({
-      where: this.where(companyId, filter),
-      include: this.include,
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-      take: 2000,
-    })
-    let minutes = 0
+    const where = this.where(companyId, filter)
+    // Tier 769: the sums of all that match. They were of the newest 2 000, the
+    // open amount above all, which is what gets invoiced.
+    const [data, all, open] = await Promise.all([
+      this.prisma.timeEntry.findMany({
+        where,
+        include: this.include,
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        take: 2000,
+      }),
+      this.prisma.timeEntry.aggregate({ where, _sum: { minutes: true }, _count: { _all: true } }),
+      this.prisma.timeEntry.findMany({
+        where: { AND: [where, { invoiceId: null, billable: true }] },
+        select: { minutes: true, hourlyRate: true },
+      }),
+    ])
     let openBillableMinutes = 0
     let openCents = 0
-    for (const e of data) {
-      minutes += e.minutes
-      if (!e.invoiceId && e.billable) {
-        openBillableMinutes += e.minutes
-        if (e.hourlyRate !== null) openCents += Math.round(amountOf(e.minutes, Number(e.hourlyRate)) * 100)
-      }
+    for (const e of open) {
+      openBillableMinutes += e.minutes
+      if (e.hourlyRate !== null) openCents += Math.round(amountOf(e.minutes, Number(e.hourlyRate)) * 100)
     }
-    return { data, summary: { minutes, openBillableMinutes, openAmount: openCents / 100 } }
+    return { data, total: all._count._all, summary: { minutes: all._sum.minutes ?? 0, openBillableMinutes, openAmount: openCents / 100 } }
   }
 
   /** Tier 618: the entries of a time sheet, oldest first, with what heads it */
@@ -206,7 +214,7 @@ export class TimeEntryService {
         where: this.where(companyId, filter),
         include: this.include,
         orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-        take: 5000,
+        take: TimeEntryService.SHEET_MAX + 1,
       }),
       this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true, address: true } }),
       filter.customerId
@@ -225,6 +233,10 @@ export class TimeEntryService {
     if (filter.invoiceId && !invoice) throw new NotFoundException('Rechnung nicht gefunden')
     if (filter.customerId && !customer) throw new NotFoundException('Kunde nicht gefunden')
     if (filter.projectId && !project) throw new NotFoundException('Projekt nicht gefunden')
+    // Tier 769: a document for a customer does not end silently at the 5 000th entry
+    if (entries.length > TimeEntryService.SHEET_MAX) {
+      throw new BadRequestException('Der Stundennachweis umfasst mehr als 5 000 Einträge. Bitte grenzen Sie den Zeitraum ein.')
+    }
     return {
       entries,
       company,

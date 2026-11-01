@@ -178,9 +178,7 @@ export default function InventoryPage() {
   // envelope) at runtime.
   const loadProducts = async (companyId: string) => {
     try {
-      const data: any = await apiGet<any>(`/api/v1/products?companyId=${companyId}`)
-      const list: any[] = Array.isArray(data) ? data : (data?.data || [])
-      setProducts(list.filter((p: any) => p.trackInventory))
+      setProducts(await apiGet<ProductStock[]>(`/api/v1/inventory/tracked?companyId=${companyId}`)) // Tier 773
     } catch (error) {
       console.error("Error loading products:", error)
     } finally {

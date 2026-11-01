@@ -601,6 +601,7 @@
     "status": "Status"
   },
   "customerDetail": {
+    "invoicesCapped": "The newest {shown} of this customer's {total} invoices.",
     "openBalance": "Open balance",
     "openInvoices": "open invoices",
     "overdueCount": "Overdue",
@@ -4319,6 +4320,7 @@
     "progress_DN_full": "delivered"
   },
   "time": {
+    "listCapped": "The newest {shown} of {total} entries. The sums cover all of them.",
     "title": "Time tracking",
     "newEntry": "Log time",
     "editEntry": "Edit time entry",

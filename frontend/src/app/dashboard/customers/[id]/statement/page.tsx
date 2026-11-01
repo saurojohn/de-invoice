@@ -148,13 +148,8 @@ export default function CustomerStatementPage() {
 
     // Best-effort: load customer name from /customers list
     // cache so the header isn't blank while the JSON loads.
-    apiGet<{ data: Array<{ id: string; name: string }> }>(
-      `/api/v1/customers?companyId=${cid}&take=200`
-    )
-      .then((res) => {
-        const c = res.data.find((x) => x.id === id)
-        if (c) setCustomerName(c.name)
-      })
+    apiGet<{ name: string }>(`/api/v1/customers/${id}?companyId=${cid}`) // Tier 773: it looked in the first 50
+      .then((c) => setCustomerName(c.name))
       .catch(() => { /* non-fatal */ })
   }, [id, router])
 

@@ -334,6 +334,7 @@ export default function CustomerDetailPage() {
     notes: string | null
   }> | null>(null)
   const [paymentsLoading, setPaymentsLoading] = useState(false)
+  const [invoicesTotal, setInvoicesTotal] = useState(0)
   // Tier 238: attachments tab — files attached to
   // this customer (e.g. signed contracts, scanned
   // documents). Uses the /attachments endpoint with
@@ -565,10 +566,13 @@ export default function CustomerDetailPage() {
     if (!companyId || !id) return
     if (tab === "invoices" && invoices === null && !invoicesLoading) {
       setInvoicesLoading(true)
-      apiGet<{ data: InvoiceRow[] }>(
-        `/api/v1/invoices?companyId=${companyId}&customerId=${id}&pageSize=50`,
+      apiGet<{ data: InvoiceRow[]; total: number }>(
+        `/api/v1/invoices?companyId=${companyId}&customerId=${id}&pageSize=200`,
       )
-        .then((d) => setInvoices(d.data || []))
+        .then((d) => {
+          setInvoices(d.data || [])
+          setInvoicesTotal(d.total ?? 0) // Tier 772
+        })
         .catch((err) => {
           console.error("invoices load failed:", err)
           setInvoices([]) // Tier 562: an empty list, not null — null means "not loaded yet" and the effect asked again, forever
@@ -647,50 +651,12 @@ export default function CustomerDetailPage() {
         })
         .finally(() => setEmailsLoading(false))
     }
-    // Tier 238: Zahlungen (payments) tab. Walks all
-    // the customer's invoices, fetches each one's
-    // payments, and concatenates. The /invoices/:id/
-    // payments endpoint doesn't have a customerId
-    // filter, so we use the invoice list as the index.
+    // Tier 238: Zahlungen (payments) tab.
     if (tab === "payments" && payments === null && !paymentsLoading) {
       setPaymentsLoading(true)
-      // First load the customer's invoices. Note the
-      // envelope shape: { data: InvoiceRow[], total }.
-      // The /invoices list endpoint is paginated.
-      apiGet<{ data: InvoiceRow[] }>(
-        `/api/v1/invoices?companyId=${companyId}&customerId=${id}&pageSize=200`,
-      )
-        .then(async (resp) => {
-          const invList = resp.data || []
-          // Then fetch payments for each. Sequential
-          // (not Promise.all) to keep the network
-          // gentle — a customer with 200 invoices
-          // would otherwise fire 200 simultaneous
-          // requests. Soft-fail per-invoice so a
-          // single 404 doesn't break the whole tab.
-          const allPayments: any[] = []
-          for (const inv of invList) {
-            try {
-              const pays = await apiGet<any[]>(
-                `/api/v1/invoices/${inv.id}/payments?companyId=${companyId}`,
-              )
-              for (const p of pays) {
-                allPayments.push({
-                  ...p,
-                  invoiceNumber: inv.invoiceNumber,
-                })
-              }
-            } catch {
-              // ignore per-invoice failure
-            }
-          }
-          // Sort by paymentDate desc (newest first) —
-          // the real Prisma field, NOT paidAt.
-          allPayments.sort((a, b) =>
-            new Date(b.paymentDate).getTime() -
-            new Date(a.paymentDate).getTime(),
-          )
-          setPayments(allPayments)
+      apiGet<NonNullable<typeof payments>>(`/api/v1/customers/${id}/payments?companyId=${companyId}`) // Tier 772
+        .then((rows) => {
+          setPayments(rows)
         })
         .catch((err) => {
           console.error("payments load failed:", err)
@@ -1332,6 +1298,11 @@ export default function CustomerDetailPage() {
             {t("common.retry")}
           </button>
         </div>
+      )}
+      {tab === "invoices" && invoicesTotal > (invoices?.length ?? 0) && (
+        <p className="mb-3 text-sm text-amber-700 dark:text-amber-400" data-testid="customer-invoices-capped">
+          {t("customerDetail.invoicesCapped").replace("{shown}", String(invoices?.length ?? 0)).replace("{total}", String(invoicesTotal))}
+        </p>
       )}
       {tab === "invoices" && (
         <Card>

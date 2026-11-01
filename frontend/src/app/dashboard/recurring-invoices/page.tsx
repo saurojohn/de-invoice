@@ -211,11 +211,11 @@ export default function RecurringInvoicesPage() {
     }
     Promise.all([
       apiGet<RecurringTemplate[]>(`/api/v1/recurring-invoices?companyId=${companyId}`),
-      apiGet<{ data: Customer[] }>(`/api/v1/customers?companyId=${companyId}&pageSize=500`),
+      apiGet<Customer[]>(`/api/v1/customers/options?companyId=${companyId}`), // Tier 768
     ])
       .then(([list, custs]) => {
         setTemplates(list || [])
-        setCustomers(custs?.data || [])
+        setCustomers(custs || [])
       })
       .catch((err) => console.error("Recurring load failed:", err))
       .finally(() => setLoading(false))

@@ -186,9 +186,7 @@ export default function DirectDebitPage() {
     setLoading(true)
     try {
       const [custs, ms, oi, bs] = await Promise.all([
-        apiGet<{ data: CustomerMini[] } | CustomerMini[]>(
-          `/api/v1/customers?companyId=${companyId}&pageSize=500`,
-        ),
+        apiGet<CustomerMini[]>(`/api/v1/customers/options?companyId=${companyId}`), // Tier 768
         apiGet<Mandate[]>(`/api/v1/payments/mandates?companyId=${companyId}`),
         apiGet<OpenInvoice[]>(
           `/api/v1/payments/direct-debit/open?companyId=${companyId}`,
@@ -197,7 +195,7 @@ export default function DirectDebitPage() {
           `/api/v1/payments/direct-debit/batches?companyId=${companyId}`,
         ),
       ])
-      const custList = Array.isArray(custs) ? custs : custs?.data || []
+      const custList = custs || []
       setCustomers(custList)
       setMandates(Array.isArray(ms) ? ms : [])
       setOpenInvoices(Array.isArray(oi) ? oi : [])
