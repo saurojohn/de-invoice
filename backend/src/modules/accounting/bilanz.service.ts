@@ -233,19 +233,19 @@ export class BilanzService {
       select: {
         total: true,
         status: true,
-        _count: { select: { payments: true } },
-        payments: { where: { paymentDate: { lte: snapshot } }, select: { amount: true } },
+        // Tier 760: not filtered here: a filter on the relation fails at 32 768 invoices
+        payments: { select: { amount: true, paymentDate: true } },
       },
     })
     const forderungenLUL = openInvoices.reduce((s, inv) => {
-      const paid = inv.payments.reduce(
+      const paid = inv.payments.filter((x) => x.paymentDate <= snapshot).reduce(
         (p, x) => p.plus(x.amount ?? new Prisma.Decimal(0)),
         new Prisma.Decimal(0),
       )
       // An invoice whose status was set to "paid" by hand, without a payment
       // ever being recorded, is settled — we have no date for it, so it is
       // not a receivable at any snapshot.
-      if (inv.status === 'paid' && inv._count.payments === 0) return s
+      if (inv.status === 'paid' && inv.payments.length === 0) return s
       const open = new Prisma.Decimal(inv.total).minus(paid)
       // An overpayment is a liability, not a negative receivable — it is on
       // 4500 through the credit ledger.

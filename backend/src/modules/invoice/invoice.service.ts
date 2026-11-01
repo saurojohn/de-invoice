@@ -5,7 +5,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceAmounts, toCents } from './invoice-amounts';
 import { assertPositiveTotal } from './positive-total';
-import { coversWhole, CREDITING, fullyCredited, syncInvoiceStock } from './stock';
+import { coversWhole, CREDIT_NOTE_FIELDS, CREDITING, crediting, fullyCredited, syncInvoiceStock } from './stock';
 import { syncInstallments } from '../installment-plan/installment-sync';
 import { invoiceTaxBreakdown } from './tax-breakdown';
 import { Prisma } from '@prisma/client';
@@ -186,7 +186,7 @@ export class InvoiceService {
         select: {
           type: true, status: true, total: true, eurTotal: true,
           payments: { select: { amount: true } },
-          creditNotes: { where: CREDITING, select: { total: true } },
+          creditNotes: CREDIT_NOTE_FIELDS, // Tier 760: this one is the whole company
         },
       }),
     ])
@@ -195,7 +195,7 @@ export class InvoiceService {
     for (const r of all) {
       const f = invoiceEurFactor({ total: r.total, totalVat: 0, eurTotal: r.eurTotal })
       totalEur += Number(r.total) * f
-      openEur += (openAmountOf(r, coversWhole(r, r.creditNotes)) ?? 0) * f
+      openEur += (openAmountOf(r, coversWhole(r, crediting(r.creditNotes))) ?? 0) * f
     }
     // Tier 696: an invoice cancelled by a Storno credit note is settled by it
     // ("paid") — the list says what it is
@@ -412,14 +412,15 @@ export class InvoiceService {
       if (dateFrom) where.issueDate.gte = new Date(`${dateFrom}T00:00:00.000Z`)
       if (dateTo) where.issueDate.lte = new Date(`${dateTo}T23:59:59.999Z`)
     }
-    return this.prisma.invoice.findMany({
+    const rows = await this.prisma.invoice.findMany({
       where,
       include: {
         customer: true, items: true, payments: true, referenceInvoice: true,
-        creditNotes: { where: CREDITING, select: { total: true } }, // Tier 715: a Storno owes nothing
+        creditNotes: CREDIT_NOTE_FIELDS, // Tier 715: a Storno owes nothing; Tier 760: filtered here
       },
       orderBy: { issueDate: 'asc' },
     })
+    return rows.map((r) => ({ ...r, creditNotes: crediting(r.creditNotes) }))
   }
 
   async findOne(id: string, companyId: string) {

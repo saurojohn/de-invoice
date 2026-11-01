@@ -2669,6 +2669,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 760 — above 32 767 invoices the list of invoices did not open
+
+First result of a large-data run: a throwaway `postgres:16` with the production limit of 1 GiB, `prisma migrate deploy`, the compiled backend with the 524 MiB heap a 1 GiB container gives Node 22, and one company with 3 000 customers, 2 000 articles, 50 000 documents (150 000 lines), 45 000 payments, 20 000 expenses, 70 000 vouchers (210 000 lines), 60 000 bank transactions, 300 000 audit rows: 458 MB. All GET routes were requested, with and without date filters.
+
+**`GET /invoices` answered 500 without a date filter, so the list did not open.** The Bilanz, Anhang, E-Bilanz and the invoice statistics failed for every year, and `GET /invoices/export/csv` over a large range. Prisma loads a relation with a query per 32 767 parents. A filter on the relation adds a bind and that is 32 768 (`too many bind variables`); a negated one cannot be split at all (`negation filters … prevent the query from being split`). `creditNotes: { where: CREDITING }` is negated. So the failure comes all at once, on the 32 768th document of a company, and nothing announces it.
+
+- The queries over a whole company ask for the relation unfiltered and filter in code: `CREDIT_NOTE_FIELDS` and `crediting()` beside `CREDITING` in `invoice/stock.ts` (sums of the list, CSV export, statistics), the payments of the Bilanz, the matches of the Anlage KAP. A relation without a filter is split correctly. `QUERY_BATCH_SIZE` as an engine variable cures only the bind, not the negation, and is not documented; not used.
+- `creditNotes: { where: CREDITING }` stays where the parents are bounded: a page of the list (`take`), one invoice, one customer's portal.
+- Spec `475-tier760-mehr-als-32767-rechnungen.sh` inserts 33 000 invoices by SQL: all 9 assertions fail on the code before, and the amounts (open 3 926 643 €, receivables at the snapshot 3 926 881 €) are the hand-computed ones, a payment after the snapshot and a draft credit note among them.
+- Local failures of 72 and 109 are the same assertions on the code before.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 759b — CI green for Tier 759
 
 Run 41304163317 (commit 7a025e29): backend **473 passed / 0 failed / 1 skipped**, Playwright **1113 passed, 0 flaky, no retry**, no Traceback, no `✗`, no `REFUSED`. The push mode only; production mode last ran on a159cc18.

@@ -263,7 +263,7 @@ export class AnlageKAPService {
         purpose: true,
         counterpartyIban: true,
         voucherId: true,
-        matches: { where: { status: { not: 'rejected' } }, select: { id: true } },
+        matches: { select: { status: true } }, // Tier 760: filtered below, not on the relation
       },
     })
 
@@ -285,7 +285,7 @@ export class AnlageKAPService {
     for (const tx of bankTransactions) {
       for (const line of EINNAHMEN_LINES) {
         if (line.matcher(tx)) {
-          if (tx.voucherId || tx.matches.length > 0) leftOutBooked++
+          if (tx.voucherId || tx.matches.some((m) => m.status !== 'rejected')) leftOutBooked++
           else transactionsByKz[line.kz].push(tx)
           break // first match wins
         }

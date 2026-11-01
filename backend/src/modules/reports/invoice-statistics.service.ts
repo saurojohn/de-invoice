@@ -27,7 +27,7 @@
  */
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
-import { coversWhole, CREDITING } from '../invoice/stock'
+import { coversWhole, CREDIT_NOTE_FIELDS, crediting } from '../invoice/stock'
 
 const r2 = (n: number): number => Math.round(n * 100) / 100
 const SOLD_TYPES = ['INV', 'RCV']
@@ -58,7 +58,7 @@ export class InvoiceStatisticsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async statistics(companyId: string, year: number, month?: number) {
-    const docs = await this.prisma.invoice.findMany({
+    const found = await this.prisma.invoice.findMany({
       where: {
         companyId,
         type: { in: [...SOLD_TYPES, 'CN'] },
@@ -67,9 +67,10 @@ export class InvoiceStatisticsService {
       },
       select: {
         id: true, type: true, issueDate: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true,
-        creditNotes: { where: CREDITING, select: { total: true } },
+        creditNotes: CREDIT_NOTE_FIELDS,
       },
     })
+    const docs = found.map((d) => ({ ...d, creditNotes: crediting(d.creditNotes) }))
     const eurGross = (d: { total: unknown; eurTotal: unknown }) => Number(d.eurTotal ?? d.total ?? 0)
     const eurVat = (d: { totalVat: unknown; eurTotalVat: unknown }) => Number(d.eurTotalVat ?? d.totalVat ?? 0)
     const add = (f: StatsFigures, d: (typeof docs)[number]) => {

@@ -45,6 +45,16 @@ export async function fullyCredited(db: Db, companyId: string, invoiceId: string
 /** Tier 696: the credit notes that count — issued, not withdrawn */
 export const CREDITING = { type: 'CN', status: { notIn: ['draft', 'cancelled'] } }
 
+/**
+ * Tier 760: the same, for a query over a whole company. `creditNotes: { where:
+ * CREDITING }` fails at 32 768 parents: Prisma has to split the query there and
+ * cannot split a negated filter, and any other filter on a relation takes one
+ * bind too many. Ask for the relation unfiltered and pass it through `crediting`.
+ */
+export const CREDIT_NOTE_FIELDS = { select: { type: true, status: true, total: true } }
+export const crediting = <T extends { type: string; status: string }>(notes: T[]): T[] =>
+  notes.filter((n) => n.type === 'CN' && n.status !== 'draft' && n.status !== 'cancelled')
+
 /** Tier 696: do these credit notes cover the whole document (a Storno)? */
 export function coversWhole(original: { type: string; total: unknown }, creditNotes: { total: unknown }[]): boolean {
   const total = Math.abs(Number(original.total))
