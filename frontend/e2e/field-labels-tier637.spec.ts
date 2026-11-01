@@ -75,6 +75,11 @@ test("the fields of the forms have names, and the label's word reaches its field
     await expect(page.getByLabel(label, { exact: true }).first(), label).toBeVisible()
   }
   await expect(page.getByLabel("Ausstellungsdatum *")).toHaveAttribute("type", "date")
+  // Tier 757c: the template picker comes with the templates, after the form, and
+  // stands between the word and its field; the word took the picker for its field
+  await expect(page.getByTestId("invoice-notes-template-select")).toHaveAttribute("aria-label", "+ Vorlage einfügen")
+  await page.locator("label", { hasText: /^Bemerkungen$/ }).click()
+  await expect(page.getByTestId("invoice-notes-input")).toBeFocused()
   found = await unnamed(page)
   expect(found.fields, found.fields.join(" ")).toEqual([])
 

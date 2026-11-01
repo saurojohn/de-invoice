@@ -2455,7 +2455,7 @@ function CreateInvoicePageInner() {
                 </div>
                 <div>
                   <div className="flex flex-wrap items-end gap-2 mb-1">
-                    <label className="block text-sm font-medium flex-1">{t("invoice.notes")}</label>
+                    <label htmlFor="invoice-notes" className="block text-sm font-medium flex-1">{t("invoice.notes")}</label>
                     {/* Tier 156: pick a saved Bemerkungstext
                         and append it to the notes field.
                         The selected template's text is
@@ -2470,6 +2470,7 @@ function CreateInvoicePageInner() {
                     {noteTemplates.length > 0 && (
                       <select
                         data-testid="invoice-notes-template-select"
+                        aria-label={t("invoiceNotes.insertTemplate")}
                         value=""
                         onChange={(e) => {
                           const id = e.target.value
@@ -2536,6 +2537,7 @@ function CreateInvoicePageInner() {
                     </a>
                   </div>
                   <Input
+                    id="invoice-notes"
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
                     placeholder={t("common2.additionalNotes")}

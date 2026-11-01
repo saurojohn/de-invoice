@@ -2669,6 +2669,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 757c — the word "Bemerkungen" took the template picker for its field
+
+Runs on deea14dd: push 41292774242 backend **473 / 0 / 1**, Playwright **1113, 0 flaky**, 38 minutes; production mode 41292784601 backend **473 / 0 / 1**, Playwright 1112 + **1 flaky**, 17 minutes. The flaky one, `field-labels-tier637`: `select[invoice-notes-template-select]` without a name.
+
+- The picker has no name of its own and appears with the templates, after the form. `FieldLabels` then gives it the label in front of it, one animation frame later; the spec read in that frame once. Every company has templates (they are seeded on the first list), so this happens everywhere, and the outcome was wrong even when the spec passed: the word „Bemerkungen" pointed at the picker, and a click on it did not reach the notes field. Measured on the old form: focus stayed away from `invoice-notes-input`.
+- The label has `htmlFor`, the field an `id`, the picker its own `aria-label`; `FieldLabels` leaves a field alone that names itself, so the frame is gone too. Spec 637 asserts the picker's name and the click.
+- `FieldLabels` takes the next unnamed field as the label's field. A control standing between a label and its real field can be taken the same way; only this form was looked at.
+- `invoices-chip-filter-tier239` (Tier 756b) did not come back in two further production runs.
+- Local Playwright: `~/Library/Caches/ms-playwright` was empty and a browser download needs permission, so 637 and 156 ran on the system Chrome through a scratch config (`channel: 'chrome'`, retries 0).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 757b — a spec had the crons word for word
 
 Runs 41290465535 (push) and 41290473697 (production mode) on d4216d44: backend **472 passed / 1 failed / 1 skipped** both, the failure spec 474, which held both cron strings literally. My search for the old values before Tier 757 missed them, because the spec escapes the asterisks (`\*`), and the same search had listed 474 as a reader of the workflows without my opening it. Spec 474 now asserts what matters: every Sunday in the 03:00 hour, minute not zero. It fails on the old `ci.yml`. Playwright in those runs: 1113 passed, 0 flaky, no retry, both modes; production mode in 18 minutes. Docker images 41290465510 green: `scan: 201 in 579 ms`, `503 in 110 ms`.
