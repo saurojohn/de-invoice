@@ -246,11 +246,13 @@ async function selectCustomerAndWaitForHint(
   // is filtered live as we type.
   const item = page.locator(`text=${customerName}`).first()
   await expect(item).toBeVisible({ timeout: 5_000 })
-  // Use a stable scope: target the divs inside the
-  // dropdown by class, not text-matching which can
-  // also match the "+ Neuen Kunden" pseudo-item.
+  // Use a stable scope: the customer rows, not the class,
+  // which the "+ Neuen Kunden" pseudo-item has too. With
+  // more customers than the first page, that item stands
+  // here until the server's answer arrives.
   await page
-    .locator(`div.hover\\:bg-blue-50:has-text("${customerName}")`)
+    .getByTestId("invoice-customer-option")
+    .filter({ hasText: customerName })
     .first()
     .click()
   // The hint renders after the suggestion API

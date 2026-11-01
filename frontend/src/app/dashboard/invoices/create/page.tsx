@@ -138,6 +138,8 @@ function CreateInvoicePageInner() {
   const [customerSearch, setCustomerSearch] = useState("")
   const [productSearch, setProductSearch] = useState("")
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
+  // Tier 759: the last customer search the server has answered
+  const [customerAsked, setCustomerAsked] = useState("")
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null)
   // Product-number search: a SEPARATE picker from the description-
@@ -640,9 +642,14 @@ function CreateInvoicePageInner() {
         apiGet<any>(`/api/v1/${a.path}?companyId=${companyId}&pageSize=50&search=${encodeURIComponent(a.q.trim())}`)
           .then((r) => a.add(Array.isArray(r) ? r : (r?.data || [])))
           .catch(() => { /* the loaded list stays */ })
+          .finally(() => { if (a.path === "customers") setCustomerAsked(a.q.trim()) })
       }, 250))
     return () => timers.forEach(clearTimeout)
   }, [customerSearch, productSearch, productNumberSearch, invoiceSearch, truncated])
+
+  // Tier 759: until the server has answered, „nothing found“ is not known, and
+  // the offer to create the customer anew was what Tier 717 set out to remove
+  const customerSearching = truncated.customers && customerSearch.trim().length >= 2 && customerAsked !== customerSearch.trim()
 
   const filteredCustomers = customers.filter(c => {
     const q = customerSearch.trim().toLowerCase()
@@ -1446,14 +1453,16 @@ function CreateInvoicePageInner() {
                   {...picker.input(
                     "customer-options",
                     showCustomerDropdown,
-                    filteredCustomers.length || 1,
+                    filteredCustomers.length || (customerSearching ? 0 : 1),
                     (i) => (filteredCustomers.length ? selectCustomer(filteredCustomers[i]) : openNewCustomerModal()),
                     () => setShowCustomerDropdown(false),
                   )}
                 />
                 {showCustomerDropdown && (
                   <div id="customer-options" role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-64 overflow-y-auto z-10">
-                    {filteredCustomers.length === 0 ? (
+                    {filteredCustomers.length === 0 && customerSearching ? (
+                      <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">{t("common2.loading")}</div>
+                    ) : filteredCustomers.length === 0 ? (
                       <>
                         <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm border-b">
                           {t("common2.noCustomersFound")}

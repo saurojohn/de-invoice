@@ -2669,6 +2669,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 759 — for a moment, the form still offered to create the customer anew
+
+`ust-suggestion.spec.ts` failed locally in three tests since `tmp-ci-pg` holds more than 200 customers (247 at the time); CI has fewer. Its click took the first `div.hover:bg-blue-50` with the name, and the row „+ Neuen Kunden … anlegen" has that class too: it stands in the list until the server's answer arrives, so the spec opened the create dialog and never saw the hint. The spec now clicks `invoice-customer-option`, 4 of 4 locally.
+
+The same picture was the product's: Tier 717 made a search beyond the first 200 ask the server, but for the 250 ms of its debounce and the round trip a company with more customers read „Keine Kunden gefunden" and „+ Neuen Kunden „Zimmermann" anlegen" for a customer it has. Measured with the answer held back by 1,5 s.
+
+- `customerSearching`: more customers than loaded, two characters or more, and the server has not answered for this text. The list then says „Lädt...", offers nothing, and ↓ + Enter cannot open the dialog. A failed search counts as answered, and the offer comes back.
+- Spec `invoice-pickers-beyond-200-tier717` asserts it with the answer delayed; it failed on the code before with the text above.
+- A single character does not ask the server, so „Keine Kunden gefunden" can still stand there for it. The products' and invoices' pickers have the same wait but offer to create nothing; not changed.
+- `invoice-duplicate-check-tier150`: four tests fail locally on `duplicate-warning`, the same four on the code before this tier. The local „BWA Test Kunde" rows have no invoices, which the spec needs. Passing in CI.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 758b — CI green for Tier 758
 
 Run 41300571984 (commit 3a0a735b): backend **473 passed / 0 failed / 1 skipped**, Playwright **1113 passed, 0 flaky, no retry**, no Traceback, no `✗`, no `REFUSED`. The push mode only; production mode last ran on a159cc18 (Tier 757d), and Tier 758 changed attributes only.
