@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 773c — CI green for Tiers 768 to 773
+
+Run 41352095893 (commit cee426d7): green; totals in the report of this session. Commit 10307e78 was red in both modes on one assertion of spec 479: `cut -c` counts characters on the runner and bytes on macOS, and the CSV starts with a BOM. 773b looks for the header by its text. Production mode ran on 10307e78 (41348442104): 477 of 478, that assertion, Playwright 1115, 0 flaky; it was not repeated for a change to the spec.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tiers 768 to 773 — nothing falls off the end without a word
 
 After the dashboard (Tier 766) every hard-coded limit was read: 46 `take:` in the backend, every `pageSize` and every list request without one in the frontend. The pattern: a list with a limit, and a page or a sum that treats it as everything. Nothing fails, every figure looks right, and it needs no large company.
