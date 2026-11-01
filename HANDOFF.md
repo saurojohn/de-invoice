@@ -2669,6 +2669,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 767b — CI green for Tiers 764 to 767, both modes
+
+Commit 7d8d01b1: push 41335487731 backend **477 passed / 0 failed / 1 skipped**, Playwright **1115 passed, 0 flaky, no retry**, 39 minutes; production mode 41335501575 **477 / 0 / 1**, Playwright **1115, 0 flaky, no retry**, 18 minutes. No Traceback, no `✗`, no `REFUSED`.
+
+The last run on the final code, in the 1 GiB container, closed loop without pauses: 30 users on the mix of main pages, and 10 users beside a first export of a year's archive: no error, `oom_kill 0`, peak 855 MiB. That archive had to render its PDFs and had sent 99 MB when my client's limit of 280 s ended it; the users were not affected, the export itself was not seen to finish under that load. Measured with 1 CPU-limited Postgres of 2 CPUs on Docker Desktop, not on the target server.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 767 — the receivables are added up by the database
 
 The Bilanz read all invoices and payments of the company for one sum, for the Anhang and the E-Bilanz as well. It is a SQL sum now, with the rules of Tier 426: payments up to the snapshot, a hand-set „paid" without a payment is settled, an overpayment is no negative receivable. Specs 107 and 475 (hand-computed) pass. The Bilanz went from 4,8 to 3,7 s: the rest is `ustva.compute` for twelve months, not changed. `/dashboard/accounting` still takes 16 s at this size: all sections load at once, 24 requests. Lazy loading of the sections is the remedy if a real company gets there.
