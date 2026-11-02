@@ -88,10 +88,14 @@ assert_eq "a new dump: fresh again" "$(P "d['db']['ok']")" "True"
 note "=== 3. the files ==="
 S="$STORE/$TAG"; mkdir -p "$S/belege"
 printf 'rechnung v1' > "$S/RE-1.pdf"; printf 'beleg' > "$S/belege/b.jpg"
+# Tier 777: an archive being built (storage.tempPath) is no file of the company
+mkdir -p "$STORE/.tmp"; printf 'halbes Archiv' > "$STORE/.tmp/gobd-$TAG.zip"
 AS POST "/api/v1/admin/backups/files/run" '{}'
 assert_eq "the mirror: run" "$STATUS" "200"
 assert_eq "…the files copied, as they are" \
   "$(cat "$FILES/mirror/$TAG/RE-1.pdf")/$(cat "$FILES/mirror/$TAG/belege/b.jpg")" "rechnung v1/beleg"
+assert_eq "…but not an archive being built" "$([ -e "$FILES/mirror/.tmp/gobd-$TAG.zip" ] && echo mirrored || echo left out)" "left out"
+rm -f "$STORE/.tmp/gobd-$TAG.zip"
 AS POST "/api/v1/admin/backups/files/run" '{}'
 assert_eq "a second run copies nothing that did not change" "$(P "d['copied']")" "0"
 python3 -c "import time;time.sleep(1.2)"

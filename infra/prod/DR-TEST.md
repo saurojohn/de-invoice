@@ -235,6 +235,16 @@ VPS).
 | 2026-Q3 | Scheduled DR test | ___ | ___ | Test 1, see report |
 | 2026-Q4 | Restore drill, local (Tier 733) | 54 s | < 1 h | the compose stack's postgres + backup services; see report below |
 
+### 2026-Q4 report (Tier 777) — a dump of an older version, and a broken one
+
+**Test** (02.11.2026, developer machine): the production `postgres` and `backup` services and the backend image of the current code, with their production options, under a compose project of their own (`t777`, never `infra/prod/docker-compose.yml`). The database of the development machine as it stood **ten migrations behind the code** (58 of 68), loaded; every table's row count and an md5 of its content taken; the backup image's own `/backup.sh` run. Then the database volume removed, an empty database started, and `restore.sh` run unchanged (`RESTORE_YES=1`, `RESTORE_COMPOSE_ARGS` naming this stack).
+
+**Result**: the dump loaded, `prisma migrate deploy` applied the ten missing migrations, the app answered: 5 s in all. The 71 tables of the older schema are equal to the state before the dump in row count and content, compared on the columns that schema had (a second database loaded from the same source as the reference); 73 tables after the migrations. No ERROR or WARN in the backend's log.
+
+**A broken dump** (the latest cut to 200 KB): `the dump did not load — putting the previous database back`, `NOT restored`, exit 4; the database as it was (318 invoices, 68 migrations), no second database left behind, backend and frontend running again.
+
+**Found**: nothing in the restore. In the hourly file mirror, a regression of Tier 762: the archives a GoBD export builds in `<storage>/.tmp/` were mirrored, and the mirror deletes nothing. An export that met the hourly run stayed in the mirror for good, gigabytes each, and off-site with it. The mirror leaves `.tmp` out now (Tier 777, spec 438).
+
 ### 2026-Q4 report (Tier 733) — server lost, files and database restored
 
 **Test** (28.10.2026, on the developer machine — no server yet): a stack of

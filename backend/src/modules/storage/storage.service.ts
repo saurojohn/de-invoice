@@ -36,6 +36,9 @@ export function storageFileUrl(relativePath: string): string {
   return `/api/v1/storage/files/${relativePath.replace(/[\\/]/g, ',')}`;
 }
 
+
+/** Tier 762: files being built (an archive before it is sent), below the storage root; not the company's, not mirrored (Tier 777) */
+export const STORAGE_TEMP_DIR = '.tmp';
 @Injectable()
 export class StorageService {
   private config: StorageConfig = {
@@ -438,7 +441,7 @@ export class StorageService {
    * left there goes with the next one.
    */
   async tempPath(name: string): Promise<string> {
-    const dir = path.join(this.config.localPath, '.tmp');
+    const dir = path.join(this.config.localPath, STORAGE_TEMP_DIR);
     await fs.promises.mkdir(dir, { recursive: true });
     const dayAgo = Date.now() - 24 * 3600 * 1000;
     for (const left of await fs.promises.readdir(dir)) {

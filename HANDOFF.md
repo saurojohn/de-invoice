@@ -2669,6 +2669,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 777 — the restore drill with an older dump; the mirror took the export's temp files
+
+`infra/prod/DR-TEST.md`, report „2026-Q4 (Tier 777)": a dump ten migrations behind restored with the production script and images, every old table equal in rows and content, 5 s; a cut dump refused and the database put back.
+
+**Defect of my own, from Tier 762:** `storage.tempPath` builds the GoBD export in `<storage>/.tmp/`, and `ProductionBackupsService.mirrorFiles` walked the whole storage volume. The mirror deletes nothing, so an export the hourly run met stayed in it for good, and off-site. `STORAGE_TEMP_DIR` is exported by `storage.service.ts`; the mirror leaves that folder out. Spec 438 asserts it and fails on the code before (`mirrored`).
+
+Also corrected: I had said no restore had ever been run; DR-TEST.md has the drill of 28.10.2026 (Tier 733). And during this one, `docker run alpine` pulled `alpine:latest` (13.6 MB, official image) because it was not on the machine; removed again after the drill. Images are run with `--pull=never` from now on.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 776b — CI green for Tier 776
 
 Run 41446508417 (commit 25de2c90) green; totals in the session report.

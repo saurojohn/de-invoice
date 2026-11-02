@@ -33,6 +33,7 @@ import * as fs from 'fs'
 import { promises as fsp } from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import { STORAGE_TEMP_DIR } from '../storage/storage.service'
 
 export interface DbBackupStatus {
   configured: boolean
@@ -217,6 +218,11 @@ export class ProductionBackupsService {
       }
       for (const e of entries) {
         const r = path.join(rel, e.name)
+        // Tier 777: the archives being built (storage.tempPath) are no files of
+        // the company. Mirrored, an export of a year stayed in the mirror for
+        // good — it deletes nothing — and went off-site with it: gigabytes each
+        // time an export met the hourly run.
+        if (rel === '' && e.name === STORAGE_TEMP_DIR) continue
         if (e.isDirectory()) { await walk(r); continue }
         if (!e.isFile()) continue
         const from = path.join(src, r)
