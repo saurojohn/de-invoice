@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 
@@ -7,9 +7,33 @@ export class AccountService {
   constructor(private prisma: PrismaService) {}
 
   async create(companyId: string, dto: CreateAccountDto) {
-    return this.prisma.account.create({
-      data: { ...dto, companyId },
+    await this.assertOwnParent(companyId, dto.parentId);
+    // Tier 778: a number the company already has was the unique index's P2002
+    // — HTTP 500 "Resource already exists" and an error event for the operator.
+    const taken = await this.prisma.account.findFirst({
+      where: { companyId, accountNumber: dto.accountNumber },
+      select: { id: true },
     });
+    if (taken) {
+      throw new ConflictException(`Das Konto ${dto.accountNumber} gibt es in dieser Firma schon.`);
+    }
+    return this.prisma.account.create({
+      data: { ...dto, parentId: dto.parentId || null, companyId },
+    });
+  }
+
+  /**
+   * Tier 778: the parent account was taken as sent — an account of another
+   * company was accepted, and the new account hung under it in that
+   * company's chart of accounts. (parentId is a plain column, no foreign key:
+   * nothing else checked it. An empty one is no parent.)
+   */
+  private async assertOwnParent(companyId: string, parentId: string | null | undefined) {
+    if (!parentId) return;
+    const parent = await this.prisma.account.findFirst({ where: { id: parentId, companyId }, select: { id: true } });
+    if (!parent) {
+      throw new BadRequestException('Das übergeordnete Konto gibt es in dieser Firma nicht.');
+    }
   }
 
   async findAll(companyId: string) {
@@ -31,6 +55,7 @@ export class AccountService {
 
   async update(id: string, companyId: string, dto: UpdateAccountDto) {
     await this.findOne(id, companyId);
+    await this.assertOwnParent(companyId, dto.parentId);
     return this.prisma.account.update({
       where: { id },
       data: dto,

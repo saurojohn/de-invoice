@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -90,7 +91,7 @@ export class ProductService {
         // Product write from the service. The relation
         // (categoryId) stays — this is just a
         // search-friendly text mirror.
-        categoryName: await this.resolveCategoryName(data.categoryId),
+        categoryName: await this.resolveCategoryName(companyId, data.categoryId),
       },
     });
   }
@@ -103,7 +104,7 @@ export class ProductService {
     // Tier 28: refresh the denormalised categoryName
     // if the category changed (or is being cleared).
     const categoryName = data.categoryId !== undefined
-      ? await this.resolveCategoryName(data.categoryId)
+      ? await this.resolveCategoryName(companyId, data.categoryId)
       : existing.categoryName
     return this.prisma.product.update({
       where: { id: existing.id },
@@ -113,30 +114,26 @@ export class ProductService {
 
   /**
    * Resolve a Category relation id to its display
-   * name. Returns "" if the id is null/undefined
-   * or the category doesn't exist (the latter is
-   * defensive — FK constraints should prevent it).
+   * name. Returns "" if the id is null/undefined.
+   *
+   * Tier 778: the company's own category only. It was looked up by id alone —
+   * another company's category was accepted and its name copied into the
+   * product — and an unknown id went on to the foreign key (HTTP 500).
    */
-  private async resolveCategoryName(categoryId: string | null | undefined): Promise<string> {
+  private async resolveCategoryName(companyId: string, categoryId: string | null | undefined): Promise<string> {
     if (!categoryId) return ''
-    const cat = await this.prisma.category.findUnique({
-      where: { id: categoryId },
+    const cat = await this.prisma.category.findFirst({
+      where: { id: categoryId, companyId },
       select: { name: true },
     })
-    return cat?.name ?? ''
-  }
-
-  async findOne(id: string) {
-    return this.prisma.product.findUnique({
-      where: { id },
-      include: { stockHistory: { orderBy: { createdAt: 'desc' }, take: 10 } },
-    });
+    if (!cat) throw new BadRequestException('Kategorie nicht gefunden')
+    return cat.name
   }
 
   /**
-   * Tenant-scoped variant of findOne — used by the controller so the
-   * caller can't peek at a product that belongs to a different
-   * company by guessing the UUID.
+   * A product of the caller's company — the caller can't peek at a product
+   * that belongs to a different company by guessing the UUID. (Tier 778: the
+   * unscoped findOne(id) beside it, called by nothing, is gone.)
    */
   async findOneScoped(id: string, companyId: string) {
     const product = await this.prisma.product.findFirst({

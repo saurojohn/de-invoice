@@ -197,13 +197,15 @@ export class AfaAutoBookerScheduler {
    * book for a known year (not the
    * "previous month" computed from
    * `now()`).
+   *
+   * Tier 778: for one company — the caller's.
    */
-  async forceTriggerForYear(year: number) {
+  async forceTriggerForYear(year: number, companyId: string) {
     this.logger.log(
       `AfA auto-booker force-triggered for year=${year}`,
     )
     const companies = await this.prisma.company.findMany({
-      where: { closedAt: null }, // Tier 737: nothing is booked into a closed company
+      where: { id: companyId, closedAt: null }, // Tier 737: nothing is booked into a closed company
       select: { id: true, name: true, settings: true },
     })
 

@@ -181,18 +181,18 @@ export class AssetsController {
   @Post('_test/auto-booker-trigger')
   async autoBookerTrigger(
     @Query('year') yearRaw?: string,
-    @Query('companyId') companyId?: string,
+    @Req() req?: any,
   ) {
     if (process.env.NODE_ENV === 'production') {
       throw new NotFoundException()
     }
     const year = yearRaw ? Number(yearRaw) : new Date().getFullYear() - 1
-    // companyId is reserved for v2: per-company
-    // test trigger. v1 always books for all
-    // companies (the production cron does the
-    // same), so we accept but ignore it here.
-    void companyId
-    return this.afaAutoBooker.forceTriggerForYear(year)
+    // Tier 778: the caller's company only. It booked the AfA of every open
+    // company — any company admin could, on a test or development install —
+    // and inside the caller's request, so each booking's audit row landed in
+    // the CALLER's trail (amount, asset, other company's id) and from there in
+    // its GoBD archive; the answer listed other companies' names under errors.
+    return this.afaAutoBooker.forceTriggerForYear(year, req.user.companyId)
   }
 
   @Require('accounting.read')

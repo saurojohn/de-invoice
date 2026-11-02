@@ -2669,6 +2669,27 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 778 — one company against another, every route that takes an id
+
+A sweep with a fresh company B against the test database, reading the database after each call (rows whose `xmin` is newer than the call; deleted ids; B's own rows that point at another company's rows; every UUID of an answer looked up):
+
+| Pass | Calls | Result |
+|---|---|---|
+| every route with an id in path, query or body, another company's ids everywhere (bodies built from the DTO classes) | 470 | refused, except the trigger below |
+| B's own parent record in the path, another company's ids in the child path and the body | 398 | refused (the ten two-id routes, e.g. `DELETE invoices/<B>/payments/<A>`, included) |
+| one foreign body field at a time, B's own ids in all the others | 66 | refused, except `parentId` below |
+| every GET without an id, as an empty company | 203 | nothing of another company, except the trail the trigger polluted |
+| by hand: the ~25 routes whose generated body stopped at validation, multipart uploads, `createdById`/`uploadedById`/`closedById` | 47 | refused; the who-did-it fields are bound to the caller already (403) |
+
+Defects, fixed (spec 483; on the code before 15 of its checks fail):
+
+- `POST /assets/_test/auto-booker-trigger` booked the AfA of every open company (2 942 in the test database) for any company admin on a non-production install. Inside the caller's request, so each booking's audit row went into the caller's trail (another company's asset, amount and id), and from there into its `/audit-logs`, CSV export and GoBD archive; the answer named other companies under `errors`. It books the caller's company now (`forceTriggerForYear(year, companyId)`); the cron is unchanged.
+- `POST /accounting/accounts` took `parentId` as sent — a plain column without a foreign key — so an account of another company was accepted. Refused (400) now; an empty one is stored as none.
+- `PUT /products/:id` looked `categoryId` up by id alone: another company's category was accepted and its name copied into `categoryName`; an unknown id was the foreign key's 500. Both 400 „Kategorie nicht gefunden". (No route creates categories today.) The unscoped `ProductService.findOne(id)`, called by nothing, is removed.
+- `POST /accounting/accounts` with a number the company already has: 500 „Resource already exists" and an error event; 409 „Das Konto … gibt es in dieser Firma schon." now.
+
+Not changed: the other `_test` routes (`recurring-invoices/:id/_test/scheduled-run`, `invoice-status/_test/mark-overdue`) work on the caller's company already. The audit extension attributes a row to the request's company before the row's own (Tier 407) — right for every request that stays in its company, which the sweep says they all do now. The sweep scripts are not in the repository (they run for ~40 minutes against a database full of other companies' rows); spec 179 keeps the GET sweep, spec 355 the body ids, 483 these.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 777b — CI green for Tier 777
 
 Run 41454481621 (commit fe5c6154) green; totals in the session report.
