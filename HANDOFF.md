@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 778b — CI green for Tier 778
+
+Run 41521022665 (commit 83678536) green; totals in the session report.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 778 — one company against another, every route that takes an id
 
 A sweep with a fresh company B against the test database, reading the database after each call (rows whose `xmin` is newer than the call; deleted ids; B's own rows that point at another company's rows; every UUID of an answer looked up):
