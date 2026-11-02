@@ -2669,6 +2669,21 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 779 — every role against every route of its own company
+
+One company with an admin and a member of each other role; each member called every route (441 of 537 — the session's own auth routes and the public ones left out) with the company's own ids, bodies built from the DTO classes; the database was read after each call (rows newer than the call), and the route's `@Require` gave the rank it takes.
+
+| Member | Result |
+|---|---|
+| viewer | no write; nothing read above its rank — except the GoBD archive below. Four GETs write on first use, by design: default note and reminder templates, the signing key on the first PDF, the DATEV Personenkonto of a customer on the first export |
+| auditor (Tier 744) | no write; reads the trail and the UStVA as Tier 744 intends; users, admin, Berater notes refused |
+| Berater with `x-readonly: 1` | no write |
+| accountant | none of the admin actions (99 refused; the 12 whose fixture an earlier call had deleted, called again with a random id: 403); users, invitations, roles refused by `requireRole` |
+
+**Defect:** `GET /accounting/gobd-archive` asked for `accounting.read` (viewer) and its ZIP holds `Audit-Log.csv` — every event of the trail with user, IP and the data before and after. `audit.read` is the accountant's (a viewer gets 403 from `/audit-logs/export.csv`). It asks for `audit.read` now, like `gobd-export`; the summary on the page stays at `accounting.read` (counts only). Spec 484; on the code before the viewer gets the ZIP with the trail. The page shows the download link to everyone, as it does the Verfahrensdokumentation's (already `audit.read`): a viewer who clicks it reads the 403.
+
+Looked at, not a defect: an admin lists and (de)activates only members whose home company is theirs (`User.companyId`). A membership of a user from another home company exists only when made in the database — an invitation always creates a new user of the inviting company, and an existing address cannot accept one.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 778b — CI green for Tier 778
 
 Run 41521022665 (commit 83678536) green; totals in the session report.

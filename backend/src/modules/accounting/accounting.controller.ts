@@ -1609,8 +1609,13 @@ export class AccountingController {
    * underlying records, but the Berater
    * appreciates having the immutable copy
    * for offline review.
+   *
+   * Tier 779: audit.read, like the GoBD export (gobd-export) — the ZIP holds
+   * Audit-Log.csv, every event of the trail with its user, IP and before/after
+   * data, which a viewer may not read (`audit.read` is accountant rank). With
+   * accounting.read a viewer downloaded it.
    */
-  @Require('accounting.read')
+  @Require('audit.read')
   @Get('gobd-archive')
   @UseGuards(HeaderAuthGuard)
   async getGobdArchive(
