@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 776b — CI green for Tier 776
+
+Run 41446508417 (commit 25de2c90) green; totals in the session report.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 776 — what the process keeps between requests, read through
 
 After Tier 775 (a set of created sequences that outlived a rollback), every place where the backend keeps state in memory was read: 51 module-level values and service fields, most of them constants. Also: every `$transaction` callback (23) for side effects that a rollback cannot take back, i.e. a file deleted or written, a mail or webhook sent, an HTTP call; in-memory run flags of the schedulers; the timers.
