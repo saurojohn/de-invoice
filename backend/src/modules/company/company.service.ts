@@ -1,6 +1,7 @@
 import { withCheckedVatId } from '../../common/vat-id';
 import { elsterSteuernummerOrProblem } from '../../common/steuernummer';
-import { isBareLegalForm } from './rechtsform';
+import { isBareLegalForm, resolveRechtsform } from './rechtsform';
+import { euerNotAllowedFor } from './gewinnermittlung';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertIban } from '../../common/iban';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -51,6 +52,20 @@ export class CompanyService {
       if (land && tax) {
         const r = elsterSteuernummerOrProblem(tax, land);
         if ('problem' in r) throw new BadRequestException(r.problem);
+      }
+    }
+    // Tier 774: a GmbH, an OHG, a KG… keeps books; the EÜR is not open to it
+    if ('gewinnermittlung' in data || 'rechtsform' in data || 'legalName' in data || 'name' in data) {
+      const stored = await this.prisma.company.findUnique({
+        where: { id },
+        select: { gewinnermittlung: true, rechtsform: true, settings: true, legalName: true, name: true },
+      });
+      const next = { ...(stored ?? {}), ...data } as Parameters<typeof resolveRechtsform>[0] & { gewinnermittlung?: string | null };
+      const rf = resolveRechtsform(next).rechtsform;
+      if (next.gewinnermittlung === 'euer' && euerNotAllowedFor(rf)) {
+        throw new BadRequestException(
+          `Eine ${rf} ist buchführungspflichtig (§ 238 HGB) und ermittelt ihren Gewinn durch Bilanz; die Einnahmen-Überschuss-Rechnung steht ihr nicht offen.`,
+        );
       }
     }
     assertIban(data.bankInfo?.iban);

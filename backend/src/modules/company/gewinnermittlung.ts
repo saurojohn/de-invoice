@@ -23,6 +23,15 @@ export type Gewinnermittlung = 'euer' | 'bilanz'
 
 const BILANZPFLICHTIG = ['OHG', 'KG', 'GmbH & Co. KG', 'GmbH', 'UG (haftungsbeschränkt)', 'AG', 'KGaA']
 
+/**
+ * Tier 774: a Kaufmann by legal form keeps books whatever was set (§§ 238, 242
+ * HGB; § 6 HGB, § 13 Abs. 3 GmbHG; § 5 EStG via § 8 KStG). 'euer' set for a
+ * GmbH made every report count by payment; it is not one of its choices.
+ */
+export function euerNotAllowedFor(rechtsform: string | null): boolean {
+  return !!rechtsform && BILANZPFLICHTIG.includes(rechtsform)
+}
+
 export function resolveGewinnermittlung(company: {
   gewinnermittlung?: string | null
   rechtsform?: string | null
@@ -30,9 +39,10 @@ export function resolveGewinnermittlung(company: {
   legalName?: string | null
   name?: string | null
 }): { art: Gewinnermittlung; source: 'gesetzt' | 'rechtsform' } {
+  const rf = resolveRechtsform(company).rechtsform
+  if (euerNotAllowedFor(rf)) return { art: 'bilanz', source: company.gewinnermittlung === 'bilanz' ? 'gesetzt' : 'rechtsform' }
   if (company.gewinnermittlung === 'euer' || company.gewinnermittlung === 'bilanz') {
     return { art: company.gewinnermittlung, source: 'gesetzt' }
   }
-  const rf = resolveRechtsform(company).rechtsform
-  return { art: rf && BILANZPFLICHTIG.includes(rf) ? 'bilanz' : 'euer', source: 'rechtsform' }
+  return { art: 'euer', source: 'rechtsform' }
 }
