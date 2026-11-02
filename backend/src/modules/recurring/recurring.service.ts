@@ -1038,7 +1038,10 @@ export class RecurringService {
       // cross-module dependency. The two implementations
       // must stay in sync — see the matching helper in
       // invoice.service.ts nextInvoiceNumber().
-      const currentYear = periodStart.getFullYear()
+      // Tier 775: the year of the invoice's date, as for an invoice made by hand.
+      // It was the year of the period: a December run for January was dated
+      // 02.11.2026 and numbered INV-2027-000001.
+      const currentYear = businessTodayDate(now).getUTCFullYear()
       // Tier 404: one implementation, in invoice-number.ts. This block used to
       // be a second copy with a comment asking that the two stay in sync — they
       // had already drifted (no type guard here) — and it used the sequence

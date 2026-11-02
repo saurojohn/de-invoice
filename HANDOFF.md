@@ -2669,6 +2669,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 775 — a rolled-back run broke the year's numbers until a restart
+
+CI of Tier 774 (41418727497) was red in spec 359, which had passed on 01.11.2026: from 02.11. on, its second period lies in the next year. Two defects behind it, neither from Tier 774:
+
+- **`invoice-number.ts` kept a set of the sequences the process had created.** Its comment said a stale entry could cost a round trip, never correctness. A CREATE SEQUENCE inside a transaction that rolls back is rolled back too (DDL is transactional in PostgreSQL); the set kept the name. Every later number of that company and year: `relation "invoice_seq_inv_2027_…" does not exist`, 500, until the process restarts. Any run refused after it took its number does this to the first invoice of a year, which is what a 1 January morning brings. The set is gone; the sequence is looked up in `pg_class` for each number, which the code did anyway on a cold set.
+- **A recurring invoice took the year of its period for its number**, an invoice made by hand the year of its date. A run in November for January: dated 02.11.2026, numbered INV-2027-000001. It takes the business year of its date now (`businessTodayDate(now)`), as `InvoiceService` does.
+
+Spec `481-tier775-nummernkreis-nach-rollback.sh` puts the period four years ahead, so it does not depend on the day: 3 assertions fail on the code before (500, no number, the hand-made invoice alone). 359 passes again. Local failures 72, 142, 384 are the known ones.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 774 — the owner's open items, worked through as the accountant
 
 The owner, 02.11.2026: „这个以你为会计师的角度来完成" for the items of §9 that waited on them.

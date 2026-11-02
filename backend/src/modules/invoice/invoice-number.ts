@@ -87,13 +87,6 @@ async function usedMax(tx: Prisma.TransactionClient, companyId: string, prefix: 
 }
 
 /**
- * Sequences this process has already created or verified. Purely an
- * optimisation — the CREATE is `IF NOT EXISTS` and the seeding query is
- * idempotent, so a cold cache costs one extra round trip, never correctness.
- */
-const known = new Set<string>()
-
-/**
  * Postgres identifiers are limited to 63 bytes and may not contain hyphens
  * unquoted, so the company id becomes 32 hex characters. A uuid is used
  * directly; anything else (older seeds use readable ids) is hashed, which keeps
@@ -137,20 +130,23 @@ export async function nextInvoiceNumber(
   // Lowercase and unquoted on purpose (Tier 174).
   const seqName = `invoice_seq_${type.toLowerCase()}_${year}_${companyToken(companyId)}`
 
-  if (!known.has(seqName)) {
-    const existing = await tx.$queryRaw<Array<{ one: number }>>`
-      SELECT 1 AS one FROM pg_class WHERE relkind = 'S' AND relname = ${seqName}
-    `
-    if (existing.length === 0) {
-      // Start above whatever this company already used. Read it from the
-      // invoice numbers themselves rather than from `sequenceNumber`, which is
-      // null for every row written before Tier 174 added the column.
-      const start = (await usedMax(tx, companyId, prefix, year)) + 1
-      await tx.$executeRawUnsafe(
-        `CREATE SEQUENCE IF NOT EXISTS ${seqName} START ${start} INCREMENT 1`,
-      )
-    }
-    known.add(seqName)
+  // Tier 775: looked up every time. A set of the sequences this process had
+  // created remembered one whose CREATE was in a transaction that then rolled
+  // back: DDL rolls back in PostgreSQL, the set did not, and every later number
+  // of that company and year was a 500 (`relation … does not exist`) until a
+  // restart. A run refused after it took its number did that with the first
+  // invoice of a new year.
+  const existing = await tx.$queryRaw<Array<{ one: number }>>`
+    SELECT 1 AS one FROM pg_class WHERE relkind = 'S' AND relname = ${seqName}
+  `
+  if (existing.length === 0) {
+    // Start above whatever this company already used. Read it from the
+    // invoice numbers themselves rather than from `sequenceNumber`, which is
+    // null for every row written before Tier 174 added the column.
+    const start = (await usedMax(tx, companyId, prefix, year)) + 1
+    await tx.$executeRawUnsafe(
+      `CREATE SEQUENCE IF NOT EXISTS ${seqName} START ${start} INCREMENT 1`,
+    )
   }
 
   // A sequence that has fallen behind the company's own numbers hands out one
@@ -201,11 +197,6 @@ export function numberParts(invoiceNumber: string): InvoiceNumber {
   const m = /^([A-Z]+)-(\d{4})-(\d+)$/.exec(invoiceNumber || '')
   if (!m) throw new BadRequestException(`Keine Rechnungsnummer dieses Programms: ${invoiceNumber}`)
   return { invoiceNumber, sequencePrefix: m[1], sequenceYear: Number(m[2]), sequenceNumber: Number(m[3]) }
-}
-
-/** Test seam: forget the created-sequence cache. */
-export function resetInvoiceNumberCache(): void {
-  known.clear()
 }
 
 /**
