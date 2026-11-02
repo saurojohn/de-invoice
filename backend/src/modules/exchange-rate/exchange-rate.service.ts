@@ -231,13 +231,19 @@ export class ExchangeRateService {
     if (res.ok) {
       const csv = await res.text()
       if (csv.trim().length > 0) {
+        // Tier 776: an answer that is no rate table (a maintenance page, a cut
+        // transfer) is a failure, not „no rate on that day". As null it was kept
+        // for the day until the process restarted.
+        let parsed: ReturnType<ExchangeRateService['parseEcbCsv']>
         try {
-          const parsed = this.parseEcbCsv(csv)
-          const rate = parsed.rates[ccy]
-          if (rate && Number(rate) > 0) found = { date: parsed.date, rate }
+          parsed = this.parseEcbCsv(csv)
         } catch {
-          found = null
+          throw new ServiceUnavailableException(
+            `Der EZB-Referenzkurs für ${ccy} am ${deDate(day)} ist gerade nicht abrufbar (unerwartete Antwort).`,
+          )
         }
+        const rate = parsed.rates[ccy]
+        if (rate && Number(rate) > 0) found = { date: parsed.date, rate }
       }
     } else if (res.status !== 404) {
       throw new ServiceUnavailableException(

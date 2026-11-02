@@ -2669,6 +2669,29 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 776 — what the process keeps between requests, read through
+
+After Tier 775 (a set of created sequences that outlived a rollback), every place where the backend keeps state in memory was read: 51 module-level values and service fields, most of them constants. Also: every `$transaction` callback (23) for side effects that a rollback cannot take back, i.e. a file deleted or written, a mail or webhook sent, an HTTP call; in-memory run flags of the schedulers; the timers.
+
+| State | Judged |
+|---|---|
+| `invoice-number.ts` created sequences | the defect of Tier 775, removed |
+| `exchange-rate` rates of settled days | **defect:** a 200 that was no rate table parsed to null, and the null was kept until a restart. It is a 503 now and asked again (`scripts/probe-ecb-unreadable.ts`, spec 482; on the code before: `none` twice) |
+| `two-factor` pending secrets | process-local by design (10 min); the secret is written before it is forgotten |
+| `common/key-lock.ts` | in-process lock, documented for one instance; a timed-out waiter hands its place on |
+| `auth.controller` login attempts | resets on restart; the throttler stands behind it |
+| `e-invoice-import` verdicts | by content hash, 10 min, at most 200 |
+| `mail.service` transporter | keyed by its configuration |
+| `notification` thresholds | 60 s, refreshed on write |
+| `vat-reverify` mails of the day | a restart can send one mail twice on that day; accepted |
+| `metrics`, `pdf-fonts`, `audit-log.extension` client, `invoice-document` storage | counters and wiring |
+| side effects inside transactions | none |
+| run flags of schedulers | none: their idempotency is in the database |
+
+All of it assumes one backend instance, as `infra/prod/docker-compose.yml` runs it. A second instance would need the key lock, the 2FA secrets and the login attempts in the database.
+
+Specs touching currencies and rates: 74 of 76; 72 and 142 are the known local ones.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 775b — CI green for Tiers 774 and 775, both modes
 
 Commit 18a6dc94: push 41427204518 and production mode 41427228619 green (totals in the session report). Tier 774's own run (41418727497) was red only in spec 359, fixed by 775.
