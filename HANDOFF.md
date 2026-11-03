@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 787b — CI green for Tiers 785, 786 and 787
+
+Run 41661696980 (commit 26d63b32): backend **490 passed / 0 failed / 1 skipped**, Playwright **1115 passed (38.0 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. The dev database needs the two new migrations (`20261103000001_totp_last_step`, `20261103000002_token_hash_lookup`) beside the earlier additive ones; after them every signed-in browser signs in again, and reset and invitation links sent before do not match any more.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 787 — reset and invitation links found by their hash; a closed company's links stay shut
 
 - **Reset and invitation tokens** were bcrypt hashes. A bcrypt hash cannot be looked up, so `reset-password`, `invitations/verify` and `invitations/accept` compared the token with every pending reset / open invitation of the installation in turn, ~70 ms each: the more pending links, the slower every request, a made-up token the slowest. Now `User.passwordResetToken` and `UserInvitation.tokenHash` hold the token's SHA-256 under a unique index (migration `20261103000002_token_hash_lookup`). A link issued before the migration no longer matches: a reset lasts an hour, an invitation is sent again from the user list.
