@@ -1,7 +1,7 @@
 import { queryInt } from '../../common/query';
 import { strictFlag } from '../../common/strict-boolean'
 import { assertImportRows } from '../../common/import-rows';
-import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Headers, HttpCode } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, Header, Res, Req, HttpCode } from '@nestjs/common';
 import type { Response } from 'express';
 import { AllocatePaymentDto, ApplyCreditDto, CreditAdjustDto, CreditPayoutDto } from './dto/credit.dto';
 import { CustomerService, ImportCustomerRow } from './customer.service';
@@ -329,15 +329,16 @@ export class CustomerController {
     @Param('id') id: string,
     @Query('companyId') companyId: string,
     @Body() body: { body?: string },
-    @Headers('x-user-id') userId?: string,
-    @Headers('x-user-email') userEmail?: string,
+    @Req() req: any,
   ) {
     this.assertCompanyId(companyId)
+    // Tier 781: the author is the signed-in user. It was the x-user-id /
+    // x-user-email headers — the client's word, and absent with a session.
     return this.customerService.createInternalNote(
       companyId,
       id,
       body?.body || '',
-      { id: userId, email: userEmail },
+      { id: req.user?.id, email: req.user?.email },
     )
   }
 
@@ -347,24 +348,18 @@ export class CustomerController {
     @Param('id') id: string,
     @Param('noteId') noteId: string,
     @Query('companyId') companyId: string,
-    @Headers('x-user-id') userId?: string,
-    @Headers('x-user-email') _userEmail?: string,
+    @Req() req: any,
   ) {
     this.assertCompanyId(companyId)
-    // We accept role in headers so the service
-    // can decide author-vs-admin without a
-    // second DB roundtrip from the controller.
-    // In practice the global JWT guard attaches
-    // the role via UserCompany — but for
-    // x-user-id/x-company-id header auth (the
-    // test/CI path) the role isn't populated,
-    // so any delete by the actor themselves
-    // still works (author check covers it).
+    // Tier 781: the signed-in user and the role in this company (HeaderAuthGuard).
+    // It was the x-user-id header and no role: any member who put a note's
+    // author in the header deleted it, a session (which sends no such header)
+    // deleted none, and an admin was never recognised.
     return this.customerService.deleteInternalNote(
       companyId,
       id,
       noteId,
-      { id: userId, role: null },
+      { id: req.user?.id, role: req.user?.role },
     )
   }
 

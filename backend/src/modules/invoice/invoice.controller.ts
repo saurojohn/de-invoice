@@ -1745,7 +1745,7 @@ export class InvoiceController {
     @Req() req: Request,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
-    return this.paymentService.bookNotice(companyId, id, noticeId, body || {}, (req.headers['x-user-id'] as string) || undefined);
+    return this.paymentService.bookNotice(companyId, id, noticeId, body || {}, (req as any).user?.id);
   }
 
   @Post(':id/payment-notices/:noticeId/dismiss')
@@ -1757,7 +1757,7 @@ export class InvoiceController {
     @Req() req: Request,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
-    return this.paymentService.dismissNotice(companyId, id, noticeId, (req.headers['x-user-id'] as string) || undefined);
+    return this.paymentService.dismissNotice(companyId, id, noticeId, (req as any).user?.id);
   }
 
   // Remove a recorded payment. Used to fix mistakes. May transition
@@ -1802,8 +1802,10 @@ export class InvoiceController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required')
     return this.invoiceService.createInternalNote(companyId, id, body?.body || '', {
-      id: req.headers['x-user-id'],
-      email: req.headers['x-user-email'],
+      // Tier 781: the signed-in user — the headers were the client's word
+      // (with a session no x-user-id is sent: notes had no author)
+      id: req.user?.id,
+      email: req.user?.email,
     })
   }
 
@@ -1818,8 +1820,10 @@ export class InvoiceController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required')
     return this.invoiceService.deleteInternalNote(companyId, id, noteId, {
-      id: req.headers['x-user-id'],
-      email: req.headers['x-user-email'],
+      // Tier 781: the signed-in user — the headers were the client's word
+      // (with a session no x-user-id is sent: notes had no author)
+      id: req.user?.id,
+      email: req.user?.email,
       // The `invoice.update` permission is admin-
       // level in the dev DB (the seeded user is
       // admin). For per-user role checks we'd

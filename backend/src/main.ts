@@ -163,12 +163,17 @@ async function bootstrap() {
       {
         // Tier 400: with session cookies the user is only known once the guard
         // has resolved the session — and this middleware runs BEFORE guards.
-        // The header values are a starting point (still the credential while
-        // ALLOW_HEADER_AUTH is on); HeaderAuthGuard overwrites userId with the
-        // authenticated one. The store is a mutable object, so a write inside
-        // the scope is what the audit extension reads.
-        userId: req.headers['x-user-id'] || null,
-        companyId: req.headers['x-company-id'] || null,
+        // HeaderAuthGuard fills in the authenticated user and company. The
+        // store is a mutable object, so a write inside the scope is what the
+        // audit extension reads.
+        // Tier 781: no starting point from the headers. On a public route the
+        // guard steps aside and they stayed: an anonymous registration sent
+        // with another company's x-company-id and x-user-id wrote its
+        // company.created and usercompany.created rows into that company's
+        // trail, under that user (measured; system/errors likewise). Without
+        // them the row's own company is used (audit-log.extension.ts).
+        userId: null,
+        companyId: null,
         ipAddress: req.ip || req.socket?.remoteAddress || null,
         userAgent: req.headers['user-agent'] || null,
       },

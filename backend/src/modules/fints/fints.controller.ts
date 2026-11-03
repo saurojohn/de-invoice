@@ -243,7 +243,7 @@ export class FinTsController {
     return this.fints.startSync({
       connectionId: id,
       companyId: body.companyId,
-      userId: req.headers['x-user-id'],
+      userId: req.user?.id, // Tier 781: was the x-user-id header
       daysBack: body?.daysBack,
     })
   }

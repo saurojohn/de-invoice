@@ -2669,6 +2669,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 781 — who did it comes from the session, not from the headers
+
+From Tier 780's sweep:
+- `main.ts` started each request's audit context with the client's `x-user-id` / `x-company-id`; HeaderAuthGuard overwrites them, but on a public route it steps aside and they stayed. Measured: an anonymous registration sent with another company's ids wrote `company.created` and `usercompany.created` into that company's trail under that company's user; an error report (`system/errors`) with that company's id and a stranger's user id wrote its row there too. The context now starts empty; a public route's row goes by its own company (audit-log.extension.ts, Tier 407).
+- Customer and invoice internal notes took their author from `x-user-id` / `x-user-email`: the client's word, and absent with a session (production sends no `x-user-id`) — notes had no author. A customer note was deleted by whoever named its author in the header, with a session by nobody, and the admin was never recognised (the role was passed as `null`). Author and role come from `req.user` now; the invoice notes keep their rule (whoever has `invoice.update` deletes). Payment-notice booking/dismissal and the FinTS sync took the user id from the header too.
+- Spec 486; on the code before 9 of its checks fail. Spec 384 fails locally with the same three assertions on the code before and after (local database state; green in CI).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 780 — 2FA is the caller's own, and its second step needs the password
 
 The routes a stranger reaches — left out of the sweeps of Tiers 778/779 — read one by one and measured: login, registration, the 2FA routes, password reset, e-mail confirmation, invitations, the payment link and the customer portal.
