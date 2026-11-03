@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 784 — the reports language spec waits for the report
+
+Run 41629462164 (commit 8ddb0421, Tier 783): backend green, Playwright 1114 passed and **1 flaky**: `reports-languages-tier601.spec.ts` read the page while it said „Berichte werden geladen …" — the heading it waited for is there before the report (`nach Monat` missing), the retry passed. The reports page was not touched by Tier 783. The spec now waits for a text of the report itself in each language (`nach Monat`, `各月发票`, `by month`).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 783 — the same request sent several times at once
 
 A sweep: one company's admin sent every write route (209, and the 131 the first pass did not get through again, with the books reopened before each burst and the actor fields bound) six times at once. After each burst: 5xx answers, new rows that are copies of each other, and invariants of the books (paid over total, a dunning level twice, a bank entry applied over its amount, credited over total, negative stock, AfA of one asset and period twice, gaps in invoice numbers, a timer running twice, …). Tier 534 had locked payments, credit and bank confirmations; what was left:

@@ -21,7 +21,9 @@ test("the reports page in German, Chinese and English", async ({ page, request }
   ])
   // Tier 756c: `marker`: the page renders German first and takes the chosen
   // language after hydration, so one read after networkidle could come too soon.
-  const open = async (locale: string, marker: string) => {
+  // Tier 783b: and `loaded`, a text of the report itself — the heading is there
+  // while the page still shows "Berichte werden geladen …" (CI read it then once).
+  const open = async (locale: string, marker: string, loaded: string) => {
     await page.addInitScript(
       ({ userId, companyId, locale }: { userId: string; companyId: string; locale: string }) => {
         localStorage.setItem("userId", userId)
@@ -34,15 +36,16 @@ test("the reports page in German, Chinese and English", async ({ page, request }
     await page.goto("/dashboard/reports")
     await page.waitForLoadState("networkidle")
     await expect(page.locator("body")).toContainText(marker)
+    await expect(page.locator("body")).toContainText(loaded, { timeout: 15_000 })
     return (await page.locator("body").innerText()).replace(/\s+/g, " ")
   }
-  const de = await open("de", "Berichtscenter")
+  const de = await open("de", "Berichtscenter", "nach Monat")
   // Tier 709b: the first tab is the Rechnungsstatistik (it replaced the Umsatzbericht)
   for (const s of ["Berichtscenter", "Rechnungsstatistik", "Kundenbericht", "nach Monat", "Verkaufte Mengen", "Jahre im Vergleich"]) expect(de, `German: ${s}`).toContain(s)
-  const zh = await open("zh", "报表中心")
+  const zh = await open("zh", "报表中心", "各月发票")
   for (const s of ["报表中心", "开票统计", "客户报表", "各月发票", "销售数量", "历年对比"]) expect(zh, `Chinese: ${s}`).toContain(s)
   for (const s of ["Berichtscenter", "Rechnungsstatistik", "Kundenbericht", "Verkaufte Mengen", "Zurück"]) expect(zh, `Chinese page still says ${s}`).not.toContain(s)
-  const en = await open("en", "Reports")
+  const en = await open("en", "Reports", "by month")
   for (const s of ["Reports", "Invoice statistics", "by month", "Quantities sold", "Years compared"]) expect(en, `English: ${s}`).toContain(s)
   for (const s of ["Berichtscenter", "Rechnungsstatistik", "Verkaufte Mengen", "Zurück"]) expect(en, `English page still says ${s}`).not.toContain(s)
   for (const text of [de, zh, en]) expect(text).not.toMatch(/invoiceStats\.[a-zA-Z0-9]+/)
