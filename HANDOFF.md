@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 788b — CI green for Tier 788
+
+Run 41684732038 (commit e820b57d): backend **491 passed / 0 failed / 1 skipped**, Playwright **1115 passed (38.7 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. Locally 109, 113 and 142 failed with the same checks on the code before (shared-company state); 133 and Playwright `ustja-oss-tier187` need a Steuernummer on the seed company, which a spec of the local run had removed — with one set both pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 788 — a large company: the accounting page's computations once, every open invoice in the bank suggestions
 
 Measured on a throwaway `postgres:16` (2 CPUs) with the seed of Tier 760 (one company: 50 000 documents, 150 000 lines, 45 000 payments, 20 000 expenses, 70 000 vouchers, 60 000 bank lines; no audit rows), the compiled backend with the 524 MiB heap:
