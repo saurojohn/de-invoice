@@ -578,10 +578,13 @@ export class BwaService {
         createdAt: { gte: yearStart, lte: monthEnd },
         type: { in: ['overpayment', 'gutschrift'] },
       },
-      select: { amount: true },
+      select: { amount: true, createdAt: true },
     })
+    // Tier 792: in the month it was booked — each credit was dated `new
+    // Date()`, so the month column held the whole year's credits when the
+    // month asked for was the current one, and none otherwise.
     const sonstigeErloeseMonat = sumInMonth(
-      credits.map((c) => ({ date: new Date(), amount: Number(c.amount) > 0 ? Number(c.amount) : 0 })),
+      credits.map((c) => ({ date: c.createdAt, amount: Number(c.amount) > 0 ? Number(c.amount) : 0 })),
       monthStart,
       monthEnd,
     )

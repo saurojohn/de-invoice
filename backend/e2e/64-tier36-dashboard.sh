@@ -114,9 +114,13 @@ if [[ "$TOP_COUNT" -le 5 ]]; then
 else
   fail "topCustomers has $TOP_COUNT entries (> 5)"
 fi
-# First entry shape check
-FIRST_HAS_ALL=$(jq -r '.topCustomers[0] | (has("customerId") and has("name") and has("revenue") and has("invoiceCount"))' /tmp/t64_dash.json)
-if [[ "$FIRST_HAS_ALL" == "true" ]]; then
+# First entry shape check. Tier 792: only when there is one — early on 1
+# January no customer has revenue in the new year yet, and [0] of an empty
+# list has no fields.
+FIRST_HAS_ALL=$(jq -r 'if (.topCustomers | length) == 0 then "none" else (.topCustomers[0] | (has("customerId") and has("name") and has("revenue") and has("invoiceCount"))) end' /tmp/t64_dash.json)
+if [[ "$FIRST_HAS_ALL" == "none" ]]; then
+  pass "no customer with revenue this year yet — no entry to check"
+elif [[ "$FIRST_HAS_ALL" == "true" ]]; then
   pass "first topCustomer has customerId/name/revenue/invoiceCount"
 else
   fail "first topCustomer missing required field"

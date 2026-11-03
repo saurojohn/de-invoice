@@ -287,14 +287,17 @@ for l in d['lines']:
 D_SONST=$(python3 -c "print(round(float('$NEW_SONST_YTD') - float('$BASE_SONST_YTD')))")
 assert_eq "3600 Sonstige (catchall) NOT changed by Miete seed" "$D_SONST" "0"
 
-# ── 8. Betriebsergebnis identity: YTD = umsatz - mat - pers - afa - 3200/3300/3400/3500 - 3600 ──
+# ── 8. Betriebsergebnis identity: YTD = umsatz + 1300 - mat - pers - afa - 3200/3300/3400/3500 - 3600 ──
 echo
 note "=== 8. Betriebsergebnis YTD identity (tier 93: also subtracts 3200/3300/3400/3500) ==="
 BE_IDENTITY=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
 def ytd(b): return next(l['ytd'] for l in d['lines'] if l['bucket'] == b)
-expected = (ytd('1000') - ytd('2000') - ytd('3000') - ytd('3100') -
+# Tier 792: with 1300 (Sonstige betriebliche Erträge, the customer credits) —
+# the BWA's Betriebsergebnis has it; the identity left it out and held only
+# while the seed company had no credit in the months asked for.
+expected = (ytd('1000') + ytd('1300') - ytd('2000') - ytd('3000') - ytd('3100') -
             ytd('3200') - ytd('3300') - ytd('3400') - ytd('3500') -
             ytd('3600'))
 actual = d['totals']['betriebsergebnisYtd']

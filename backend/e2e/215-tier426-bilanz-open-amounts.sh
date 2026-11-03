@@ -68,7 +68,9 @@ invoice() { # amount paymentAmount paymentDate → id
   echo "$id"
 }
 A=$(invoice 1000 500 "$YEAR-04-01")
-B=$(invoice 100 119 "$NEXT-01-10")
+# Tier 792: today — after the year end, and never in the future (10 January
+# of the next year was, from 1 to 9 January, and the payment was refused)
+B=$(invoice 100 119 "$TODAY")
 AS POST "/api/v1/suppliers?companyId=$C" "{\"name\":\"$TAG L\",\"address\":{\"street\":\"a\",\"city\":\"b\",\"postalCode\":\"1\",\"country\":\"DE\"}}"; S=$(json_field "$BODY" id)
 expense() { AS POST "/api/v1/ustva/expenses?companyId=$C" "{\"supplierId\":\"$S\",\"invoiceNumber\":\"$1\",\"description\":\"$1\",\"invoiceDate\":\"$YEAR-05-01\",\"netAmount\":100,\"vatRate\":0.19,\"vatAmount\":19,\"grossAmount\":119}"; json_field "$BODY" id; }
 EP=$(expense "ER-bezahlt"); expense "ER-offen" >/dev/null
