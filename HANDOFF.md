@@ -2669,6 +2669,21 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 790 — the whole backend suite passes on a used local database
+
+A dozen specs had "always failed locally" (109, 113, 115, 116, 117, 133, 142, 16, 192), and a local failure that is always there hides a new one (Tier 682). None was the code:
+
+- **178** created its assets on the seed company and never removed them. The AfA specs book every asset of the company (113, 115, 116, the scheduler of 117) and count the result: 918 AfA rows hung on ten 178 assets, so 109 (Anlagevermögen 20 800 for 4 800), 113 (8 skipped for 0), 115/117 (the year booked yearly already), 116 (9 reversed for 1) failed on any database that had run 178 once. CI runs them before 178 on a fresh database. 178 removes its assets and their AfA rows on exit now.
+- **133** sets the Steuernummer to NULL in section 12 and restored "what it found": after one aborted run the found value was NULL, and the ELSTER export answered 400 in eight sections ever after. With no Steuernummer it sets ci-seed's `123/456/78901`; the one found is put back on exit (a trap), and section 12 restores NULL as NULL instead of `''`.
+- **142** took its PnL baseline with drafts; the PnL has left them out since Tier 424, so a company with drafts in May (any but CI's fresh seed) failed.
+- The local runner (not in the repository) counted exit 77 — 16's skip without a frontend — as a failure, and ran with `DISABLE_CRON=1`, so 192's manually fired cleanup did nothing. Both as CI now.
+
+The local test database was cleaned once (the 178 assets and their 918 rows, the seed company's Steuernummer). Then all 490 backend specs but 257 (CI or a throwaway container only) on `tmp-ci-pg`: 489 passed, and 234 found the one new line of 133 that looked like a pipe into `docker exec` (`[[ … ]] || docker exec`, now an `if`); with it, all pass.
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 789b — CI green for Tier 789
+
+Run 41704388273 (commit 14651c9b): backend **491 passed / 0 failed / 1 skipped**, Playwright **1120 passed (39.4 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 789 — a viewer is not offered the GoBD archive
 
 Since Tier 779 the GoBD archive ZIP and the Verfahrensdokumentation need `audit.read` (they hold the audit log with users and IP addresses), which a viewer does not have; the accounting page still showed the viewer both links and the click ended in a 403 toast. `GobdArchiveSection` asks `/auth/me` for the role in the open company; a viewer reads „Das Archiv und die Verfahrensdokumentation enthalten das Änderungsprotokoll … Ihre Rolle (Leser) kann sie nicht herunterladen — ein Buchhalter oder Administrator der Firma kann es." (`gobd.viewerNoDownload`, de/en/zh) instead of the links. Every other role keeps them; the summary stays visible to all. Playwright `gobd-viewer-tier789.spec.ts` (administrator, accountant, viewer in three languages; the viewer's three fail on the code before).

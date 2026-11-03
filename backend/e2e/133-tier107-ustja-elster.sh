@@ -19,6 +19,19 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 TS=$(date +%s)
+# Tier 790: the export needs a Steuernummer. A run stopped between section
+# 12's NULL and its restore left the seed company without one, and every
+# later run failed in eight sections (it restored what it found: nothing).
+# Without one, ci-seed's is set; the one found is put back on exit.
+FOUND_TAXID=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tAc "select coalesce(\"taxId\", '') from \"Company\" where id='$COMPANY_ID'")
+if [[ -z "$FOUND_TAXID" ]]; then
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qc "update \"Company\" set \"taxId\"='123/456/78901' where id='$COMPANY_ID'"
+fi
+restore_taxid() {
+  [[ -n "$FOUND_TAXID" ]] && docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qc "update \"Company\" set \"taxId\"='$FOUND_TAXID' where id='$COMPANY_ID'" >/dev/null 2>&1
+  return 0
+}
+trap restore_taxid EXIT
 
 # ===== 1. /ustja/elster-xml returns valid Datenlieferung =====
 echo
@@ -196,9 +209,9 @@ STATUS_NOTAX=$(curl -sS -o /dev/null -w "%{http_code}" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" \
   "$API/api/v1/ustva/ustja/elster-xml?companyId=$COMPANY_ID&year=2026")
 assert_eq "no taxId → 400" "$STATUS_NOTAX" "400"
-# Restore taxId
+# Restore taxId (Tier 790: and on exit — the trap above)
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "UPDATE \"Company\" SET \"taxId\"='$ORIG_TAXID' WHERE id='$COMPANY_ID';" >/dev/null
+  "UPDATE \"Company\" SET \"taxId\"=NULLIF('$ORIG_TAXID', '') WHERE id='$COMPANY_ID';" >/dev/null
 pass "restored taxId"
 
 # ===== 13. ELSTER Berater packager row? NOT included =====

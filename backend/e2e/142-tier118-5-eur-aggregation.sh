@@ -176,9 +176,11 @@ test "$(python3 -c "print(float('$USD_DELTA') >= float('$USD_EUR_SUB') * 0.9)")"
   || fail "BWA May Umsatzerlöse delta=$USD_DELTA (expected >= $USD_EUR_SUB)"
 
 # ───── 4. PnL: revenue (eurSubtotal) used, not subtotal ─────
+# Tier 790: PRE without drafts — the PnL has left them out since Tier 424; a
+# company with drafts in May (any but CI's fresh one) failed here.
 note "=== 4. PnL: revenue should be in EUR (not original) ==="
 PRE_PNL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
-  "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", \"subtotal\")),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue','draft') AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR} AND EXTRACT(MONTH FROM \"issueDate\")=5 AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%';" 2>&1 | tr -d ' ' | head -1)
+  "SELECT COALESCE(SUM(COALESCE(\"eurSubtotal\", \"subtotal\")),0)::text FROM \"Invoice\" WHERE \"companyId\"='$COMPANY_ID' AND status IN ('paid','sent','overdue') AND EXTRACT(YEAR FROM \"issueDate\")=${YEAR} AND EXTRACT(MONTH FROM \"issueDate\")=5 AND \"invoiceNumber\" NOT LIKE '${PREFIX}-%';" 2>&1 | tr -d ' ' | head -1)
 api_get "/api/v1/reports/pnl?year=$YEAR&companyId=$COMPANY_ID"
 PNL_MAY=$(echo "$BODY" | python3 -c "
 import json, sys

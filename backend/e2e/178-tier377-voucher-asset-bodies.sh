@@ -25,6 +25,16 @@ NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 STAMP=$(date +%s%N | cut -c1-13)
 TAG="e2e-178-$STAMP"
 sql() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c "$1" 2>/dev/null | tr -d ' '; }
+# Tier 790: its assets were left on the seed company. The AfA specs book every
+# asset of the company (113, 115, 116, the scheduler of 117), and count them:
+# after a few local runs 918 AfA rows hung on ten of these assets, and
+# 109/113/115/116/117 failed on every machine whose database had run 178 once
+# (CI runs them before it, on a fresh database).
+cleanup_assets() {
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qc "DELETE FROM \"Expense\" WHERE \"relatedAssetId\" IN (SELECT id FROM \"Asset\" WHERE \"companyId\" = '$COMPANY_ID' AND bezeichnung LIKE '$TAG%')" -c "DELETE FROM \"Asset\" WHERE \"companyId\" = '$COMPANY_ID' AND bezeichnung LIKE '$TAG%'" >/dev/null 2>&1
+  return 0
+}
+trap cleanup_assets EXIT
 acc() { sql "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND \"accountNumber\" = '$1';"; }
 A1200=$(acc 1200); A8400=$(acc 8400)
 [[ -n "$A1200" && -n "$A8400" ]] && pass "accounts 1200/8400 present" || { fail "seed accounts missing"; summary; exit 1; }
