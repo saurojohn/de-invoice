@@ -13,6 +13,7 @@ import * as bcrypt from 'bcrypt';
 import { Public } from '../../auth/public.decorator';
 import { UserSessionService } from '../../auth/user-session.service';
 import { issueTwoFactorChallenge } from '../../auth/two-factor-challenge';
+import { findUserByEmail, normalizeUserEmail, userEmailTaken } from '../../auth/user-email';
 import { businessDayIso } from '../../common/business-date';
 import { Response } from 'express';
 
@@ -103,7 +104,8 @@ export class AuthController {
 
     // Constant-time check: always run bcrypt.compare even if user doesn't exist.
     // Prevents attackers from distinguishing "user not found" vs "wrong password" via response time.
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    // Tier 782: in any case (user-email.ts)
+    const user = await findUserByEmail(this.prisma, dto.email);
     const DUMMY_HASH = '$2b$10$abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTU';
     const hashToCheck = user?.passwordHash || DUMMY_HASH;
     const valid = await bcrypt.compare(dto.password, hashToCheck);
@@ -348,15 +350,25 @@ export class AuthController {
     if (!/[0-9]/.test(dto.password)) {
       throw new BadRequestException('Passwort muss mindestens eine Zahl enthalten');
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email)) {
+    // Tier 782: stored lower-case, and taken in any case (user-email.ts)
+    const email = normalizeUserEmail(dto.email);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new BadRequestException('Ungültige E-Mail-Adresse');
     }
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) {
+    // Tier 782: the company's name, as the settings page bounds it (it took
+    // 100 000 characters, and blanks)
+    const companyName = typeof dto.companyName === 'string' ? dto.companyName.trim() : '';
+    if (!companyName) {
+      throw new BadRequestException('Firmenname ist erforderlich');
+    }
+    if (companyName.length > 200) {
+      throw new BadRequestException('Firmenname darf höchstens 200 Zeichen lang sein');
+    }
+    if (await userEmailTaken(this.prisma, email)) {
       // Generic message — don't confirm the email exists
       throw new BadRequestException('Registrierung fehlgeschlagen. Bitte überprüfen Sie Ihre Angaben.');
     }
-    const created = await this.authService.register(dto);
+    const created = await this.authService.register({ ...dto, email, companyName });
     // Tier 401: registration auto-logs the user in (the page writes the ids and
     // redirects to /dashboard), so it has to mint a session like /auth/login.
     const session = await this.sessions.issue(res, created.user.id, req);

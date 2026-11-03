@@ -2669,6 +2669,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 782 — a user's e-mail address is the same in any case; a company needs a name
+
+From Tier 780's sweep. Registration kept the address as typed and looked it up as typed; invitations, password reset and the 2FA step lower-cased it. Measured: `Name@Firma.de` registered, then `name@firma.de` registered a second account; `forgot-password` with the address as registered set no reset token; login in the other case was refused. The company name took 100 000 characters, and blanks.
+
+- `auth/user-email.ts`: new addresses are stored lower-case; lookups take the exact address first (an account stored with capitals before this still signs in) and then the address in any case. Login, registration, password reset, invitation and acceptance use it.
+- Registration trims the company name and refuses a blank one or one over 200 characters — the settings page's bound (`UpdateCompanyDto`).
+- No migration: an address stored with capitals stays as it is (the installation is not live; a migration could not merge two accounts that differ in case).
+- Spec 487; on the code before 13 of its checks fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 781 — who did it comes from the session, not from the headers
 
 From Tier 780's sweep:

@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { userEmailTaken } from '../../auth/user-email';
 import { MailService } from '../mail/mail.service';
 import { randomBytes } from 'crypto';
 import { businessDayEndInstant, businessTodayIso } from '../../common/business-date';
@@ -355,11 +356,8 @@ export class UsersService {
       throw new BadRequestException('Ungültige E-Mail-Adresse');
     }
 
-    // Reject if user with that email already exists
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: normalizedEmail },
-    });
-    if (existingUser) {
+    // Reject if user with that email already exists (Tier 782: in any case)
+    if (await userEmailTaken(this.prisma, normalizedEmail)) {
       throw new BadRequestException('Ein Benutzer mit dieser E-Mail-Adresse existiert bereits');
     }
 
@@ -574,7 +572,7 @@ export class UsersService {
     if (!inv) throw new BadRequestException('Einladung ungültig oder abgelaufen');
 
     // Reject if user with that email has been created in the meantime
-    const existing = await this.prisma.user.findUnique({ where: { email: inv.email } });
+    const existing = await userEmailTaken(this.prisma, inv.email); // Tier 782: in any case
     if (existing) throw new BadRequestException('Benutzer existiert bereits');
 
     const passwordHash = await bcrypt.hash(password, 10);

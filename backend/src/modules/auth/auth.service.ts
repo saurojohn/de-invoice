@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { UserSessionService } from '../../auth/user-session.service';
+import { findUserByEmail } from '../../auth/user-email';
 
 @Injectable()
 export class AuthService {
@@ -96,10 +97,9 @@ export class AuthService {
    * Only its bcrypt-hashed form is persisted in the DB.
    */
   async createPasswordResetToken(email: string): Promise<{ tokenPlain: string; user: { id: string; email: string; companyId: string | null } } | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-      select: { id: true, email: true, companyId: true },
-    });
+    // Tier 782: in any case — the address was looked up lower-cased, and an
+    // account registered with capitals got no link
+    const user = await findUserByEmail(this.prisma, email);
     if (!user) return null;
 
     // 32 random bytes -> 64 hex chars; user clicks link with this raw token
@@ -116,7 +116,7 @@ export class AuthService {
     });
 
     this.logger.log(`Password reset requested for user=${user.id} email=${user.email}`);
-    return { tokenPlain, user };
+    return { tokenPlain, user: { id: user.id, email: user.email, companyId: user.companyId } };
   }
 
   /**
