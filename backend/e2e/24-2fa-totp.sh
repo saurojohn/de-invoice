@@ -129,7 +129,7 @@ assert_eq "enable with bad code 400" "$BAD_ENABLE" "400"
 # Test 5: enable with valid TOTP code
 CODE=$(cd "$BACKEND_DIR" && node -e "
 const { authenticator } = require('otplib');
-authenticator.options = { step: 30, window: 1, digits: 6 };
+authenticator.options = { step: 30, window: 1, digits: 6, epoch: Date.now() + (-1) * 30000 }; // Tier 786: -1, 0, +1 — each code counts once
 console.log(authenticator.generate('$SECRET'));
 ")
 ENABLE=$(curl -sS -X POST "$API/api/v1/auth/2fa/enable" \
@@ -186,7 +186,7 @@ assert_eq "verify bad code 401" "$BAD_VERIFY" "401"
 # Test 10: /auth/2fa/verify with valid TOTP → session
 CODE2=$(cd "$BACKEND_DIR" && node -e "
 const { authenticator } = require('otplib');
-authenticator.options = { step: 30, window: 1, digits: 6 };
+authenticator.options = { step: 30, window: 1, digits: 6, epoch: Date.now() + (0) * 30000 }; // Tier 786: -1, 0, +1 — each code counts once
 console.log(authenticator.generate('$SECRET'));
 ")
 VERIFY=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
@@ -244,7 +244,7 @@ assert_eq "disable with bad code 401" "$BAD_DISABLE" "401"
 # Test 15: disable with valid TOTP → 200 + 2FA off
 CODE3=$(cd "$BACKEND_DIR" && node -e "
 const { authenticator } = require('otplib');
-authenticator.options = { step: 30, window: 1, digits: 6 };
+authenticator.options = { step: 30, window: 1, digits: 6, epoch: Date.now() + (1) * 30000 }; // Tier 786: -1, 0, +1 — each code counts once
 console.log(authenticator.generate('$SECRET'));
 ")
 DISABLE=$(curl -sS -X POST "$API/api/v1/auth/2fa/disable" \

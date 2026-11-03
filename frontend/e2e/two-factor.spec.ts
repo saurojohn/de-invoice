@@ -85,8 +85,11 @@ async function contextWithAuth(page: any) {
 // authenticator would use. We hit the
 // backend's otplib via a Node one-liner
 // (mirrors what e2e 24 does).
-function totpForSecret(secret: string): string {
-  const cmd = `node -e "const { authenticator } = require('${path.resolve(__dirname, "..", "..", "backend", "node_modules", "otplib")}'); authenticator.options = { step: 30, window: 1, digits: 6 }; console.log(authenticator.generate('${secret}'));"`
+// Tier 786: a code is accepted once — the next one must be for a later
+// 30-second step. `step` picks the previous (-1), current (0) or next (+1)
+// code, all inside the server's window, so enable then disable need no wait.
+function totpForSecret(secret: string, step = 0): string {
+  const cmd = `node -e "const { authenticator } = require('${path.resolve(__dirname, "..", "..", "backend", "node_modules", "otplib")}'); authenticator.options = { step: 30, window: 1, digits: 6, epoch: Date.now() + (${step}) * 30000 }; console.log(authenticator.generate('${secret}'));"`
   return execSync(cmd, { encoding: 'utf-8' }).trim()
 }
 
@@ -108,7 +111,7 @@ function readTwoFactorSecret(): string | null {
 async function ensure2faOff() {
   const secret = readTwoFactorSecret()
   if (!secret) return // already off
-  const code = totpForSecret(secret)
+  const code = totpForSecret(secret, 1)
   const ctx = await playwrightRequest.newContext({
     extraHTTPHeaders: ADMIN_HEADERS,
   })
@@ -163,7 +166,7 @@ test.describe('Tier 168a — 2FA / TOTP /dashboard/security', () => {
         await page.getByTestId('two-factor-secret').textContent()
       )?.trim() || ''
     expect(secret.length).toBeGreaterThanOrEqual(16)
-    const code = totpForSecret(secret)
+    const code = totpForSecret(secret, -1)
 
     // Type the 6-digit code + verify.
     await page.getByTestId('two-factor-setup-code').fill(code)
@@ -192,7 +195,7 @@ test.describe('Tier 168a — 2FA / TOTP /dashboard/security', () => {
       secret?.length ?? 0,
       'secret from DB (test 2 must have enabled 2FA)',
     ).toBeGreaterThanOrEqual(16)
-    const code = totpForSecret(secret!)
+    const code = totpForSecret(secret!, 1)
 
     await contextWithAuth(page)
     page.setDefaultTimeout(90_000)

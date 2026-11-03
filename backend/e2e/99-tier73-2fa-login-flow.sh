@@ -75,11 +75,13 @@ db_secret() {
 }
 
 # Helper: generate a TOTP code for the secret
+# Tier 786: a code counts once — $2 picks the previous (-1), current (0) or
+# next (+1) step, all inside the server's window
 db_code() {
-  local secret="$1"
+  local secret="$1" step="${2:-0}"
   (cd "$BACKEND_DIR" && node -e "
     const { authenticator } = require('otplib');
-    authenticator.options = { step: 30, window: 1, digits: 6 };
+    authenticator.options = { step: 30, window: 1, digits: 6, epoch: Date.now() + ($step) * 30000 };
     console.log(authenticator.generate('$secret'));
   ")
 }
@@ -90,7 +92,7 @@ SETUP=$(curl -sS -X POST "$API/api/v1/auth/2fa/setup" \
   -H "x-user-id: $TEST_USER_ID" -H "x-company-id: $COMPANY_ID")
 SECRET=$(echo "$SETUP" | python3 -c "import json,sys; print(json.load(sys.stdin)['secret'])")
 test -n "$SECRET" || fail "could not setup 2FA"
-CODE=$(db_code "$SECRET")
+CODE=$(db_code "$SECRET" -1)
 ENABLE=$(curl -sS -X POST "$API/api/v1/auth/2fa/enable" \
   -H "Content-Type: application/json" \
   -H "x-user-id: $TEST_USER_ID" -H "x-company-id: $COMPANY_ID" \
@@ -136,7 +138,7 @@ note "=== 3. /auth/2fa/verify with valid TOTP → session ==="
 # Pull a FRESH code (might have rolled over the
 # 30s window since the enable call).
 SECRET=$(db_secret)
-CODE2=$(db_code "$SECRET")
+CODE2=$(db_code "$SECRET" 0)
 VERIFY=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \
   -d "{\"twoFactorToken\":\"$CH\",\"code\":\"$CODE2\"}")
@@ -166,7 +168,7 @@ assert_eq "recovery code consumed (9 left)" "$RC_LEFT" "9"
 echo
 note "=== 5. disable 2FA + login returns full session ==="
 SECRET=$(db_secret)
-CODE3=$(db_code "$SECRET")
+CODE3=$(db_code "$SECRET" 1)
 curl -sS -X POST "$API/api/v1/auth/2fa/disable" \
   -H "Content-Type: application/json" \
   -H "x-user-id: $TEST_USER_ID" -H "x-company-id: $COMPANY_ID" \

@@ -28,8 +28,9 @@ import { createHash, randomBytes } from "crypto"
 // Override the global defaults BEFORE importing — otplib
 // reads these at import time, so we set them in the
 // module init via authenticator.options below.
+const TOTP_STEP_SECONDS = 30
 authenticator.options = {
-  step: 30,
+  step: TOTP_STEP_SECONDS,
   window: 1,
   digits: 6,
 }
@@ -80,31 +81,33 @@ export class TwoFactorService {
     secret: string,
     code: string,
     opts?: { enableOnSuccess?: boolean },
-  ): Promise<{ ok: true; enabled: boolean; recoveryCodes?: string[] } | { ok: false; reason: string }> {
+  ): Promise<{ ok: true; enabled: boolean; step: number; recoveryCodes?: string[] } | { ok: false; reason: string }> {
     if (!/^\d{6}$/.test(code)) {
       return { ok: false, reason: "Code muss 6 Ziffern sein" }
     }
-    // otplib v12 verify returns null on bad code, the
-    // matched step delta otherwise. Coerce to boolean
-    // — null → false, anything else → true.
-    const valid = authenticator.verify({ token: code, secret })
-    if (!valid) {
+    const step = this.codeStep(secret, code)
+    if (step === null) {
       return { ok: false, reason: "Code ungültig oder abgelaufen" }
     }
     if (opts?.enableOnSuccess) {
-      return { ok: true, enabled: true, recoveryCodes: this.generateRecoveryCodes() }
+      return { ok: true, enabled: true, step, recoveryCodes: this.generateRecoveryCodes() }
     }
-    return { ok: true, enabled: false }
+    return { ok: true, enabled: false, step }
   }
 
   /**
-   * Verify a code against the user's stored secret. Used
-   * on every login (and on the "verify before disable"
-   * step). Returns true if the code matches.
+   * Tier 786 — the 30-second step a valid code belongs to, null for a wrong
+   * one. Used on every login and on the "verify before disable" step; the
+   * caller takes the step for the user (`User.twoFactorLastStep`), so that a
+   * code works once. verify() said only yes or no, and the same code passed
+   * again and again for the 90 seconds of its window.
    */
-  async verifyStoredCode(secret: string, code: string): Promise<boolean> {
-    if (!/^\d{6}$/.test(code)) return false
-    return Boolean(authenticator.verify({ token: code, secret }))
+  codeStep(secret: string, code: string): number | null {
+    if (!/^\d{6}$/.test(code)) return null
+    const epoch = Date.now()
+    const delta = authenticator.clone({ epoch }).checkDelta(code, secret)
+    if (delta === null) return null
+    return Math.floor(epoch / 1000 / TOTP_STEP_SECONDS) + delta
   }
 
   /**

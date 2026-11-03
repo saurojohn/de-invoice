@@ -19,12 +19,12 @@ source "$SCRIPT_DIR/_lib.sh"
 TAG="e2e-485-$(date +%s%N | cut -c1-13)"
 PW="Tier780-e2e"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
-totp() { # base32 secret → the current code
+totp() { # base32 secret [step offset] → the code; Tier 786: each counts once
   python3 -c "
 import sys, time, hmac, hashlib, base64, struct
 s = sys.argv[1]; k = base64.b32decode(s + '=' * (-len(s) % 8))
-d = hmac.new(k, struct.pack('>Q', int(time.time() // 30)), hashlib.sha1).digest(); o = d[-1] & 15
-print('%06d' % ((struct.unpack('>I', d[o:o + 4])[0] & 0x7fffffff) % 1000000))" "$1"
+d = hmac.new(k, struct.pack('>Q', int(time.time() // 30) + int(sys.argv[2])), hashlib.sha1).digest(); o = d[-1] & 15
+print('%06d' % ((struct.unpack('>I', d[o:o + 4])[0] & 0x7fffffff) % 1000000))" "$1" "${2:-0}"
 }
 field() { python3 -c "import json,sys
 try: print(json.load(sys.stdin).get('$1') or '')
@@ -50,7 +50,7 @@ st=$(post /api/v1/auth/2fa/setup '{}' "${MS[@]}" -H "x-user-id: $V")
 SECRET=$(field secret < "$D/out")
 assert_eq "setup with the attacker's session and the victim's id: 201" "$st" "201"
 [[ "$(field otpauthUrl < "$D/out")" == *"$TAG-attacker%40example.test"* ]] && pass "…the secret is for the attacker's own account (was the victim's)" || fail "setup acted for: $(field otpauthUrl < "$D/out")"
-st=$(post /api/v1/auth/2fa/enable "{\"code\":\"$(totp "$SECRET")\"}" "${MS[@]}" -H "x-user-id: $V")
+st=$(post /api/v1/auth/2fa/enable "{\"code\":\"$(totp "$SECRET" -1)\"}" "${MS[@]}" -H "x-user-id: $V")
 assert_eq "enable: 201" "$st" "201"
 assert_eq "the victim's account has no 2FA (it was enabled with the attacker's secret)" "$(q "select \"twoFactorEnabled\" from \"User\" where id='$V'")" "f"
 assert_eq "…the attacker's has" "$(q "select \"twoFactorEnabled\" from \"User\" where id='$M'")" "t"

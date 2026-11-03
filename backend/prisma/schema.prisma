@@ -257,6 +257,10 @@ model User {
   twoFactorSecret      String?
   twoFactorConfirmedAt DateTime?
   recoveryCodes        Json?
+  // Tier 786: the 30-second step of the last code accepted (setup, sign-in,
+  // switching off). A code that was seen once — over a shoulder, in a
+  // phishing proxy — no longer works a second time within its 90 seconds.
+  twoFactorLastStep    Int?
 
   // Tier 246: per-User signing key (Berater
   // personal cert). One row per user.

@@ -87,6 +87,9 @@ function signedInUser(req: Request): string {
 /** Tier 780: the password has to be given again */
 const SIGN_IN_AGAIN = "Die Anmeldung ist abgelaufen. Bitte melden Sie sich erneut mit Ihrem Passwort an."
 
+/** Tier 786: the code was accepted once already */
+const CODE_USED = "Dieser Code wurde bereits verwendet. Bitte warten Sie auf den nächsten Code Ihrer App."
+
 @Controller("auth/2fa")
 export class TwoFactorController {
   constructor(
@@ -100,6 +103,19 @@ export class TwoFactorController {
    * user. Stores the secret in the pending cache; does
    * NOT persist to User yet.
    */
+  /**
+   * Tier 786 — take a code's time step for the user: true when no code of it
+   * or of a later step was accepted before. One conditional write, so two
+   * requests with the same code cannot both pass.
+   */
+  private async claimStep(userId: string, step: number): Promise<boolean> {
+    const { count } = await this.prisma.user.updateMany({
+      where: { id: userId, OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }] },
+      data: { twoFactorLastStep: step },
+    })
+    return count === 1
+  }
+
   @Post("setup")
   @UseGuards(HeaderAuthGuard)
   async setup(@Req() req: Request) {
@@ -157,6 +173,7 @@ export class TwoFactorController {
         twoFactorSecret: pending.secret,
         twoFactorConfirmedAt: new Date(),
         recoveryCodes: recoveryHashes,
+        twoFactorLastStep: result.step, // Tier 786: the setup code counts as used
       },
     })
     pendingSecrets.delete(userId)
@@ -204,7 +221,11 @@ export class TwoFactorController {
       ok = r.ok
       remainingHashes = r.remaining
     } else {
-      ok = await this.twoFactor.verifyStoredCode(user.twoFactorSecret, code)
+      const step = this.twoFactor.codeStep(user.twoFactorSecret, code)
+      if (step !== null && !(await this.claimStep(userId, step))) {
+        throw new UnauthorizedException(CODE_USED)
+      }
+      ok = step !== null
     }
     if (!ok) {
       throw new UnauthorizedException("Code ungültig")
@@ -280,7 +301,12 @@ export class TwoFactorController {
       ok = r.ok
       remainingHashes = r.remaining
     } else {
-      ok = await this.twoFactor.verifyStoredCode(user.twoFactorSecret, code)
+      const step = this.twoFactor.codeStep(user.twoFactorSecret, code)
+      if (step !== null && !(await this.claimStep(user.id, step))) {
+        failTwoFactorChallenge(token)
+        throw new UnauthorizedException(CODE_USED)
+      }
+      ok = step !== null
     }
     // Persist any consumed recovery code (one-time use). Tier 780: only if the
     // list is still the one read — two requests with the same code both passed.
