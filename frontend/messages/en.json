@@ -206,6 +206,7 @@
     "verify2faUseRecovery": "Or use a recovery code",
     "verify2faSubmit": "Sign in",
     "verify2faWrong": "Code invalid",
+    "verify2faSignInAgain": "Your sign-in has expired. Please sign in again with your password.",
     "verify2faBack": "← Back to login",
     "code": "Code",
     "recoveryCodePlaceholder": "Recovery code",

@@ -112,6 +112,10 @@ TWO_FA=$(echo "$LOGIN_2FA" | python3 -c "import json,sys; print(str(json.load(sy
 assert_eq "login returns twoFactorRequired" "$TWO_FA" "true"
 LOGIN_EMAIL=$(echo "$LOGIN_2FA" | python3 -c "import json,sys; print(json.load(sys.stdin).get('email', ''))")
 assert_eq "login echoes email" "$LOGIN_EMAIL" "$TEST_EMAIL"
+# Tier 780: verify takes the challenge login hands out (it took the e-mail)
+challenge() { python3 -c "import json,sys; print(json.load(sys.stdin).get('twoFactorToken',''))"; }
+CH=$(echo "$LOGIN_2FA" | challenge)
+assert_eq "login hands out a 2FA challenge" "${#CH}" "64"
 
 # Make sure the response does NOT contain the
 # full session — only the gate.
@@ -123,7 +127,7 @@ echo
 note "=== 2. /auth/2fa/verify with bad TOTP → 401 ==="
 BAD_VERIFY=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$TEST_EMAIL\",\"code\":\"000000\"}")
+  -d "{\"twoFactorToken\":\"$CH\",\"code\":\"000000\"}")
 assert_eq "verify bad code 401" "$BAD_VERIFY" "401"
 
 # ───── 4. /auth/2fa/verify with valid TOTP → session ─────
@@ -135,7 +139,7 @@ SECRET=$(db_secret)
 CODE2=$(db_code "$SECRET")
 VERIFY=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$TEST_EMAIL\",\"code\":\"$CODE2\"}")
+  -d "{\"twoFactorToken\":\"$CH\",\"code\":\"$CODE2\"}")
 VERIFY_ID=$(echo "$VERIFY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id', 'MISSING'))")
 assert_eq "verify TOTP returns id" "$VERIFY_ID" "$TEST_USER_ID"
 VERIFY_EMAIL=$(echo "$VERIFY" | python3 -c "import json,sys; print(json.load(sys.stdin).get('email', ''))")
@@ -146,9 +150,11 @@ assert_eq "verify TOTP returns companyId" "$VERIFY_COMPANY" "$COMPANY_ID"
 # ───── 5. /auth/2fa/verify with recovery code → session + 1 used ─────
 echo
 note "=== 4. /auth/2fa/verify with recovery code → session + 1 used ==="
+CH=$(curl -sS -X POST "$API/api/v1/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PW\"}" | challenge)
 VERIFY_RC=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$TEST_EMAIL\",\"recoveryCode\":\"$RECOVERY_CODE\"}")
+  -d "{\"twoFactorToken\":\"$CH\",\"recoveryCode\":\"$RECOVERY_CODE\"}")
 RC_ID=$(echo "$VERIFY_RC" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id', 'MISSING'))")
 assert_eq "verify recovery code returns id" "$RC_ID" "$TEST_USER_ID"
 RC_LEFT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \

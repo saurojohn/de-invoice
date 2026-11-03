@@ -171,11 +171,16 @@ LOGIN_2FA=$(curl -sS -X POST "$API/api/v1/auth/login" \
   -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PW\"}")
 TWO_FA=$(echo "$LOGIN_2FA" | python3 -c "import json,sys; print(str(json.load(sys.stdin).get('twoFactorRequired', False)).lower())")
 assert_eq "login with 2FA → twoFactorRequired" "$TWO_FA" "true"
+# Tier 780: verify takes the challenge login hands out (it took the e-mail)
+challenge() { python3 -c "import json,sys; print(json.load(sys.stdin).get('twoFactorToken',''))"; }
+relogin() { curl -sS -X POST "$API/api/v1/auth/login" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PW\"}" | challenge; }
+CH=$(echo "$LOGIN_2FA" | challenge)
 
 # Test 9: /auth/2fa/verify with bad code → 401
 BAD_VERIFY=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$TEST_EMAIL\",\"code\":\"000000\"}")
+  -d "{\"twoFactorToken\":\"$CH\",\"code\":\"000000\"}")
 assert_eq "verify bad code 401" "$BAD_VERIFY" "401"
 
 # Test 10: /auth/2fa/verify with valid TOTP → session
@@ -186,7 +191,7 @@ console.log(authenticator.generate('$SECRET'));
 ")
 VERIFY=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$TEST_EMAIL\",\"code\":\"$CODE2\"}")
+  -d "{\"twoFactorToken\":\"$CH\",\"code\":\"$CODE2\"}")
 VERIFY_ID=$(echo "$VERIFY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('id', 'MISSING'))")
 assert_eq "verify TOTP returns id" "$VERIFY_ID" "$TEST_USER_ID"
 
@@ -205,9 +210,10 @@ V_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?compan
 assert_eq "…and that session authenticates" "$V_STATUS" "200"
 
 # Test 11: /auth/2fa/verify with recovery code → session + 1 used
+CH=$(relogin)
 RECOVERY_VERIFY=$(curl -sS -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$TEST_EMAIL\",\"recoveryCode\":\"$RECOVERY_CODE\"}")
+  -d "{\"twoFactorToken\":\"$CH\",\"recoveryCode\":\"$RECOVERY_CODE\"}")
 RV_ID=$(echo "$RECOVERY_VERIFY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('id', 'MISSING'))")
 assert_eq "verify recovery code returns id" "$RV_ID" "$TEST_USER_ID"
 DB_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
@@ -215,9 +221,10 @@ DB_AFTER=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
 assert_eq "recovery code consumed (9 left)" "$DB_AFTER" "9"
 
 # Test 12: re-use same recovery code → 401
+CH=$(relogin)
 REUSE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/auth/2fa/verify" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"$TEST_EMAIL\",\"recoveryCode\":\"$RECOVERY_CODE\"}")
+  -d "{\"twoFactorToken\":\"$CH\",\"recoveryCode\":\"$RECOVERY_CODE\"}")
 assert_eq "reuse recovery code 401" "$REUSE" "401"
 
 # Test 13: disable without code → 400

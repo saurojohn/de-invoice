@@ -91,6 +91,9 @@ export default function LoginPage() {
       // user re-typing, and route to the 2FA page.
       if (data?.twoFactorRequired) {
         localStorage.setItem("pending2faEmail", data.email || form.email.toLowerCase())
+        // Tier 780: the challenge /auth/2fa/verify takes (it took the e-mail,
+        // so a code alone signed in). This tab only, gone with it.
+        try { sessionStorage.setItem("pending2faToken", data.twoFactorToken || "") } catch { /* private mode */ }
         router.push(`/login/verify-2fa?email=${encodeURIComponent(data.email || form.email)}`)
         return
       }

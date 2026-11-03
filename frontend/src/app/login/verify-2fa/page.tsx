@@ -31,8 +31,11 @@ function Verify2FAInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    if (!email) {
-      setError("E-Mail fehlt")
+    // Tier 780: the challenge from the password step (login/page.tsx)
+    let twoFactorToken = ""
+    try { twoFactorToken = sessionStorage.getItem("pending2faToken") || "" } catch { /* private mode */ }
+    if (!twoFactorToken) {
+      setError(t("auth.verify2faSignInAgain"))
       return
     }
     if (!/^\d{6}$/.test(code) && !recoveryCode.trim()) {
@@ -46,7 +49,7 @@ function Verify2FAInner() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email,
+          twoFactorToken,
           code: code || undefined,
           recoveryCode: recoveryCode || undefined,
         }),
@@ -64,6 +67,7 @@ function Verify2FAInner() {
       // also where their session arrives (the backend mints one here too).
       storeSession({ ...data, email: data.email || email })
       localStorage.removeItem("pending2faEmail")
+      try { sessionStorage.removeItem("pending2faToken") } catch { /* private mode */ }
       router.push("/dashboard")
     } catch (err: any) {
       const msg = err?.message || t("auth.networkError")

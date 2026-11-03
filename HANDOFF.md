@@ -2669,6 +2669,19 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 780 — 2FA is the caller's own, and its second step needs the password
+
+The routes a stranger reaches — left out of the sweeps of Tiers 778/779 — read one by one and measured: login, registration, the 2FA routes, password reset, e-mail confirmation, invitations, the payment link and the customer portal.
+
+**Defects (this tier):**
+- `/auth/2fa/setup`, `/enable`, `/disable`, `/status` read the `x-user-id` header. With a session the guard ignores that header, so it was the client's word. Measured: an attacker's own session (own company) with another company's user id in the header enabled 2FA on that user's account with the attacker's secret. And a browser in production sends no such header: setup answered 401 and status said „off" for everyone. They take `req.user.id` now.
+- `/auth/2fa/verify` took `{ email, code }` — the e-mail and a six-digit code signed in, the password was never needed (with the planted secret: 201 and a session for the victim). Login now hands out a challenge (`auth/two-factor-challenge.ts`: in memory, five minutes, five wrong codes, used up by the session it gives), verify takes it instead of the e-mail; it checks the user is active, has its own limit (10/min; it had the global 600), and a recovery code is used up only if the list is still the one read (two requests with one code both passed). The login page keeps the challenge in `sessionStorage`; checked in the browser: password, code, dashboard, the security page says „2FA ist aktiv".
+- Spec 485; on the code before 16 of its checks fail. Specs 24 and 99 send the challenge (and log in again before each verify after a successful one).
+
+**Found, next tiers:** public routes put the client's `x-user-id` / `x-company-id` into the audit context (main.ts) — an anonymous registration with another company's ids wrote `company.created` and `usercompany.created` into that company's trail under its user; a few handlers take the author from the headers (internal notes, payment notices, FinTS sync); registration keeps the e-mail as typed (the same address registers twice in another case; reset and 2FA verify lower-case it and miss the account) and takes a company name of 100 000 characters or blanks.
+
+Looked at, not a defect: the login lockout reads the first `X-Forwarded-For` entry, which Caddy sets itself (a client's is dropped); payment-link and portal tokens are 128/256 bits, scoped to their invoice and customer; password reset ends every session.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 779b — CI green for Tier 779
 
 Run 41533402685 (commit c1e33262) green; totals in the session report.

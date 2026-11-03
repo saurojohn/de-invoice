@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import * as bcrypt from 'bcrypt';
 import { Public } from '../../auth/public.decorator';
 import { UserSessionService } from '../../auth/user-session.service';
+import { issueTwoFactorChallenge } from '../../auth/two-factor-challenge';
 import { businessDayIso } from '../../common/business-date';
 import { Response } from 'express';
 
@@ -175,10 +176,13 @@ export class AuthController {
     // (not 401) because the password WAS correct; the
     // response shape is the same so the frontend just
     // branches on twoFactorRequired.
+    // Tier 780: with the challenge that /auth/2fa/verify takes — it took the
+    // e-mail, so the code alone signed in (two-factor-challenge.ts).
     if (user.twoFactorEnabled && user.twoFactorConfirmedAt) {
       return {
         twoFactorRequired: true,
         email: user.email,
+        twoFactorToken: issueTwoFactorChallenge(user.id),
       } as any
     }
     // SECURITY: never leak passwordHash / passwordResetToken /

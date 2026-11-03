@@ -206,6 +206,7 @@
     "verify2faUseRecovery": "或使用 Recovery 代码",
     "verify2faSubmit": "登录",
     "verify2faWrong": "代码无效",
+    "verify2faSignInAgain": "登录已过期，请重新输入密码登录。",
     "verify2faBack": "← 返回登录",
     "code": "验证码",
     "recoveryCodePlaceholder": "恢复代码",

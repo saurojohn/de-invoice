@@ -15,9 +15,10 @@
  *        (plain returned ONCE to the user).
  *
  *   3) Verify on login (POST /auth/2fa/verify)
- *      - Called after /auth/login returned 401 with
- *        code 'TWO_FACTOR_REQUIRED' (see auth.service).
- *      - body: { email, code, recoveryCode? }.
+ *      - Called after /auth/login answered
+ *        { twoFactorRequired, twoFactorToken }.
+ *      - body: { twoFactorToken, code, recoveryCode? }
+ *        (Tier 780: it was the e-mail — no password needed).
  *      - On success, returns a one-time login token
  *        (re-uses the existing JWT/header auth path).
  *
@@ -44,6 +45,12 @@ import { UserSessionService } from "../../../auth/user-session.service"
 import { HeaderAuthGuard } from "../../../auth/header-auth.guard"
 import { TwoFactorService } from "./two-factor.service"
 import { Public } from "../../../auth/public.decorator"
+import { Throttle } from "@nestjs/throttler"
+import {
+  endTwoFactorChallenge,
+  failTwoFactorChallenge,
+  twoFactorChallengeUser,
+} from "../../../auth/two-factor-challenge"
 
 // In-memory map of userId -> { secret, issuedAt }.
 // 10-min TTL. Process-local — on restart the user has
@@ -62,6 +69,24 @@ function gcPending() {
   }
 }
 
+/**
+ * Tier 780: the user HeaderAuthGuard signed in. These routes read the
+ * `x-user-id` header — with a session the guard ignores that header, so it was
+ * the client's word. Measured: an attacker's own session with the victim's id
+ * in it set up and enabled 2FA on the victim's account (another company's) with
+ * the attacker's secret, and /verify then signed the attacker in as the victim.
+ * And a browser in production sends no such header: setup answered 401 and
+ * status said "off" for everyone.
+ */
+function signedInUser(req: Request): string {
+  const userId = (req as Request & { user?: { id?: string } }).user?.id
+  if (!userId) throw new UnauthorizedException("Anmeldung erforderlich")
+  return userId
+}
+
+/** Tier 780: the password has to be given again */
+const SIGN_IN_AGAIN = "Die Anmeldung ist abgelaufen. Bitte melden Sie sich erneut mit Ihrem Passwort an."
+
 @Controller("auth/2fa")
 export class TwoFactorController {
   constructor(
@@ -78,8 +103,7 @@ export class TwoFactorController {
   @Post("setup")
   @UseGuards(HeaderAuthGuard)
   async setup(@Req() req: Request) {
-    const userId = (req.headers["x-user-id"] as string) || ""
-    if (!userId) throw new UnauthorizedException("Anmeldung erforderlich")
+    const userId = signedInUser(req)
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, email: true, twoFactorEnabled: true },
@@ -105,8 +129,7 @@ export class TwoFactorController {
   @Post("enable")
   @UseGuards(HeaderAuthGuard)
   async enable(@Req() req: Request, @Body() body: { code: string }) {
-    const userId = (req.headers["x-user-id"] as string) || ""
-    if (!userId) throw new UnauthorizedException("Anmeldung erforderlich")
+    const userId = signedInUser(req)
     gcPending()
     const pending = pendingSecrets.get(userId)
     if (!pending) {
@@ -156,8 +179,7 @@ export class TwoFactorController {
     @Req() req: Request,
     @Body() body: { code?: string; recoveryCode?: string },
   ) {
-    const userId = (req.headers["x-user-id"] as string) || ""
-    if (!userId) throw new UnauthorizedException("Anmeldung erforderlich")
+    const userId = signedInUser(req)
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     })
@@ -216,28 +238,29 @@ export class TwoFactorController {
    * /auth/login). This is intentionally a "re-login"
    * that returns the same payload.
    */
+  // Tier 780: the challenge from /auth/login, not the e-mail (see
+  // two-factor-challenge.ts), and a limit of its own (it had the global 600/min)
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post("verify")
   async verify(
     @Body() body: {
-      email: string
+      twoFactorToken?: string
       code?: string
       recoveryCode?: string
     },
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const email = (body?.email || "").toString().trim().toLowerCase()
-    if (!email) throw new BadRequestException("E-Mail ist erforderlich")
+    const token = typeof body?.twoFactorToken === "string" ? body.twoFactorToken : ""
+    const userId = twoFactorChallengeUser(token)
+    if (!userId) throw new UnauthorizedException(SIGN_IN_AGAIN)
     const user = await this.prisma.user.findUnique({
-      where: { email },
+      where: { id: userId },
     })
-    if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
-      // Don't leak whether 2FA is on. The 2FA path
-      // was triggered by the login route, which already
-      // validated the password; reaching here with
-      // 2FA off is a server-side inconsistency.
-      throw new BadRequestException("2FA nicht aktiviert")
+    if (!user || user.status !== "active" || !user.twoFactorEnabled || !user.twoFactorSecret) {
+      endTwoFactorChallenge(token)
+      throw new UnauthorizedException(SIGN_IN_AGAIN)
     }
     const code = (body?.code || "").toString().trim()
     const recoveryCode = (body?.recoveryCode || "").toString().trim()
@@ -259,16 +282,20 @@ export class TwoFactorController {
     } else {
       ok = await this.twoFactor.verifyStoredCode(user.twoFactorSecret, code)
     }
-    if (!ok) {
-      throw new UnauthorizedException("Code ungültig")
-    }
-    // Persist any consumed recovery code (one-time use).
-    if (recoveryCode) {
-      await this.prisma.user.update({
-        where: { id: user.id },
+    // Persist any consumed recovery code (one-time use). Tier 780: only if the
+    // list is still the one read — two requests with the same code both passed.
+    if (ok && recoveryCode) {
+      const { count } = await this.prisma.user.updateMany({
+        where: { id: user.id, recoveryCodes: { equals: user.recoveryCodes as any } },
         data: { recoveryCodes: remainingHashes },
       })
+      ok = count === 1
     }
+    if (!ok) {
+      const left = failTwoFactorChallenge(token)
+      throw new UnauthorizedException(left > 0 ? "Code ungültig" : `Code ungültig. ${SIGN_IN_AGAIN}`)
+    }
+    endTwoFactorChallenge(token)
     // Mark lastLogin + return the same shape /auth/login
     // returns, so the frontend can drop the result into
     // the same setState it uses for the password path.
@@ -300,7 +327,7 @@ export class TwoFactorController {
   @Post("status")
   @UseGuards(HeaderAuthGuard)
   async status(@Req() req: Request) {
-    const userId = (req.headers["x-user-id"] as string) || ""
+    const userId = signedInUser(req)
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { twoFactorEnabled: true, recoveryCodes: true },

@@ -206,6 +206,7 @@
     "verify2faUseRecovery": "Oder Recovery-Code verwenden",
     "verify2faSubmit": "Anmelden",
     "verify2faWrong": "Code ungültig",
+    "verify2faSignInAgain": "Die Anmeldung ist abgelaufen. Bitte melden Sie sich erneut mit Ihrem Passwort an.",
     "verify2faBack": "← Zurück zur Anmeldung",
     "code": "Code",
     "recoveryCodePlaceholder": "Wiederherstellungscode",
