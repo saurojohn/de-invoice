@@ -620,7 +620,7 @@ export class ReminderController {
     @Req() req?: Request,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
-    const userId = (req?.headers as any)['x-user-id'] as string | undefined;
+    const userId = (req as any)?.user?.id as string | undefined; // Tier 783: was the x-user-id header (cancelledById)
     try {
       return await this.reminderService.cancelMahnung(companyId, id, {
         reason: body?.reason,

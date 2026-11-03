@@ -11,6 +11,11 @@ import { computeAfaSummary, isLand } from './afa'
 import { assertNotFuture } from '../../common/business-date'
 import { assertBooksOpen } from '../reports/filed-period'
 import { LIVE_AFA } from '../accounting/booked-afa'
+// Tier 783: one AfA run per company at a time. Each of these reads what is
+// booked for the year and then writes what is missing; six annual bookings sent
+// at once booked the year six times over, six Stornos reversed every row six
+// times (measured; the monthly run likewise, twelve months six times).
+import { withKeyLock } from '../../common/key-lock'
 
 /**
  * Tier 83+87: Anlagenverzeichnis (Asset Register)
@@ -377,6 +382,10 @@ export class AssetsService {
    *                              Vorsteuer (=0 here)
    */
   async bookAfa(companyId: string, year: number) {
+    return withKeyLock(`afa:${companyId}`, () => this.bookAfaLocked(companyId, year))
+  }
+
+  private async bookAfaLocked(companyId: string, year: number) {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')
     }
@@ -530,6 +539,10 @@ export class AssetsService {
    * triple is unique).
    */
   async bookAfaMonthly(companyId: string, year: number) {
+    return withKeyLock(`afa:${companyId}`, () => this.bookAfaMonthlyLocked(companyId, year))
+  }
+
+  private async bookAfaMonthlyLocked(companyId: string, year: number) {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')
     }
@@ -719,6 +732,18 @@ export class AssetsService {
    * (`assets.afa.stornoed`) beside the automatic ones.
    */
   async stornoAfa(
+    companyId: string,
+    year: number,
+    userId?: string,
+  ): Promise<{
+    year: number
+    stornoedCount: number
+    stornoedTotal: number
+  }> {
+    return withKeyLock(`afa:${companyId}`, () => this.stornoAfaLocked(companyId, year, userId))
+  }
+
+  private async stornoAfaLocked(
     companyId: string,
     year: number,
     userId?: string,

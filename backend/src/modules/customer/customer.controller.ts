@@ -742,6 +742,9 @@ export class CustomerController {
     if (!body?.from || !body?.to) {
       throw new BadRequestException('from and to are required (YYYY-MM-DD)')
     }
+    // Tier 783: the range checked as the GET routes check it — a date that does
+    // not parse went on to the query as an Invalid Date (500)
+    this.parseStatementRange(body.from, body.to)
     return this.statementEmailService.sendStatementByEmail(
       id,
       body.companyId,

@@ -136,9 +136,21 @@ export async function nextInvoiceNumber(
   // of that company and year was a 500 (`relation … does not exist`) until a
   // restart. A run refused after it took its number did that with the first
   // invoice of a new year.
-  const existing = await tx.$queryRaw<Array<{ one: number }>>`
+  let existing = await tx.$queryRaw<Array<{ one: number }>>`
     SELECT 1 AS one FROM pg_class WHERE relkind = 'S' AND relname = ${seqName}
   `
+  if (existing.length === 0) {
+    // Tier 783: one creator per sequence. Two documents of a new year (or of a
+    // new company) at once both found no sequence, and CREATE SEQUENCE IF NOT
+    // EXISTS does not wait for the other transaction's CREATE: it fails on the
+    // catalog's unique index (23505). Measured: six invoices of a new company
+    // at once, five answered 500. The lock is held to the end of this
+    // transaction; whoever waited looks again and finds the sequence.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${seqName}::text))`
+    existing = await tx.$queryRaw<Array<{ one: number }>>`
+      SELECT 1 AS one FROM pg_class WHERE relkind = 'S' AND relname = ${seqName}
+    `
+  }
   if (existing.length === 0) {
     // Start above whatever this company already used. Read it from the
     // invoice numbers themselves rather than from `sequenceNumber`, which is

@@ -2669,6 +2669,26 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 783 — the same request sent several times at once
+
+A sweep: one company's admin sent every write route (209, and the 131 the first pass did not get through again, with the books reopened before each burst and the actor fields bound) six times at once. After each burst: 5xx answers, new rows that are copies of each other, and invariants of the books (paid over total, a dunning level twice, a bank entry applied over its amount, credited over total, negative stock, AfA of one asset and period twice, gaps in invoice numbers, a timer running twice, …). Tier 534 had locked payments, credit and bank confirmations; what was left:
+
+| Route | Measured (6 at once) | Now |
+|---|---|---|
+| first invoice of a year or company | 1 × 201, 5 × 500: `CREATE SEQUENCE IF NOT EXISTS` of two transactions, 23505 on the catalog | `pg_advisory_xact_lock` on the sequence's name, then looked up again (invoice-number.ts) |
+| `assets/book-afa`, `book-afa-monthly`, `storno-afa` | the year booked 6 ×, twelve months 6 × (72 rows), every row reversed 6 × | `withKeyLock('afa:<company>')` around all three |
+| `ustva/filings` | 6 filings for one month (the unique key does not hold NULL quarter/month apart); the period lock read whichever came first | `withKeyLock` per company and period |
+| `accounting/vouchers/:id/status` (void) | 1 Storno, 5 × 500 (its number taken) | Storno and correction under the company's voucher lock |
+| `accounting/vouchers/:id/correct` | two at once: two Stornos, two K-vouchers — **and one after the other too**: the "already reversed" check read `reversedById` of the original, which only a Storno has | refused when the voucher has a Storno (400, names it) |
+| `bank-statements/:id/transactions/:txnId/match` | 5 × 500 on the unique key | under the entry's lock (as confirm) |
+| `payments/mandates` | 5 × 500: the next reference counted at once | numbered under a lock; a typed reference that is taken: 409 (was 500) |
+| `reminders/templates/:level` (PUT, reset) | 5 × 500: the default row seeded on first use | create, and on the unique key the row the other request made (Prisma's upsert with an empty update is no ON CONFLICT — it raced the same way) |
+| `ocr/match-supplier` | the same supplier created 6 × | find-or-create under a lock |
+
+Also: `customers/:id/statement.email` took a date that does not parse (500) — it checks the range as the GET routes do; the manual bank match, the other bank routes and the Mahnung cancel took the acting user from the `x-user-id` header (Tier 781's grep missed `req?.headers?.['x-user-id']`).
+
+Copies that are what was asked for (six creates are six rows: notes, products, templates, expenses, ledger adjustments, inventory adjustments, VAT checks, clones) are not defects. Spec 488; on the code before 17 of its checks fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 782b — CI green for Tiers 781 and 782
 
 Run 41612955414 (commit 363a05fd, started by hand: the push's head was the [skip ci] snapshot) green; totals in the session report.

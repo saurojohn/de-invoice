@@ -314,7 +314,19 @@ export class VoucherService {
     });
   }
 
+  // Tier 783: under the company's voucher lock, like create(). It looks for an
+  // existing Storno and then writes one: six Stornos of one voucher at once
+  // gave one Storno and five 500s (its number taken); a correction (below)
+  // reverses and then books anew, so two at once would book the new one twice.
   async createReversal(
+    originalId: string,
+    companyId: string,
+    reason?: string,
+  ) {
+    return withKeyLock(`voucher:${companyId}`, () => this.createReversalLocked(originalId, companyId, reason));
+  }
+
+  private async createReversalLocked(
     originalId: string,
     companyId: string,
     reason?: string,
@@ -549,6 +561,14 @@ export class VoucherService {
       reason?: string;
     },
   ) {
+    return withKeyLock(`voucher:${companyId}`, () => this.correctLocked(originalId, companyId, correction));
+  }
+
+  private async correctLocked(
+    originalId: string,
+    companyId: string,
+    correction: Parameters<VoucherService['correct']>[2],
+  ) {
     const original = await this.findOne(originalId, companyId);
     if (!original) {
       throw new NotFoundException(`Voucher ${originalId} not found`);
@@ -561,6 +581,21 @@ export class VoucherService {
     if (original.reversedById) {
       throw new BadRequestException(
         'Original ist bereits storniert — bitte den Korrekturbeleg direkt editieren.',
+      );
+    }
+    // Tier 783: `reversedById` is set on a Storno (it names what it reverses),
+    // so the check above refuses correcting a Storno — not correcting a voucher
+    // that has one. A second correction of the same voucher reversed it again
+    // (-S2) and booked a second K-voucher: the original counted minus once too
+    // often. Measured with two corrections at once, and it is the same one
+    // after the other.
+    const alreadyReversed = await this.prisma.voucher.findFirst({
+      where: { companyId, reversedById: originalId },
+      select: { voucherNumber: true },
+    });
+    if (alreadyReversed) {
+      throw new BadRequestException(
+        `Der Beleg ist bereits storniert (${alreadyReversed.voucherNumber}) — bitte den Korrekturbeleg direkt korrigieren.`,
       );
     }
     // Tier 609: the Storno is dated today, the corrected voucher as given.

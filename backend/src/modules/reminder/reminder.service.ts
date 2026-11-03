@@ -456,15 +456,25 @@ export class ReminderService {
     if (existing) return existing
 
     // Seed defaults for the level the caller asked for.
-    return this.prisma.reminderTemplate.create({
-      data: {
-        companyId,
-        level,
-        subject: defaults[level].subject,
-        body: defaults[level].body,
-        isDefault: true,
-      },
-    })
+    // Tier 783: two first requests at once both found no row and the second
+    // create hit the unique key — saving and resetting a template answered 500
+    // five times out of six (measured). The row the other request made is the
+    // one. (Prisma's upsert with nothing to update is no ON CONFLICT: it raced
+    // the same way.)
+    try {
+      return await this.prisma.reminderTemplate.create({
+        data: {
+          companyId,
+          level,
+          subject: defaults[level].subject,
+          body: defaults[level].body,
+          isDefault: true,
+        },
+      })
+    } catch (e) {
+      if ((e as { code?: string })?.code !== 'P2002') throw e
+      return this.prisma.reminderTemplate.findUniqueOrThrow({ where: { companyId_level: { companyId, level } } })
+    }
   }
 
   /**

@@ -10,6 +10,7 @@ import {
 import { Throttle } from '@nestjs/throttler'
 import { OcrService, OCR_FIXTURE, extractFieldsFromText } from './ocr.service'
 import { PrismaService } from '../../prisma/prisma.service'
+import { withKeyLock } from '../../common/key-lock'
 import { Require } from '../../auth/roles.decorator'
 import { CallerBoundUpload } from '../../auth/caller-bound-upload'
 
@@ -174,6 +175,12 @@ export class OcrController {
     if (!vatId && !name) {
       throw new BadRequestException('vatId oder name ist erforderlich')
     }
+    // Tier 783: find-or-create, one at a time per company — six requests at
+    // once for a supplier not on file created it six times (measured).
+    return withKeyLock(`supplier-match:${companyId}`, () => this.matchOrCreateSupplier(companyId, vatId, name, body.lookupOnly))
+  }
+
+  private async matchOrCreateSupplier(companyId: string, vatId: string, name: string, lookupOnly: unknown) {
     // 1) Match by VAT-ID — highest confidence.
     if (vatId) {
       const hit = await this.prisma.supplier.findFirst({
@@ -194,7 +201,7 @@ export class OcrController {
     // created the supplier at once — cancelling the preview left a supplier
     // nobody had confirmed, named after whatever the OCR read in line one.
     // (a form sends the text "true" — asking must never turn into creating)
-    if (body.lookupOnly === true || (body.lookupOnly as unknown) === 'true') return { supplierId: null, created: false, matchedBy: null }
+    if (lookupOnly === true || lookupOnly === 'true') return { supplierId: null, created: false, matchedBy: null }
     // 3) Create a new Supplier with what we have.
     const created = await this.prisma.supplier.create({
       data: {

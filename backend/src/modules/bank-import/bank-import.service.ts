@@ -1225,7 +1225,21 @@ export class BankImportService {
    * (txn, invoice) pair, confirm it instead of
    * creating a duplicate.
    */
+  // Tier 783: under the entry's lock (confirmMatch takes the same one). It
+  // looks for the entry's match with the invoice and then creates it: six at
+  // once each created one, five on the unique key — 500.
   async manualMatch(
+    companyId: string,
+    bankTransactionId: string,
+    invoiceId: string,
+    userId: string | undefined,
+  ) {
+    return withKeyLock(`banktxn:${bankTransactionId}`, () =>
+      this.manualMatchLocked(companyId, bankTransactionId, invoiceId, userId),
+    );
+  }
+
+  private async manualMatchLocked(
     companyId: string,
     bankTransactionId: string,
     invoiceId: string,

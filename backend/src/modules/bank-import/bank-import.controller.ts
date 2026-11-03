@@ -116,7 +116,7 @@ export class BankImportController {
     @Param('reconId') reconId: string,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    const userId = req?.headers?.['x-user-id'] || undefined;
+    const userId = req?.user?.id || undefined; // Tier 783: was the x-user-id header
     return this.svc.confirmMatch(companyId, reconId, userId);
   }
 
@@ -201,7 +201,7 @@ export class BankImportController {
     @Body() body: SuggestMatchesDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
-    const userId = req?.headers?.['x-user-id'] || undefined;
+    const userId = req?.user?.id || undefined; // Tier 783: was the x-user-id header
     return this.svc.generateSuggestions(companyId, id, {
       autoConfirmThreshold: typeof body?.autoConfirmThreshold === 'number' ? body.autoConfirmThreshold : 0,
       userId,
@@ -247,7 +247,7 @@ export class BankImportController {
     if (!stmt.transactions.some((t) => t.id === txnId)) {
       throw new BadRequestException('Transaktion gehört nicht zu diesem Kontoauszug');
     }
-    const userId = req?.headers?.['x-user-id'] || undefined;
+    const userId = req?.user?.id || undefined; // Tier 783: was the x-user-id header
     return this.svc.manualMatch(companyId, txnId, invoiceId, userId);
   }
 
@@ -286,7 +286,7 @@ export class BankImportController {
     if (!stmt.transactions.some((t) => t.id === txnId)) {
       throw new BadRequestException('Transaktion gehört nicht zu diesem Kontoauszug');
     }
-    const userId = req?.headers?.['x-user-id'] || undefined;
+    const userId = req?.user?.id || undefined; // Tier 783: was the x-user-id header
     return this.svc.bookExpense(companyId, txnId, userId, {
       expenseAccountNumber,
       description,

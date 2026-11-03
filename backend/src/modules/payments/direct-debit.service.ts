@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
+import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
+import { withKeyLock } from '../../common/key-lock'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 
@@ -114,29 +115,42 @@ export class DirectDebitService {
     // suffix (idempotent re-runs: same date yields the
     // same suffix but we block via the @unique constraint
     // on (companyId, mandateReference) and 409 on collision).
-    let mandateRef = body.mandateReference?.trim()
-    if (!mandateRef) {
-      const cnum = customer.customerNumber || customer.id.substring(0, 8)
-      const today = body.dateOfSignature.replace(/-/g, '')
-      const existing = await this.prisma.sepaDirectDebitMandate.count({
-        where: { companyId, mandateReference: { startsWith: `MANDATE-${cnum}-${today}-` } },
-      })
-      mandateRef = `MANDATE-${cnum}-${today}-${String(existing + 1).padStart(4, '0')}`
-    }
+    // Tier 783: the next free reference and the row in one step per company —
+    // six mandates of one customer and day at once counted the same number and
+    // five answered 500 on the unique key (measured). A reference typed in that
+    // is taken is said as such (it was a 500 too).
+    return withKeyLock(`mandate:${companyId}`, async () => {
+      let mandateRef = body.mandateReference?.trim()
+      if (mandateRef) {
+        const taken = await this.prisma.sepaDirectDebitMandate.findFirst({
+          where: { companyId, mandateReference: mandateRef },
+          select: { id: true },
+        })
+        if (taken) throw new ConflictException(`Die Mandatsreferenz ${mandateRef} ist bereits vergeben.`)
+      }
+      if (!mandateRef) {
+        const cnum = customer.customerNumber || customer.id.substring(0, 8)
+        const today = body.dateOfSignature.replace(/-/g, '')
+        const existing = await this.prisma.sepaDirectDebitMandate.count({
+          where: { companyId, mandateReference: { startsWith: `MANDATE-${cnum}-${today}-` } },
+        })
+        mandateRef = `MANDATE-${cnum}-${today}-${String(existing + 1).padStart(4, '0')}`
+      }
 
-    return this.prisma.sepaDirectDebitMandate.create({
-      data: {
-        companyId,
-        customerId: body.customerId,
-        mandateReference: mandateRef,
-        dateOfSignature: new Date(body.dateOfSignature),
-        type,
-        iban: String(body.iban).replace(/\s/g, '').toUpperCase(),
-        bic: body.bic ? String(body.bic).replace(/\s/g, '').toUpperCase() : null,
-        debitorName: body.debitorName.trim(),
-        description: body.description || null,
-        status: 'active',
-      },
+      return this.prisma.sepaDirectDebitMandate.create({
+        data: {
+          companyId,
+          customerId: body.customerId,
+          mandateReference: mandateRef,
+          dateOfSignature: new Date(body.dateOfSignature),
+          type,
+          iban: String(body.iban).replace(/\s/g, '').toUpperCase(),
+          bic: body.bic ? String(body.bic).replace(/\s/g, '').toUpperCase() : null,
+          debitorName: body.debitorName.trim(),
+          description: body.description || null,
+          status: 'active',
+        },
+      })
     })
   }
 

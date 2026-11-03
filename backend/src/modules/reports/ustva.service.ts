@@ -4,6 +4,7 @@ import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { assertNoDuplicateExpense, withExpenseNumberLock } from '../expense/expense-duplicate';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withKeyLock } from '../../common/key-lock';
 import { Prisma } from '@prisma/client';
 import type { Response } from 'express';
 import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
@@ -926,6 +927,25 @@ export class UstvaService {
    * submission's date in the notes; the audit log keeps the before-image.
    */
   async saveFiling(
+    companyId: string,
+    data: Pick<UstvaData, 'year' | 'quarter' | 'month'> & {
+      taxNumber?: string;
+      notes?: string;
+      status?: 'draft' | 'submitted';
+      berichtigt?: boolean;
+    },
+  ) {
+    // Tier 783: one save per period at a time. It reads the period's filing and
+    // then creates or updates it — and the unique key does not hold rows whose
+    // quarter or month is NULL apart. Six saves of one month at once made six
+    // filings (measured); the period lock (filed-period.ts) and the history
+    // then read whichever came first.
+    return withKeyLock(`ustva-filing:${companyId}:${data.year}:${data.quarter ?? '-'}:${data.month ?? '-'}`, () =>
+      this.saveFilingLocked(companyId, data),
+    );
+  }
+
+  private async saveFilingLocked(
     companyId: string,
     data: Pick<UstvaData, 'year' | 'quarter' | 'month'> & {
       taxNumber?: string;
