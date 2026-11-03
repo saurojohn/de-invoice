@@ -120,7 +120,7 @@ api_post "/api/v1/invitations/accept" "$ACCEPT_BODY"
 assert_eq "double-accept rejected (400)" "$STATUS" "400"
 
 # ========== Test 5: Accept expired token → 400 (via direct SQL) ==========
-# The token is bcrypt-hashed in the DB; we can't reverse
+# The token is hashed in the DB (SHA-256, unique since Tier 787); we can't reverse
 # it to call the accept endpoint with the old token.
 # Instead we manually corrupt the tokenHash so no
 # password can ever match — same effect from the
@@ -132,7 +132,7 @@ api_post "/api/v1/users/invitations?companyId=$COMPANY_ID" "{
 EXPIRED_INV_ID=$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
 # Force-expire + corrupt token hash
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
-  "UPDATE \"UserInvitation\" SET \"expiresAt\"='2020-01-01 00:00:00', \"tokenHash\"='\$2b\$10\$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidi' WHERE id='$EXPIRED_INV_ID';" >/dev/null 2>&1
+  "UPDATE \"UserInvitation\" SET \"expiresAt\"='2020-01-01 00:00:00', \"tokenHash\"='invalid-' || id WHERE id='$EXPIRED_INV_ID';" >/dev/null 2>&1
 note "expired invitation seeded (id=$EXPIRED_INV_ID) — testing accept path requires the plaintext token which is in console.warn, not the DB"
 # Note: we don't have a clean way to test accept-on-expired
 # because the plaintext token lives only in the email +

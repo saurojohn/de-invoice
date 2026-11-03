@@ -310,9 +310,12 @@ export class CustomerPortalService {
       where: { token: tokenHash(token) },
       include: {
         customer: true,
+        company: { select: { closedAt: true } },
       },
     })
-    if (!session) {
+    // Tier 787: a closed company's portal is shut whatever the row says — the
+    // closing ends the sessions it finds, not one made while it ran
+    if (!session || session.company.closedAt) {
       throw new UnauthorizedException('Ungültiger oder abgelaufener Link')
     }
     if (session.expiresAt < new Date()) {
@@ -788,8 +791,9 @@ export class CustomerPortalService {
   private async resolveSession(token: string) {
     const session = await this.prisma.customerPortalSession.findUnique({
       where: { token: tokenHash(token) },
+      include: { company: { select: { closedAt: true } } },
     })
-    if (!session) {
+    if (!session || session.company.closedAt) { // Tier 787
       throw new UnauthorizedException('Ungültiger oder abgelaufener Link')
     }
     if (session.expiresAt < new Date()) {

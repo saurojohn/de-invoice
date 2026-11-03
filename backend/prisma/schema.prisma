@@ -220,8 +220,9 @@ model User {
   preferences          Json?
   createdAt            DateTime      @default(now())
   lastLogin            DateTime?
-  // Password reset — token is stored hashed, expires 1h after issue
-  passwordResetToken   String?
+  // Password reset — the token's SHA-256 (Tier 787; bcrypt before, which
+  // could only be found by trying every row), expires 1h after issue
+  passwordResetToken   String?   @unique
   passwordResetExpires DateTime?
 
   // Tier 736: the address confirmed by a link sent to it. The token is kept
@@ -359,8 +360,8 @@ model UserInvitation {
   email       String
   role        String    @default("accountant") // "admin" | "accountant" | "viewer" | "auditor"
   accessUntil DateTime? // Tier 744: an auditor's last day
-  // Token — random URL-safe string, also stored hashed (bcrypt) in tokenHash
-  tokenHash   String
+  // The SHA-256 of the link's random token (Tier 787; bcrypt before)
+  tokenHash   String    @unique
   expiresAt   DateTime
   acceptedAt  DateTime?
   createdById String

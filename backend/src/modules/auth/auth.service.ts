@@ -5,6 +5,7 @@ import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { UserSessionService } from '../../auth/user-session.service';
 import { findUserByEmail } from '../../auth/user-email';
+import { tokenHash } from '../../common/token-hash';
 
 @Injectable()
 export class AuthService {
@@ -94,7 +95,7 @@ export class AuthService {
    * surface a generic message to avoid user enumeration.
    *
    * The tokenPlain (32-byte URL-safe random) is what we email the user.
-   * Only its bcrypt-hashed form is persisted in the DB.
+   * Only its SHA-256 is persisted in the DB (Tier 787; bcrypt before).
    */
   async createPasswordResetToken(email: string): Promise<{ tokenPlain: string; user: { id: string; email: string; companyId: string | null } } | null> {
     // Tier 782: in any case — the address was looked up lower-cased, and an
@@ -104,13 +105,12 @@ export class AuthService {
 
     // 32 random bytes -> 64 hex chars; user clicks link with this raw token
     const tokenPlain = randomBytes(32).toString('hex');
-    const tokenHash = await bcrypt.hash(tokenPlain, 10);
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1h
 
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordResetToken: tokenHash,
+        passwordResetToken: tokenHash(tokenPlain),
         passwordResetExpires: expires,
       },
     });
@@ -120,29 +120,22 @@ export class AuthService {
   }
 
   /**
-   * Verify a raw reset token (URL param) against the stored bcrypt hash.
-   * Returns the user id when valid and not expired; null otherwise.
+   * Verify a raw reset token (URL param). Returns the user id when valid and
+   * not expired; null otherwise.
    *
-   * Note: the lookup is O(N) by recent-reset window — for a small user
-   * table this is fine. For a real production system at scale, store
-   * the token in a separate keyed table (userId, tokenHash, expires).
+   * Tier 787: looked up by its SHA-256. The bcrypt hash could not be looked
+   * up, so every request compared the token with every pending reset in turn
+   * (~70 ms each): a burst of forgot-password requests for many accounts made
+   * each reset-password request take seconds, and a wrong token the longest.
    */
   async verifyPasswordResetToken(tokenPlain: string): Promise<string | null> {
     if (!tokenPlain || tokenPlain.length < 32) return null;
-    // Pull candidates whose reset is still valid
-    const candidates = await this.prisma.user.findMany({
-      where: {
-        passwordResetExpires: { gt: new Date() },
-        passwordResetToken: { not: null },
-      },
-      select: { id: true, passwordResetToken: true },
+    const user = await this.prisma.user.findUnique({
+      where: { passwordResetToken: tokenHash(tokenPlain) },
+      select: { id: true, passwordResetExpires: true },
     });
-    for (const c of candidates) {
-      // Constant-time compare (bcrypt.compare is constant-time)
-      const ok = await bcrypt.compare(tokenPlain, c.passwordResetToken as string);
-      if (ok) return c.id;
-    }
-    return null;
+    if (!user || !user.passwordResetExpires || user.passwordResetExpires <= new Date()) return null;
+    return user.id;
   }
 
   /**
@@ -158,8 +151,10 @@ export class AuthService {
     }
 
     const hash = await bcrypt.hash(newPassword, 10);
-    await this.prisma.user.update({
-      where: { id: userId },
+    // Tier 787: only while the token is still the user's — the link sent
+    // twice at once set two passwords, the second over the first.
+    const { count } = await this.prisma.user.updateMany({
+      where: { id: userId, passwordResetToken: tokenHash(tokenPlain) },
       data: {
         passwordHash: hash,
         // Invalidate any other active reset tokens for this user
@@ -167,6 +162,9 @@ export class AuthService {
         passwordResetExpires: null,
       },
     });
+    if (count !== 1) {
+      throw new BadRequestException('Token ungültig oder abgelaufen');
+    }
     // Tier 736: the link came to the mailbox — the address is confirmed.
     await this.prisma.user.updateMany({ where: { id: userId, emailVerifiedAt: null }, data: { emailVerifiedAt: new Date() } });
 

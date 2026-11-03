@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { userEmailTaken } from '../../auth/user-email';
 import { MailService } from '../mail/mail.service';
 import { randomBytes } from 'crypto';
+import { tokenHash as hashToken } from '../../common/token-hash';
 import { businessDayEndInstant, businessTodayIso } from '../../common/business-date';
 import * as bcrypt from 'bcrypt';
 
@@ -377,7 +378,7 @@ export class UsersService {
     }
 
     const tokenPlain = randomBytes(32).toString('hex');
-    const tokenHash = await bcrypt.hash(tokenPlain, 10);
+    const tokenHash = hashToken(tokenPlain); // Tier 787: SHA-256, looked up by index
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     const invite = await this.prisma.userInvitation.create({
@@ -415,7 +416,7 @@ export class UsersService {
     if (!inv) throw new NotFoundException('Einladung nicht gefunden');
 
     const tokenPlain = randomBytes(32).toString('hex');
-    const tokenHash = await bcrypt.hash(tokenPlain, 10);
+    const tokenHash = hashToken(tokenPlain); // Tier 787: SHA-256, looked up by index
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await this.prisma.userInvitation.update({
@@ -526,31 +527,28 @@ export class UsersService {
 
   /**
    * Verify a raw invitation token and return the invitation if valid.
+   *
+   * Tier 787: looked up by its SHA-256 — the bcrypt hash meant comparing the
+   * token with every open invitation of every company in turn (~70 ms each).
+   * And not for a closed company: its invitations end when it closes, this
+   * holds when one was issued while it closed.
    */
   async verifyInvitationToken(tokenPlain: string) {
     if (!tokenPlain || tokenPlain.length < 32) return null;
-    const candidates = await this.prisma.userInvitation.findMany({
-      where: {
-        acceptedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-      include: { company: { select: { id: true, name: true } } },
+    const c = await this.prisma.userInvitation.findUnique({
+      where: { tokenHash: hashToken(tokenPlain) },
+      include: { company: { select: { id: true, name: true, closedAt: true } } },
     });
-    for (const c of candidates) {
-      const ok = await bcrypt.compare(tokenPlain, c.tokenHash);
-      if (ok) {
-        return {
-          id: c.id,
-          email: c.email,
-          role: c.role,
-          companyId: c.companyId,
-          companyName: c.company?.name,
-          expiresAt: c.expiresAt,
-          accessUntil: c.accessUntil, // Tier 744
-        };
-      }
-    }
-    return null;
+    if (!c || c.acceptedAt || c.expiresAt <= new Date() || c.company?.closedAt) return null;
+    return {
+      id: c.id,
+      email: c.email,
+      role: c.role,
+      companyId: c.companyId,
+      companyName: c.company?.name,
+      expiresAt: c.expiresAt,
+      accessUntil: c.accessUntil, // Tier 744
+    };
   }
 
   /**
@@ -581,6 +579,13 @@ export class UsersService {
     // logged in (200) and then got 401 "Kein Zugriff auf diese Firma" on every
     // request. User, membership and the accepted invitation are one step.
     const user = await this.prisma.$transaction(async (tx) => {
+      // Tier 787: the invitation is taken first, once — the link sent twice
+      // at once got as far as the second user row (500 on the unique e-mail).
+      const taken = await tx.userInvitation.updateMany({
+        where: { id: inv.id, acceptedAt: null },
+        data: { acceptedAt: new Date() },
+      });
+      if (taken.count !== 1) throw new BadRequestException('Einladung ungültig oder abgelaufen');
       const created = await tx.user.create({
         data: {
           email: inv.email,
@@ -594,10 +599,6 @@ export class UsersService {
       });
       await tx.userCompany.create({
         data: { userId: created.id, companyId: inv.companyId, role: inv.role, accessUntil: inv.accessUntil ?? null },
-      });
-      await tx.userInvitation.update({
-        where: { id: inv.id },
-        data: { acceptedAt: new Date() },
       });
       return created;
     });

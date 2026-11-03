@@ -186,6 +186,11 @@ export class PortalService {
     const company = await this.prisma.company.findUnique({
       where: { id: link.invoice.companyId },
     })
+    // Tier 787: a closed company's links are revoked when it closes; this
+    // holds for one made while it closed
+    if (!company || company.closedAt) {
+      throw new NotFoundException('Link wurde widerrufen')
+    }
     // IP log — append-only. PG text[] column.
     if (ip) {
       try {
@@ -260,12 +265,12 @@ export class PortalService {
   async markPaid(token: string) {
     const link = await this.prisma.paymentLink.findUnique({
       where: { token },
-      include: { invoice: true },
+      include: { invoice: { include: { company: { select: { closedAt: true } } } } },
     })
     if (!link) {
       throw new NotFoundException('Link nicht gefunden')
     }
-    if (link.revokedAt) {
+    if (link.revokedAt || link.invoice.company.closedAt) { // Tier 787: or its company closed
       throw new BadRequestException('Link wurde widerrufen')
     }
     if (link.expiresAt <= new Date()) {
