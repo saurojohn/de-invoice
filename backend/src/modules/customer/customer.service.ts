@@ -1549,6 +1549,29 @@ export class CustomerService {
         `Kunde hat ${projectCount} Projekt(e) in der Zeiterfassung und kann nicht gelöscht werden. Löschen Sie zuerst die Projekte — oder archivieren Sie den Kunden.`
       )
     }
+    // Tier 791: the other records that keep a customer — the database refuses
+    // the delete for them, and the answer was a 500 (measured for credit
+    // bookings; recurring invoices and SEPA mandates the same).
+    const [creditCount, recurringCount, mandateCount] = await Promise.all([
+      this.prisma.customerCreditTransaction.count({ where: { companyId, customerId: customer.id } }),
+      this.prisma.recurringInvoice.count({ where: { companyId, customerId: customer.id } }),
+      this.prisma.sepaDirectDebitMandate.count({ where: { companyId, customerId: customer.id } }),
+    ])
+    if (creditCount > 0) {
+      throw new BadRequestException(
+        `Kunde hat ${creditCount} Guthabenbuchung(en) und kann nicht gelöscht werden. Archivieren Sie den Kunden stattdessen.`
+      )
+    }
+    if (recurringCount > 0) {
+      throw new BadRequestException(
+        `Kunde hat ${recurringCount} Serienrechnung(en) und kann nicht gelöscht werden. Löschen Sie zuerst die Serienrechnungen — oder archivieren Sie den Kunden.`
+      )
+    }
+    if (mandateCount > 0) {
+      throw new BadRequestException(
+        `Kunde hat ${mandateCount} SEPA-Mandat(e) und kann nicht gelöscht werden. Archivieren Sie den Kunden stattdessen.`
+      )
+    }
     await this.prisma.customer.delete({ where: { id: customer.id } })
     return { ok: true }
   }

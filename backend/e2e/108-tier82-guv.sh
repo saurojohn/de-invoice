@@ -229,10 +229,11 @@ VALUES
 EOF
 
 # Add a positive customer credit: +250 (sonstige betr. Erträge)
+# Tier 791: in the reported year 2026 — at now() it fell into the next year from 1 January
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "CustomerCreditTransaction" (id, "companyId", "customerId", "amount", "balanceAfter", "type", "description", "createdById", "createdAt")
 VALUES
-  (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 250, 250, 'overpayment', 'GUV-${TS} Gutschrift-Überhang', '$USER_ID', now());
+  (gen_random_uuid()::text, '$COMPANY_ID', '$CUST_ID', 250, 250, 'overpayment', 'GUV-${TS} Gutschrift-Überhang', '$USER_ID', '2026-06-15 12:00:00');
 EOF
 
 # ── 1. JSON shape ──

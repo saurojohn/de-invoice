@@ -22,7 +22,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 TAG="e2e-488-$(date +%s%N | cut -c1-13)"
-Y=$(date +%Y)
+# Tier 791: last year — its dates (June, an asset of 15 January) were in the
+# future from 1 January to June of every year
+Y=$(( $(date +%Y) - 1 ))
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
 D=$(mktemp -d); trap 'rm -rf "$D"' EXIT
 cat > "$D/burst.py" <<'PY'

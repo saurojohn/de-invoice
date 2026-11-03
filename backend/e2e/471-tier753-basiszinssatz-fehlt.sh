@@ -20,6 +20,8 @@ console.log(`midnight=${at('2026-12-31T23:30:00.000Z')}`)
 console.log(`later=${at('2027-05-20T10:00:00.000Z')}`)
 console.log(`summer=${at('2027-07-01T10:00:00.000Z')}`)
 console.log(`rate=${basiszinssatzAt(new Date('2027-01-15T00:00:00.000Z'))}`)
+const today = basiszinssatzWarning(new Date())
+console.log(`todayList=${JSON.stringify(today ? [today] : [])}`)
 TS
 ( cd "$SCRIPT_DIR/.." && npx ts-node -T .tier753-probe.ts > "$TMP/probe.txt" 2>&1 )
 P() { grep "^$1=" "$TMP/probe.txt" | head -1 | cut -d= -f2-; }
@@ -33,6 +35,9 @@ assert_eq "the interest still uses the last rate" "$(P rate)" "1.52"
 
 note "=== the routes ==="
 login
-assert_eq "system health: a list, empty while the rate is known" \
-  "$(curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" "$API/api/v1/admin/cron-health/warnings")" "[]"
+# Tier 791: what the table says for today — empty while the rate is known,
+# the warning from 1 January / 1 July until the new rate is entered. It said
+# "[]", so CI would have turned red on every 1 January and 1 July until then.
+assert_eq "system health: today's warning, or an empty list while the rate is known" \
+  "$(curl -sS -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" "$API/api/v1/admin/cron-health/warnings")" "$(P todayList)"
 summary

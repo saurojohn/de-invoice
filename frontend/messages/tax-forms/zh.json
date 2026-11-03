@@ -453,5 +453,7 @@
  "× Steuermesszahl:": "× Steuermesszahl（税基率）：",
  "Übrige / Sonstige Betriebsausgaben": "其他经营支出",
  "Übrige Werbungskosten": "其他必要费用",
- "⚠ Keine USt-Daten für # erfasst. Buchen Sie Rechnungen / Eingangsrechnungen, um die UStJA zu berechnen.": "⚠ {1} 年没有增值税数据。请先录入发票 / 进项发票，才能计算年度增值税申报。"
+ "⚠ Keine USt-Daten für # erfasst. Buchen Sie Rechnungen / Eingangsrechnungen, um die UStJA zu berechnen.": "⚠ {1} 年没有增值税数据。请先录入发票 / 进项发票，才能计算年度增值税申报。",
+ "Kennzahlen nach dem Vordruck #; der Vordruck # ist in diesem Programm noch nicht geprüft.": "指标编号依据 {1} 年表样；{2} 年表样尚未在本程序中核对。",
+ "Diese Vorschau wurde automatisch aus den # monatlichen UStVA-Daten (#) aggregiert (§ # Abs. # UStG). Kennzahlen nach dem Vordruckmuster USt # A # (BMF-Schreiben vom #). Grundlage: alle finalisierten Rechnungen (versendet, überfällig oder bezahlt) und Eingangsrechnungen (gebucht) im Zeitraum. Das Vorauszahlungssoll ist hier die Summe der berechneten Monatswerte; maßgeblich ist das vom Finanzamt festgesetzte Soll einschließlich einer Sondervorauszahlung. Sonstige steuerfreie Umsätze sind nach ihrer Befreiungsvorschrift einer Kennzahl zuzuordnen. Der Berater prüft die Werte vor der Übermittlung. Kennzahlen nach dem Vordruck #; der Vordruck # ist in diesem Programm noch nicht geprüft.": "本预览由 {1} 个月的 UStVA 数据（{2}）自动汇总而成（§ {3} 第 {4} 款 UStG）。指标编号依据表样 USt {5} A {6}（BMF {7} 通函）。依据：期间内全部已定稿的发票（已发送、逾期或已付）和已入账的进项发票。此处的预缴应缴额为各月计算值之和；以税务局核定的应缴额（含特别预缴）为准。其他免税营业额须按其免税条款归入相应指标。税务师在报送前核对数值。指标编号依据 {8} 年表样；{9} 年表样尚未在本程序中核对。"
 }

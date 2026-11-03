@@ -11,6 +11,7 @@ import ZmCard from "./ZmCard"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut, isDuplicateExpense } from "@/lib/api"
+import { FormNote } from "@/lib/tax-form-text" // Tier 791: the form-year notice in the interface language
 import { useYearField } from "@/lib/year-field"
 
 interface UstvaData {
@@ -855,7 +856,7 @@ function UstvaPageInner() {
                 </CardHeader>
                 <CardContent>
                   {data.formNotice && (
-                    <p className="mb-3 text-sm text-amber-800 dark:text-amber-300" data-testid="ustva-form-notice">{data.formNotice}</p>
+                    <p className="mb-3 text-sm text-amber-800 dark:text-amber-300" data-testid="ustva-form-notice"><FormNote text={data.formNotice} /></p>
                   )}
                   <table className="w-full text-sm">
                     <tbody>

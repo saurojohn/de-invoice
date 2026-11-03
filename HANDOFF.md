@@ -2669,6 +2669,20 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 791 — the clock on 11.01.2027 again, 38 tiers later
+
+Tier 752's setup (`y27/`: Node, shell, Python, the browser, the Next server and psql's `now()` 69 days ahead, a throwaway `tmp-y27-pg` seeded as CI) over everything since. Two gaps of that setup closed first: psql's `now()` is moved for the backend run as well (it was only for Playwright), and the `Date` shim has `UTC` and `parse` (the Next server's pages answered 500 without them).
+
+- **Would have gone red in CI by itself:**
+  - 107 / 108 dated their customer credit `now()` and report the fixed year 2026: from 1 January the credit is in 2027 and the Bilanz's 4500 / the GuV's Pos 4 miss it. Dated 15.06.2026 now.
+  - 488 (Tier 783) books, files and matches in June of the current year and an asset of 15 January: in the future from 1 January to June. Last year now.
+  - 471 (Tier 753) wanted an empty warning list on `/admin/cron-health/warnings`, so CI would turn red every 1 January and 1 July until the new Basiszinssatz is entered. It compares with what `basiszinssatzWarning(new Date())` says for today.
+- **Product:**
+  - From a year after `UST_FORM_YEAR` the UStJA's closing text carries the „Vordruck … noch nicht geprüft" sentence, and that text had no English or Chinese entry (spec 389 found it): the paragraph stayed German. Both entries added (`messages/tax-forms/{en,zh}.json`), and the UStVA page's `ustva-form-notice` goes through `FormNote` too.
+  - Deleting a customer with a credit booking answered **500** (`CustomerCreditTransaction_customerId_fkey`), seen in the browser run; a recurring invoice or a SEPA mandate the same (the three restricting relations the delete did not check). Each answers 400 now with what to do instead („… Guthabenbuchung(en) … Archivieren Sie den Kunden stattdessen.", „… Serienrechnung(en) … Löschen Sie zuerst die Serienrechnungen — oder archivieren Sie den Kunden.", „… SEPA-Mandat(e) …"). Spec `493-tier791-kunde-loeschen-blockiert.sh` (3 fail on the code before, with 500).
+- **Left, explained:** backend 148, 188, 321, 335, 371, 372, 438, 453 and Playwright admin-ops, bulk-mahnung, cron-history ×2, progress-pause, rounding-per-customer, time-projects-timer, top-fingerprint-rate ×2, webhook-deliveries-csv, webhook-last-success — Tier 752's list, the Prisma engine's real clock (the same assertions, or ones that follow from a timer's start); installment-plan's „pay" (the seed wrote the plan with the shifted `now()`, Prisma the payment with the real one, and the sync counts payments created after the plan); 301 compares with psql's `current_date`, which the setup does not move.
+- Results: backend 473 of 487 before the fixes, Playwright 1106 of 1120; after them the five specs pass under the shifted clock and on today's.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 790b — CI green for Tier 790
 
 Run 41712025459 (commit 74cd4432): backend **491 passed / 0 failed / 1 skipped**, Playwright **1120 passed (37.9 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗.
