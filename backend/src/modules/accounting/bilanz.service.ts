@@ -145,7 +145,7 @@ export class BilanzService {
       steuerRueckstellung = (await this.kst1.compute(companyId, year)).totals.verbleibend
     }
     let owed = 0
-    for (let m = 1; m <= 12; m++) owed += (await this.ustva.compute(companyId, year, undefined, m)).differenzbetrag
+    for (const m of await this.ustva.computeMonths(companyId, year)) owed += m.differenzbetrag // Tier 788: shared
     const paid = await this.prisma.uStvaFiling.aggregate({
       where: { companyId, year, paidAt: { lte: snapshot } },
       _sum: { paidAmount: true },

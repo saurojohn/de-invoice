@@ -43,6 +43,39 @@ type InvoicePart = {
   taxLines: { vatRate: unknown; netAmount: unknown; vatAmount: unknown; position: number }[]
 }
 
+type OpenInvoiceRow = {
+  id: string
+  invoiceNumber: string
+  total: unknown
+  payments: Array<{ amount: unknown }>
+  customer: { name: string; customerNumber: string | null } | null
+  dueDate: Date | null
+}
+type PreparedOpen<T> = { inv: T; total: number; open: number; numberKey: string; nameKey: string; dueTime: number | null }
+const PREPARED = new WeakMap<object, PreparedOpen<OpenInvoiceRow>[]>()
+
+/**
+ * Tier 788 — the open invoices with what every bank line compares: the
+ * amount still open (an invoice with nothing open is left out), the number
+ * as the purpose is compared with it, the customer's name in lower case, the
+ * due date.
+ * Kept per list: a statement reads its list once (Tier 765) and asks for
+ * each of its lines.
+ */
+function preparedOpen<T extends OpenInvoiceRow>(list: T[]): PreparedOpen<T>[] {
+  const hit = PREPARED.get(list)
+  if (hit) return hit as PreparedOpen<T>[]
+  const rows = list
+    .map((inv) => {
+      const total = Number(inv.total)
+      const open = Math.round((total - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)) * 100) / 100
+      return { inv, total, open, numberKey: inv.invoiceNumber.toLowerCase().replace(/\//g, '-'), nameKey: inv.customer?.name ? inv.customer.name.toLowerCase() : '', dueTime: inv.dueDate ? new Date(inv.dueDate).getTime() : null }
+    })
+    .filter((r) => r.open > 0)
+  PREPARED.set(list, rows)
+  return rows
+}
+
 @Injectable()
 export class BankImportService {
   private readonly logger = new Logger(BankImportService.name);
@@ -351,25 +384,25 @@ export class BankImportService {
   /** For a given transaction, find candidate invoices
    *  ranked by match score (0-100). Returns the top 5. */
   /** Open invoices: status = 'sent' (draft is too early, paid/cancelled is final). We also include 'overdue'. */
-  private openInvoices(companyId: string) {
+  private openInvoices(companyId: string, ids?: string[]) {
     return this.prisma.invoice.findMany({
       where: {
         companyId,
         status: { in: ['sent', 'overdue'] },
+        ...(ids ? { id: { in: ids } } : {}),
       },
-      include: {
+      // Tier 788: all of them, with the columns the suggestions read. Tier 297
+      // had raised `take` from 200 to 2000 — an invoice older than the newest
+      // 2 000 open ones still got no suggestion, even with its number in the
+      // purpose: a customer who pays an old invoice late is the case a
+      // suggestion is most needed for.
+      select: {
+        id: true, invoiceNumber: true, total: true, issueDate: true, dueDate: true,
+        skontoPercent: true, skontoDays: true,
         customer: { select: { name: true, customerNumber: true } },
         payments: { select: { amount: true } },
       },
       orderBy: { issueDate: 'desc' },
-      // Tier 297: bumped 200 → 2000. The previous cap
-      // silently excluded any invoice older than the 200
-      // most-recent ones — Tier 8 spec creates its test
-      // invoice at issueDate=2026-06-02 which falls below
-      // the 200-row ceiling in the shared dev DB (225+
-      // invoices). This is also a real-world footgun for
-      // customers with high invoice volume.
-      take: 2000,
     });
   }
 
@@ -434,21 +467,21 @@ export class BankImportService {
     //     each of them, with its own amount;
     //   - an invoice the purpose does not name loses 30 points when the
     //     purpose names another one.
-    const rows = openInvoices
-      .map((inv) => {
-        const total = Number(inv.total);
-        const open = Math.round((total - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)) * 100) / 100;
-        // Tier 765: the plain comparison first; a pattern for each invoice was most of the 177 seconds
-        const named = purposeKey.includes(inv.invoiceNumber.toLowerCase().replace(/\//g, '-'))
-          && new RegExp(inv.invoiceNumber.replace(/[-/]/g, '[-/]') + '(?![0-9])', 'i').test(purposeText);
-        return { inv, total, open, named };
-      })
-      .filter((r) => r.open > 0);
-    const namedRows = rows.filter((r) => r.named);
+    // Tier 788: what does not depend on the line is worked out once per list
+    // (preparedOpen) — for each line and each of 22 000 open invoices it was
+    // 12,8 s for a statement of 858 lines.
+    const rows = preparedOpen(openInvoices);
+    // Tier 765: the plain comparison first; a pattern for each invoice was most of the 177 seconds
+    const namedRows = rows.filter((r) => purposeKey.includes(r.numberKey)
+      && new RegExp(r.inv.invoiceNumber.replace(/[-/]/g, '[-/]') + '(?![0-9])', 'i').test(purposeText));
+    const namedIds = new Set(namedRows.map((r) => r.inv.id));
     const collective = namedRows.length > 1
       && Math.abs(namedRows.reduce((sum, r) => sum + r.open, 0) - amount) < 0.01;
 
-    for (const { inv, total, open, named } of rows) {
+    const counterpartyKey = txn.counterpartyName ? txn.counterpartyName.toLowerCase() : '';
+    const valueTime = valueDate.getTime();
+    for (const { inv, total, open, nameKey, dueTime } of rows) {
+      const named = namedIds.has(inv.id);
       const amtDelta = Math.abs(open - amount);
       let amtScore = amtDelta < 0.01 ? 60
         : amtDelta < 0.05 ? 35
@@ -483,9 +516,9 @@ export class BankImportService {
       // Date match: due date within ±7 days of value date
       let dateScore = 0;
       let dateReason = '';
-      if (inv.dueDate) {
+      if (dueTime !== null) {
         const daysDiff = Math.abs(
-          (new Date(inv.dueDate).getTime() - valueDate.getTime()) / (1000 * 60 * 60 * 24),
+          (dueTime - valueTime) / (1000 * 60 * 60 * 24),
         );
         if (daysDiff <= 3) { dateScore = 30; dateReason = '±3d'; }
         else if (daysDiff <= 7) { dateScore = 20; dateReason = '±7d'; }
@@ -503,9 +536,9 @@ export class BankImportService {
 
       // Counterparty name in purpose/counterparty field
       let nameScore = 0;
-      if (txn.counterpartyName && inv.customer?.name) {
-        const n1 = txn.counterpartyName.toLowerCase();
-        const n2 = inv.customer.name.toLowerCase();
+      if (counterpartyKey && nameKey) {
+        const n1 = counterpartyKey;
+        const n2 = nameKey;
         if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) {
           nameScore = 10;
         }
@@ -578,7 +611,8 @@ export class BankImportService {
     let autoConfirmed = 0;
     let errors = 0;
     // Tier 765: read once. For each line of the statement it took 177 seconds
-    // for 1 000 lines; a confirmation below changes it, so it is read again then.
+    // for 1 000 lines; a confirmation below changes its invoice, which is read
+    // again then.
     let open = await this.openInvoices(companyId);
 
     for (const txn of stmt.transactions) {
@@ -626,7 +660,11 @@ export class BankImportService {
           if (threshold > 0 && top.confidence >= threshold) {
             await this.confirmMatch(companyId, created.id, opts.userId);
             autoConfirmed++;
-            open = await this.openInvoices(companyId);
+            // Tier 788: the confirmation changed this invoice only — it is
+            // read again, not every open invoice (one read per confirmation
+            // of the whole list was the cost of the limit's removal).
+            const fresh = await this.openInvoices(companyId, [top.invoiceId]);
+            open = open.flatMap((inv) => (inv.id === top.invoiceId ? fresh : [inv]));
           }
         }
       } catch (e: any) {

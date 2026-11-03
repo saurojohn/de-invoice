@@ -5,6 +5,7 @@ import { nonDeductibleGifts } from './gifts'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { GuVService } from './guv.service'
+import { shareWhileRunning } from '../../common/shared-while-running'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
 
@@ -199,6 +200,13 @@ export class KSt1Service {
    * Berater.
    */
   async compute(companyId: string, year: number): Promise<KSt1Result> {
+    // Tier 788: asked for by the KSt 1 section, the GuV and the Bilanz (and so
+    // the Anhang and the E-Bilanz) — shared while it runs, as the GuV.
+    const shared = await shareWhileRunning(`kst1:${companyId}:${year}`, () => this.computeOnce(companyId, year))
+    return structuredClone(shared)
+  }
+
+  private async computeOnce(companyId: string, year: number): Promise<KSt1Result> {
     if (!companyId) {
       throw new BadRequestException('companyId ist erforderlich')
     }

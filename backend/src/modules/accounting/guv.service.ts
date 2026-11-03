@@ -13,6 +13,7 @@ import { invoiceNetRevenue } from '../invoice/tax-breakdown';
 import { SALES_TYPES } from '../invoice/document-scope'
 import { ModuleRef } from '@nestjs/core'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
+import { shareWhileRunning } from '../../common/shared-while-running'
 
 /**
  * Tier 82: Anlage G+V (Gewinn- und Verlustrechnung).
@@ -181,6 +182,16 @@ export class GuVService {
    * Jahresüberschuss is after them; it was before them, ~30 % too high.
    */
   async compute(companyId: string, year: number, opts: { preTax?: boolean } = {}): Promise<GuVResult> {
+    // Tier 788: the GuV is asked for by the GuV, KSt 1, Bilanz, Anhang and
+    // E-Bilanz sections, and again inside several of them — 19 computations
+    // when the accounting page opens. Callers that ask while it runs share it.
+    const shared = await shareWhileRunning(`guv:${companyId}:${year}:${opts.preTax ? 'preTax' : 'full'}`, () =>
+      this.computeOnce(companyId, year, opts),
+    )
+    return structuredClone(shared)
+  }
+
+  private async computeOnce(companyId: string, year: number, opts: { preTax?: boolean }): Promise<GuVResult> {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 

@@ -123,10 +123,8 @@ export class UstjaService {
     // fan-out behind the P&L's "Can't reach database server", Tier 466), and
     // a month that failed was replaced by zeros with only a console.warn:
     // an annual VAT return with a month silently missing.
-    const monthlyResults: Array<UstvaData | null> = []
-    for (let idx = 0; idx < MONTH_LABELS.length; idx++) {
-      monthlyResults.push(await this.ustva.compute(companyId, year, undefined, idx + 1))
-    }
+    // Tier 788: through computeMonths, which the Bilanz shares.
+    const monthlyResults: Array<UstvaData | null> = await this.ustva.computeMonths(companyId, year)
 
     // ── Aggregate ──────────────────────────────────
     // Tier 417: the months are summed into one UstvaData and mapped onto the

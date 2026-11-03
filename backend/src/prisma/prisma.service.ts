@@ -1,7 +1,8 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { runWithBufferedAudit, withAuditLog } from './audit-log.extension';
 import { companyScope } from './company-scope.extension';
+import { noteWrite } from '../common/shared-while-running';
 
 // The audit request context lives in ./request-context (Tier 384).
 
@@ -16,7 +17,22 @@ const basePrisma = new PrismaClient({
 // each. See audit-log.extension.ts for the
 // full list and rationale.
 // Tier 551: and, under it, the company-scope check (company-scope.extension.ts).
-const prismaWithAudit = withAuditLog(basePrisma.$extends(companyScope) as unknown as PrismaClient)
+// Tier 788: and every write is counted, so a computation shared between
+// requests is never one that began before a write (shared-while-running.ts).
+const WRITE_OPERATIONS = new Set(['create', 'createMany', 'createManyAndReturn', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany'])
+const writeCounter = Prisma.defineExtension({
+  name: 'writeCounter',
+  query: {
+    $allModels: {
+      async $allOperations({ operation, args, query }) {
+        const result = await query(args)
+        if (WRITE_OPERATIONS.has(operation)) noteWrite()
+        return result
+      },
+    },
+  },
+})
+const prismaWithAudit = withAuditLog(basePrisma.$extends(writeCounter).$extends(companyScope) as unknown as PrismaClient)
 
 @Injectable()
 export class PrismaService
@@ -79,10 +95,13 @@ export class PrismaService
     // rejects before any row is written); it now simply runs on the same
     // client and pool as everything else.
     const extTransaction = ext.$transaction.bind(ext)
+    // Tier 788: a transaction's writes count again once it has committed —
+    // a computation that began between a write and the commit read without it.
     ;(this as any).$transaction = (arg: any, options?: any) =>
-      typeof arg === 'function'
+      (typeof arg === 'function'
         ? runWithBufferedAudit(() => extTransaction(arg, options))
         : extTransaction(arg, options)
+      ).finally(noteWrite)
   }
 
   async onModuleDestroy() {

@@ -22,6 +22,7 @@ import { nonDeductibleGiftIds } from '../accounting/gifts';
 import { assertNotFuture, businessDayIso } from '../../common/business-date';
 import { assertExpenseAmounts } from '../expense/amounts';
 import { expenseTaxLines } from '../expense/tax-lines';
+import { shareWhileRunning } from '../../common/shared-while-running';
 
 /** Tier 734: the BZSt ZM import takes at most this many lines per file. */
 const ZM_CSV_MAX_ROWS = 1500;
@@ -136,6 +137,14 @@ export interface UstvaData {
   formNotice?: string | null;
 }
 
+/** Tier 788: what the UStVA reads of a sales document. */
+const USTVA_DOC_SELECT = {
+  id: true, issueDate: true, total: true, totalVat: true, subtotal: true, eurSubtotal: true,
+  euTransaction: true, reverseCharge: true,
+  items: { select: { quantity: true, unitPrice: true, vatRate: true } },
+  customer: { select: { address: true, vatId: true } },
+} as const;
+
 @Injectable()
 export class UstvaService {
   constructor(private prisma: PrismaService) {}
@@ -168,6 +177,29 @@ export class UstvaService {
     return data;
   }
 
+  /**
+   * Tier 788 — the twelve monthly returns of a year, one after the other
+   * (Tier 469: in parallel they emptied the connection pool).
+   *
+   * The Bilanz (its VAT balance), the Anhang and the E-Bilanz (through the
+   * Bilanz) and the UStJA each need them, and the accounting page asks for all
+   * four at once: the same twelve months were computed four times side by
+   * side. Callers that ask while the year is being computed share that
+   * computation (shared-while-running.ts); each gets its own copy.
+   */
+  async computeMonths(companyId: string, year: number): Promise<UstvaData[]> {
+    const months = await shareWhileRunning(`ustva-months:${companyId}:${year}`, async () => {
+      const out: UstvaData[] = [];
+      for (let m = 1; m <= 12; m++) out.push(await this.computeWithZm(companyId, year, undefined, m));
+      return out;
+    });
+    return months.map((m) => {
+      const data = structuredClone(m);
+      delete data.zm;
+      return data;
+    });
+  }
+
   private async computeWithZm(companyId: string, year: number, quarter?: number, month?: number): Promise<UstvaData> {
     if (!year || year < 2010 || year > 2100) throw new BadRequestException('Ungültiges Jahr');
     if (quarter !== undefined && (quarter < 1 || quarter > 4)) throw new BadRequestException('Quartal 1-4');
@@ -197,7 +229,12 @@ export class UstvaService {
       // For EUR invoices the factor is 1.0; for non-EUR
       // it's `eurSubtotal / subtotal` (or 1.0 if the
       // column is null on legacy rows).
-      include: { items: true, customer: true },
+      // Tier 788: the columns used (invoiceTaxBreakdown, eurFactor, the
+      // zero-rate flags, taxedAbroad's customer) — all of every invoice, line
+      // and customer were read: twelve months took ~2,4 s at 700 invoices a
+      // month, most of it in turning rows into objects, for the Bilanz, the
+      // Anhang, the E-Bilanz and the UStJA each.
+      select: USTVA_DOC_SELECT,
     });
 
     const creditNotes = await this.prisma.invoice.findMany({
@@ -207,7 +244,7 @@ export class UstvaService {
         status: { in: ['paid', 'sent', 'overdue'] },
         type: 'CN',
       },
-      include: { items: true, customer: true, referenceInvoice: { select: { euTransaction: true, reverseCharge: true } } },
+      select: { ...USTVA_DOC_SELECT, referenceInvoice: { select: { euTransaction: true, reverseCharge: true } } },
     });
 
     // Sales by rate — output VAT
@@ -404,8 +441,14 @@ export class UstvaService {
         invoiceDate: { gte: start, lte: end },
         status: { in: ['booked', 'deductible'] },
       },
-      // Tier 581: with the VAT lines of an expense that has several rates
-      include: { supplier: true, taxLines: true },
+      // Tier 581: with the VAT lines of an expense that has several rates.
+      // Tier 788: the columns used.
+      select: {
+        id: true, category: true, vatRate: true, netAmount: true, vatAmount: true,
+        isReverseCharge: true, isIntraEU: true,
+        supplier: { select: { address: true } },
+        taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true } },
+      },
     });
 
     let vorsteuer19 = 0;
