@@ -51,6 +51,15 @@ export function GobdArchiveSection() {
   const [summary, setSummary] = useState<GobdSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [zipUrl, setZipUrl] = useState<string>("#")
+  // Tier 789: the archive and the Verfahrensdokumentation hold the audit log
+  // (`audit.read`, Tier 779) — a viewer was shown both links and got a 403 on
+  // the click. The role is the one in the company now open.
+  const [viewer, setViewer] = useState(false)
+  useEffect(() => {
+    apiGet<{ role?: string }>("/api/v1/auth/me")
+      .then((me) => setViewer(me?.role === "viewer"))
+      .catch(() => setViewer(false))
+  }, [])
 
   const load = useCallback(async (y: number) => {
     setLoading(true)
@@ -132,29 +141,37 @@ export function GobdArchiveSection() {
             >
               {loading ? "..." : tRef.current("gobd.recompute")}
             </Button>
-            <a
-              href={zipUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="ml-auto"
-              data-testid="gobd-zip-link"
-            >
-              <Button type="button" variant="outline">
-                📦 {tRef.current("gobd.downloadZip")}
-              </Button>
-            </a>
-            {/* Tier 748: the company's Verfahrensdokumentation, to complete in Word */}
-            <a
-              href={zipUrl.replace(/\/gobd-archive\?.*$/, `/verfahrensdokumentation?companyId=${typeof window !== "undefined" ? localStorage.getItem("companyId") || "" : ""}`)}
-              target="_blank"
-              rel="noreferrer"
-              title={tRef.current("gobd.verfahrensdokuHint")}
-              data-testid="gobd-verfahrensdoku-link"
-            >
-              <Button type="button" variant="outline">
-                📝 {tRef.current("gobd.verfahrensdoku")}
-              </Button>
-            </a>
+            {viewer ? (
+              <p className="ml-auto text-sm text-gray-600 dark:text-gray-400 max-w-md" data-testid="gobd-viewer-note">
+                {tRef.current("gobd.viewerNoDownload")}
+              </p>
+            ) : (
+              <>
+                <a
+                  href={zipUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-auto"
+                  data-testid="gobd-zip-link"
+                >
+                  <Button type="button" variant="outline">
+                    📦 {tRef.current("gobd.downloadZip")}
+                  </Button>
+                </a>
+                {/* Tier 748: the company's Verfahrensdokumentation, to complete in Word */}
+                <a
+                  href={zipUrl.replace(/\/gobd-archive\?.*$/, `/verfahrensdokumentation?companyId=${typeof window !== "undefined" ? localStorage.getItem("companyId") || "" : ""}`)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={tRef.current("gobd.verfahrensdokuHint")}
+                  data-testid="gobd-verfahrensdoku-link"
+                >
+                  <Button type="button" variant="outline">
+                    📝 {tRef.current("gobd.verfahrensdoku")}
+                  </Button>
+                </a>
+              </>
+            )}
           </div>
 
           {summary && (

@@ -2844,6 +2844,7 @@
     "vorsteuer": "Vorsteuer",
     "disclaimer": "Das Archiv enthält Rechnungs-PDFs, Ausgaben-Metadaten + Belege, den DATEV-Buchungsstapel und das Audit-Log. Der MANIFEST-Eintrag enthält SHA-256-Hashes für die Integritätsprüfung.",
     "verfahrensdoku": "Verfahrensdokumentation (Word)",
+    "viewerNoDownload": "Das Archiv und die Verfahrensdokumentation enthalten das Änderungsprotokoll mit Benutzern und IP-Adressen. Ihre Rolle (Leser) kann sie nicht herunterladen — ein Buchhalter oder Administrator der Firma kann es.",
     "verfahrensdokuHint": "Die Verfahrensdokumentation nach GoBD mit den Angaben dieser Firma. Gelb markierte Stellen ergänzen Sie und Ihr Steuerberater; das Unternehmen bewahrt jede Fassung auf."
   },
   "oss": {

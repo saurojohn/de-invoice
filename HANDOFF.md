@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 789 — a viewer is not offered the GoBD archive
+
+Since Tier 779 the GoBD archive ZIP and the Verfahrensdokumentation need `audit.read` (they hold the audit log with users and IP addresses), which a viewer does not have; the accounting page still showed the viewer both links and the click ended in a 403 toast. `GobdArchiveSection` asks `/auth/me` for the role in the open company; a viewer reads „Das Archiv und die Verfahrensdokumentation enthalten das Änderungsprotokoll … Ihre Rolle (Leser) kann sie nicht herunterladen — ein Buchhalter oder Administrator der Firma kann es." (`gobd.viewerNoDownload`, de/en/zh) instead of the links. Every other role keeps them; the summary stays visible to all. Playwright `gobd-viewer-tier789.spec.ts` (administrator, accountant, viewer in three languages; the viewer's three fail on the code before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 788b — CI green for Tier 788
 
 Run 41684732038 (commit e820b57d): backend **491 passed / 0 failed / 1 skipped**, Playwright **1115 passed (38.7 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. Locally 109, 113 and 142 failed with the same checks on the code before (shared-company state); 133 and Playwright `ustja-oss-tier187` need a Steuernummer on the seed company, which a spec of the local run had removed — with one set both pass.

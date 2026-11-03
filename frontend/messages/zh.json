@@ -2844,6 +2844,7 @@
     "vorsteuer": "进项税",
     "disclaimer": "档案包含发票 PDF、支出元数据 + 凭证、DATEV 总账和审计日志。MANIFEST 条目包含 SHA-256 哈希用于完整性验证。",
     "verfahrensdoku": "程序说明文档（Word）",
+    "viewerNoDownload": "归档包和程序说明文档包含修改记录（含用户和 IP 地址）。您的角色（只读）无法下载，请联系本公司的会计或管理员。",
     "verfahrensdokuHint": "按 GoBD 要求的程序说明文档，已填入本公司的信息。黄色标记的部分由您和税务顾问补充；公司需保存每一个版本。"
   },
   "oss": {
