@@ -1225,8 +1225,8 @@ model UserSession {
   id         String    @id @default(uuid())
   userId     String
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // 32 random bytes hex-encoded = 64 chars. Stored as-is: it is a bearer
-  // credential with a 30-day life, not a password.
+  // The SHA-256 (hex) of the cookie's 32 random bytes — Tier 785: stored
+  // as-is until then, so a copy of this table signed anyone in.
   token      String    @unique
   // Sliding: an authenticated request pushes this out by another 30 days (at
   // most hourly), so an idle session dies after 30 days — the operator's
@@ -1258,7 +1258,7 @@ model CustomerPortalSession {
   // sessions (the token is bound to the email they
   // typed, not the current contact.email).
   email         String
-  // 32 random bytes hex-encoded = 64 chars.
+  // The SHA-256 (hex) of the link's 32 random bytes (Tier 785).
   token         String    @unique
   expiresAt     DateTime
   // Updated every time the customer hits an

@@ -45,7 +45,8 @@ assert_eq "…Max-Age is 30 days" "$MAXAGE" "2592000"
 # Two live sessions: the fixture registered (which is itself a login since
 # Tier 401) and then logged in. Sessions are per sign-in, not per user.
 assert_eq "…a session row per sign-in" "$(sql "SELECT count(*) FROM \"UserSession\" WHERE \"userId\" = '$U' AND \"revokedAt\" IS NULL;")" "2"
-assert_eq "…the token is stored, not the password" "$(sql "SELECT count(*) FROM \"UserSession\" WHERE token = '$TOKEN';")" "1"
+# Tier 785: the row holds the token's SHA-256, not the token
+assert_eq "…the token's hash is stored, not the password" "$(sql "SELECT count(*) FROM \"UserSession\" WHERE token = encode(sha256('$TOKEN'::bytea), 'hex');")" "1"
 rm -f "$HDRS"
 
 note "=== 2. the session authenticates (no x-user-id anywhere) ==="
@@ -101,9 +102,9 @@ STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyI
 assert_status 401 "…the logged-out session is dead"
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" -H "Cookie: de_session=$TOKEN2" -H "x-company-id: $C")
 assert_status 200 "…the other session of the same user still works"
-assert_eq "…revokedAt is recorded" "$(sql "SELECT count(*) FROM \"UserSession\" WHERE token = '$TOKEN' AND \"revokedAt\" IS NOT NULL;")" "1"
+assert_eq "…revokedAt is recorded" "$(sql "SELECT count(*) FROM \"UserSession\" WHERE token = encode(sha256('$TOKEN'::bytea), 'hex') AND \"revokedAt\" IS NOT NULL;")" "1"
 # Expiry is enforced on read, not by a sweeper.
-sql "UPDATE \"UserSession\" SET \"expiresAt\" = now() - interval '1 day' WHERE token = '$TOKEN2';" >/dev/null
+sql "UPDATE \"UserSession\" SET \"expiresAt\" = now() - interval '1 day' WHERE token = encode(sha256('$TOKEN2'::bytea), 'hex');" >/dev/null
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" -H "Cookie: de_session=$TOKEN2" -H "x-company-id: $C")
 assert_status 401 "an expired session is refused"
 
@@ -137,7 +138,7 @@ STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyI
   -H "Cookie: de_session=$A_TOKEN" -H "x-company-id: $COMPANY_ID")
 assert_status 200 "…the invited member is signed in to the company they joined"
 assert_eq "…as their own user, not the inviter" \
-  "$(sql "SELECT u.email FROM \"UserSession\" s JOIN \"User\" u ON u.id = s.\"userId\" WHERE s.token = '$A_TOKEN';")" "$TAG-inv@example.test"
+  "$(sql "SELECT u.email FROM \"UserSession\" s JOIN \"User\" u ON u.id = s.\"userId\" WHERE s.token = encode(sha256('$A_TOKEN'::bytea), 'hex');")" "$TAG-inv@example.test"
 
 note "=== 7. the production setting (static — the stack runs with the flag on) ==="
 GUARD="$SCRIPT_DIR/../src/auth/header-auth.guard.ts"

@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 785 — a session's row holds the token's hash
+
+`UserSession.token` and `CustomerPortalSession.token` were the 64 hex characters the browser sends. Measured: the value read from the table, sent as `Authorization: Bearer`, signed in as that user (200) and opened the customer's portal (200) — a copy of the database or of a backup was a set of working logins for 30 days. Both rows now hold the SHA-256 (`common/token-hash.ts`); no migration — the column keeps its unique index, the existing sessions of the dev database end (sign in again; a portal link is sent again). The admin's portal link was built by reading the token back from the newest row; `requestSession` now hands it back to the admin route. The portal's log line printed the 30-day link in every environment; under `NODE_ENV=production` it now leaves the token out (the reset and verify links were already dev-only). Spec 190 looks rows up by `encode(sha256(…))`; new spec `489-tier785-sitzungen-als-hash.sh` (9 fail on the old code). Payment links stay as they are: the admin's „Zahlungslink anzeigen" shows the same link again, which needs the token.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 784b — CI green for Tier 784
 
 Run 41634594462 (commit of Tier 784) green, no flaky; totals in the session report.

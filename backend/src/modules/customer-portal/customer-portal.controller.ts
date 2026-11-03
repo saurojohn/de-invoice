@@ -225,7 +225,7 @@ export class CustomerPortalController {
       throw new BadRequestException('Kunde hat keine E-Mail-Adresse hinterlegt')
     }
     const origin = this.originFromRequest(req)
-    const result = await this.svc.requestSession(
+    const issued = await this.svc.requestSession(
       email,
       origin,
       req.ip as string,
@@ -239,39 +239,19 @@ export class CustomerPortalController {
       // re-read, producing url=null.
       customer.id,
     )
-    // requestSession always returns { sent: true } —
-    // we need the actual URL to give the admin. Re-read
-    // the latest session row.
-    // Tier 207 — HIGH-001 from the code audit.
-    // The previous version filtered only by
-    // `email` (no `companyId` / `customerId`).
-    // If the same email is used by a customer in
-    // two different companies (e.g. a freelancer
-    // who is a customer of two Mandanten), the
-    // returned URL pointed to whichever company
-    // generated the most recent session — NOT the
-    // one the admin clicked from. The admin would
-    // email the wrong-company login URL to the
-    // customer. Fix: filter by `customerId` and
-    // `companyId` so the freshest session for THIS
-    // specific (customer, company) pair is returned.
-    const latest = await this.prisma.customerPortalSession.findFirst({
-      where: {
-        email: email.toLowerCase(),
-        customerId: customer.id,
-        companyId: authCompanyId, // Tier 551: the body may leave it out
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-    const url = latest
-      ? `${origin.replace(/\/$/, '')}/portal?token=${latest.token}`
+    // Tier 785: the row holds only the token's hash, so the URL is built from
+    // the token requestSession hands back. Before, the latest row of this
+    // (customer, company) was re-read for it (Tier 207 had scoped that read).
+    const { token, expiresAt, ...result } = issued
+    const url = token
+      ? `${origin.replace(/\/$/, '')}/portal?token=${token}`
       : null
     return {
       ...result,
       url,
       email,
       customerId: customer.id,
-      expiresAt: latest?.expiresAt,
+      expiresAt,
     }
   }
 

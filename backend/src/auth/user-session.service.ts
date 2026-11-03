@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { randomBytes } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
+import { tokenHash } from '../common/token-hash'
 
 /**
  * Tier 400 — browser sessions for logged-in users (HANDOFF §9 item 10).
@@ -71,7 +72,8 @@ export class UserSessionService {
     await this.prisma.userSession.create({
       data: {
         userId,
-        token,
+        token: tokenHash(token), // Tier 785
+
         expiresAt,
         ipAddress: meta.ipAddress ?? null,
         userAgent: meta.userAgent ?? null,
@@ -112,7 +114,7 @@ export class UserSessionService {
   async resolve(token: string): Promise<ResolvedSession | null> {
     if (!token) return null
     const session = await this.prisma.userSession.findUnique({
-      where: { token },
+      where: { token: tokenHash(token) },
       select: { id: true, userId: true, expiresAt: true, revokedAt: true, lastSeenAt: true },
     })
     if (!session || session.revokedAt) return null
@@ -167,7 +169,7 @@ export class UserSessionService {
   async revoke(token: string): Promise<void> {
     if (!token) return
     await this.prisma.userSession
-      .updateMany({ where: { token, revokedAt: null }, data: { revokedAt: new Date() } })
+      .updateMany({ where: { token: tokenHash(token), revokedAt: null }, data: { revokedAt: new Date() } })
       .catch((e: unknown) => this.logger.warn(`session revoke failed: ${(e as Error)?.message ?? e}`))
   }
 

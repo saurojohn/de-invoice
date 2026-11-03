@@ -70,6 +70,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { tokenHash } from '../../common/token-hash';
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 208 — MED-003. Use Prisma.Decimal
 // for the payment amount so we don't
@@ -182,7 +183,7 @@ export class CustomerPortalService {
     origin?: string,
     ip?: string,
     customerId?: string,
-  ): Promise<{ sent: true }> {
+  ): Promise<{ sent: true; token?: string; expiresAt?: Date }> {
     const normalized = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       // Bad format — still 200, we just don't send.
@@ -245,7 +246,7 @@ export class CustomerPortalService {
         companyId: customer.companyId,
         customerId: customer.id,
         email: normalized,
-        token,
+        token: tokenHash(token), // Tier 785: the link carries the token, the row its hash
         expiresAt,
         createdFromIp: ip,
       },
@@ -290,10 +291,12 @@ export class CustomerPortalService {
       // hit the rate limit and we re-think.)
       this.logger.warn(`portal email send failed for ${normalized}: ${err?.message || err}`)
     }
+    // Tier 785: the link is a credential for 30 days — in the log only outside
+    // production, where the specs read it.
     this.logger.log(
-      `portal session created for ${normalized} → ${loginUrl} (customer=${customer.id}, company=${customer.companyId})`,
+      `portal session created for ${normalized} → ${process.env.NODE_ENV === 'production' ? `${baseUrl}/portal` : loginUrl} (customer=${customer.id}, company=${customer.companyId})`,
     )
-    return { sent: true }
+    return { sent: true, token, expiresAt }
   }
 
   /**
@@ -304,7 +307,7 @@ export class CustomerPortalService {
    */
   async getCustomerInvoices(token: string): Promise<PortalCustomerSummary> {
     const session = await this.prisma.customerPortalSession.findUnique({
-      where: { token },
+      where: { token: tokenHash(token) },
       include: {
         customer: true,
       },
@@ -784,7 +787,7 @@ export class CustomerPortalService {
 
   private async resolveSession(token: string) {
     const session = await this.prisma.customerPortalSession.findUnique({
-      where: { token },
+      where: { token: tokenHash(token) },
     })
     if (!session) {
       throw new UnauthorizedException('Ungültiger oder abgelaufener Link')
