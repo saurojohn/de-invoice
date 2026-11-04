@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 793b — CI green for Tier 793
+
+Run 41809135621 (commit 3c7499e5): backend **494 passed / 0 failed / 1 skipped**, Playwright **1120 passed (32.8 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. The dev database needs migration `20261104000001_invoice_number_continuous` with the other additive ones.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 793 — the number range continues over the years
 
 The owner, 04.11.2026: „如果可以的话实现发票号码一直延续下去，查一下德国税务局有没有特别要求".
