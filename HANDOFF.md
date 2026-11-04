@@ -2669,6 +2669,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 798 — the local Playwright suite is green file by file; two backend spec baselines
+
+The rest of the local Playwright suite ran in five batches of 40 files: 763 tests, 2 files failing, both causes in other specs:
+- **ustja-oss-tier187** (UStJA ELSTER-XML 400 „Steuernummer im Firmenprofil fehlt"): the seed company had lost its Steuernummer. It was set at 21:03:08 UTC and gone at 21:03:30, the window in which spec 139 ran. Spec 139 clears it for its BR-09 check and restores on exit what it read at the start. That read sends its errors to /dev/null, and a run that read nothing restored NULL. Not reproduced in sequence (138 → 139 → 140 keeps it), so the guard is the one 133 has: with no Steuernummer or VAT id found, 139 restores ci-seed's (`123/456/78901`, `DE308630106`). From NULL, 139 now ends with the seed's.
+- **invoice-duplicate-check-tier150**: fixed in Tier 797 (spec 112's leftovers).
+
+Spec 142 failed in a rerun (GuV delta −197.03). Its baselines summed sent/paid/overdue invoices by SQL including proforma invoices (type PI), which the GuV, BWA and PnL do not count as revenue (correctly). The seed company had four PI of 2200 € locally. The baselines leave out PI now. The product was right.
+
+With these, every Playwright file has passed locally: the files the stopped full run had reached, rerun with normal load, and the five batches.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 796b — CI green for Tier 796 (and the Tier 795 fix)
 
 Run 41914403148 (commit 449cfdcf): backend **497 passed / 0 failed / 1 skipped** (497-tier795 and 498-tier796 among them), Playwright **1122 passed (40.4 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. Tier 795's settings saves are in CI now (run 41867289682 had failed on spec 497).

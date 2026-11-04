@@ -55,6 +55,12 @@ ORIGINAL_SETTINGS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice
 ORIGINAL_IDS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -F '|' -c \
   "SELECT coalesce(\"vatId\", ''), coalesce(\"taxId\", '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
 ORIGINAL_VATID=${ORIGINAL_IDS%%|*}; ORIGINAL_TAXID=${ORIGINAL_IDS#*|}
+# Tier 797: a run that found no Steuernummer (none set, or the read above
+# failed: its errors go to /dev/null) put NULL back on exit, and the seed
+# company stayed without one — locally the Playwright UStJA export then
+# answered 400. As in 133: without one found, ci-seed's is put back.
+[[ -z "$ORIGINAL_TAXID" || "$ORIGINAL_IDS" != *"|"* ]] && ORIGINAL_TAXID='123/456/78901'
+[[ -z "$ORIGINAL_VATID" || "$ORIGINAL_IDS" != *"|"* ]] && ORIGINAL_VATID='DE308630106'
 ORIGINAL_EMAIL=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT coalesce(email, '') FROM \"Company\" WHERE id='$COMPANY_ID';" 2>/dev/null | tr -d '\n')
 
