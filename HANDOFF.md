@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 794b — CI green for Tier 794
+
+Run 41835745769 (commit 055a63b5): backend **495 passed / 0 failed / 1 skipped**, Playwright **1121 passed (39.2 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. No migration (the number set lives in `Company.settings.invoiceNumberStart`). On the dev database, settings a save of the settings page dropped before Tier 794 (DATEV numbers, Hebesatz…) are to be entered again where missing.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 794 — the next invoice number can be set; saving the settings page keeps the other settings
 
 The owner, 04.11.2026: „现在能设置发票号码数字几号开始吗？" It could not: a company's first invoice was 000001, and a company coming from other software could not go on at its own count.
