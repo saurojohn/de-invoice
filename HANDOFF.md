@@ -2669,6 +2669,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 792b — CI green for Tiers 791 and 792
+
+Run 41743259875 (commit 917784b5): backend **493 passed / 0 failed / 1 skipped**, Playwright **1120 passed (39.5 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. The throwaway databases of both runs (`tmp-y27-pg`, `tmp-ny-pg`) are removed.
+
+**Every year, in addition to Tier 752's list:** around 30.12. the Bundesbank publishes the Basiszinssatz for 1 January (and around 30.06. for 1 July) — enter it in `basiszinssatz.ts`; until then the system health shows the warning, which is right, and spec 471 expects it.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 792 — New Year's night, the German day already 2027
 
 **CI of Tier 791 was red** (run 41737665389, commit 8d08559e): backend 491 passed / **1 failed** (112, „Betriebsergebnis YTD identity", 5 102,10 for 5 252,10), Playwright 1120 passed, 0 flaky. Not the hour (it ran at 00:20 German time): Tier 791 had dated spec 107's customer credit 15.06.2026, inside 112's January–June, and 112's identity left out line **1300** (Sonstige betriebliche Erträge — the customer credits), which the BWA's Betriebsergebnis has. It holds only while the seed company has no credit in those months. The identity adds 1300 now.
