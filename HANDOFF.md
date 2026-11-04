@@ -2669,6 +2669,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 797 — two Playwright specs that failed only on a used database
+
+A full local Playwright run, started 04.11.2026 17:38, was stopped after 4 h and 356 tests. The machine was at a load average of about 37 (VM, WindowServer, Chrome), and tests that passed in seconds took minutes or more than an hour. Rerun with normal load, 14 of its 16 failing files pass. The two that still failed are spec faults, and CI never meets them because its Playwright database is fresh:
+- `credit-limit-warning-tier159` used the ids of the four customers `ci-seed.sh` gives the seed company (OK/Warning/Over/NoLimit Kunde), which other specs use as "a customer of the company". Once one of those specs had booked a payment on one of their invoices (a credit note set off, a bank match), its DELETE failed on `Payment_invoiceId_fkey`. psql carried on, every INSERT failed on the existing rows, and the endpoint listed none of the fixtures. The spec now has ids of its own (`15915915-…`), its cleanup also deletes its invoices by their own ids, and psql stops at the first error (`ON_ERROR_STOP=1`), so a failed fixture fails the test with the SQL error.
+- `backups.spec` expected one row more after "Backup now". `scripts/backup.sh` keeps one backup per day, so when a backup of today already exists the new one replaces it. The spec now waits for a row id it has not seen before.
+- `invoice-duplicate-check-tier150` picks the first "BWA Test Kunde" of the customer picker. Backend spec 112 gave the seed company a customer of that name (random id) on every run and never removed it; locally there were 14, and the picker's first one had none of the seed's €119 invoices, so the banner never came. Spec 112 now removes its customer, and its pre-cleanup removes those of earlier runs that have no invoices (customer number `BWA-…-DE-1`).
+
+Local Playwright runs go in small batches from now on; under such a load a full run measures the machine, not the app.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 796 — the customer list offers the tags of all customers; the local Playwright suite keeps its seed
 
 The two Playwright specs that failed only locally (customer-email-history-tier144, customer-tag-filter-tier148), looked into:

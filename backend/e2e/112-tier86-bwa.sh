@@ -60,11 +60,18 @@ echo "=== Test: BWA (test tag: $TEST_TAG) ==="
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-%');" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-%';" >/dev/null 2>&1
 docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'BWA-%';" >/dev/null 2>&1
+# …and the customers of earlier runs. The spec gave the seed company a
+# "BWA Test Kunde" on every run and never took it away: locally, where the
+# Playwright suite shares the database, the invoice-duplicate-check spec
+# picked the first "BWA Test Kunde" of the customer picker — one of these,
+# without the seed's €119 invoices — and its banner never came.
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Customer\" c WHERE c.\"customerNumber\" LIKE 'BWA-%-DE-1' AND NOT EXISTS (SELECT 1 FROM \"Invoice\" i WHERE i.\"customerId\" = c.id);" >/dev/null 2>&1
 
 cleanup() {
   docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"InvoiceItem\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%');" >/dev/null 2>&1
   docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Invoice\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%';" >/dev/null 2>&1
   docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Expense\" WHERE \"invoiceNumber\" LIKE 'BWA-${TS}-%';" >/dev/null 2>&1
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "DELETE FROM \"Customer\" WHERE \"customerNumber\" = 'BWA-${TS}-DE-1';" >/dev/null 2>&1
   echo "  cleanup: removed BWA-${TS}-* rows"
 }
 trap cleanup EXIT

@@ -50,10 +50,18 @@ const ADMIN_HEADERS = {
 // Non-tier-prefixed fixture names so other specs
 // don't accidentally wipe them via `LIKE 'tier<N>%'`
 // cleanup patterns.
-const CUST_OK = '11111111-cccc-dddd-eeee-000000000001'
-const CUST_WARNING = '11111111-cccc-dddd-eeee-000000000002'
-const CUST_OVER = '11111111-cccc-dddd-eeee-000000000003'
-const CUST_NO_LIMIT = '11111111-cccc-dddd-eeee-000000000004'
+//
+// Ids of this spec only. It used the ids of the four customers ci-seed.sh
+// gives the seed company (OK/Warning/Over/NoLimit Kunde), which other specs
+// use as "a customer of the company": once one of them had booked a payment
+// on an invoice of theirs, the DELETE here failed on the Payment foreign key,
+// psql went on, every INSERT failed on the existing rows and the endpoint
+// listed none of the fixtures (seen locally, where the backend specs share the
+// database). psql now stops at the first error, so such a case fails here.
+const CUST_OK = '15915915-cccc-dddd-eeee-000000000001'
+const CUST_WARNING = '15915915-cccc-dddd-eeee-000000000002'
+const CUST_OVER = '15915915-cccc-dddd-eeee-000000000003'
+const CUST_NO_LIMIT = '15915915-cccc-dddd-eeee-000000000004'
 
 function setupFixtures() {
   // Customers + their creditLimits + open invoices
@@ -61,7 +69,8 @@ function setupFixtures() {
   // Wipe any prior test rows first so re-runs are
   // idempotent.
   const sql = `
-    DELETE FROM "Invoice" WHERE "customerId" IN ('${CUST_OK}','${CUST_WARNING}','${CUST_OVER}','${CUST_NO_LIMIT}');
+    DELETE FROM "Invoice" WHERE "customerId" IN ('${CUST_OK}','${CUST_WARNING}','${CUST_OVER}','${CUST_NO_LIMIT}')
+      OR id IN ('t159-ok-1','t159-warn-1','t159-over-1','t159-nolimit-1');
     DELETE FROM "Customer" WHERE id IN ('${CUST_OK}','${CUST_WARNING}','${CUST_OVER}','${CUST_NO_LIMIT}');
 
     INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", "creditLimit", tags, "createdAt", "updatedAt")
@@ -91,7 +100,7 @@ function setupFixtures() {
   require('fs').writeFileSync(path, sql)
   try {
     execSync(
-      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
+      `docker exec -i ${PG_CONTAINER} psql -v ON_ERROR_STOP=1 -U de_invoice -d de_invoice < ${path}`,
       { stdio: 'pipe' },
     )
   } finally {
@@ -101,14 +110,15 @@ function setupFixtures() {
 
 function cleanupFixtures() {
   const sql = `
-    DELETE FROM "Invoice" WHERE "customerId" IN ('${CUST_OK}','${CUST_WARNING}','${CUST_OVER}','${CUST_NO_LIMIT}');
+    DELETE FROM "Invoice" WHERE "customerId" IN ('${CUST_OK}','${CUST_WARNING}','${CUST_OVER}','${CUST_NO_LIMIT}')
+      OR id IN ('t159-ok-1','t159-warn-1','t159-over-1','t159-nolimit-1');
     DELETE FROM "Customer" WHERE id IN ('${CUST_OK}','${CUST_WARNING}','${CUST_OVER}','${CUST_NO_LIMIT}');
   `
   const path = '/tmp/tier159-cleanup.sql'
   require('fs').writeFileSync(path, sql)
   try {
     execSync(
-      `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
+      `docker exec -i ${PG_CONTAINER} psql -v ON_ERROR_STOP=1 -U de_invoice -d de_invoice < ${path}`,
       { stdio: 'pipe' },
     )
   } finally {
@@ -193,7 +203,7 @@ test.describe('Tier 159 — Credit-limit warning', () => {
 
   test('backend: customer with 0 open invoices shows status ok / utilization 0', async () => {
     // Create a customer with a limit but no invoices
-    const noInvoiceId = '11111111-cccc-dddd-eeee-000000000005'
+    const noInvoiceId = '15915915-cccc-dddd-eeee-000000000005'
     const sql = `
       DELETE FROM "Customer" WHERE id = '${noInvoiceId}';
       INSERT INTO "Customer" (id, "companyId", type, name, address, contact, "paymentTerms", "creditLimit", tags, "createdAt", "updatedAt")
@@ -203,7 +213,7 @@ test.describe('Tier 159 — Credit-limit warning', () => {
     require('fs').writeFileSync(path, sql)
     try {
       execSync(
-        `docker exec -i ${PG_CONTAINER} psql -U de_invoice -d de_invoice < ${path}`,
+        `docker exec -i ${PG_CONTAINER} psql -v ON_ERROR_STOP=1 -U de_invoice -d de_invoice < ${path}`,
         { stdio: 'pipe' },
       )
     } finally {

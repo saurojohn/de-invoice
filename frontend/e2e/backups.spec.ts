@@ -91,6 +91,9 @@ test.describe('Tier 120 — Backup management page', () => {
     // backups to render.
     await page.waitForTimeout(2000)
     const before = await rows.count()
+    const idsOf = async () =>
+      (await rows.evaluateAll((els) => els.map((e) => e.getAttribute('data-testid') ?? ''))).sort()
+    const beforeIds = await idsOf()
     // If the dev DB has zero backups (clean env), the
     // test is still meaningful — we just need to wait
     // for the new one. If the count is already > 0
@@ -110,10 +113,14 @@ test.describe('Tier 120 — Backup management page', () => {
     await expect(page.getByTestId('backup-trigger')).toBeEnabled({
       timeout: 90_000,
     })
-    // Wait for the row to appear (count went up by
-    // at least 1, or the new row is in the DOM).
+    // Wait for the new row: one whose id was not there before. Not
+    // "count + 1": scripts/backup.sh keeps one backup per day, so with a
+    // backup of today already listed (locally, where other specs back up the
+    // same database) the new one replaces it and the count stays the same.
     if (before > 0) {
-      await expect(rows).toHaveCount(before + 1, { timeout: 30_000 })
+      await expect
+        .poll(async () => (await idsOf()).some((id) => !beforeIds.includes(id)), { timeout: 30_000 })
+        .toBe(true)
     } else {
       await expect(rows.first()).toBeVisible({ timeout: 30_000 })
     }
