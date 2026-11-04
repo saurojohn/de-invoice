@@ -15,6 +15,7 @@ import { BulkSendReminderDto, CancelMahnungDto, FeeConfigDto, ReminderTemplateDt
 import {
   readDunningConfig,
 } from './reminder.service';
+import { lockCompanyRow } from '../../common/company-settings'
 
 // Mirrors the constant in auto-reminder.scheduler.ts — kept
 // inline because the scheduler file is a class member, not
@@ -691,28 +692,32 @@ export class ReminderController {
     if (!companyId) {
       throw new BadRequestException('companyId is required')
     }
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { settings: true },
-    })
-    if (!company) {
-      throw new NotFoundException('Company not found')
-    }
-    const current = (company.settings as any) || {}
-    const newSettings = {
-      ...current,
-      dunning: {
-        level1Days: body.level1Days,
-        level2Days: body.level2Days,
-        level3Days: body.level3Days,
-        level1Fee: body.level1Fee,
-        level2Fee: body.level2Fee,
-        level3Fee: body.level3Fee,
-      },
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: newSettings },
+    // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+    await this.prisma.$transaction(async (tx) => {
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { settings: true },
+      })
+      if (!company) {
+        throw new NotFoundException('Company not found')
+      }
+      const current = (company.settings as any) || {}
+      const newSettings = {
+        ...current,
+        dunning: {
+          level1Days: body.level1Days,
+          level2Days: body.level2Days,
+          level3Days: body.level3Days,
+          level1Fee: body.level1Fee,
+          level2Fee: body.level2Fee,
+          level3Fee: body.level3Fee,
+        },
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: newSettings },
+      })
     })
     // Tier 702: the fees go where every Mahnung reads them
     await this.reminderService.setFeeConfig(companyId, {

@@ -35,6 +35,7 @@
 import { BadRequestException } from '@nestjs/common'
 import { createHash } from 'crypto'
 import { Prisma } from '@prisma/client'
+import { lockCompanyRow } from '../../common/company-settings'
 
 export type InvoiceNumberType = 'INV' | 'PI' | 'CN' | 'RCV' | 'QU' | 'DN' | 'OC'
 
@@ -359,6 +360,8 @@ export async function setNextInvoiceNumber(tx: Prisma.TransactionClient, company
   if (!Number.isInteger(next) || next < 1 || next > MAX_START_NUMBER) {
     throw new BadRequestException(`Die nächste Rechnungsnummer ist eine ganze Zahl von 1 bis ${MAX_START_NUMBER.toLocaleString('de-DE')}.`)
   }
+  // Tier 795: settings.invoiceNumberStart is written under the company's row lock
+  await lockCompanyRow(tx, companyId)
   const { company, seqName, scope } = await rangeOf(tx, companyId, year)
   // the lock of the sequence's creator (Tier 783): no invoice creates it meanwhile
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${seqName}::text))`

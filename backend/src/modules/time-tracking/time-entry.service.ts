@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { InvoiceService } from '../invoice/invoice.service'
 import { businessDayIso, businessTodayIso } from '../../common/business-date'
 import { withKeyLock } from '../../common/key-lock'
+import { lockCompanyRow } from '../../common/company-settings'
 
 /**
  * Tier 611 — time tracking (Zeiterfassung).
@@ -265,14 +266,18 @@ export class TimeEntryService {
     if (body.mode !== undefined && body.mode !== 'up' && body.mode !== 'nearest') {
       throw new BadRequestException('mode muss up (aufrunden) oder nearest (kaufmännisch) sein.')
     }
-    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } })
-    if (!company) throw new NotFoundException('Firma nicht gefunden')
     const rule: Rounding = { minutes: body.minutes, mode: body.mode === 'nearest' ? 'nearest' : 'up' }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: { ...((company.settings ?? {}) as Record<string, unknown>), timeRounding: rule } },
+    return this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({ where: { id: companyId }, select: { settings: true } })
+      if (!company) throw new NotFoundException('Firma nicht gefunden')
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: { ...((company.settings ?? {}) as Record<string, unknown>), timeRounding: rule } },
+      })
+      return rule
     })
-    return rule
   }
 
   /**

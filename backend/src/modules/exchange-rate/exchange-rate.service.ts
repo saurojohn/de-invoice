@@ -53,6 +53,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 // the shared CronHealthService so the admin
 // dashboard can surface the last run + last error.
 import { CronHealthService } from '../admin/cron-health.service'
+import { lockCompanyRow } from '../../common/company-settings'
 
 // The 7 currencies we care about. ECB has 30+ but
 // supporting all of them adds noise — the typical
@@ -464,16 +465,21 @@ export class ExchangeRateService {
     companyId: string,
     snapshot: ExchangeRateSnapshot,
   ): Promise<void> {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { settings: true },
-    })
-    const settings: any = company?.settings || {}
-    const datev: any = settings.datev || {}
-    const next = { ...settings, datev: { ...datev, exchangeRates: snapshot } }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: next },
+    // Tier 795: read and written under the company's row lock
+    await this.prisma.$transaction(async (tx) => {
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { settings: true },
+      })
+      if (!company) return
+      const settings: any = company.settings || {}
+      const datev: any = settings.datev || {}
+      const next = { ...settings, datev: { ...datev, exchangeRates: snapshot } }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: next },
+      })
     })
   }
 

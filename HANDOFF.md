@@ -2669,6 +2669,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 795 — settings saved at the same time are all kept; the bank details keep the dunning fees
+
+Tier 794 found that the settings page wrote its three preferences over the whole `Company.settings`. The rest of that class, measured on the code before:
+
+**Two saves at once lost one.** `Company.settings` holds the DATEV numbers and exchange rates, the Anlage flags, the Hebesatz and GewSt prepayments, the KSt prepayments, Anlage N/R/Kind/SO/AUS, Zusammenveranlagung, the dunning stages, the time rounding, the invoice number start. Each of its 17 writers read the column, changed its key and wrote all of it back, so the later of two saves undid the earlier one — the feature flags and the DATEV settings sent together: 15 of 15 pairs lost one; six of them at once (flags, DATEV, GewSt, time rounding, dunning, KSt): 10 of 10 rounds lost at least one. Each writer now reads and writes in a transaction under the company's row lock — `common/company-settings.ts`: `lockCompanyRow` (`FOR NO KEY UPDATE`, so the foreign-key checks of invoices and expenses being saved for the company do not wait) and `updateCompanySettings(prisma, companyId, change)`. The write is still a Prisma update (Company is audited). `CompanyService.update` merges what is sent under the same lock. The Anlage SO loss carry-forward (`storeCarryforward`, its own `jsonb_set`) runs after the lock is released, as it uses its own connection.
+
+**The bank details dropped the dunning fees.** `Company.bankInfo` holds `mahnungConfig` (Mahngebühren, Verzugszins; `reminder.service setFeeConfig`, the dunning card of the settings page) next to the IBAN; the settings page sends bank name, IBAN and BIC, and a save dropped the fees (measured). The keys sent are merged over the stored ones, as for `settings`; an emptied IBAN is still emptied. On the dev database, fees entered before a later save of the settings page are gone; enter them again.
+
+Spec `497-tier795-einstellungen-gleichzeitig.sh` (on the code before: 10 of 10 rounds lost a save, the Mahngebühr gone).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 794b — CI green for Tier 794
 
 Run 41835745769 (commit 055a63b5): backend **495 passed / 0 failed / 1 skipped**, Playwright **1121 passed (39.2 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. No migration (the number set lives in `Company.settings.invoiceNumberStart`). On the dev database, settings a save of the settings page dropped before Tier 794 (DATEV numbers, Hebesatz…) are to be entered again where missing.

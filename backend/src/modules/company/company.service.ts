@@ -5,6 +5,7 @@ import { euerNotAllowedFor } from './gewinnermittlung';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertIban } from '../../common/iban';
 import { PrismaService } from '../../prisma/prisma.service';
+import { lockCompanyRow } from '../../common/company-settings';
 
 @Injectable()
 export class CompanyService {
@@ -89,11 +90,21 @@ export class CompanyService {
     // every save of the settings page replaced the whole JSON with those three
     // (measured: {"datev":{…},"anlageV":true} became {"defaultCurrency":…}).
     // The keys sent are merged over the stored ones.
-    if (data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings)) {
-      const own = (await this.prisma.company.findUnique({ where: { id }, select: { settings: true } }))?.settings
-      const kept = own && typeof own === 'object' && !Array.isArray(own) ? (own as Record<string, unknown>) : {}
-      data = { ...data, settings: { ...kept, ...data.settings } };
-    }
-    return this.prisma.company.update({ where: { id }, data: withCheckedVatId(data) });
+    // Tier 795: so are the keys of bankInfo — it also holds the Mahngebühren
+    // and the Verzugszins (reminder.service setFeeConfig), which the settings
+    // page does not send. Read and merged under the company's row lock, so a
+    // writer of another key at the same time is not undone
+    // (common/company-settings.ts).
+    const plain = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+    const merges = plain(data.settings) || plain(data.bankInfo)
+    if (!merges) return this.prisma.company.update({ where: { id }, data: withCheckedVatId(data) });
+    return this.prisma.$transaction(async (tx) => {
+      await lockCompanyRow(tx, id)
+      const own = await tx.company.findUnique({ where: { id }, select: { settings: true, bankInfo: true } })
+      let next = data
+      if (plain(data.settings)) next = { ...next, settings: { ...(plain(own?.settings) ? own.settings : {}), ...data.settings } }
+      if (plain(data.bankInfo)) next = { ...next, bankInfo: { ...(plain(own?.bankInfo) ? own.bankInfo : {}), ...data.bankInfo } }
+      return tx.company.update({ where: { id }, data: withCheckedVatId(next) })
+    });
   }
 }

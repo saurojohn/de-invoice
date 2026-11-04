@@ -4,6 +4,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { lockCompanyRow } from '../../common/company-settings'
 
 /**
  * Tier 113 v2: Anlage SO — extends v1 (private
@@ -732,54 +733,59 @@ export class AnlageSOV2Service {
       throw new BadRequestException('CSV enthält keine gültigen Zeilen')
     }
     const newTransactions: VgTransaction[] = okRows.map((p) => p.transaction)
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    })
-    if (!company) throw new NotFoundException('Firma nicht gefunden')
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const anlageSoAll = (settings.anlageSO as any) || {}
-    const yearData = anlageSoAll[year] || {}
-    const existing: VgTransaction[] = Array.isArray(yearData.transactions)
-      ? yearData.transactions
-      : []
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+      })
+      if (!company) throw new NotFoundException('Firma nicht gefunden')
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const anlageSoAll = (settings.anlageSO as any) || {}
+      const yearData = anlageSoAll[year] || {}
+      const existing: VgTransaction[] = Array.isArray(yearData.transactions)
+        ? yearData.transactions
+        : []
 
-    let merged: VgTransaction[]
-    let skippedCount = 0
-    if (replace) {
-      merged = newTransactions
-    } else {
-      const seen = new Set(
-        existing
-          .filter((t) => t.description && t.acquisitionDate && t.saleDate)
-          .map((t) => `${t.description}__${t.acquisitionDate}__${t.saleDate}`),
-      )
-      const newOnes: VgTransaction[] = []
-      for (const t of newTransactions) {
-        const k = `${t.description}__${t.acquisitionDate}__${t.saleDate}`
-        if (seen.has(k)) {
-          skippedCount++
-          continue
+      let merged: VgTransaction[]
+      let skippedCount = 0
+      if (replace) {
+        merged = newTransactions
+      } else {
+        const seen = new Set(
+          existing
+            .filter((t) => t.description && t.acquisitionDate && t.saleDate)
+            .map((t) => `${t.description}__${t.acquisitionDate}__${t.saleDate}`),
+        )
+        const newOnes: VgTransaction[] = []
+        for (const t of newTransactions) {
+          const k = `${t.description}__${t.acquisitionDate}__${t.saleDate}`
+          if (seen.has(k)) {
+            skippedCount++
+            continue
+          }
+          seen.add(k)
+          newOnes.push(t)
         }
-        seen.add(k)
-        newOnes.push(t)
+        merged = existing.concat(newOnes)
       }
-      merged = existing.concat(newOnes)
-    }
 
-    anlageSoAll[year] = {
-      ...yearData,
-      transactions: merged,
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: { ...settings, anlageSO: anlageSoAll } } as any,
+      anlageSoAll[year] = {
+        ...yearData,
+        transactions: merged,
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: { ...settings, anlageSO: anlageSoAll } } as any,
+      })
+      return {
+        importedCount: replace ? newTransactions.length : newTransactions.length - skippedCount,
+        skippedCount,
+        transactions: merged,
+      }
     })
     await this.storeCarryforward(companyId, year)
-    return {
-      importedCount: replace ? newTransactions.length : newTransactions.length - skippedCount,
-      skippedCount,
-      transactions: merged,
-    }
+    return result
   }
 
   /**
@@ -831,64 +837,69 @@ export class AnlageSOV2Service {
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    })
-    if (!company) throw new NotFoundException('Firma nicht gefunden')
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const anlageSoAll = (settings.anlageSO as any) || {}
-    const yearData = anlageSoAll[year] || {}
-    const existing: VgTransaction[] = Array.isArray(yearData.transactions)
-      ? yearData.transactions
-      : []
-    const importedFromIds = this.importedExpenseIds(settings)
-
-    const expenses = await this.prisma.expense.findMany({
-      where: { ...this.purchaseWhere(companyId, year), ...(ids ? { id: { in: ids } } : {}) },
-      orderBy: { invoiceDate: 'asc' },
-      // Tier 770: no limit. The first 500 came back on every import, so the
-      // 501st purchase of a year never reached the tax form.
-    })
-
-    const newTransactions: VgTransaction[] = []
-    let skippedCount = 0
-    for (const e of expenses) {
-      if (importedFromIds.has(e.id)) {
-        skippedCount++
-        continue
-      }
-      newTransactions.push({
-        type: isCryptoCategory(e.category) ? 'krypto' : 'wertpapier',
-        description: e.invoiceNumber
-          ? `${e.invoiceNumber} — ${e.description}`
-          : e.description,
-        acquisitionDate: e.invoiceDate.toISOString().slice(0, 10),
-        acquisitionCost: Number(e.grossAmount) || 0,
-        saleDate: '',
-        salePrice: 0,
-        v: 2,
-        metadata: {
-          importedFromExpenseId: e.id,
-          importedAt: new Date().toISOString(),
-        },
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
       })
-    }
+      if (!company) throw new NotFoundException('Firma nicht gefunden')
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const anlageSoAll = (settings.anlageSO as any) || {}
+      const yearData = anlageSoAll[year] || {}
+      const existing: VgTransaction[] = Array.isArray(yearData.transactions)
+        ? yearData.transactions
+        : []
+      const importedFromIds = this.importedExpenseIds(settings)
 
-    const merged = existing.concat(newTransactions)
-    anlageSoAll[year] = {
-      ...yearData,
-      transactions: merged,
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: { ...settings, anlageSO: anlageSoAll } } as any,
+      const expenses = await this.prisma.expense.findMany({
+        where: { ...this.purchaseWhere(companyId, year), ...(ids ? { id: { in: ids } } : {}) },
+        orderBy: { invoiceDate: 'asc' },
+        // Tier 770: no limit. The first 500 came back on every import, so the
+        // 501st purchase of a year never reached the tax form.
+      })
+
+      const newTransactions: VgTransaction[] = []
+      let skippedCount = 0
+      for (const e of expenses) {
+        if (importedFromIds.has(e.id)) {
+          skippedCount++
+          continue
+        }
+        newTransactions.push({
+          type: isCryptoCategory(e.category) ? 'krypto' : 'wertpapier',
+          description: e.invoiceNumber
+            ? `${e.invoiceNumber} — ${e.description}`
+            : e.description,
+          acquisitionDate: e.invoiceDate.toISOString().slice(0, 10),
+          acquisitionCost: Number(e.grossAmount) || 0,
+          saleDate: '',
+          salePrice: 0,
+          v: 2,
+          metadata: {
+            importedFromExpenseId: e.id,
+            importedAt: new Date().toISOString(),
+          },
+        })
+      }
+
+      const merged = existing.concat(newTransactions)
+      anlageSoAll[year] = {
+        ...yearData,
+        transactions: merged,
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: { ...settings, anlageSO: anlageSoAll } } as any,
+      })
+      return {
+        importedCount: newTransactions.length,
+        skippedCount,
+        transactions: merged,
+      }
     })
     await this.storeCarryforward(companyId, year)
-    return {
-      importedCount: newTransactions.length,
-      skippedCount,
-      transactions: merged,
-    }
+    return result
   }
 
   /**

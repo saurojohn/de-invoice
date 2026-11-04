@@ -18,6 +18,7 @@ import { AuditService } from '../audit/audit.service';
 import { CallerBoundUpload } from '../../auth/caller-bound-upload';
 import { businessToday } from '../../common/business-date';
 import { peekNextInvoiceNumber, setNextInvoiceNumber } from '../invoice/invoice-number';
+import { updateCompanySettings } from '../../common/company-settings';
 
 // Tier 376: `:id` is the company — bind it to the authenticated one.
 @CompanyIdParam('id')
@@ -204,72 +205,72 @@ export class CompanyController {
       laufNr?: Record<number | string, number>;
     },
   ) {
-    const company = await this.companyService.findById(id)
-    const settings = (company as any)?.settings || {}
-    const next = { ...settings }
-    if (!next.datev) next.datev = {}
-    if (body.accounts) {
-      // REPLACE behavior for the 13 account fields:
-      // the PUT body's `accounts` is the new full
-      // state of the override map. The user clears
-      // an individual override by sending "" or
-      // omitting the key. sanitizeDatevConfig drops
-      // anything malformed (e.g. "AB-CD" or "99").
-      // Pre-existing openingBalances + laufNr are
-      // preserved unless they appear in the body
-      // (handled below).
-      const sanitized = sanitizeDatevConfig(body.accounts)
-      // Drop the 13 account fields from next.datev
-      // so a sanitized result of {} (when ALL inputs
-      // are invalid) leaves the map empty rather
-      // than stale.
-      for (const k of Object.keys(SKR03_DEFAULTS)) {
-        delete (next.datev as any)[k]
-      }
-      Object.assign(next.datev, sanitized)
-    }
-    // Tier 423: saved whether or not `accounts` is in the body (they were only
-    // saved together with it). A DATEV Beraternummer has up to 7 digits.
-    if (typeof body.beraterNr === 'string' && /^\d{1,7}$/.test(body.beraterNr)) {
-      next.datev.beraterNr = body.beraterNr.padStart(5, '0')
-    } else if (typeof body.beraterNr === 'string') {
-      delete next.datev.beraterNr
-    }
-    if (typeof body.mandantenNr === 'string' && /^\d{1,5}$/.test(body.mandantenNr)) {
-      next.datev.mandantenNr = body.mandantenNr.padStart(5, '0')
-    } else if (typeof body.mandantenNr === 'string') {
-      delete next.datev.mandantenNr
-    }
-    // Opening balances — validate each entry's
-    // shape, drop anything malformed. The Berater
-    // gets a clean list even when the form sends
-    // partially-filled rows.
-    if (Array.isArray(body.openingBalances)) {
-      const cleaned = body.openingBalances
-        .filter((e) => e && typeof e.konto === 'string' && /^\d{3,5}$/.test(e.konto))
-        .filter((e) => e && (e.shVz === 'S' || e.shVz === 'H'))
-        .filter((e) => e && typeof e.betrag === 'number' && !isNaN(e.betrag) && e.betrag > 0)
-        .map((e) => ({
-          konto: e.konto.padEnd(4, '0').substring(0, 5),
-          betrag: Number(e.betrag.toFixed(4)),
-          shVz: e.shVz,
-          buchungstext: typeof e.buchungstext === 'string' ? e.buchungstext.substring(0, 60) : '',
-        }))
-      next.datev.openingBalances = cleaned
-    }
-    // Buchungslauf counter — a year→number map. Validate
-    // the keys are 4-digit years and the values are
-    // positive integers. Anything else is dropped.
-    if (body.laufNr && typeof body.laufNr === 'object') {
-      const cleaned: Record<string, number> = {}
-      for (const [year, n] of Object.entries(body.laufNr)) {
-        if (/^\d{4}$/.test(year) && Number.isInteger(n) && (n as number) >= 1) {
-          cleaned[year] = n as number
+    // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+    const next = await updateCompanySettings(this.prisma, id, (next) => {
+      if (!next.datev) next.datev = {}
+      if (body.accounts) {
+        // REPLACE behavior for the 13 account fields:
+        // the PUT body's `accounts` is the new full
+        // state of the override map. The user clears
+        // an individual override by sending "" or
+        // omitting the key. sanitizeDatevConfig drops
+        // anything malformed (e.g. "AB-CD" or "99").
+        // Pre-existing openingBalances + laufNr are
+        // preserved unless they appear in the body
+        // (handled below).
+        const sanitized = sanitizeDatevConfig(body.accounts)
+        // Drop the 13 account fields from next.datev
+        // so a sanitized result of {} (when ALL inputs
+        // are invalid) leaves the map empty rather
+        // than stale.
+        for (const k of Object.keys(SKR03_DEFAULTS)) {
+          delete (next.datev as any)[k]
         }
+        Object.assign(next.datev, sanitized)
       }
-      next.datev.laufNr = cleaned
-    }
-    await this.companyService.update(id, { settings: next } as any)
+      // Tier 423: saved whether or not `accounts` is in the body (they were only
+      // saved together with it). A DATEV Beraternummer has up to 7 digits.
+      if (typeof body.beraterNr === 'string' && /^\d{1,7}$/.test(body.beraterNr)) {
+        next.datev.beraterNr = body.beraterNr.padStart(5, '0')
+      } else if (typeof body.beraterNr === 'string') {
+        delete next.datev.beraterNr
+      }
+      if (typeof body.mandantenNr === 'string' && /^\d{1,5}$/.test(body.mandantenNr)) {
+        next.datev.mandantenNr = body.mandantenNr.padStart(5, '0')
+      } else if (typeof body.mandantenNr === 'string') {
+        delete next.datev.mandantenNr
+      }
+      // Opening balances — validate each entry's
+      // shape, drop anything malformed. The Berater
+      // gets a clean list even when the form sends
+      // partially-filled rows.
+      if (Array.isArray(body.openingBalances)) {
+        const cleaned = body.openingBalances
+          .filter((e) => e && typeof e.konto === 'string' && /^\d{3,5}$/.test(e.konto))
+          .filter((e) => e && (e.shVz === 'S' || e.shVz === 'H'))
+          .filter((e) => e && typeof e.betrag === 'number' && !isNaN(e.betrag) && e.betrag > 0)
+          .map((e) => ({
+            konto: e.konto.padEnd(4, '0').substring(0, 5),
+            betrag: Number(e.betrag.toFixed(4)),
+            shVz: e.shVz,
+            buchungstext: typeof e.buchungstext === 'string' ? e.buchungstext.substring(0, 60) : '',
+          }))
+        next.datev.openingBalances = cleaned
+      }
+      // Buchungslauf counter — a year→number map. Validate
+      // the keys are 4-digit years and the values are
+      // positive integers. Anything else is dropped.
+      if (body.laufNr && typeof body.laufNr === 'object') {
+        const cleaned: Record<string, number> = {}
+        for (const [year, n] of Object.entries(body.laufNr)) {
+          if (/^\d{4}$/.test(year) && Number.isInteger(n) && (n as number) >= 1) {
+            cleaned[year] = n as number
+          }
+        }
+        next.datev.laufNr = cleaned
+      }
+      return next
+    })
     return {
       ok: true,
       config: resolveDatevAccounts(next.datev),
@@ -351,30 +352,28 @@ export class CompanyController {
     if (body.anlageAus !== undefined && typeof body.anlageAus !== 'boolean') {
       throw new BadRequestException('anlageAus muss ein Boolean sein')
     }
-    const company = await this.companyService.findById(id)
-    if (!company) {
-      throw new BadRequestException('Firma nicht gefunden')
-    }
-    const settings = ((company as any)?.settings ?? {}) as Record<string, unknown>
-    const prev = {
-      autoBookAfa: settings.autoBookAfa !== false,
-      anlageV: settings.anlageV === true,
-      anlageG: settings.anlageG === true,
-      anlageN: settings.anlageN === true,
-      anlageKind: settings.anlageKind === true,
-      anlageSo: settings.anlageSo === true,
-      anlageAus: settings.anlageAus === true,
-    }
-    const next: Record<string, unknown> = { ...settings }
-    if (body.autoBookAfa !== undefined) next.autoBookAfa = body.autoBookAfa
-    if (body.anlageV !== undefined) next.anlageV = body.anlageV
-    if (body.anlageG !== undefined) next.anlageG = body.anlageG
-    if (body.anlageN !== undefined) next.anlageN = body.anlageN
-    if (body.anlageKind !== undefined) next.anlageKind = body.anlageKind
-    if (body.anlageSo !== undefined) next.anlageSo = body.anlageSo
-    if (body.anlageAus !== undefined) next.anlageAus = body.anlageAus
+    // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+    const prev = await updateCompanySettings(this.prisma, id, (next) => {
+      const settings = next as Record<string, unknown>
+      const prev = {
+        autoBookAfa: settings.autoBookAfa !== false,
+        anlageV: settings.anlageV === true,
+        anlageG: settings.anlageG === true,
+        anlageN: settings.anlageN === true,
+        anlageKind: settings.anlageKind === true,
+        anlageSo: settings.anlageSo === true,
+        anlageAus: settings.anlageAus === true,
+      }
+      if (body.autoBookAfa !== undefined) next.autoBookAfa = body.autoBookAfa
+      if (body.anlageV !== undefined) next.anlageV = body.anlageV
+      if (body.anlageG !== undefined) next.anlageG = body.anlageG
+      if (body.anlageN !== undefined) next.anlageN = body.anlageN
+      if (body.anlageKind !== undefined) next.anlageKind = body.anlageKind
+      if (body.anlageSo !== undefined) next.anlageSo = body.anlageSo
+      if (body.anlageAus !== undefined) next.anlageAus = body.anlageAus
 
-    await this.companyService.update(id, { settings: next } as any)
+      return prev
+    })
 
     // Audit log: who flipped the flag, when, and
     // what the previous value was. The Berater

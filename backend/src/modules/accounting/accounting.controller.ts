@@ -78,6 +78,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Require } from '../../auth/roles.decorator';
 import { cleanRow as cleanSoRow } from './anlage-so-rules';
 import { AnlageSOV2Service } from './anlage-so-v2.service';
+import { lockCompanyRow } from '../../common/company-settings'
 
 const WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -719,14 +720,18 @@ export class AccountingController {
     @Body() body: ZusammenveranlagungDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
-    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
-    if (!company) throw new BadRequestException('Firma nicht gefunden')
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: { ...settings, zusammenveranlagung: body.zusammenveranlagung } } as any,
+    return this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({ where: { id: companyId } })
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: { ...settings, zusammenveranlagung: body.zusammenveranlagung } } as any,
+      })
+      return { ok: true, zusammenveranlagung: body.zusammenveranlagung }
     })
-    return { ok: true, zusammenveranlagung: body.zusammenveranlagung }
   }
 
   @Require('accounting.read')
@@ -892,54 +897,58 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
 
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
+    return this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+      })
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const lsbAll = (settings.lohnsteuerbescheinigungen as any) || {}
+      const wkAll = (settings.werbungskosten as any) || {}
+      const saAll = (settings.sonderausgaben as any) || {}
+      const abAll = (settings.aussergewoehnlicheBelastungen as any) || {}
+
+      const lsbUpdate: any = {
+        bruttoArbeitslohn: Number(body.bruttoArbeitslohn) || 0,
+        lohnsteuer: Number(body.lohnsteuer) || 0,
+        soli: Number(body.soli) || 0,
+        kirchensteuer: Number(body.kirchensteuer) || 0,
+        rentenversicherung: Number(body.rentenversicherung) || 0,
+        arbeitslosenversicherung: Number(body.arbeitslosenversicherung) || 0,
+        krankenversicherung: Number(body.krankenversicherung) || 0,
+        pflegeversicherung: Number(body.pflegeversicherung) || 0,
+      }
+      lsbAll[body.year] = lsbUpdate
+      if (body.werbungskosten) wkAll[body.year] = body.werbungskosten
+      if (body.sonderausgaben) saAll[body.year] = body.sonderausgaben
+      if (body.aussergewoehnlicheBelastungen) {
+        abAll[body.year] = body.aussergewoehnlicheBelastungen
+      }
+
+      const next = {
+        ...settings,
+        lohnsteuerbescheinigungen: lsbAll,
+        werbungskosten: wkAll,
+        sonderausgaben: saAll,
+        aussergewoehnlicheBelastungen: abAll,
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: next } as any,
+      })
+
+      return {
+        ok: true,
+        year: body.year,
+        lohnsteuerbescheinigung: lsbUpdate,
+        werbungskosten: wkAll[body.year] || {},
+        sonderausgaben: saAll[body.year] || {},
+        aussergewoehnlicheBelastungen: abAll[body.year] || {},
+      }
     })
-    if (!company) throw new BadRequestException('Firma nicht gefunden')
-
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const lsbAll = (settings.lohnsteuerbescheinigungen as any) || {}
-    const wkAll = (settings.werbungskosten as any) || {}
-    const saAll = (settings.sonderausgaben as any) || {}
-    const abAll = (settings.aussergewoehnlicheBelastungen as any) || {}
-
-    const lsbUpdate: any = {
-      bruttoArbeitslohn: Number(body.bruttoArbeitslohn) || 0,
-      lohnsteuer: Number(body.lohnsteuer) || 0,
-      soli: Number(body.soli) || 0,
-      kirchensteuer: Number(body.kirchensteuer) || 0,
-      rentenversicherung: Number(body.rentenversicherung) || 0,
-      arbeitslosenversicherung: Number(body.arbeitslosenversicherung) || 0,
-      krankenversicherung: Number(body.krankenversicherung) || 0,
-      pflegeversicherung: Number(body.pflegeversicherung) || 0,
-    }
-    lsbAll[body.year] = lsbUpdate
-    if (body.werbungskosten) wkAll[body.year] = body.werbungskosten
-    if (body.sonderausgaben) saAll[body.year] = body.sonderausgaben
-    if (body.aussergewoehnlicheBelastungen) {
-      abAll[body.year] = body.aussergewoehnlicheBelastungen
-    }
-
-    const next = {
-      ...settings,
-      lohnsteuerbescheinigungen: lsbAll,
-      werbungskosten: wkAll,
-      sonderausgaben: saAll,
-      aussergewoehnlicheBelastungen: abAll,
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: next } as any,
-    })
-
-    return {
-      ok: true,
-      year: body.year,
-      lohnsteuerbescheinigung: lsbUpdate,
-      werbungskosten: wkAll[body.year] || {},
-      sonderausgaben: saAll[body.year] || {},
-      aussergewoehnlicheBelastungen: abAll[body.year] || {},
-    }
   }
 
   // =============================================================
@@ -1069,50 +1078,54 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
 
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
+    return this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+      })
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const rentenAll = (settings.renten as any) || {}
+      const wkAll = (settings.rentenWerbungskosten as any) || {}
+
+      const rentenUpdate = {
+        drv: Math.max(0, Number(body.drv) || 0),
+        bav: Math.max(0, Number(body.bav) || 0),
+        riester: Math.max(0, Number(body.riester) || 0),
+        ruerup: Math.max(0, Number(body.ruerup) || 0),
+        privat: Math.max(0, Number(body.privat) || 0),
+        sonstige: Math.max(0, Number(body.sonstige) || 0),
+        // Tier 655: when each pension began; a body without them keeps what is there
+        drvBeginn: body.drvBeginn !== undefined ? body.drvBeginn : (rentenAll[body.year]?.drvBeginn ?? null),
+        ruerupBeginn: body.ruerupBeginn !== undefined ? body.ruerupBeginn : (rentenAll[body.year]?.ruerupBeginn ?? null),
+        sonstigeBeginn: body.sonstigeBeginn !== undefined ? body.sonstigeBeginn : (rentenAll[body.year]?.sonstigeBeginn ?? null),
+        privatAlter: body.privatAlter !== undefined ? body.privatAlter : (rentenAll[body.year]?.privatAlter ?? null),
+      }
+      if (rentenUpdate.drvBeginn != null && rentenUpdate.drvBeginn > body.year) throw new BadRequestException('drvBeginn liegt nach dem Steuerjahr')
+      if (rentenUpdate.ruerupBeginn != null && rentenUpdate.ruerupBeginn > body.year) throw new BadRequestException('ruerupBeginn liegt nach dem Steuerjahr')
+      if (rentenUpdate.sonstigeBeginn != null && rentenUpdate.sonstigeBeginn > body.year) throw new BadRequestException('sonstigeBeginn liegt nach dem Steuerjahr')
+      rentenAll[body.year] = rentenUpdate
+      if (body.werbungskosten) wkAll[body.year] = body.werbungskosten
+
+      const next = {
+        ...settings,
+        renten: rentenAll,
+        rentenWerbungskosten: wkAll,
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: next } as any,
+      })
+
+      return {
+        ok: true,
+        year: body.year,
+        renten: rentenUpdate,
+        werbungskosten: wkAll[body.year] || {},
+      }
     })
-    if (!company) throw new BadRequestException('Firma nicht gefunden')
-
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const rentenAll = (settings.renten as any) || {}
-    const wkAll = (settings.rentenWerbungskosten as any) || {}
-
-    const rentenUpdate = {
-      drv: Math.max(0, Number(body.drv) || 0),
-      bav: Math.max(0, Number(body.bav) || 0),
-      riester: Math.max(0, Number(body.riester) || 0),
-      ruerup: Math.max(0, Number(body.ruerup) || 0),
-      privat: Math.max(0, Number(body.privat) || 0),
-      sonstige: Math.max(0, Number(body.sonstige) || 0),
-      // Tier 655: when each pension began; a body without them keeps what is there
-      drvBeginn: body.drvBeginn !== undefined ? body.drvBeginn : (rentenAll[body.year]?.drvBeginn ?? null),
-      ruerupBeginn: body.ruerupBeginn !== undefined ? body.ruerupBeginn : (rentenAll[body.year]?.ruerupBeginn ?? null),
-      sonstigeBeginn: body.sonstigeBeginn !== undefined ? body.sonstigeBeginn : (rentenAll[body.year]?.sonstigeBeginn ?? null),
-      privatAlter: body.privatAlter !== undefined ? body.privatAlter : (rentenAll[body.year]?.privatAlter ?? null),
-    }
-    if (rentenUpdate.drvBeginn != null && rentenUpdate.drvBeginn > body.year) throw new BadRequestException('drvBeginn liegt nach dem Steuerjahr')
-    if (rentenUpdate.ruerupBeginn != null && rentenUpdate.ruerupBeginn > body.year) throw new BadRequestException('ruerupBeginn liegt nach dem Steuerjahr')
-    if (rentenUpdate.sonstigeBeginn != null && rentenUpdate.sonstigeBeginn > body.year) throw new BadRequestException('sonstigeBeginn liegt nach dem Steuerjahr')
-    rentenAll[body.year] = rentenUpdate
-    if (body.werbungskosten) wkAll[body.year] = body.werbungskosten
-
-    const next = {
-      ...settings,
-      renten: rentenAll,
-      rentenWerbungskosten: wkAll,
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: next } as any,
-    })
-
-    return {
-      ok: true,
-      year: body.year,
-      renten: rentenUpdate,
-      werbungskosten: wkAll[body.year] || {},
-    }
   }
 
   // =============================================================
@@ -1186,43 +1199,47 @@ export class AccountingController {
       throw new BadRequestException('kinder[] ist erforderlich (Array)')
     }
 
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
+    return this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+      })
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
+
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const kinderAll = (settings.kinder as any) || {}
+
+      // Sanitize the input — strip empty/invalid
+      // entries, normalize booleans.
+      const kinder = body.kinder
+        .filter((k) => k && typeof k === 'object')
+        .map((k) => ({
+          name: String(k.name || '').trim() || 'Kind',
+          birthDate:
+            typeof k.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k.birthDate)
+              ? k.birthDate
+              : '',
+          kindergeldEligible: k.kindergeldEligible !== false,
+        }))
+
+      kinderAll[body.year] = kinder
+
+      const next = {
+        ...settings,
+        kinder: kinderAll,
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: next } as any,
+      })
+
+      return {
+        ok: true,
+        year: body.year,
+        kinder,
+      }
     })
-    if (!company) throw new BadRequestException('Firma nicht gefunden')
-
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const kinderAll = (settings.kinder as any) || {}
-
-    // Sanitize the input — strip empty/invalid
-    // entries, normalize booleans.
-    const kinder = body.kinder
-      .filter((k) => k && typeof k === 'object')
-      .map((k) => ({
-        name: String(k.name || '').trim() || 'Kind',
-        birthDate:
-          typeof k.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k.birthDate)
-            ? k.birthDate
-            : '',
-        kindergeldEligible: k.kindergeldEligible !== false,
-      }))
-
-    kinderAll[body.year] = kinder
-
-    const next = {
-      ...settings,
-      kinder: kinderAll,
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: next } as any,
-    })
-
-    return {
-      ok: true,
-      year: body.year,
-      kinder,
-    }
   }
 
   // =============================================================
@@ -1291,49 +1308,54 @@ export class AccountingController {
       throw new BadRequestException('transactions[] ist erforderlich (Array)')
     }
 
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    })
-    if (!company) throw new BadRequestException('Firma nicht gefunden')
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+      })
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
 
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const anlageSoAll = (settings.anlageSO as any) || {}
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const anlageSoAll = (settings.anlageSO as any) || {}
 
-    // Rows without any content are dropped; every other row is kept as
-    // entered — a row that cannot be counted yet (no sale date, a sale of
-    // another year) comes back from GET /anlage-so with the reason
-    // (Tier 665). The kind is the one chosen (Tier 664).
-    const transactions = body.transactions
-      .filter((t) => t && typeof t === 'object')
-      .map((t) => cleanSoRow(t, true))
-      .filter((t) => t.description || t.acquisitionDate || t.saleDate || t.acquisitionCost || t.salePrice)
+      // Rows without any content are dropped; every other row is kept as
+      // entered — a row that cannot be counted yet (no sale date, a sale of
+      // another year) comes back from GET /anlage-so with the reason
+      // (Tier 665). The kind is the one chosen (Tier 664).
+      const transactions = body.transactions
+        .filter((t) => t && typeof t === 'object')
+        .map((t) => cleanSoRow(t, true))
+        .filter((t) => t.description || t.acquisitionDate || t.saleDate || t.acquisitionCost || t.salePrice)
 
-    const wiederkehrendeBezuege = Number(body.wiederkehrendeBezuege) || 0
-    const werbungskosten = Number(body.werbungskosten) || 0
+      const wiederkehrendeBezuege = Number(body.wiederkehrendeBezuege) || 0
+      const werbungskosten = Number(body.werbungskosten) || 0
 
-    anlageSoAll[body.year] = {
-      transactions,
-      wiederkehrendeBezuege,
-      werbungskosten,
-    }
+      anlageSoAll[body.year] = {
+        transactions,
+        wiederkehrendeBezuege,
+        werbungskosten,
+      }
 
-    const next = {
-      ...settings,
-      anlageSO: anlageSoAll,
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: next } as any,
+      const next = {
+        ...settings,
+        anlageSO: anlageSoAll,
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: next } as any,
+      })
+
+      return {
+        ok: true,
+        year: body.year,
+        transactions,
+        wiederkehrendeBezuege,
+        werbungskosten,
+      }
     })
     await this.anlageSoV2.storeCarryforward(companyId, body.year)
-
-    return {
-      ok: true,
-      year: body.year,
-      transactions,
-      wiederkehrendeBezuege,
-      werbungskosten,
-    }
+    return result
   }
 
   // =============================================================
@@ -1400,65 +1422,69 @@ export class AccountingController {
       throw new BadRequestException('entries[] ist erforderlich (Array)')
     }
 
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    })
-    if (!company) throw new BadRequestException('Firma nicht gefunden')
-
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const anlageAusAll = (settings.anlageAUS as any) || {}
-
-    const VALID_TYPES = [
-      'dividend',
-      'interest',
-      'rental',
-      'employment',
-      'business',
-      'selfEmployment',
-      'agriculture',
-      'other',
-    ]
-
-    const entries = body.entries
-      .filter((e) => e && typeof e === 'object')
-      .map((e) => {
-        const incomeType = VALID_TYPES.includes(String(e.incomeType || ''))
-          ? String(e.incomeType)
-          : 'other'
-        return {
-          country: String(e.country || '').trim().toUpperCase().slice(0, 2),
-          countryName: String(e.countryName || '').trim(),
-          hasDba: e.hasDba === true,
-          incomeType,
-          grossAmount: Number(e.grossAmount) || 0,
-          foreignTaxPaid: Number(e.foreignTaxPaid) || 0,
-          description: String(e.description || '').trim(),
-          // Tier 676: the entry's own method, and the holding of § 8b Abs. 4 KStG
-          ...(e.methode === 'freistellung' || e.methode === 'anrechnung' ? { methode: e.methode } : {}),
-          ...(e.beteiligungAb10 === true ? { beteiligungAb10: true } : {}),
-        }
+    return this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
       })
-      .filter(
-        (e) =>
-          e.country || e.countryName || e.description || e.grossAmount > 0,
-      )
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
 
-    anlageAusAll[body.year] = { entries }
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const anlageAusAll = (settings.anlageAUS as any) || {}
 
-    const next = {
-      ...settings,
-      anlageAUS: anlageAusAll,
-    }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: next } as any,
+      const VALID_TYPES = [
+        'dividend',
+        'interest',
+        'rental',
+        'employment',
+        'business',
+        'selfEmployment',
+        'agriculture',
+        'other',
+      ]
+
+      const entries = body.entries
+        .filter((e) => e && typeof e === 'object')
+        .map((e) => {
+          const incomeType = VALID_TYPES.includes(String(e.incomeType || ''))
+            ? String(e.incomeType)
+            : 'other'
+          return {
+            country: String(e.country || '').trim().toUpperCase().slice(0, 2),
+            countryName: String(e.countryName || '').trim(),
+            hasDba: e.hasDba === true,
+            incomeType,
+            grossAmount: Number(e.grossAmount) || 0,
+            foreignTaxPaid: Number(e.foreignTaxPaid) || 0,
+            description: String(e.description || '').trim(),
+            // Tier 676: the entry's own method, and the holding of § 8b Abs. 4 KStG
+            ...(e.methode === 'freistellung' || e.methode === 'anrechnung' ? { methode: e.methode } : {}),
+            ...(e.beteiligungAb10 === true ? { beteiligungAb10: true } : {}),
+          }
+        })
+        .filter(
+          (e) =>
+            e.country || e.countryName || e.description || e.grossAmount > 0,
+        )
+
+      anlageAusAll[body.year] = { entries }
+
+      const next = {
+        ...settings,
+        anlageAUS: anlageAusAll,
+      }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: next } as any,
+      })
+
+      return {
+        ok: true,
+        year: body.year,
+        entries,
+      }
     })
-
-    return {
-      ok: true,
-      year: body.year,
-      entries,
-    }
   }
 
   // =============================================================
@@ -1520,20 +1546,24 @@ export class AccountingController {
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
-    const company = await this.prisma.company.findUnique({ where: { id: companyId } })
-    if (!company) throw new BadRequestException('Firma nicht gefunden')
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const all = (settings.kstVorauszahlungen as any) || {}
-    const toNum = (v: any) => {
-      const n = Number(v)
-      return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0
-    }
-    all[body.year] = { q1: toNum(body.q1), q2: toNum(body.q2), q3: toNum(body.q3), q4: toNum(body.q4) }
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: { ...settings, kstVorauszahlungen: all } } as any,
+    return this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({ where: { id: companyId } })
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const all = (settings.kstVorauszahlungen as any) || {}
+      const toNum = (v: any) => {
+        const n = Number(v)
+        return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0
+      }
+      all[body.year] = { q1: toNum(body.q1), q2: toNum(body.q2), q3: toNum(body.q3), q4: toNum(body.q4) }
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: { ...settings, kstVorauszahlungen: all } } as any,
+      })
+      return { ok: true, year: body.year, vorauszahlungen: all[body.year] }
     })
-    return { ok: true, year: body.year, vorauszahlungen: all[body.year] }
   }
 
   // 4 Quartalsbescheide. Body:
@@ -1549,40 +1579,44 @@ export class AccountingController {
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-    })
-    if (!company) throw new BadRequestException('Firma nicht gefunden')
+    return this.prisma.$transaction(async (tx) => {
+      // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+      await lockCompanyRow(tx, companyId)
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+      })
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
 
-    const settings = ((company as any).settings ?? {}) as Record<string, any>
-    const vorauszahlungenAll = (settings.gewstVorauszahlungen as any) || {}
-    const toNum = (v: any) => {
-      const n = Number(v)
-      return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0
-    }
-    vorauszahlungenAll[body.year] = {
-      q1: toNum(body.q1),
-      q2: toNum(body.q2),
-      q3: toNum(body.q3),
-      q4: toNum(body.q4),
-    }
-    const next: Record<string, any> = {
-      ...settings,
-      gewstVorauszahlungen: vorauszahlungenAll,
-    }
-    // Tier 651: the Hebesatz is the municipality's and holds for every year
-    // until it is changed; a body without it leaves it as it is.
-    if (body.hebesatz !== undefined) next.hebesatz = body.hebesatz
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { settings: next } as any,
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const vorauszahlungenAll = (settings.gewstVorauszahlungen as any) || {}
+      const toNum = (v: any) => {
+        const n = Number(v)
+        return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0
+      }
+      vorauszahlungenAll[body.year] = {
+        q1: toNum(body.q1),
+        q2: toNum(body.q2),
+        q3: toNum(body.q3),
+        q4: toNum(body.q4),
+      }
+      const next: Record<string, any> = {
+        ...settings,
+        gewstVorauszahlungen: vorauszahlungenAll,
+      }
+      // Tier 651: the Hebesatz is the municipality's and holds for every year
+      // until it is changed; a body without it leaves it as it is.
+      if (body.hebesatz !== undefined) next.hebesatz = body.hebesatz
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: next } as any,
+      })
+      return {
+        ok: true,
+        year: body.year,
+        vorauszahlungen: vorauszahlungenAll[body.year],
+        hebesatz: typeof next.hebesatz === 'number' ? next.hebesatz : 400,
+      }
     })
-    return {
-      ok: true,
-      year: body.year,
-      vorauszahlungen: vorauszahlungenAll[body.year],
-      hebesatz: typeof next.hebesatz === 'number' ? next.hebesatz : 400,
-    }
   }
 
   /**

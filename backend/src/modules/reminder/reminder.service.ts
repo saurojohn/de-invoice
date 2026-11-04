@@ -9,6 +9,7 @@ import { MahnungspauseService } from './mahnungspause.service';
 import { invoicesHeldByPlan } from './installment-hold';
 import { invoiceEurFactor } from '../invoice/tax-breakdown'
 import { invoiceRecipientOf } from '../customer/invoice-recipient';
+import { lockCompanyRow } from '../../common/company-settings';
 
 /**
  * Tier 123: per-company dunning config.
@@ -857,43 +858,47 @@ Mit freundlichen Grüßen,
       };
     },
   ) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { bankInfo: true },
+    // Tier 795: read and written under the company's row lock (common/company-settings.ts)
+    return this.prisma.$transaction(async (tx) => {
+      await lockCompanyRow(tx, companyId);
+      const company = await tx.company.findUnique({
+        where: { id: companyId },
+        select: { bankInfo: true },
+      });
+      const bank = (company?.bankInfo as any) || {};
+      const cur = (bank.mahnungConfig as any) || {};
+      const clamp = (v: unknown, min: number, max: number) => {
+        const n = Number(v);
+        if (Number.isNaN(n)) return undefined;
+        return Math.min(max, Math.max(min, n));
+      };
+      const next = {
+        verzugszinsPct:
+          data.verzugszinsPct !== undefined
+            ? clamp(data.verzugszinsPct, 0, 50) ?? cur.verzugszinsPct
+            : cur.verzugszinsPct,
+        mahngebuehr: {
+          first:
+            data.mahngebuehr?.first !== undefined
+              ? clamp(data.mahngebuehr.first, 0, 1000) ?? cur.mahngebuehr?.first
+              : cur.mahngebuehr?.first,
+          second:
+            data.mahngebuehr?.second !== undefined
+              ? clamp(data.mahngebuehr.second, 0, 1000) ?? cur.mahngebuehr?.second
+              : cur.mahngebuehr?.second,
+          final:
+            data.mahngebuehr?.final !== undefined
+              ? clamp(data.mahngebuehr.final, 0, 1000) ?? cur.mahngebuehr?.final
+              : cur.mahngebuehr?.final,
+        },
+      };
+      const mergedBank = { ...bank, mahnungConfig: next };
+      await tx.company.update({
+        where: { id: companyId },
+        data: { bankInfo: mergedBank },
+      });
+      return { ok: true, config: { ...next, isDefault: false } };
     });
-    const bank = (company?.bankInfo as any) || {};
-    const cur = (bank.mahnungConfig as any) || {};
-    const clamp = (v: unknown, min: number, max: number) => {
-      const n = Number(v);
-      if (Number.isNaN(n)) return undefined;
-      return Math.min(max, Math.max(min, n));
-    };
-    const next = {
-      verzugszinsPct:
-        data.verzugszinsPct !== undefined
-          ? clamp(data.verzugszinsPct, 0, 50) ?? cur.verzugszinsPct
-          : cur.verzugszinsPct,
-      mahngebuehr: {
-        first:
-          data.mahngebuehr?.first !== undefined
-            ? clamp(data.mahngebuehr.first, 0, 1000) ?? cur.mahngebuehr?.first
-            : cur.mahngebuehr?.first,
-        second:
-          data.mahngebuehr?.second !== undefined
-            ? clamp(data.mahngebuehr.second, 0, 1000) ?? cur.mahngebuehr?.second
-            : cur.mahngebuehr?.second,
-        final:
-          data.mahngebuehr?.final !== undefined
-            ? clamp(data.mahngebuehr.final, 0, 1000) ?? cur.mahngebuehr?.final
-            : cur.mahngebuehr?.final,
-      },
-    };
-    const mergedBank = { ...bank, mahnungConfig: next };
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: { bankInfo: mergedBank },
-    });
-    return { ok: true, config: { ...next, isDefault: false } };
   }
 
   /**
