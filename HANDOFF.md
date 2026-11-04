@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 798b — CI green for Tier 797 and Tier 798
+
+Run 41921087794 (Tier 797, commit 49c3e59b): backend **497 passed / 0 failed / 1 skipped**, Playwright **1122 passed (34.3 m)**. Run 41926780816 (Tier 798, commit e8e2a73b): backend **497 passed / 0 failed / 1 skipped**, Playwright **1122 passed (38.7 m)**. Both: 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 798 — the local Playwright suite is green file by file; two backend spec baselines
 
 The rest of the local Playwright suite ran in five batches of 40 files: 763 tests, 2 files failing, both causes in other specs:
