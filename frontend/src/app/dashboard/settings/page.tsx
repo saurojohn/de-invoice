@@ -17,6 +17,7 @@ import { FeatureFlagsCard } from "./FeatureFlagsCard"
 import CompanyCarsCard from "./CompanyCarsCard"
 import HomeOfficeCard from "./HomeOfficeCard"
 import { PaymentTermSelect } from "@/components/PaymentTermSelect"
+import NextInvoiceNumberField from "./NextInvoiceNumberField"
 
 interface StorageSettings {
   localPath: string
@@ -170,6 +171,8 @@ export default function SettingsPage() {
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // Tier 794: the next invoice number follows a saved prefix / number range
+  const [numberRefresh, setNumberRefresh] = useState(0)
   const [uploadProgress, setUploadProgress] = useState(false)
   const [currentLogo, setCurrentLogo] = useState<string | null>(null)
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null)
@@ -612,6 +615,7 @@ export default function SettingsPage() {
     try {
       const { apiPut } = await import("@/lib/api")
       await apiPut(`/api/v1/companies/${companyId}`, form)
+      setNumberRefresh((n) => n + 1)
       // Refetch so the form reflects the canonical stored value —
       // without this, a user who just changed defaultPaymentDays from
       // 0 (Sofort fällig) to 14 would see "14" stay, but a user who
@@ -1341,6 +1345,8 @@ export default function SettingsPage() {
                   </select>
                   <p className="mt-1 text-xs text-gray-500">{t("settings.invoiceNumberRangeHint")}</p>
                 </div>
+                {/* Tier 794: where the range goes on */}
+                <NextInvoiceNumberField companyId={companyId} refreshKey={numberRefresh} />
                 <div>
                   <label className="block text-sm font-medium mb-1">
                     {t("settings.defaultPaymentDays")}

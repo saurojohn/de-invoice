@@ -133,7 +133,7 @@ export async function nextInvoiceNumber(
 
   // Tier 692: an invoice takes the company's own prefix; the sequence stays
   // the type's, so a changed prefix continues the count
-  const company = await tx.company.findUnique({ where: { id: companyId }, select: { invoicePrefix: true, invoiceNumberContinuous: true } })
+  const company = await tx.company.findUnique({ where: { id: companyId }, select: { invoicePrefix: true, invoiceNumberContinuous: true, settings: true } })
   const prefix = invoiceNumberPrefix(type, type === 'INV' ? company?.invoicePrefix : null)
   // Tier 793: the count continues over the years unless the company starts
   // each year anew; the year stays in the number either way. The first number
@@ -167,7 +167,8 @@ export async function nextInvoiceNumber(
     // Start above whatever this company already used. Read it from the
     // invoice numbers themselves rather than from `sequenceNumber`, which is
     // null for every row written before Tier 174 added the column.
-    const start = (await usedMax(tx, companyId, prefix, scope)) + 1
+    // Tier 794: and not below the number the company said its range goes on at
+    const start = Math.max((await usedMax(tx, companyId, prefix, scope)) + 1, startFloor(company?.settings, type, scope))
     await tx.$executeRawUnsafe(
       `CREATE SEQUENCE IF NOT EXISTS ${seqName} START ${start} INCREMENT 1`,
     )
@@ -262,7 +263,8 @@ export async function releaseInvoiceNumber(
   }
   if (!/^[A-Z]{2,5}$/.test(type) || !Number.isInteger(seq) || seq < 1) return
   // Tier 793: the range the company numbers in now
-  const continuous = (await tx.company.findUnique({ where: { id: companyId }, select: { invoiceNumberContinuous: true } }))?.invoiceNumberContinuous !== false
+  const company = await tx.company.findUnique({ where: { id: companyId }, select: { invoiceNumberContinuous: true, settings: true } })
+  const continuous = company?.invoiceNumberContinuous !== false
   const scope = continuous ? null : year
   const seqName = sequenceName(type, scope, companyId)
   const exists = await tx.$queryRaw<Array<{ one: number }>>`
@@ -273,11 +275,106 @@ export async function releaseInvoiceNumber(
   // the sequence below a number that is still in use.
   const remainingMax = await usedMax(tx, companyId, prefix, scope)
   if (remainingMax >= seq) return
-  // setval(n, true) → next is n + 1; a sequence cannot be set to 0, so the
-  // "next is 1" case uses is_called = false.
-  if (remainingMax < 1) {
-    await tx.$executeRawUnsafe(`SELECT setval('${seqName}', 1, false)`)
-  } else {
-    await tx.$executeRawUnsafe(`SELECT setval('${seqName}', ${remainingMax}, true)`)
+  // Tier 794: back to the highest number still used — but not below the
+  // number the company set its range to go on at (a deleted first draft
+  // INV-…-001000 gives 1000 back, not 6). is_called = false: next is `to`.
+  const to = Math.max(remainingMax + 1, startFloor(company?.settings, type, scope))
+  if (to > seq) return
+  await tx.$executeRawUnsafe(`SELECT setval('${seqName}', ${to}, false)`)
+}
+
+/**
+ * Tier 794 — „Nächste Rechnungsnummer“: the number the next invoice of a
+ * company's range gets, chosen on the settings page (a company coming from
+ * other software goes on at its own count, or starts at 1000). § 14 Abs. 4
+ * Satz 1 Nr. 4 UStG asks for a number given once, not for where a range
+ * starts; the numbers left out are a gap, which UStAE 14.5 Abs. 10 allows.
+ * Only above the highest number the range has used — a lower one would give
+ * numbers out of order, and none of them twice anyway (the clash check).
+ * Invoices only (INV, with the company's prefix); in a range per year, the
+ * current year's.
+ */
+export const MAX_START_NUMBER = 99_999_999
+
+/** settings.invoiceNumberStart: { all: n } or { "2026": n } — the number set last; invoices only. */
+function startFloor(settings: unknown, type: string, scope: number | null): number {
+  if (type !== 'INV') return 1
+  const map = (settings as Record<string, unknown> | null)?.invoiceNumberStart as Record<string, unknown> | undefined
+  const v = Number(map?.[scope === null ? 'all' : String(scope)])
+  return Number.isInteger(v) && v >= 1 ? v : 1
+}
+
+export interface NextInvoiceNumberInfo {
+  /** the number the next invoice gets: INV-2026-001000 */
+  invoiceNumber: string
+  next: number
+  /** the lowest that can be set: one above the highest used */
+  minimum: number
+  maximum: number
+  year: number
+  continuous: boolean
+}
+
+async function rangeOf(tx: Prisma.TransactionClient, companyId: string, year: number) {
+  if (!Number.isInteger(year) || year < 1000 || year > 9999) {
+    throw new BadRequestException(`Invalid year for invoice number: ${year}`)
   }
+  const company = await tx.company.findUnique({ where: { id: companyId }, select: { invoicePrefix: true, invoiceNumberContinuous: true, settings: true } })
+  if (!company) throw new BadRequestException('Firma nicht gefunden')
+  const prefix = invoiceNumberPrefix('INV', company.invoicePrefix)
+  const scope = company.invoiceNumberContinuous === false ? year : null
+  return { company, prefix, scope, seqName: sequenceName('INV', scope, companyId) }
+}
+
+async function sequenceNext(tx: Prisma.TransactionClient, seqName: string): Promise<number | null> {
+  const exists = await tx.$queryRaw<Array<{ one: number }>>`
+    SELECT 1 AS one FROM pg_class WHERE relkind = 'S' AND relname = ${seqName}
+  `
+  if (exists.length === 0) return null
+  const r = await tx.$queryRawUnsafe<Array<{ last_value: bigint; is_called: boolean }>>(
+    `SELECT last_value, is_called FROM ${seqName}`,
+  )
+  return Number(r[0].last_value) + (r[0].is_called ? 1 : 0)
+}
+
+/** What nextInvoiceNumber would give — without taking it. */
+export async function peekNextInvoiceNumber(tx: Prisma.TransactionClient, companyId: string, year: number): Promise<NextInvoiceNumberInfo> {
+  const { company, prefix, scope, seqName } = await rangeOf(tx, companyId, year)
+  const used = await usedMax(tx, companyId, prefix, scope)
+  let next = (await sequenceNext(tx, seqName)) ?? Math.max(used + 1, startFloor(company.settings, 'INV', scope))
+  const format = (n: number) => `${prefix}${year}-${String(n).padStart(6, '0')}`
+  // a taken one is skipped to above the highest (nextInvoiceNumber's clash check)
+  const taken = await tx.$queryRaw<Array<{ one: number }>>`
+    SELECT 1 AS one FROM "Invoice" WHERE "companyId" = ${companyId} AND "invoiceNumber" = ${format(next)}
+    UNION ALL
+    SELECT 1 AS one FROM "RetiredInvoiceNumber" WHERE "companyId" = ${companyId} AND "invoiceNumber" = ${format(next)}
+    LIMIT 1
+  `
+  if (taken.length > 0) next = used + 1
+  return { invoiceNumber: format(next), next, minimum: used + 1, maximum: MAX_START_NUMBER, year, continuous: scope === null }
+}
+
+/** Set the number the next invoice gets. Returns the number it would have got before. */
+export async function setNextInvoiceNumber(tx: Prisma.TransactionClient, companyId: string, year: number, next: number): Promise<{ before: NextInvoiceNumberInfo; after: NextInvoiceNumberInfo }> {
+  if (!Number.isInteger(next) || next < 1 || next > MAX_START_NUMBER) {
+    throw new BadRequestException(`Die nächste Rechnungsnummer ist eine ganze Zahl von 1 bis ${MAX_START_NUMBER.toLocaleString('de-DE')}.`)
+  }
+  const { company, seqName, scope } = await rangeOf(tx, companyId, year)
+  // the lock of the sequence's creator (Tier 783): no invoice creates it meanwhile
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${seqName}::text))`
+  const before = await peekNextInvoiceNumber(tx, companyId, year)
+  if (next < before.minimum) {
+    throw new BadRequestException(
+      `Die nächste Rechnungsnummer muss größer sein als die höchste bereits vergebene (${before.minimum - 1}) — mindestens ${before.minimum}. Eine vergebene Nummer darf nicht ein zweites Mal vergeben werden (§ 14 Abs. 4 Satz 1 Nr. 4 UStG).`,
+    )
+  }
+  if ((await sequenceNext(tx, seqName)) === null) {
+    await tx.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS ${seqName} START ${next} INCREMENT 1`)
+  } else {
+    await tx.$executeRawUnsafe(`SELECT setval('${seqName}', ${next}, false)`)
+  }
+  const settings = (company.settings && typeof company.settings === 'object' && !Array.isArray(company.settings) ? company.settings : {}) as Record<string, unknown>
+  const starts = { ...((settings.invoiceNumberStart as Record<string, unknown>) ?? {}), [scope === null ? 'all' : String(scope)]: next }
+  await tx.company.update({ where: { id: companyId }, data: { settings: { ...settings, invoiceNumberStart: starts } as Prisma.InputJsonValue } })
+  return { before, after: await peekNextInvoiceNumber(tx, companyId, year) }
 }

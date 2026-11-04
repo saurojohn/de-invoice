@@ -83,6 +83,17 @@ export class CompanyService {
         throw new BadRequestException('Das Logo wird über den Logo-Upload gesetzt — logoPath ist der Dateiname, den der Upload liefert.');
       }
     }
+    // Tier 794: the preferences the settings page sends are three of many keys
+    // in Company.settings — DATEV Berater-/Mandantennummer, the Hebesatz, the
+    // KSt prepayments, the Anlage SO, the dunning stages… Written as they came,
+    // every save of the settings page replaced the whole JSON with those three
+    // (measured: {"datev":{…},"anlageV":true} became {"defaultCurrency":…}).
+    // The keys sent are merged over the stored ones.
+    if (data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings)) {
+      const own = (await this.prisma.company.findUnique({ where: { id }, select: { settings: true } }))?.settings
+      const kept = own && typeof own === 'object' && !Array.isArray(own) ? (own as Record<string, unknown>) : {}
+      data = { ...data, settings: { ...kept, ...data.settings } };
+    }
     return this.prisma.company.update({ where: { id }, data: withCheckedVatId(data) });
   }
 }

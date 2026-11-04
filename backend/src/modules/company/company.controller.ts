@@ -16,6 +16,8 @@ import { Request, Response } from 'express';
 import { findLogo, isUploadedLogoName, logoDir, removeLogoFile } from './logo-store';
 import { AuditService } from '../audit/audit.service';
 import { CallerBoundUpload } from '../../auth/caller-bound-upload';
+import { businessToday } from '../../common/business-date';
+import { peekNextInvoiceNumber, setNextInvoiceNumber } from '../invoice/invoice-number';
 
 // Tier 376: `:id` is the company — bind it to the authenticated one.
 @CompanyIdParam('id')
@@ -79,6 +81,41 @@ export class CompanyController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() data: UpdateCompanyDto) {
     return this.companyService.update(id, data);
+  }
+
+  /**
+   * Tier 794 — the number the company's next invoice gets, and the lowest it
+   * can be set to (invoice-number.ts, setNextInvoiceNumber).
+   */
+  @Auth()
+  @Require('company.read')
+  @Get(':id/invoice-number')
+  async nextInvoiceNumber(@Param('id') id: string) {
+    return this.prisma.$transaction((tx) => peekNextInvoiceNumber(tx, id, businessToday().y))
+  }
+
+  @Auth()
+  @Require('company.update')
+  @Put(':id/invoice-number')
+  async setNextInvoiceNumber(@Param('id') id: string, @Body() body: { next?: unknown }, @Req() req: any) {
+    if (typeof body?.next !== 'number') {
+      throw new BadRequestException('next muss eine Zahl sein (die nächste Rechnungsnummer, z. B. 1000)')
+    }
+    const next = body.next
+    const { before, after } = await this.prisma.$transaction((tx) => setNextInvoiceNumber(tx, id, businessToday().y, next))
+    // the numbers left out are a gap the audit trail explains
+    await this.audit.writeActivity({
+      companyId: id,
+      userId: req?.user?.id || null,
+      action: 'company.invoice_number.next_set',
+      entityType: 'Company',
+      entityId: id,
+      oldData: { invoiceNumber: before.invoiceNumber, next: before.next } as any,
+      metadata: { invoiceNumber: after.invoiceNumber, next: after.next, continuous: after.continuous, year: after.year },
+      ipAddress: null,
+      userAgent: 'de-invoice:CompanyController.setNextInvoiceNumber',
+    })
+    return after
   }
 
   /**
