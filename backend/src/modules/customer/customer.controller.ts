@@ -59,6 +59,18 @@ export class CustomerController {
     return this.customerService.options(companyId)
   }
 
+  /**
+   * Tier 796: every tag of the company's customers, with how many carry it,
+   * the most used first. The list page counted the tags of the 50 customers
+   * it showed, so a tag only customers on another page had was not offered.
+   */
+  @Get('tags')
+  @Require('customer.read')
+  async tags(@Query('companyId') companyId: string) {
+    this.assertCompanyId(companyId)
+    return this.customerService.tagCounts(companyId)
+  }
+
   @Get('next-number')
   @Require('customer.read')
   async previewNextNumber(@Query('companyId') companyId: string) {

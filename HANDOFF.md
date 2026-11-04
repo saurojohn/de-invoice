@@ -2669,6 +2669,20 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 796 — the customer list offers the tags of all customers; the local Playwright suite keeps its seed
+
+The two Playwright specs that failed only locally (customer-email-history-tier144, customer-tag-filter-tier148), looked into:
+
+**The tag chips were of one page.** The customer list counted the tags of the 50 customers it showed: a company with more customers was not offered a tag that only customers on another page had (locally the seed company holds hundreds of customers from the backend specs, so the fixture's VIP was not offered — a fault of the page, not of the test). `GET /customers/tags` (customer.read) counts the tags over the whole company, the most used first, up to 200; the page reads it again whenever it reads the list. Spec `498-tier796-kundentags-aller-kunden.sh` (on the code before: 404), Playwright `customer-tags-all-pages-tier796.spec.ts` (55 customers, the tag of the 55th offered on the first page; on the code before: no chip).
+
+**The seed was undone by two backend specs.** Locally the backend specs and the Playwright suite share tmp-ci-pg and the seed company; in CI they are separate jobs with separate databases, so CI never saw this.
+- Spec 68 deleted every `Mahnung` and `EmailSend` of the company — among them the 13 e-mails `ci-seed.sh` gives the BWA Test Kunde, which tier144 reads. It deletes its own (the invoices of its Tier40 customers) now.
+- Spec 71 deleted the seed's voucher BK-HIST-001 and made a new one under a random id with the same number, so `ci-seed.sh` stopped on the next run (`Voucher_companyId_voucherNumber_key`) before its EmailSend and later fixtures. It uses the seed's id now.
+
+Locally `ci-seed.sh` with `API=http://localhost:3011 PG_CONTAINER=tmp-ci-pg` runs through again (13 e-mails). Other specs still delete a table of the whole seed company (bank statements in 08/31/32/55, SEPA in 34/137, templates in 33/34, recurring in 35/90, …): harmless for the suite today, the place to look when a Playwright spec fails only locally.
+
+**Tier 795 failed on CI, fixed here.** Run 41867289682 (commit 9078b7a3): spec 497 failed, with every one of the six concurrent saves not 200, about 5 s per round. With Tier 795 each waiting writer held a pool connection while it waited for the row lock, and an audited write inside a transaction writes its audit row on a second connection (`writeAuditNow`). Six saves at once on CI's pool (2 × CPUs + 1) used every connection, the lock holder could not get one for its audit row, and all six ran into the 5 s transaction timeout. Locally the pool is larger, so this never showed. The writers of one company now queue in the process first (`withKeyLock('company-settings:<id>')`, re-entrant, 409 after 30 s), and only the writer whose turn it is opens a transaction. `companySettingsTransaction(prisma, companyId, fn)` in `common/company-settings.ts` is used by all 16 writers. The row lock stays for the case of a second backend instance. Measured locally with `connection_limit=5`: without the queue, spec 497 failed 10 of 10 rounds (as on CI); with the queue it passes.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 795 — settings saved at the same time are all kept; the bank details keep the dunning fees
 
 Tier 794 found that the settings page wrote its three preferences over the whole `Company.settings`. The rest of that class, measured on the code before:

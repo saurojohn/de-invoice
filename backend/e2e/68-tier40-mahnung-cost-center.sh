@@ -22,10 +22,13 @@ source "$SCRIPT_DIR/_lib.sh"
 
 login
 cleanup_cashbook
-# Wipe any prior Tier-40 fixture customer.
+# Wipe any prior Tier-40 fixture customer — and only its rows: the Mahnung and
+# EmailSend rows of the whole company went too, among them the 13 e-mails
+# ci-seed.sh gives the BWA Test Kunde, which customer-email-history-tier144
+# reads (Tier 796: locally the backend and the Playwright suite share the DB).
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
-DELETE FROM "Mahnung"    WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "EmailSend"  WHERE "companyId" = '$COMPANY_ID';
+DELETE FROM "Mahnung"    WHERE "companyId" = '$COMPANY_ID' AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
+DELETE FROM "EmailSend"  WHERE "companyId" = '$COMPANY_ID' AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "Payment"    WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "PaymentLink" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "Invoice"    WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID');
@@ -194,8 +197,8 @@ fi
 
 # ───── Cleanup ─────
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<SQL
-DELETE FROM "Mahnung"    WHERE "companyId" = '$COMPANY_ID';
-DELETE FROM "EmailSend"  WHERE "companyId" = '$COMPANY_ID';
+DELETE FROM "Mahnung"    WHERE "companyId" = '$COMPANY_ID' AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
+DELETE FROM "EmailSend"  WHERE "companyId" = '$COMPANY_ID' AND "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "Payment"    WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "PaymentLink" WHERE "invoiceId" IN (SELECT id FROM "Invoice" WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID'));
 DELETE FROM "Invoice"    WHERE "customerId" IN (SELECT id FROM "Customer" WHERE "name" LIKE 'Tier40%' AND "companyId" = '$COMPANY_ID');

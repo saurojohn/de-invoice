@@ -4,7 +4,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
-import { lockCompanyRow } from '../../common/company-settings'
+import { companySettingsTransaction } from '../../common/company-settings'
 
 /**
  * Tier 113 v2: Anlage SO — extends v1 (private
@@ -733,9 +733,8 @@ export class AnlageSOV2Service {
       throw new BadRequestException('CSV enthält keine gültigen Zeilen')
     }
     const newTransactions: VgTransaction[] = okRows.map((p) => p.transaction)
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({
         where: { id: companyId },
       })
@@ -837,9 +836,8 @@ export class AnlageSOV2Service {
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({
         where: { id: companyId },
       })

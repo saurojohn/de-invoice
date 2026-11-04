@@ -83,14 +83,17 @@ JSON
 # failed to clean up). Note the description is NOT
 # prefixed with 'Tier43%' so the tail cleanup block below
 # (which deletes by LIKE 'Tier43%') never wipes it. This
-# Voucher is treated as a long-lived fixture.
+# Voucher is treated as a long-lived fixture. Tier 796: with ci-seed.sh's id
+# (BK-HIST-001): a new id left the number taken by another row, and ci-seed.sh
+# stopped on it when run again on the same database (locally, before the
+# Playwright suite) — before its EmailSend and later fixtures.
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
 DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (
   SELECT id FROM \"Voucher\" WHERE \"voucherNumber\" = 'BK-HIST-001' AND \"companyId\" = '$COMPANY_ID'
 );
 DELETE FROM \"Voucher\" WHERE \"voucherNumber\" = 'BK-HIST-001' AND \"companyId\" = '$COMPANY_ID';
 INSERT INTO \"Voucher\" (id, \"companyId\", \"voucherNumber\", \"date\", \"description\", \"status\", \"createdAt\")
-VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'BK-HIST-001', NOW() - INTERVAL '2 days', 'CC history seed', 'posted', NOW());
+VALUES ('BK-HIST-001', '$COMPANY_ID', 'BK-HIST-001', NOW() - INTERVAL '2 days', 'CC history seed', 'posted', NOW());
 -- 5 lines all stamped with VERTRIEB-100 / PROJ-X on the
 -- same Sachkonto 4960, so count(VERTRIEB-100) wins the
 -- groupBy regardless of any leftover noise from earlier

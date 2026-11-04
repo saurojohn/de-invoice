@@ -5,7 +5,7 @@ import { euerNotAllowedFor } from './gewinnermittlung';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertIban } from '../../common/iban';
 import { PrismaService } from '../../prisma/prisma.service';
-import { lockCompanyRow } from '../../common/company-settings';
+import { companySettingsTransaction } from '../../common/company-settings';
 
 @Injectable()
 export class CompanyService {
@@ -98,8 +98,7 @@ export class CompanyService {
     const plain = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
     const merges = plain(data.settings) || plain(data.bankInfo)
     if (!merges) return this.prisma.company.update({ where: { id }, data: withCheckedVatId(data) });
-    return this.prisma.$transaction(async (tx) => {
-      await lockCompanyRow(tx, id)
+    return companySettingsTransaction(this.prisma, id, async (tx) => {
       const own = await tx.company.findUnique({ where: { id }, select: { settings: true, bankInfo: true } })
       let next = data
       if (plain(data.settings)) next = { ...next, settings: { ...(plain(own?.settings) ? own.settings : {}), ...data.settings } }

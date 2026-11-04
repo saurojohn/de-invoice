@@ -14,13 +14,40 @@
  * expense being saved for the company (FOR KEY SHARE) do not wait for it.
  * The write stays a Prisma update, so it is audited as before (Company is an
  * audited model).
+ *
+ * The writers of one company first queue in the process (withKeyLock), and
+ * only the one whose turn it is opens its transaction. Waiting in the database
+ * held a connection per waiter, and an audited write in a transaction takes a
+ * second one for its audit row: six saves at once on CI's pool (2 × CPUs + 1)
+ * took every connection, and all six ran into the transaction timeout. The
+ * row lock stays for a second instance of the backend.
  */
 import { BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import { withKeyLock } from './key-lock'
+
+type TransactionRunner = { $transaction: <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => Promise<T> }
 
 /** Lock the company's row to the end of the transaction `tx`. */
 export async function lockCompanyRow(tx: Prisma.TransactionClient, companyId: string): Promise<void> {
   await tx.$queryRaw`SELECT 1 AS one FROM "Company" WHERE id = ${companyId} FOR NO KEY UPDATE`
+}
+
+/**
+ * Run `fn` in a transaction that holds the company's row lock, after the
+ * other writers of the company's settings in this process.
+ */
+export function companySettingsTransaction<T>(
+  prisma: TransactionRunner,
+  companyId: string,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return withKeyLock(`company-settings:${companyId}`, () =>
+    prisma.$transaction(async (tx) => {
+      await lockCompanyRow(tx, companyId)
+      return fn(tx)
+    }),
+  )
 }
 
 export type CompanySettings = Record<string, any>
@@ -31,12 +58,11 @@ export type CompanySettings = Record<string, any>
  * `change` returns.
  */
 export async function updateCompanySettings<R>(
-  prisma: { $transaction: <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => Promise<T> },
+  prisma: TransactionRunner,
   companyId: string,
   change: (settings: CompanySettings) => R | Promise<R>,
 ): Promise<R> {
-  return prisma.$transaction(async (tx) => {
-    await lockCompanyRow(tx, companyId)
+  return companySettingsTransaction(prisma, companyId, async (tx) => {
     const company = await tx.company.findUnique({ where: { id: companyId }, select: { settings: true } })
     if (!company) throw new BadRequestException('Firma nicht gefunden')
     const stored = company.settings

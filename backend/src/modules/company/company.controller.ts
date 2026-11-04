@@ -18,7 +18,7 @@ import { AuditService } from '../audit/audit.service';
 import { CallerBoundUpload } from '../../auth/caller-bound-upload';
 import { businessToday } from '../../common/business-date';
 import { peekNextInvoiceNumber, setNextInvoiceNumber } from '../invoice/invoice-number';
-import { updateCompanySettings } from '../../common/company-settings';
+import { companySettingsTransaction, updateCompanySettings } from '../../common/company-settings';
 
 // Tier 376: `:id` is the company — bind it to the authenticated one.
 @CompanyIdParam('id')
@@ -103,7 +103,7 @@ export class CompanyController {
       throw new BadRequestException('next muss eine Zahl sein (die nächste Rechnungsnummer, z. B. 1000)')
     }
     const next = body.next
-    const { before, after } = await this.prisma.$transaction((tx) => setNextInvoiceNumber(tx, id, businessToday().y, next))
+    const { before, after } = await companySettingsTransaction(this.prisma, id, (tx) => setNextInvoiceNumber(tx, id, businessToday().y, next))
     // the numbers left out are a gap the audit trail explains
     await this.audit.writeActivity({
       companyId: id,

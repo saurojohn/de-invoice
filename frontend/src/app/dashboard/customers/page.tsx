@@ -160,6 +160,18 @@ export default function CustomersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, page, search, tagFilter])
 
+  // Tier 796: the tags of all the company's customers — the chips counted
+  // only the 50 of the page shown. Read again whenever the list is (a save,
+  // a delete, an import change the tags).
+  const [tagCounts, setTagCounts] = useState<Array<{ tag: string; count: number }>>([])
+  useEffect(() => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    apiGet<Array<{ tag: string; count: number }>>(`/api/v1/customers/tags?companyId=${companyId}`)
+      .then((rows) => setTagCounts(Array.isArray(rows) ? rows : []))
+      .catch(() => setTagCounts([]))
+  }, [customers])
+
   // Debounce search input so we don't fire a request on every keystroke
   const [searchInput, setSearchInput] = useState('')
   useEffect(() => {
@@ -750,22 +762,12 @@ export default function CustomersPage() {
             placeholder={t("customer.searchPlaceholder") || "Name, USt-ID, Kundennummer, Stadt, PLZ suchen..."}
             className="w-full md:w-1/2 px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md text-sm"
           />
-          {/* Tier 148: tag filter chips. We surface
-              the most common tags from the current
-              dataset so the user can see "VIP" or
-              "Late-payer" at a glance and pick one
-              with a single click. Picked tags appear
-              in the active-filter row below. */}
+          {/* Tier 148: tag filter chips — the most used tags first, so the
+              user sees "VIP" or "Late-payer" at a glance and picks one with a
+              single click. Picked tags appear in the active-filter row below.
+              Tier 796: of all the company's customers, not the page shown. */}
           {(() => {
-            const allTags = new Map<string, number>()
-            for (const c of customers) {
-              for (const tag of c.tags || []) {
-                allTags.set(tag, (allTags.get(tag) || 0) + 1)
-              }
-            }
-            const sortedTags = Array.from(allTags.entries()).sort(
-              (a, b) => b[1] - a[1],
-            )
+            const sortedTags = tagCounts.map((r) => [r.tag, r.count] as [string, number])
             if (sortedTags.length === 0) return null
             return (
               <div

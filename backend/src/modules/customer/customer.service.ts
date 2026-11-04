@@ -83,6 +83,18 @@ export class CustomerService {
    *                         the UI show an "inactive" badge without
    *                         a second round-trip.
    */
+  /** Tier 796 — the tags of all the company's customers, most used first. */
+  async tagCounts(companyId: string): Promise<Array<{ tag: string; count: number }>> {
+    const rows = await this.prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
+      SELECT t AS tag, COUNT(*)::bigint AS count
+        FROM "Customer" c, unnest(c.tags) AS t
+       WHERE c."companyId" = ${companyId} AND t <> ''
+       GROUP BY t
+       ORDER BY count DESC, t ASC
+       LIMIT 200`
+    return rows.map((r) => ({ tag: r.tag, count: Number(r.count) }))
+  }
+
   async findAll(
     companyId: string,
     opts: {

@@ -78,7 +78,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Require } from '../../auth/roles.decorator';
 import { cleanRow as cleanSoRow } from './anlage-so-rules';
 import { AnlageSOV2Service } from './anlage-so-v2.service';
-import { lockCompanyRow } from '../../common/company-settings'
+import { companySettingsTransaction } from '../../common/company-settings'
 
 const WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -720,9 +720,8 @@ export class AccountingController {
     @Body() body: ZusammenveranlagungDto,
   ) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
-    return this.prisma.$transaction(async (tx) => {
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({ where: { id: companyId } })
       if (!company) throw new BadRequestException('Firma nicht gefunden')
       const settings = ((company as any).settings ?? {}) as Record<string, any>
@@ -897,9 +896,8 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({
         where: { id: companyId },
       })
@@ -1078,9 +1076,8 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({
         where: { id: companyId },
       })
@@ -1199,9 +1196,8 @@ export class AccountingController {
       throw new BadRequestException('kinder[] ist erforderlich (Array)')
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({
         where: { id: companyId },
       })
@@ -1308,9 +1304,8 @@ export class AccountingController {
       throw new BadRequestException('transactions[] ist erforderlich (Array)')
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({
         where: { id: companyId },
       })
@@ -1422,9 +1417,8 @@ export class AccountingController {
       throw new BadRequestException('entries[] ist erforderlich (Array)')
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({
         where: { id: companyId },
       })
@@ -1546,9 +1540,8 @@ export class AccountingController {
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
-    return this.prisma.$transaction(async (tx) => {
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({ where: { id: companyId } })
       if (!company) throw new BadRequestException('Firma nicht gefunden')
       const settings = ((company as any).settings ?? {}) as Record<string, any>
@@ -1579,9 +1572,8 @@ export class AccountingController {
     if (!body || !Number.isInteger(body.year) || body.year < 2000 || body.year > 2100) {
       throw new BadRequestException('year ist ungültig')
     }
-    return this.prisma.$transaction(async (tx) => {
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
       // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-      await lockCompanyRow(tx, companyId)
       const company = await tx.company.findUnique({
         where: { id: companyId },
       })

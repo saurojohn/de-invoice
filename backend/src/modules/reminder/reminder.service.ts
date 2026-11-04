@@ -9,7 +9,7 @@ import { MahnungspauseService } from './mahnungspause.service';
 import { invoicesHeldByPlan } from './installment-hold';
 import { invoiceEurFactor } from '../invoice/tax-breakdown'
 import { invoiceRecipientOf } from '../customer/invoice-recipient';
-import { lockCompanyRow } from '../../common/company-settings';
+import { companySettingsTransaction } from '../../common/company-settings';
 
 /**
  * Tier 123: per-company dunning config.
@@ -859,8 +859,7 @@ Mit freundlichen Grüßen,
     },
   ) {
     // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-    return this.prisma.$transaction(async (tx) => {
-      await lockCompanyRow(tx, companyId);
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
       const company = await tx.company.findUnique({
         where: { id: companyId },
         select: { bankInfo: true },

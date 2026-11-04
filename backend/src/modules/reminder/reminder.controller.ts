@@ -15,7 +15,7 @@ import { BulkSendReminderDto, CancelMahnungDto, FeeConfigDto, ReminderTemplateDt
 import {
   readDunningConfig,
 } from './reminder.service';
-import { lockCompanyRow } from '../../common/company-settings'
+import { companySettingsTransaction } from '../../common/company-settings'
 
 // Mirrors the constant in auto-reminder.scheduler.ts — kept
 // inline because the scheduler file is a class member, not
@@ -693,8 +693,7 @@ export class ReminderController {
       throw new BadRequestException('companyId is required')
     }
     // Tier 795: read and written under the company's row lock (common/company-settings.ts)
-    await this.prisma.$transaction(async (tx) => {
-      await lockCompanyRow(tx, companyId)
+    await companySettingsTransaction(this.prisma, companyId, async (tx) => {
       const company = await tx.company.findUnique({
         where: { id: companyId },
         select: { settings: true },
