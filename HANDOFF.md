@@ -2669,7 +2669,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
-### Read-only mode refuses every write; a re-verification is one company's (Tier 797 — two Playwright specs that failed only on a used database
+### Read-only mode refuses every write; a re-verification is one company's (Tier 796b — CI green for Tier 796 (and the Tier 795 fix)
+
+Run 41914403148 (commit 449cfdcf): backend **497 passed / 0 failed / 1 skipped** (497-tier795 and 498-tier796 among them), Playwright **1122 passed (40.4 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. Tier 795's settings saves are in CI now (run 41867289682 had failed on spec 497).
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 797 — three Playwright specs that failed only on a used database
 
 A full local Playwright run, started 04.11.2026 17:38, was stopped after 4 h and 356 tests. The machine was at a load average of about 37 (VM, WindowServer, Chrome), and tests that passed in seconds took minutes or more than an hour. Rerun with normal load, 14 of its 16 failing files pass. The two that still failed are spec faults, and CI never meets them because its Playwright database is fresh:
 - `credit-limit-warning-tier159` used the ids of the four customers `ci-seed.sh` gives the seed company (OK/Warning/Over/NoLimit Kunde), which other specs use as "a customer of the company". Once one of those specs had booked a payment on one of their invoices (a credit note set off, a bank match), its DELETE failed on `Payment_invoiceId_fkey`. psql carried on, every INSERT failed on the existing rows, and the endpoint listed none of the fixtures. The spec now has ids of its own (`15915915-…`), its cleanup also deletes its invoices by their own ids, and psql stops at the first error (`ON_ERROR_STOP=1`), so a failed fixture fails the test with the SQL error.
