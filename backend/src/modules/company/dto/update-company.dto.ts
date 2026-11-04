@@ -191,6 +191,12 @@ export class UpdateCompanyDto {
   })
   invoicePrefix?: string;
 
+  // Tier 793: true — the count continues over the years; false — each year anew
+  @StrictBoolean()
+  @IsBoolean({ message: 'invoiceNumberContinuous muss true oder false sein' })
+  @IsOptional()
+  invoiceNumberContinuous?: boolean;
+
   @StrictNumber() @IsInt()
   @Min(0)
   @Max(365)

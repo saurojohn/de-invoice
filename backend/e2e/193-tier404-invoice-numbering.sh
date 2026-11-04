@@ -111,7 +111,8 @@ note "=== 5. a sequence that fell behind repairs itself instead of 500ing ==="
 # restore or a direct insert can still put a sequence behind, so the numbering
 # fast-forwards past the company's max rather than failing the request.
 SEQ_NAME=$(sql "SELECT relname FROM pg_class WHERE relkind = 'S'
-                AND relname = 'invoice_seq_inv_${YR}_' || replace('$CB', '-', '');")
+                AND relname = 'invoice_seq_inv_' || (SELECT CASE WHEN \"invoiceNumberContinuous\" THEN 'all' ELSE '${YR}' END FROM \"Company\" WHERE id = '$CB') || '_' || replace('$CB', '-', '');")
+# Tier 793: …_all_… for a range that continues over the years (the default), …_<year>_… for one per year
 [[ -n "$SEQ_NAME" ]] && pass "B has its own sequence: $SEQ_NAME" || fail "no per-company sequence for B"
 sql "SELECT setval('$SEQ_NAME', 1, true);" >/dev/null
 RECOVERED=$(newinv "$UB" "$CB" "$KB")

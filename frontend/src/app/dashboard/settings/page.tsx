@@ -79,6 +79,8 @@ interface CompanySettings {
   }
   logoPath: string
   invoicePrefix: string
+  // Tier 793: the count continues over the years (true) or starts each year anew
+  invoiceNumberContinuous: boolean
   defaultPaymentDays: number
   // Tier 176 (frontend): default VAT treatment. Maps to
   // the same `defaultVatMode` column added in the
@@ -291,6 +293,7 @@ export default function SettingsPage() {
     },
     logoPath: "",
     invoicePrefix: "INV",
+    invoiceNumberContinuous: true,
     defaultPaymentDays: 30,
     defaultVatMode: null,
     rechtsform: null,
@@ -386,6 +389,7 @@ export default function SettingsPage() {
               // and "" to "INV", making it look like the user's save
               // was ignored on the next page load.
               invoicePrefix: data.invoicePrefix ?? "INV",
+              invoiceNumberContinuous: data.invoiceNumberContinuous ?? true,
               defaultPaymentDays: data.defaultPaymentDays ?? 30,
               // Tier 176: the company may have a default
               // VAT treatment. We preserve `null` for
@@ -649,6 +653,7 @@ export default function SettingsPage() {
           },
           logoPath: fresh.logoPath ?? "",
           invoicePrefix: fresh.invoicePrefix ?? "INV",
+          invoiceNumberContinuous: fresh.invoiceNumberContinuous ?? true,
           defaultPaymentDays: fresh.defaultPaymentDays ?? 30,
           // Tier 176: keep the user's default VAT
           // selection. `null` means "no default, ask
@@ -1318,6 +1323,23 @@ export default function SettingsPage() {
                   />
                   {/* Tier 692: the prefix is used now — say how */}
                   <p className="mt-1 text-xs text-gray-500">{t("settings.invoicePrefixHint")}</p>
+                </div>
+                {/* Tier 793: the number range — continued over the years, or anew each year */}
+                <div>
+                  <label className="block text-sm font-medium mb-1" htmlFor="settings-invoice-number-range">
+                    {t("settings.invoiceNumberRange")}
+                  </label>
+                  <select
+                    id="settings-invoice-number-range"
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-700"
+                    value={form.invoiceNumberContinuous ? "continuous" : "yearly"}
+                    onChange={(e) => setForm({ ...form, invoiceNumberContinuous: e.target.value === "continuous" })}
+                    data-testid="settings-invoice-number-range"
+                  >
+                    <option value="continuous">{t("settings.invoiceNumberRangeContinuous")}</option>
+                    <option value="yearly">{t("settings.invoiceNumberRangeYearly")}</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">{t("settings.invoiceNumberRangeHint")}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">

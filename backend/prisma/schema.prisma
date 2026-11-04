@@ -48,6 +48,10 @@ model Company {
   settings           Json?
   logoPath           String?
   invoicePrefix      String?
+  // Tier 793: the count continues over the years (one range per document
+  // type, the year stays in the number: INV-2027-000043 after INV-2026-000042);
+  // false starts each year at 1 again. Both satisfy § 14 Abs. 4 Nr. 4 UStG.
+  invoiceNumberContinuous Boolean @default(true)
   // Tier 176: default payment terms in days (already existed).
   // Pre-fills the invoice create form's `dueDate` field
   // (= issueDate + defaultPaymentDays) and is the source

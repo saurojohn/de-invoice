@@ -2669,6 +2669,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 793 — the number range continues over the years
+
+The owner, 04.11.2026: „如果可以的话实现发票号码一直延续下去，查一下德国税务局有没有特别要求".
+
+**What the law asks.** § 14 Abs. 4 Satz 1 Nr. 4 UStG: a fortlaufende Nummer „mit einer oder mehreren Zahlenreihen, die zur Identifizierung der Rechnung vom Rechnungsaussteller einmalig vergeben wird". UStAE 14.5 Abs. 10: the number is to make the invoice unique; one or more series of digits or letters; „Eine lückenlose Abfolge der ausgestellten Rechnungsnummern ist nicht zwingend." Abs. 11: the issuer decides how many separate ranges, also ranges for periods (months, weeks, days), not necessarily gapless, as long as an invoice can be assigned to its range easily and uniquely. So a range per year and one range over all years are both allowed; what is not allowed is a number given twice. (Read 04.11.2026 in a copy of the UStAE at steuerschroeder.de, not on the BMF site.)
+
+**Now.** `Company.invoiceNumberContinuous` (migration `20261104000001_invoice_number_continuous`, default **true**): the count of each document type continues over the years — one sequence `invoice_seq_<type>_all_<company>` — and the year stays in the number (`INV-2027-000043` after `INV-2026-000042`), so parsing, the delete rule (newest first, by year and number), DATEV and the archives are as they were. False: a sequence per type and year as before (`INV-2027-000001`). The settings page has „Nummernkreis: Fortlaufend über die Jahre / Jedes Jahr neu ab 1" next to the prefix (de/en/zh); the prefix hint no longer says „die Zählung des Jahres". The first number of a continuing range comes after the highest number of every year (`usedMax` with `year` null), and a number already taken is skipped as before (Tier 404's fast-forward), so switching either way gives no number twice — a switch can leave a gap, which § 14 allows. A deleted draft gives its number back in either range (`releaseInvoiceNumber` uses the range the company numbers in now).
+
+**On the dev database:** with the migration every company continues from its highest number of any year; for a company that had more numbers in an earlier year than in this one, the next number jumps to above that (a gap, allowed). Real numbers start at the launch.
+
+Spec `495-tier793-nummernkreis-fortlaufend.sh` (five fail on the code before: 000001 for 000006, the setting refused). Spec 193 looked its company's sequence up as `invoice_seq_inv_<year>_…`; it takes the name of the company's range now. The whole backend suite (493 specs but 257) and 51 Playwright tests of settings, numbering, invoices and recurring invoices pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 792b — CI green for Tiers 791 and 792
 
 Run 41743259875 (commit 917784b5): backend **493 passed / 0 failed / 1 skipped**, Playwright **1120 passed (39.5 m), 0 flaky, no retry**, no Traceback, no `REFUSED`, no ✗. The throwaway databases of both runs (`tmp-y27-pg`, `tmp-ny-pg`) are removed.

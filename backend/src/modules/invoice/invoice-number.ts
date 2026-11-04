@@ -72,18 +72,28 @@ export function invoiceNumberPrefix(type: string, ownPrefix?: string | null): st
  * The highest number this company has used with this prefix and year — on an
  * invoice, or (Tier 733) on an issued one that is gone: deleted on its issue
  * day, or left by a restore only as its kept copy (RetiredInvoiceNumber).
+ * Tier 793: `year` null — of every year (a range that continues).
  */
-async function usedMax(tx: Prisma.TransactionClient, companyId: string, prefix: string, year: number): Promise<number> {
-  const like = `${prefix}${year}-%`
+async function usedMax(tx: Prisma.TransactionClient, companyId: string, prefix: string, year: number | null): Promise<number> {
+  const like = year === null ? `${prefix}%` : `${prefix}${year}-%`
   const rows = await tx.$queryRaw<Array<{ max: bigint | null }>>`
     SELECT MAX(CAST(SUBSTRING(n FROM '([0-9]+)$') AS BIGINT)) AS max FROM (
       SELECT "invoiceNumber" AS n FROM "Invoice" WHERE "companyId" = ${companyId} AND "invoiceNumber" LIKE ${like}
       UNION ALL
       SELECT "invoiceNumber" AS n FROM "RetiredInvoiceNumber" WHERE "companyId" = ${companyId} AND "invoiceNumber" LIKE ${like}
     ) used
-    WHERE n ~ '[0-9]+$'
+    WHERE n ~ ('^' || ${prefix} || '[0-9]{4}-[0-9]+$')
   `
   return Number(rows[0]?.max ?? 0)
+}
+
+/**
+ * Tier 793 — the sequence of a company's range: one per document type that
+ * continues over the years, or (`invoiceNumberContinuous` false) one per type
+ * and year. Lowercase and unquoted on purpose (Tier 174).
+ */
+function sequenceName(type: string, year: number | null, companyId: string): string {
+  return `invoice_seq_${type.toLowerCase()}_${year === null ? 'all' : year}_${companyToken(companyId)}`
 }
 
 /**
@@ -122,13 +132,15 @@ export async function nextInvoiceNumber(
   }
 
   // Tier 692: an invoice takes the company's own prefix; the sequence stays
-  // the type's, so a changed prefix continues the count of the year
-  const own = type === 'INV'
-    ? (await tx.company.findUnique({ where: { id: companyId }, select: { invoicePrefix: true } }))?.invoicePrefix
-    : null
-  const prefix = invoiceNumberPrefix(type, own)
-  // Lowercase and unquoted on purpose (Tier 174).
-  const seqName = `invoice_seq_${type.toLowerCase()}_${year}_${companyToken(companyId)}`
+  // the type's, so a changed prefix continues the count
+  const company = await tx.company.findUnique({ where: { id: companyId }, select: { invoicePrefix: true, invoiceNumberContinuous: true } })
+  const prefix = invoiceNumberPrefix(type, type === 'INV' ? company?.invoicePrefix : null)
+  // Tier 793: the count continues over the years unless the company starts
+  // each year anew; the year stays in the number either way. The first number
+  // of a continuing range comes after the highest of every year (usedMax), and
+  // a taken one is skipped (below) — switching either way reuses nothing.
+  const scope = company?.invoiceNumberContinuous === false ? year : null
+  const seqName = sequenceName(type, scope, companyId)
 
   // Tier 775: looked up every time. A set of the sequences this process had
   // created remembered one whose CREATE was in a transaction that then rolled
@@ -155,7 +167,7 @@ export async function nextInvoiceNumber(
     // Start above whatever this company already used. Read it from the
     // invoice numbers themselves rather than from `sequenceNumber`, which is
     // null for every row written before Tier 174 added the column.
-    const start = (await usedMax(tx, companyId, prefix, year)) + 1
+    const start = (await usedMax(tx, companyId, prefix, scope)) + 1
     await tx.$executeRawUnsafe(
       `CREATE SEQUENCE IF NOT EXISTS ${seqName} START ${start} INCREMENT 1`,
     )
@@ -193,7 +205,7 @@ export async function nextInvoiceNumber(
     }
     // is_called = true, so the next nextval() returns max + 1.
     await tx.$executeRawUnsafe(
-      `SELECT setval('${seqName}', ${await usedMax(tx, companyId, prefix, year)}, true)`,
+      `SELECT setval('${seqName}', ${await usedMax(tx, companyId, prefix, scope)}, true)`,
     )
   }
   throw new BadRequestException(
@@ -249,14 +261,17 @@ export async function releaseInvoiceNumber(
     return
   }
   if (!/^[A-Z]{2,5}$/.test(type) || !Number.isInteger(seq) || seq < 1) return
-  const seqName = `invoice_seq_${type.toLowerCase()}_${year}_${companyToken(companyId)}`
+  // Tier 793: the range the company numbers in now
+  const continuous = (await tx.company.findUnique({ where: { id: companyId }, select: { invoiceNumberContinuous: true } }))?.invoiceNumberContinuous !== false
+  const scope = continuous ? null : year
+  const seqName = sequenceName(type, scope, companyId)
   const exists = await tx.$queryRaw<Array<{ one: number }>>`
     SELECT 1 AS one FROM pg_class WHERE relkind = 'S' AND relname = ${seqName}
   `
   if (exists.length === 0) return
   // Only step back if this really was the newest number handed out; never move
   // the sequence below a number that is still in use.
-  const remainingMax = await usedMax(tx, companyId, prefix, year)
+  const remainingMax = await usedMax(tx, companyId, prefix, scope)
   if (remainingMax >= seq) return
   // setval(n, true) → next is n + 1; a sequence cannot be set to 0, so the
   // "next is 1" case uses is_called = false.
