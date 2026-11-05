@@ -160,6 +160,8 @@ export interface AssetAfaSummary {
   accumulatedAfA: number    // min(monthsHeld, ND) * monthlyAfA
   buchwert: number          // AK - accumulatedAfA, floored at Restwert
   annualAfA: number         // AfA expense for the calendar year of snapshot
+  firstMonthInYear: number  // Tier 800: first month (1–12) of that year with AfA, 0 if none
+  monthsInYear: number      // Tier 800: months of that year with AfA
   disposed: boolean
 }
 
@@ -624,23 +626,23 @@ export class AssetsService {
         skippedZero.push({ assetId: a.id, assetName: a.bezeichnung })
         continue
       }
-      // Split the annual AfA into 12 equal
-      // monthly amounts. The last month (Dec)
-      // absorbs the rounding remainder so the
-      // 12 months sum exactly to the annual
-      // total.
-      const monthlyBase = round2(summary.annualAfA / 12)
+      // Tier 800: the annual AfA in equal parts over the months the asset is
+      // depreciated in that year — from the month it was acquired (or
+      // January) to the end of its useful life or the month it was sold. It
+      // was split over all twelve: an asset bought in July 2026 had 100 € of
+      // AfA booked on 31.01. … 30.06.2026, months before it existed, and the
+      // BWA showed them there (measured on a clock at 01.01.2027, when the
+      // automatic booking made the year's rows). The last of these months
+      // absorbs the rounding remainder, so they sum to the annual total.
+      const first = summary.firstMonthInYear
+      const last = first + summary.monthsInYear - 1
+      const monthlyBase = round2(summary.annualAfA / summary.monthsInYear)
       const monthlyAmounts: number[] = []
       let allocated = 0
       for (let m = 1; m <= 12; m++) {
-        let amount: number
-        if (m === 12) {
-          // Last month absorbs the rounding
-          // remainder: annualAfA - 11*monthlyBase
-          amount = round2(summary.annualAfA - 11 * monthlyBase)
-        } else {
-          amount = monthlyBase
-        }
+        let amount = 0
+        if (m === last) amount = round2(summary.annualAfA - (summary.monthsInYear - 1) * monthlyBase)
+        else if (m >= first && m < last) amount = monthlyBase
         monthlyAmounts.push(amount)
         allocated += amount
       }
@@ -660,6 +662,7 @@ export class AssetsService {
           continue
         }
         const monthlyAmount = monthlyAmounts[m - 1]
+        if (monthlyAmount === 0) continue // Tier 800: no AfA in this month
         // Last day of the month: new Date(year, m, 0)
         // gives the last day of month m (since
         // month is 0-indexed in JS Date).

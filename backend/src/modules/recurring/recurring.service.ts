@@ -151,8 +151,40 @@ export class RecurringService {
     // in Berlin the stored run date was the day before the one the user
     // picked, and it changed with the server's time zone.
     d.setUTCHours(0, 0, 0, 0)
-    const first = this.advanceTo(d, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1)
+    const first = this.firstScheduleDate(d, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1, input.servicePeriod)
     return this.notBeforeToday(first, input.interval, input.intervalCount ?? 1, input.dayOfMonth ?? 1)
+  }
+
+  /**
+   * Tier 800 — the first run of a schedule that starts on `start`.
+   *
+   * One interval after the start (decided 06.10.2026, Tier 535) — except for
+   * a template billed in advance („im Voraus", the form's default): there the
+   * first invoice bills the first period, so it is made at its beginning.
+   * Measured on a clock at 31.12.2026: a monthly template billed in advance,
+   * starting 01.01.2027, made its first invoice on 01.02.2027 for February,
+   * and January was never billed. The owner, 05.11.2026: „预收时第一张开在开始日".
+   * In advance, the first run is the first date of the schedule on or after
+   * the start: the start itself for weekly and yearly; for monthly and
+   * quarterly the day of the month in the start's month, unless that day has
+   * passed.
+   */
+  private firstScheduleDate(
+    start: Date,
+    interval: RecurringInterval,
+    count: number,
+    dayOfMonth: number,
+    servicePeriod?: string | null,
+  ): Date {
+    const d = new Date(start)
+    d.setUTCHours(0, 0, 0, 0)
+    if (servicePeriod !== 'current') return this.advanceTo(d, interval, count, dayOfMonth)
+    if (interval === 'monthly' || interval === 'quarterly') {
+      const sameMonth = new Date(d)
+      this.addMonths(sameMonth, 0, dayOfMonth)
+      return sameMonth.getTime() >= d.getTime() ? sameMonth : this.advanceTo(d, interval, count, dayOfMonth)
+    }
+    return d
   }
 
   /**
@@ -492,6 +524,7 @@ export class RecurringService {
       intervalCount: source.intervalCount,
       dayOfMonth: source.dayOfMonth,
       startDate: newStartDate,
+      servicePeriod: source.servicePeriod as ServicePeriodMode, // Tier 800: the first run depends on it
       endDate: null,
       currency: source.currency,
       language: source.language,
@@ -576,8 +609,9 @@ export class RecurringService {
     const startDate = patch.startDate ?? existing.startDate
     if (patch.interval || patch.intervalCount || patch.dayOfMonth || patch.startDate) {
       nextRunAt = this.notBeforeToday(
-        this.advanceTo(new Date(startDate), interval, intervalCount, dayOfMonth), interval, intervalCount, dayOfMonth,
-      ) // Tier 535
+        this.firstScheduleDate(new Date(startDate), interval, intervalCount, dayOfMonth, patch.servicePeriod ?? existing.servicePeriod),
+        interval, intervalCount, dayOfMonth,
+      ) // Tier 535, Tier 800
     }
 
     // Tier 519: switched on again, or a running pause lifted early — the

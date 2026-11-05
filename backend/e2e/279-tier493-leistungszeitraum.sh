@@ -87,8 +87,8 @@ period_of_run() { # template
 TC=$(tpl "Wartung im Voraus" current)
 assert_eq "the template keeps its mode" "$(q "select \"servicePeriod\" from \"RecurringInvoice\" where id='$TC'" 2>/dev/null)" "current"
 AS GET "/api/v1/recurring-invoices/$TC/preview?companyId=$C"
-assert_eq "preview: October (run on 01.10.)" "$(P "(d.get('servicePeriodStart') or '')[:10]+'/'+(d.get('servicePeriodEnd') or '')[:10]")" "2030-10-01/2030-10-31"
-assert_eq "'current': the run of 01.10. bills 01.10.–31.10." "$(period_of_run "$TC")" "2030-10-01/2030-10-31"
+assert_eq "preview: September (run on the start, 01.09. — Tier 800; was October, September unbilled)" "$(P "(d.get('servicePeriodStart') or '')[:10]+'/'+(d.get('servicePeriodEnd') or '')[:10]")" "2030-09-01/2030-09-30"
+assert_eq "'current': the run of 01.09. bills 01.09.–30.09." "$(period_of_run "$TC")" "2030-09-01/2030-09-30"
 TP=$(tpl "Support nachträglich" previous)
 assert_eq "'previous': the run of 01.10. bills 01.09.–30.09." "$(period_of_run "$TP")" "2030-09-01/2030-09-30"
 TN=$(tpl "Ohne Zeitraum" none)

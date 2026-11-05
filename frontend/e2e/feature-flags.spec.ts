@@ -41,8 +41,28 @@ function readCachedTokens(): { userId: string; companyId: string } {
 
 let testTokens: { userId: string; companyId: string } | null = null
 
-test.beforeAll(() => {
+// Tier 800: the toggle tests save the shared company's flags and never put
+// them back, so each run flipped autoBookAfa, anlageV and anlageKind once more
+// — backend spec 117 found the AfA auto-booker skipping the company locally
+// ("skippedCount 1"). The flags as found are restored after the file.
+const API = process.env.E2E_API_URL || "http://localhost:3001"
+const FLAG_KEYS = ["autoBookAfa", "anlageV", "anlageG", "anlageN", "anlageKind", "anlageSo", "anlageAus"] as const
+let flagsBefore: Record<string, boolean> | null = null
+const authHeaders = () => ({ "x-user-id": testTokens!.userId, "x-company-id": testTokens!.companyId })
+
+test.beforeAll(async ({ request }) => {
   testTokens = readCachedTokens()
+  const res = await request.get(`${API}/api/v1/companies/${testTokens.companyId}/feature-flags?companyId=${testTokens.companyId}`, { headers: authHeaders() })
+  if (res.ok()) {
+    const d = await res.json()
+    flagsBefore = Object.fromEntries(FLAG_KEYS.map((k) => [k, d[k] === true]))
+  }
+})
+
+test.afterAll(async ({ request }) => {
+  if (!testTokens || !flagsBefore) return
+  const res = await request.patch(`${API}/api/v1/companies/${testTokens.companyId}/feature-flags?companyId=${testTokens.companyId}`, { headers: authHeaders(), data: flagsBefore })
+  expect(res.ok(), "the flags put back as they were").toBeTruthy()
 })
 
 async function injectAuth(page: any) {

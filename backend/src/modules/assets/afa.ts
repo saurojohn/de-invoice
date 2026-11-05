@@ -49,6 +49,9 @@ export interface AfaSummary {
   accumulatedAfA: number
   buchwert: number
   annualAfA: number
+  /** Tier 800: the months of the snapshot's year with AfA — from `firstMonthInYear` (1–12), `monthsInYear` of them */
+  firstMonthInYear: number
+  monthsInYear: number
   disposed: boolean
 }
 
@@ -105,6 +108,8 @@ export function computeAfaSummary(asset: AfaAsset, snapshot: Date): AfaSummary {
     accumulatedAfA: round2(accumulatedAfA),
     buchwert,
     annualAfA,
+    firstMonthInYear: monthsInYear > 0 ? start.getMonth() + 1 : 0,
+    monthsInYear,
     disposed: !!asset.verkauftAm,
   }
 }

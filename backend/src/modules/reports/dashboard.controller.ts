@@ -78,7 +78,6 @@ export class DashboardController {
     // Same definitions as the aggregates:
     //   invoices — issued sales documents (Tier 424), total / totalVat
     //   expenses — no AfA rows (Tier 437), net / VAT / gross;
-    //              open payables = gross of status 'booked'
     const spanStart = months[0].mStart < yearStart ? months[0].mStart : yearStart
     const [invRows, expRows] = await Promise.all([
       this.prisma.invoice.findMany({
@@ -93,7 +92,7 @@ export class DashboardController {
       }),
       this.prisma.expense.findMany({
         where: { companyId, invoiceDate: { gte: spanStart, lte: todayEnd }, ...NOT_AFA_BOOKING },
-        select: { invoiceDate: true, netAmount: true, vatAmount: true, grossAmount: true, status: true },
+        select: { invoiceDate: true, netAmount: true, vatAmount: true },
       }),
     ])
     const cents = (v: unknown) => Math.round(Number(v ?? 0) * 100)
@@ -112,13 +111,12 @@ export class DashboardController {
       return { revenue: total / 100, ust: vat / 100, count }
     }
     const aggregateExpenses = (start: Date, end: Date) => {
-      let net = 0, vat = 0, open = 0, count = 0
+      let net = 0, vat = 0, count = 0
       for (const r of expRows) {
         if (r.invoiceDate < start || r.invoiceDate > end) continue
         net += cents(r.netAmount); vat += cents(r.vatAmount); count++
-        if (r.status === 'booked') open += cents(r.grossAmount)
       }
-      return { expenses: net / 100, vorsteuer: vat / 100, count, openPayables: open / 100 }
+      return { expenses: net / 100, vorsteuer: vat / 100, count }
     }
     // Open receivables: single aggregate over
     // all sent/overdue invoices (no date
@@ -135,6 +133,15 @@ export class DashboardController {
       const open = Math.round((Number(inv.total) - paid) * invoiceEurFactor({ ...inv, totalVat: 0 }) * 100) / 100
       return open > 0 ? Math.round((s + open) * 100) / 100 : s
     }, 0)
+    // Tier 800: open payables over every year, as the receivables above. They
+    // were the open bills of this year only: on 1 January every unpaid bill of
+    // December dropped out (measured on a clock at 31.12.2026: 238 € open at
+    // 23:37, 0 € at 00:06), and a bill of an earlier year was never in it.
+    const openPay = await this.prisma.expense.aggregate({
+      where: { companyId, status: 'booked', ...NOT_AFA_BOOKING },
+      _sum: { grossAmount: true },
+    })
+    const openPayables = cents(openPay._sum.grossAmount) / 100
     const ytdInv = aggregateInvoices(yearStart, todayEnd)
     const ytdExp = aggregateExpenses(yearStart, todayEnd)
     const lastInv = aggregateInvoices(lastMonthStart, lastMonthEnd)
@@ -194,7 +201,7 @@ export class DashboardController {
         vorsteuer: pct(thisExp.vorsteuer, lastExp.vorsteuer),
       },
       openReceivables,
-      openPayables: ytdExp.openPayables,
+      openPayables,
       byMonth,
       generatedAt: new Date().toISOString(),
     };
