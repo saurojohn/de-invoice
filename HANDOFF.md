@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 805b — CI green for Tier 804, 805 and 805a
+
+Run 42092373322 (Tier 804, commit 2a429062): backend **504 passed / 0 failed / 1 skipped** (505 among them), Playwright **1126 passed (40.8 m)**. Run 42099331247 (Tier 805, 60ae6d23): Playwright 1127 passed, backend 504 / **1 failed** — spec 506's audit order, fixed in 805a. Run 42105072543 (Tier 805a, 3b1365d3): backend **505 passed / 0 failed / 1 skipped** (506 among them), Playwright **1127 passed (33.0 m)**. The green runs: 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 805 — the tax deadlines as a calendar subscription
 
 The deadlines were on the dashboard and in the reminder mails (Tiers 801–804); a calendar app could not show them.
