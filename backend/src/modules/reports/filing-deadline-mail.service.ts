@@ -14,7 +14,9 @@ import { dueReminders } from './filing-deadlines'
  * once (settings.fristErinnerungGesendet). Off with
  * settings.fristErinnerungMail = false (the UStVA page).
  */
-const KIND = { ustva: 'UStVA', zm: 'ZM', oss: 'OSS', annual: 'Jahreserklärungen', svz: 'Sondervorauszahlung', dauerfrist: 'Dauerfristverlängerung' } as const
+const KIND = { ustva: 'UStVA', zm: 'ZM', oss: 'OSS', annual: 'Jahreserklärungen', svz: 'Sondervorauszahlung', dauerfrist: 'Dauerfristverlängerung',
+  // Tier 804
+  kst: 'Körperschaftsteuer-Vorauszahlung', gewst: 'Gewerbesteuer-Vorauszahlung' } as const
 /** keys kept — a year of reminders and more */
 const KEEP = 120
 
@@ -66,16 +68,17 @@ export class FilingDeadlineMailService {
     const first = due[0].row
     const subject = due.length === 1
       ? `Frist: ${label(first)} — fällig am ${dmy(first.dueDate)}`
-      : `Fristen: ${due.length} Meldungen fällig, die erste am ${dmy(first.dueDate)}`
+      : `Fristen: ${due.length} Termine fällig, der erste am ${dmy(first.dueDate)}`
     const lines = due.map(({ row }) => {
       const when = row.daysLeft === 0 ? 'heute' : row.daysLeft === 1 ? 'morgen' : `in ${row.daysLeft} Tagen`
-      const amount = row.amount ? ` (ca. ${eur(row.amount)})` : ''
+      // Tier 804: a prepayment's amount is the Bescheid's; only the Sondervorauszahlung is estimated
+      const amount = row.amount ? ` (${row.kind === 'svz' ? 'ca. ' : ''}${eur(row.amount)})` : ''
       return `• ${label(row)}${amount}: fällig am ${dmy(row.dueDate)} — ${when}${row.note ? `\n  ${row.note}` : ''}`
     })
     const text =
-      `Guten Tag,\n\nfür ${company?.name ?? 'Ihre Firma'} stehen diese Abgabefristen an:\n\n${lines.join('\n')}\n\n` +
-      `Fällt eine Frist der UStVA oder ZM auf ein Wochenende oder einen Feiertag, endet sie am nächsten Werktag (§ 108 Abs. 3 AO); ` +
-      `die Daten oben sind schon verschoben.\n\nÜbersicht: ${publicOrigin()}/dashboard\n\n` +
+      `Guten Tag,\n\nfür ${company?.name ?? 'Ihre Firma'} stehen diese Abgabe- und Zahlungsfristen an:\n\n${lines.join('\n')}\n\n` +
+      `Fällt eine Frist auf ein Wochenende oder einen Feiertag, endet sie am nächsten Werktag (§ 108 Abs. 3 AO) — ` +
+      `außer der OSS-Frist; die Daten oben sind schon verschoben.\n\nÜbersicht: ${publicOrigin()}/dashboard\n\n` +
       `Diese Erinnerung lässt sich unter Umsatzsteuer → „Voranmeldungszeitraum laut Finanzamt“ abschalten.\n`
 
     try {

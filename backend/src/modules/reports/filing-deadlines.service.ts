@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
-import { businessTodayIso } from '../../common/business-date'
+import { businessDayIso, businessTodayIso } from '../../common/business-date'
 import { UstvaService } from './ustva.service'
 import { OssService } from './oss.service'
 import {
   Period, UstvaRhythm, daysBetween, lastEndedPeriod, ossDeadline, periodContaining, periodEnd, periodName, previousPeriod,
   ustvaDeadline, zmDeadline, annualReturnDeadline, sondervorauszahlungDeadline, isoDay,
+  prepaymentDeadline, prepaymentTaxOf, addDaysIso, type PrepaymentTax,
 } from './filing-deadlines'
 
 /**
@@ -26,7 +27,8 @@ export type DeadlineStatus = 'filed' | 'open' | 'overdue' | 'running' | 'option'
 export interface FilingDeadline {
   // Tier 802: 'annual' — the annual returns; 'svz' — the Sondervorauszahlung;
   // 'dauerfrist' — the application for the Dauerfristverlängerung
-  kind: 'ustva' | 'zm' | 'oss' | 'annual' | 'svz' | 'dauerfrist'
+  // Tier 804: 'kst' / 'gewst' — the quarterly prepayments of the Vorauszahlungsbescheide
+  kind: 'ustva' | 'zm' | 'oss' | 'annual' | 'svz' | 'dauerfrist' | 'kst' | 'gewst'
   year: number
   month: number | null
   quarter: number | null
@@ -38,7 +40,8 @@ export interface FilingDeadline {
   /** for the page to translate: 'zm-monthly' | 'oss-nil' | 'oss-check' */
   noteCode: string | null
   note: string | null
-  /** Tier 802: the Sondervorauszahlung, 1/11 of the previous year's Vorauszahlungen — an estimate */
+  /** Tier 802: the Sondervorauszahlung, 1/11 of the previous year's Vorauszahlungen — an estimate;
+   *  Tier 804: the prepayment the Bescheid sets — exact */
   amount?: number
 }
 
@@ -60,7 +63,13 @@ const NOTES = {
   'svz-partial': '1/11 der bisherigen Vorauszahlungen des laufenden Jahres (§ 47 UStDV) — vorläufig, das Jahr ist noch nicht zu Ende.',
   'dauerfrist-monthly': 'Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; dafür ist bis dahin eine Sondervorauszahlung von 1/11 der Vorjahres-Vorauszahlungen zu leisten (§§ 46–48 UStDV).',
   'dauerfrist-quarterly': 'Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; vierteljährlich ohne Sondervorauszahlung (§ 46 UStDV).',
+  'kst-paid-by-expense': 'Laut Vorauszahlungsbescheid (KSt + Solidaritätszuschlag). Als gezahlt gilt sie, sobald eine Ausgabe der Kategorie „Körperschaftsteuer“ bzw. „Solidaritätszuschlag“ um den Termin sie deckt.',
+  'gewst-paid-by-expense': 'Laut Gewerbesteuer-Vorauszahlungsbescheid der Gemeinde. Als gezahlt gilt sie, sobald eine Ausgabe der Kategorie „Gewerbesteuer“ um den Termin sie deckt.',
 } as const
+
+/** Tier 804: an expense of the tax this many days before to this many after a due date pays it. */
+const PAID_WINDOW = { before: 45, after: 30 } as const
+const PREPAYMENT_SETTING: Record<PrepaymentTax, string> = { kst: 'kstVorauszahlungen', gewst: 'gewstVorauszahlungen' }
 
 @Injectable()
 export class FilingDeadlinesService {
@@ -237,6 +246,12 @@ export class FilingDeadlinesService {
       }
     }
 
+    // Tier 804: the KSt and GewSt prepayments the company entered from its
+    // Bescheide (Buchhaltung → KSt 1 / Gewerbesteuer): the next one, and the
+    // one before while it is unpaid — overdue only for a company that books
+    // these taxes as expenses here (otherwise nothing here says it was paid).
+    out.push(...(await this.prepayments(companyId, today, land, item)))
+
     out.sort((a, b) => (a.dueDate === b.dueDate ? a.kind.localeCompare(b.kind) : a.dueDate.localeCompare(b.dueDate)))
     const q = lastEndedPeriod(today, 'quarterly')
     return {
@@ -248,5 +263,73 @@ export class FilingDeadlinesService {
       },
       deadlines: out,
     }
+  }
+
+  private async prepayments(
+    companyId: string,
+    today: string,
+    land: string | null,
+    item: (kind: FilingDeadline['kind'], p: Period, end: string, due: string, status: DeadlineStatus, noteCode?: keyof typeof NOTES | null) => FilingDeadline,
+  ): Promise<FilingDeadline[]> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } })
+    const s = (company?.settings ?? {}) as Record<string, any>
+    const year = Number(today.slice(0, 4))
+    const quarters: Period[] = [{ year: year - 1, quarter: 4 }, ...[1, 2, 3, 4].map((q) => ({ year, quarter: q })), { year: year + 1, quarter: 1 }]
+    const amountOf = (tax: PrepaymentTax, p: Period) => {
+      const n = Number(s[PREPAYMENT_SETTING[tax]]?.[p.year]?.[`q${p.quarter}`])
+      return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0
+    }
+    // per tax: the one due next, and the one before it
+    const wanted: Array<{ tax: PrepaymentTax; p: Period; due: string; amount: number; next: boolean }> = []
+    for (const tax of ['kst', 'gewst'] as PrepaymentTax[]) {
+      const dues = quarters.map((p) => ({ p, due: prepaymentDeadline(tax, p.year, p.quarter!, land) }))
+      const i = dues.findIndex((d) => d.due >= today)
+      for (const [d, next] of [[dues[i], true], [dues[i - 1], false]] as const) {
+        if (!d) continue
+        const amount = amountOf(tax, d.p)
+        if (amount > 0) wanted.push({ tax, p: d.p, due: d.due, amount, next })
+      }
+    }
+    if (wanted.length === 0) return []
+
+    // the expenses of these taxes around the due dates — by the day paid, else
+    // the day dated (a day wider here; the German day is compared below)
+    const from = addDaysIso(wanted.map((w) => w.due).sort()[0], -PAID_WINDOW.before - 1)
+    const to = addDaysIso(wanted.map((w) => w.due).sort().slice(-1)[0], PAID_WINDOW.after + 2)
+    const range = { gte: new Date(`${from}T00:00:00Z`), lt: new Date(`${to}T00:00:00Z`) }
+    const [expenses, categories] = await Promise.all([
+      this.prisma.expense.findMany({
+        where: { companyId, OR: [{ paidAt: range }, { paidAt: null, invoiceDate: range }] },
+        select: { category: true, grossAmount: true, paidAt: true, invoiceDate: true },
+      }),
+      this.prisma.expense.findMany({ where: { companyId, category: { not: null } }, select: { category: true }, distinct: ['category'] }),
+    ])
+    // the taxes this company books as expenses at all
+    const booksTax = new Set(categories.map((e) => prepaymentTaxOf(e.category)).filter((t): t is PrepaymentTax => t !== null))
+
+    const rows: FilingDeadline[] = []
+    for (const w of wanted) {
+      const lo = addDaysIso(w.due, -PAID_WINDOW.before)
+      const hi = addDaysIso(w.due, PAID_WINDOW.after)
+      const paidSum = expenses
+        .filter((e) => prepaymentTaxOf(e.category) === w.tax)
+        .map((e) => ({ day: businessDayIso(e.paidAt ?? e.invoiceDate), amount: Number(e.grossAmount) }))
+        .filter((e) => e.day >= lo && e.day <= hi)
+        .reduce((a, e) => a + e.amount, 0)
+      const paid = paidSum >= w.amount - 0.005
+      let status: DeadlineStatus
+      if (paid) {
+        if (!w.next) continue
+        status = 'filed'
+      } else if (w.next) {
+        status = 'open'
+      } else if (booksTax.has(w.tax)) {
+        status = 'overdue'
+      } else continue
+      const p = w.p
+      const row = item(w.tax, p, periodEnd(p), w.due, status, w.tax === 'kst' ? 'kst-paid-by-expense' : 'gewst-paid-by-expense')
+      rows.push({ ...row, amount: w.amount })
+    }
+    return rows
   }
 }

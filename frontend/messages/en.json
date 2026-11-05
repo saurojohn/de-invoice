@@ -4487,7 +4487,7 @@
     "archives": "Audit trail and GoBD archives"
   },
   "deadlines": {
-    "title": "Upcoming filing deadlines",
+    "title": "Upcoming tax deadlines",
     "loadFailed": "The filing deadlines could not be loaded.",
     "none": "No VAT returns due.",
     "filed": "submitted",
@@ -4514,7 +4514,9 @@
       "svz-estimate": "1/11 of the previous year's advance payments (§ 47 UStDV), estimated from the books — declare with form USt 1 H and pay.",
       "svz-partial": "1/11 of this year's advance payments so far (§ 47 UStDV) — provisional, the year has not ended.",
       "dauerfrist-monthly": "With a permanent extension every VAT return is due one month later; in return a special prepayment of 1/11 of the previous year's advance payments is due by this day (§§ 46–48 UStDV).",
-      "dauerfrist-quarterly": "With a permanent extension every VAT return is due one month later; quarterly filers pay no special prepayment (§ 46 UStDV)."
+      "dauerfrist-quarterly": "With a permanent extension every VAT return is due one month later; quarterly filers pay no special prepayment (§ 46 UStDV).",
+      "kst-paid-by-expense": "As set by the prepayment notice (corporate income tax + solidarity surcharge). It counts as paid once an expense of the category “Körperschaftsteuer” or “Solidaritätszuschlag” around the due date covers it.",
+      "gewst-paid-by-expense": "As set by the municipality’s trade tax prepayment notice. It counts as paid once an expense of the category “Gewerbesteuer” around the due date covers it."
     },
     "settingsTitle": "Filing period set by the tax office",
     "settingsRhythm": "VAT return",
@@ -4534,7 +4536,9 @@
       "oss": "OSS",
       "annual": "Annual returns",
       "svz": "Special prepayment",
-      "dauerfrist": "Permanent extension"
+      "dauerfrist": "Permanent extension",
+      "kst": "Corporate tax prepayment",
+      "gewst": "Trade tax prepayment"
     },
     "paid": "paid",
     "possibleUntil": "possible",

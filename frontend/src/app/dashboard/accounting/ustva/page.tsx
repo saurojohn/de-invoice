@@ -15,6 +15,7 @@ import { useToast } from "@/components/useToast"
 import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut, isDuplicateExpense } from "@/lib/api"
 import { FormNote } from "@/lib/tax-form-text" // Tier 791: the form-year notice in the interface language
 import { useYearField } from "@/lib/year-field"
+import { useHashAnchor } from "@/lib/hash-anchor"
 
 interface UstvaData {
   companyId: string
@@ -138,6 +139,8 @@ export default function UstvaPage() {
 
 function UstvaPageInner() {
   const router = useRouter()
+  // Tier 804: a deadline's link (#form-gewst, #zm) stays on its form while the page loads
+  useHashAnchor()
   const searchParams = useSearchParams()
   const { t } = useI18n()
   const toast = useToast()

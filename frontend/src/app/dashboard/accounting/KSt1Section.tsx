@@ -78,7 +78,11 @@ export function KSt1Section() {
   const [vz, setVz] = useState({ q1: "", q2: "", q3: "", q4: "" })
   const [savingVz, setSavingVz] = useState(false)
 
+  // Tier 804: only the answer for the year selected last is shown — a year
+  // set from the link (below) must not be overwritten by the first load's answer
+  const loadSeq = useRef(0)
   const load = useCallback(async (y: number) => {
+    const seq = ++loadSeq.current
     setLoading(true)
     try {
       const companyId =
@@ -89,15 +93,23 @@ export function KSt1Section() {
       const result = await apiGet<KSt1Result>(
         `/api/v1/accounting/kst1?${params}`,
       )
+      if (seq !== loadSeq.current) return
       setData(result)
       const q = result.kstVorauszahlungen || { q1: 0, q2: 0, q3: 0, q4: 0 }
       setVz({ q1: q.q1 ? String(q.q1) : "", q2: q.q2 ? String(q.q2) : "", q3: q.q3 ? String(q.q3) : "", q4: q.q4 ? String(q.q4) : "" })
     } catch (e: any) {
+      if (seq !== loadSeq.current) return
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
       toastRef.current.error(msg)
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
+  }, [])
+
+  // Tier 804: a prepayment deadline on the dashboard opens its year (?kstYear=2026)
+  useEffect(() => {
+    const y = Number(new URLSearchParams(window.location.search).get("kstYear"))
+    if (Number.isInteger(y) && y >= 2000 && y <= 2100) setYear(y)
   }, [])
 
   useEffect(() => {
@@ -361,7 +373,11 @@ export function KSt1Section() {
                     <label key={q} className="text-xs">
                       <span className="block text-gray-600 dark:text-gray-300">{q.toUpperCase()}</span>
                       <input
-                        className="border rounded px-2 py-1 w-24 text-sm bg-white dark:bg-gray-800"
+                        // Tier 804: a number field, as for the GewSt — a text field read "1.500,00" as 0
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="border rounded px-2 py-1 w-28 text-sm bg-white dark:bg-gray-800"
                         value={vz[q]}
                         onChange={(e) => setVz({ ...vz, [q]: e.target.value })}
                         data-testid={`kst1-vz-${q}`}

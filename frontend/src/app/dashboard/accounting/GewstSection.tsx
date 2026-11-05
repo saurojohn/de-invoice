@@ -89,7 +89,11 @@ export function GewstSection() {
   const [hebesatzInput, setHebesatzInput] = useState("")
   const [saving, setSaving] = useState(false)
 
+  // Tier 804: only the answer for the year selected last is shown — a year
+  // set from the link (below) must not be overwritten by the first load's answer
+  const loadSeq = useRef(0)
   const load = useCallback(async (y: number) => {
+    const seq = ++loadSeq.current
     setLoading(true)
     try {
       const companyId =
@@ -100,6 +104,7 @@ export function GewstSection() {
       const result = await apiGet<GewstResult>(
         `/api/v1/accounting/gewst?${params}`,
       )
+      if (seq !== loadSeq.current) return
       setData(result)
       // Pre-fill the editor with current saved values
       setVorauszahlungenInput({
@@ -110,11 +115,18 @@ export function GewstSection() {
       })
       setHebesatzInput(String(result.hebesatz || ""))
     } catch (e: any) {
+      if (seq !== loadSeq.current) return
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
       toastRef.current.error(msg)
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
+  }, [])
+
+  // Tier 804: a prepayment deadline on the dashboard opens its year (?gewstYear=2026)
+  useEffect(() => {
+    const y = Number(new URLSearchParams(window.location.search).get("gewstYear"))
+    if (Number.isInteger(y) && y >= 2000 && y <= 2100) setYear(y)
   }, [])
 
   useEffect(() => {

@@ -75,6 +75,7 @@ import { EBilanzTab } from "./EBilanzTab"
 import { GobdArchiveSection } from "./GobdArchiveSection"
 import { BooksClosingCard } from "@/components/BooksClosingCard"
 import { useFormTexts } from "@/lib/tax-form-text"
+import { useHashAnchor } from "@/lib/hash-anchor"
 
 // The enriched Voucher summary returned by the
 // GET /api/v1/accounting/vouchers endpoint. The list
@@ -225,6 +226,8 @@ export default function AccountingPage() {
     gobdArchive: <GobdArchiveSection />,
   }
   const router = useRouter()
+  // Tier 804: a deadline's link (#form-gewst, #zm) stays on its form while the page loads
+  useHashAnchor()
   const { t, locale, getDateLocale } = useI18n()  // all used by fmt/format helpers below
   const toast = useToast()
   const [vouchers, setVouchers] = useState<VoucherSummary[]>([])
@@ -1274,7 +1277,8 @@ export default function AccountingPage() {
           </p>
         </div>
       ) : (
-        <div key={key} data-form-section={key}>{sections[key]}</div>
+        // Tier 804: an anchor for each form (the dashboard's deadlines link to KSt 1 and GewSt)
+        <div key={key} id={`form-${key}`} className="scroll-mt-16" data-form-section={key}>{sections[key]}</div>
       ))}
     </main>
   )

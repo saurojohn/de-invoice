@@ -4487,7 +4487,7 @@
     "archives": "Audit-Trail und GoBD-Archive"
   },
   "deadlines": {
-    "title": "Nächste Abgabefristen",
+    "title": "Nächste Steuertermine",
     "loadFailed": "Die Abgabefristen konnten nicht geladen werden.",
     "none": "Keine Umsatzsteuer-Meldungen fällig.",
     "filed": "übermittelt",
@@ -4514,7 +4514,9 @@
       "svz-estimate": "1/11 der Vorauszahlungen des Vorjahres (§ 47 UStDV), aus den Buchungen geschätzt — mit der USt 1 H anmelden und zahlen.",
       "svz-partial": "1/11 der bisherigen Vorauszahlungen des laufenden Jahres (§ 47 UStDV) — vorläufig, das Jahr ist noch nicht zu Ende.",
       "dauerfrist-monthly": "Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; dafür ist bis dahin eine Sondervorauszahlung von 1/11 der Vorjahres-Vorauszahlungen zu leisten (§§ 46–48 UStDV).",
-      "dauerfrist-quarterly": "Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; vierteljährlich ohne Sondervorauszahlung (§ 46 UStDV)."
+      "dauerfrist-quarterly": "Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; vierteljährlich ohne Sondervorauszahlung (§ 46 UStDV).",
+      "kst-paid-by-expense": "Laut Vorauszahlungsbescheid (KSt + Solidaritätszuschlag). Als gezahlt gilt sie, sobald eine Ausgabe der Kategorie „Körperschaftsteuer“ bzw. „Solidaritätszuschlag“ um den Termin sie deckt.",
+      "gewst-paid-by-expense": "Laut Gewerbesteuer-Vorauszahlungsbescheid der Gemeinde. Als gezahlt gilt sie, sobald eine Ausgabe der Kategorie „Gewerbesteuer“ um den Termin sie deckt."
     },
     "settingsTitle": "Voranmeldungszeitraum laut Finanzamt",
     "settingsRhythm": "Voranmeldung",
@@ -4534,7 +4536,9 @@
       "oss": "OSS",
       "annual": "Jahreserklärungen",
       "svz": "Sondervorauszahlung",
-      "dauerfrist": "Dauerfristverlängerung"
+      "dauerfrist": "Dauerfristverlängerung",
+      "kst": "KSt-Vorauszahlung",
+      "gewst": "GewSt-Vorauszahlung"
     },
     "paid": "gezahlt",
     "possibleUntil": "möglich",

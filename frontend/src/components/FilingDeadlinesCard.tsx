@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * Tier 801 — "Nächste Abgabefristen" on the dashboard: the UStVA, ZM and OSS
+ * Tier 801 — "Nächste Steuertermine" (Tier 804; was "Abgabefristen") on the dashboard: the UStVA, ZM and OSS
  * returns due next, with the day they are due (§ 18 / § 18a / § 18j UStG,
  * § 108 Abs. 3 AO) and whether the UStVA was already submitted here. Each row
  * opens its report on that period.
@@ -15,6 +15,7 @@ import { deadlineDay, deadlinePeriodLabel, loadFilingDeadlines, type FilingDeadl
 const KIND_KEY: Record<FilingDeadline["kind"], string> = {
   ustva: "deadlines.kind.ustva", zm: "deadlines.kind.zm", oss: "deadlines.kind.oss",
   annual: "deadlines.kind.annual", svz: "deadlines.kind.svz", dauerfrist: "deadlines.kind.dauerfrist",
+  kst: "deadlines.kind.kst", gewst: "deadlines.kind.gewst",
 }
 
 function href(d: FilingDeadline): string {
@@ -22,6 +23,9 @@ function href(d: FilingDeadline): string {
   if (d.kind === "annual") return "/dashboard/accounting"
   if (d.kind === "svz") return "/dashboard/accounting/ustva#ust-payments"
   if (d.kind === "dauerfrist") return "/dashboard/accounting/ustva#filing-settings"
+  // Tier 804: where the prepayments of the Bescheid are entered
+  if (d.kind === "kst") return `/dashboard/accounting?kstYear=${d.year}#form-kst1`
+  if (d.kind === "gewst") return `/dashboard/accounting?gewstYear=${d.year}#form-gewst`
   if (d.kind === "oss") return `/dashboard/reports?tab=oss&year=${d.year}&quarter=${d.quarter}`
   if (d.kind === "zm") return `/dashboard/accounting/ustva?zmYear=${d.year}&zmQuarter=${d.quarter}#zm`
   return d.month
@@ -45,13 +49,14 @@ export function FilingDeadlinesCard() {
   }, [])
 
   const when = (d: FilingDeadline) => {
-    if (d.status === "filed") return t(d.kind === "svz" ? "deadlines.paid" : "deadlines.filed")
+    if (d.status === "filed") return t(d.kind === "svz" || d.kind === "kst" || d.kind === "gewst" ? "deadlines.paid" : "deadlines.filed")
     if (d.status === "option") return t("deadlines.possibleUntil")
     if (d.daysLeft === 0) return t("deadlines.today")
     if (d.daysLeft < 0) return t("deadlines.overdueSince", { days: String(-d.daysLeft) })
     if (d.daysLeft === 1) return t("deadlines.tomorrow")
     return t("deadlines.inDays", { days: String(d.daysLeft) })
   }
+  const money = (n: number) => n.toLocaleString(locale === "en" ? "en-GB" : locale === "zh" ? "zh-CN" : "de-DE", { style: "currency", currency: "EUR" })
   const tone = (d: FilingDeadline) =>
     d.status === "filed"
       ? "text-emerald-700 dark:text-emerald-400"
@@ -84,7 +89,10 @@ export function FilingDeadlinesCard() {
                         {t(KIND_KEY[d.kind])} {deadlinePeriodLabel(d, locale)}
                         {d.amount != null && d.amount > 0 && (
                           <span className="ml-2 font-normal text-gray-700 dark:text-gray-200" data-testid="filing-deadline-amount">
-                            {t("deadlines.about", { amount: d.amount.toLocaleString(locale === "en" ? "en-GB" : locale === "zh" ? "zh-CN" : "de-DE", { style: "currency", currency: "EUR" }) })}
+                            {/* Tier 804: only the Sondervorauszahlung is an estimate */}
+                            {d.kind === "svz"
+                              ? t("deadlines.about", { amount: money(d.amount) })
+                              : money(d.amount)}
                           </span>
                         )}
                         {d.status === "running" && <span className="ml-2 text-xs font-normal text-gray-500">{t("deadlines.running")}</span>}

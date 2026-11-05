@@ -181,6 +181,31 @@ export function sondervorauszahlungDeadline(year: number, land?: string | null):
 }
 
 /**
+ * Tier 804 — the quarterly prepayments of the Vorauszahlungsbescheide:
+ *   Körperschaftsteuer (+ Soli) on 10.03., 10.06., 10.09., 10.12.
+ *     (§ 31 Abs. 1 KStG with § 37 Abs. 1 EStG);
+ *   Gewerbesteuer on 15.02., 15.05., 15.08., 15.11. (§ 19 Abs. 1 GewStG).
+ * Both move to the next working day (§ 108 Abs. 3 AO; for the Gewerbesteuer
+ * through § 1 Abs. 2 Nr. 3 AO).
+ */
+export type PrepaymentTax = 'kst' | 'gewst'
+export function prepaymentDeadline(tax: PrepaymentTax, year: number, quarter: number, land?: string | null): string {
+  return tax === 'kst'
+    ? shiftToWorkingDay(isoDay(year, quarter * 3 - 1, 10), land)
+    : shiftToWorkingDay(isoDay(year, quarter * 3 - 2, 15), land)
+}
+export const addDaysIso = addDays
+
+/** Which prepayment an expense of this category pays, by the categories of accounting/expense-cost.ts. */
+export function prepaymentTaxOf(category: string | null | undefined): PrepaymentTax | null {
+  const c = String(category || '').trim()
+  if (!c || /berat|software|kurs|seminar|literatur|erstattung/i.test(c)) return null
+  if (/^(Gewerbesteuer|GewSt(\b|-))/i.test(c)) return 'gewst'
+  if (/^(Körperschafts?steuer|KSt(\b|-)|Solidaritätszuschlag|Soli(\b|-))/i.test(c)) return 'kst'
+  return null
+}
+
+/**
  * Tier 803 — the reminder mails: seven days before a deadline and two days
  * before it, once each. A row reached late (the server was down, or the
  * first run is two days before) gets the later reminder only.

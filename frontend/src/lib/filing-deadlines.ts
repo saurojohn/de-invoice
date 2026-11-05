@@ -9,7 +9,8 @@ export type UstvaRhythm = "monthly" | "quarterly" | "none"
 
 export interface FilingDeadline {
   // Tier 802: the annual returns, the Sondervorauszahlung, the Dauerfrist application
-  kind: "ustva" | "zm" | "oss" | "annual" | "svz" | "dauerfrist"
+  // Tier 804: the quarterly KSt / GewSt prepayments
+  kind: "ustva" | "zm" | "oss" | "annual" | "svz" | "dauerfrist" | "kst" | "gewst"
   year: number
   month: number | null
   quarter: number | null
@@ -20,7 +21,7 @@ export interface FilingDeadline {
   status: "filed" | "open" | "overdue" | "running" | "option"
   noteCode: string | null
   note: string | null
-  /** the Sondervorauszahlung (an estimate) */
+  /** the Sondervorauszahlung (an estimate); a KSt / GewSt prepayment (the Bescheid's) */
   amount?: number
 }
 
