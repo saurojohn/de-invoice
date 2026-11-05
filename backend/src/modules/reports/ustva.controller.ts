@@ -8,6 +8,7 @@ import { UstvaService } from './ustva.service';
 import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, ReleaseFilingDto, UstvaFilingSettingsDto } from './dto/ustva.dto';
 import { FilingDeadlinesService } from './filing-deadlines.service';
 import { FilingDeadlineMailService } from './filing-deadline-mail.service';
+import { FilingCalendarService } from './filing-calendar.service';
 import { AuditService } from '../audit/audit.service';
 import { updateCompanySettings } from '../../common/company-settings';
 import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
@@ -34,6 +35,7 @@ export class UstvaController {
     private deadlines: FilingDeadlinesService,
     private audit: AuditService,
     private deadlineMail: FilingDeadlineMailService,
+    private calendar: FilingCalendarService,
   ) {}
 
   // Tier 803: the reminder of the deadlines due now, for this company, at
@@ -56,6 +58,52 @@ export class UstvaController {
 
   // Tier 801: the UStVA rhythm and the Dauerfristverlängerung, as the
   // Finanzamt set them; null clears a value (taken from the books again)
+  // Tier 805: the calendar link of the deadlines (filing-calendar.service.ts).
+  // The URL is answered once, by POST; GET says only whether there is one.
+  @Get('calendar')
+  @Require('company.update')
+  async getCalendar(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.calendar.status(companyId)
+  }
+
+  @Post('calendar')
+  @Require('company.update')
+  async createCalendar(@Query('companyId') companyId: string, @Req() req: any) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const out = await this.calendar.create(companyId, req?.user?.id || null, req)
+    await this.audit.writeActivity({
+      companyId,
+      userId: req?.user?.id || null,
+      action: out.replaced ? 'company.calendar_link.replaced' : 'company.calendar_link.created',
+      entityType: 'Company',
+      entityId: companyId,
+      metadata: { createdAt: out.createdAt },
+      ipAddress: null,
+      userAgent: 'de-invoice:filing-calendar',
+    })
+    return out
+  }
+
+  @Delete('calendar')
+  @Require('company.update')
+  async deleteCalendar(@Query('companyId') companyId: string, @Req() req: any) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const out = await this.calendar.revoke(companyId)
+    if (out.revoked) {
+      await this.audit.writeActivity({
+        companyId,
+        userId: req?.user?.id || null,
+        action: 'company.calendar_link.revoked',
+        entityType: 'Company',
+        entityId: companyId,
+        ipAddress: null,
+        userAgent: 'de-invoice:filing-calendar',
+      })
+    }
+    return out
+  }
+
   @Put('filing-settings')
   @Require('company.update')
   async putFilingSettings(@Query('companyId') companyId: string, @Body() body: UstvaFilingSettingsDto, @Req() req: any) {

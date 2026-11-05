@@ -12,6 +12,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiPut } from "@/lib/api"
 import { loadFilingDeadlines, type FilingDeadlines, type UstvaRhythm } from "@/lib/filing-deadlines"
+import CalendarLinkSection from "./CalendarLinkSection"
 
 const SOURCE_KEY: Record<string, string> = {
   setting: "deadlines.sourceSetting",
@@ -96,6 +97,8 @@ export default function FilingSettingsCard({ initial, onSaved }: { initial: Fili
             <span>{t("deadlines.settingsReminderMail")}</span>
           </label>
         </div>
+        {/* Tier 805: the deadlines in a calendar app */}
+        <CalendarLinkSection />
       </CardContent>
     </Card>
   )

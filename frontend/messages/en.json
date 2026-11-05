@@ -4545,6 +4545,20 @@
     "byDate": "by {date}",
     "about": "approx. {amount}",
     "settingsBerater": "Annual returns prepared by a tax adviser (deadline end of February of the second following year)",
-    "settingsReminderMail": "E-mail reminder to the administrators 7 and 2 days before each deadline"
+    "settingsReminderMail": "E-mail reminder to the administrators 7 and 2 days before each deadline",
+    "calendarTitle": "Deadlines in your calendar",
+    "calendarHint": "A link to subscribe to in Google, Apple or Outlook Calendar: every tax deadline of the next twelve months, updated by itself. Anyone who has the link sees the deadlines and amounts — do not pass it on.",
+    "calendarCreate": "Create calendar link",
+    "calendarReplace": "Create a new link",
+    "calendarRevoke": "Revoke link",
+    "calendarReplaceConfirm": "Create a new link? The current one stops working at once; calendars subscribed to it get no more deadlines.",
+    "calendarRevokeConfirm": "Revoke the calendar link? Calendars subscribed to it get no more deadlines.",
+    "calendarRevoked": "Calendar link revoked",
+    "calendarActive": "A calendar link is active, created on {date} by {user}. It is shown only when it is created.",
+    "calendarShownOnce": "Add this link to your calendar now — it is shown this one time only.",
+    "calendarCopy": "Copy",
+    "calendarCopied": "Link copied",
+    "calendarCopyFailed": "Could not copy — select the link and copy it",
+    "calendarOpen": "Open in calendar"
   }
 }

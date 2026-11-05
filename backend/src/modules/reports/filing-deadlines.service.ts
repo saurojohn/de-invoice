@@ -52,7 +52,7 @@ const LOOKBACK = { monthly: 3, quarterly: 2 } as const
 /** § 18a Abs. 1 Satz 2 UStG: supplies of goods over this a quarter are reported monthly. */
 const ZM_MONTHLY_THRESHOLD = 50_000
 
-const NOTES = {
+export const NOTES = {
   'zm-monthly': `Innergemeinschaftliche Lieferungen über ${ZM_MONTHLY_THRESHOLD.toLocaleString('de-DE')} € im Quartal — die ZM ist ab jetzt monatlich abzugeben (§ 18a Abs. 1 UStG).`,
   'oss-nil': 'Im OSS-Verfahren ist auch ohne Umsätze eine Nullmeldung abzugeben.',
   'oss-check': 'Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10 000 €, § 3c UStG).',

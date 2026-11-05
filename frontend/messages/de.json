@@ -4545,6 +4545,20 @@
     "byDate": "bis {date}",
     "about": "ca. {amount}",
     "settingsBerater": "Jahreserklärungen durch Steuerberater (Frist Ende Februar des übernächsten Jahres)",
-    "settingsReminderMail": "E-Mail-Erinnerung an die Administratoren 7 und 2 Tage vor jeder Frist"
+    "settingsReminderMail": "E-Mail-Erinnerung an die Administratoren 7 und 2 Tage vor jeder Frist",
+    "calendarTitle": "Termine im Kalender",
+    "calendarHint": "Ein Link zum Abonnieren in Google, Apple oder Outlook Kalender: alle Steuertermine der nächsten zwölf Monate, aktualisiert sich selbst. Wer den Link kennt, sieht die Termine und Beträge — nicht weitergeben.",
+    "calendarCreate": "Kalender-Link erstellen",
+    "calendarReplace": "Neuen Link erstellen",
+    "calendarRevoke": "Link widerrufen",
+    "calendarReplaceConfirm": "Einen neuen Link erstellen? Der bisherige hört sofort auf zu funktionieren; Kalender, die ihn abonniert haben, bekommen keine Termine mehr.",
+    "calendarRevokeConfirm": "Den Kalender-Link widerrufen? Kalender, die ihn abonniert haben, bekommen keine Termine mehr.",
+    "calendarRevoked": "Kalender-Link widerrufen",
+    "calendarActive": "Ein Kalender-Link ist aktiv, erstellt am {date} von {user}. Er wird nur beim Erstellen angezeigt.",
+    "calendarShownOnce": "Diesen Link jetzt in den Kalender übernehmen — er wird nur dieses eine Mal angezeigt.",
+    "calendarCopy": "Kopieren",
+    "calendarCopied": "Link kopiert",
+    "calendarCopyFailed": "Kopieren nicht möglich — den Link markieren und kopieren",
+    "calendarOpen": "Im Kalender öffnen"
   }
 }

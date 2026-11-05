@@ -37,7 +37,8 @@ else
 fi
 
 # Adding a public route must be a deliberate edit of this list.
-EXPECTED_PUBLIC="GET companies/imprint
+EXPECTED_PUBLIC="GET calendar/:token
+GET companies/imprint
 GET companies/logo/:name
 GET customer-portal/invoice/:id
 GET customer-portal/invoice/:id/pdf
@@ -105,7 +106,7 @@ ROUTE_COUNT=$(python3 -c "import json,sys;print(len(json.loads(sys.argv[1])))" "
 [[ "$ROUTE_COUNT" -gt 400 ]] && pass "route inventory parsed ($ROUTE_COUNT routes)" || fail "route inventory looks wrong: $ROUTE_COUNT routes"
 ACTUAL_PUBLIC=$(python3 -c "import json,sys;print('\n'.join(sorted({r['method']+' '+r['path'] for r in json.loads(sys.argv[1]) if r['public']})))" "$ROUTES_JSON")
 if [[ "$ACTUAL_PUBLIC" == "$EXPECTED_PUBLIC" ]]; then
-  pass "@Public() routes match the reviewed list (23)" # Tier 560: + the company logo (an <img> has no auth headers)
+  pass "@Public() routes match the reviewed list" # Tier 560: + the company logo (an <img> has no auth headers); Tier 805: + the calendar feed (a calendar app sends no credentials, the token is one)
 else
   fail "@Public() routes differ from the reviewed list:"
   diff <(echo "$EXPECTED_PUBLIC") <(echo "$ACTUAL_PUBLIC") | sed 's/^/      /'

@@ -48,6 +48,9 @@ import { StorageModule } from '../storage/storage.module';
 import { AssetsModule } from '../assets/assets.module';
 import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 
+import { FilingCalendarService } from './filing-calendar.service'
+import { FilingCalendarController } from './filing-calendar.controller'
+
 @Module({
   imports: [StorageModule, AssetsModule, ExchangeRateModule, AuditModule, AdminModule],
   controllers: [
@@ -66,6 +69,7 @@ import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
     // Pre-existing splits from earlier tiers.
     UstvaController, // Tier 161
     DatevBuchungslisteController, // Tier 167
+    FilingCalendarController, // Tier 805: GET /calendar/<token>.ics
   ],
   providers: [
     ReportsService,
@@ -81,6 +85,7 @@ import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
     FilingDeadlinesService,
     FilingDeadlineMailService,
     FilingDeadlineMailScheduler,
+    FilingCalendarService,
   ],
   exports: [
     ReportsService,

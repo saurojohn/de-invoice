@@ -4545,6 +4545,20 @@
     "byDate": "截至 {date}",
     "about": "约 {amount}",
     "settingsBerater": "年度申报由税务顾问代办（截止日为后年 2 月底）",
-    "settingsReminderMail": "每个截止日前 7 天和 2 天给管理员发邮件提醒"
+    "settingsReminderMail": "每个截止日前 7 天和 2 天给管理员发邮件提醒",
+    "calendarTitle": "在日历中查看截止日",
+    "calendarHint": "在 Google、Apple 或 Outlook 日历中订阅的链接：未来十二个月的所有税务截止日，自动更新。知道链接的人都能看到截止日和金额——请勿外传。",
+    "calendarCreate": "创建日历链接",
+    "calendarReplace": "创建新链接",
+    "calendarRevoke": "撤销链接",
+    "calendarReplaceConfirm": "创建新链接？旧链接会立即失效，订阅了旧链接的日历将不再收到截止日。",
+    "calendarRevokeConfirm": "撤销日历链接？订阅了它的日历将不再收到截止日。",
+    "calendarRevoked": "日历链接已撤销",
+    "calendarActive": "已有一个日历链接在使用，由 {user} 于 {date} 创建。链接只在创建时显示一次。",
+    "calendarShownOnce": "请现在把这个链接加入日历——它只显示这一次。",
+    "calendarCopy": "复制",
+    "calendarCopied": "链接已复制",
+    "calendarCopyFailed": "无法复制——请选中链接后手动复制",
+    "calendarOpen": "在日历中打开"
   }
 }
