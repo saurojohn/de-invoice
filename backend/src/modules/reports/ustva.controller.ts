@@ -1,11 +1,14 @@
 import { MONTH, YEAR, queryInt } from '../../common/query';
 import { elsterSteuernummerOrProblem } from '../../common/steuernummer';
 import { signedExpenseAmounts } from '../expense/credit-note'
-import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestException, Header, Res } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestException, Header, Res, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
-import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, ReleaseFilingDto } from './dto/ustva.dto';
+import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, ReleaseFilingDto, UstvaFilingSettingsDto } from './dto/ustva.dto';
+import { FilingDeadlinesService } from './filing-deadlines.service';
+import { AuditService } from '../audit/audit.service';
+import { updateCompanySettings } from '../../common/company-settings';
 import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
 import { UpdateExpenseDto } from '../expense/dto/expense.dto';
 import { updateExpense } from '../expense/update-expense';
@@ -27,7 +30,47 @@ export class UstvaController {
     private ustva: UstvaService,
     private ustja: UstjaService,
     private prisma: PrismaService,
+    private deadlines: FilingDeadlinesService,
+    private audit: AuditService,
   ) {}
+
+  // Tier 801: the returns due next (UStVA, ZM, OSS) and the period each
+  // report opens on — filing-deadlines.ts
+  @Get('deadlines')
+  @Require('ustva.read')
+  async getDeadlines(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.deadlines.deadlines(companyId)
+  }
+
+  // Tier 801: the UStVA rhythm and the Dauerfristverlängerung, as the
+  // Finanzamt set them; null clears a value (taken from the books again)
+  @Put('filing-settings')
+  @Require('company.update')
+  async putFilingSettings(@Query('companyId') companyId: string, @Body() body: UstvaFilingSettingsDto, @Req() req: any) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const prev = await updateCompanySettings(this.prisma, companyId, (s) => {
+      const old = { ustvaRhythmus: s.ustvaRhythmus ?? null, dauerfristverlaengerung: s.dauerfristverlaengerung ?? null }
+      for (const key of ['ustvaRhythmus', 'dauerfristverlaengerung'] as const) {
+        if (body[key] === undefined) continue
+        if (body[key] === null) delete s[key]
+        else s[key] = body[key]
+      }
+      return old
+    })
+    await this.audit.writeActivity({
+      companyId,
+      userId: req?.user?.id || null,
+      action: 'company.ustva_settings.updated',
+      entityType: 'Company',
+      entityId: companyId,
+      oldData: prev as any,
+      metadata: { ustvaRhythmus: body.ustvaRhythmus, dauerfristverlaengerung: body.dauerfristverlaengerung },
+      ipAddress: null,
+      userAgent: 'de-invoice:UstvaController.putFilingSettings',
+    })
+    return this.deadlines.settings(companyId)
+  }
 
   // Computation (preview, no save) — looser rate limit (60/min)
   @Throttle({ default: { limit: 60, ttl: 60_000 } })

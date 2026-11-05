@@ -6,7 +6,7 @@
  * Leistung) the sum in full euros for a quarter, reconciled with UStVA
  * Kz 41 / Kz 21, and the CSV.
  */
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
@@ -24,18 +24,50 @@ interface Zm {
 
 const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" })
 
-export default function ZmCard() {
+/**
+ * Tier 801: opens on the last ended quarter — the one to report — given by
+ * the page (GET /ustva/deadlines), or on the quarter in the link from the
+ * dashboard (?zmYear=&zmQuarter=). Nothing is fetched before that is known.
+ */
+export default function ZmCard({ initial }: { initial?: { year: number; quarter: number } | null }) {
   const { t } = useI18n()
-  const now = new Date()
-  const [year, setYear] = useState(now.getFullYear())
-  const yearField = useYearField(year, setYear)
-  const [quarter, setQuarter] = useState(Math.floor(now.getMonth() / 3) + 1)
+  const [year, setYear] = useState(0)
+  // a period the user picks is never replaced by the default arriving later
+  const chosen = useRef(false)
+  const yearField = useYearField(year, (y) => { chosen.current = true; setYear(y) })
+  const [quarter, setQuarter] = useState(0)
   const [zm, setZm] = useState<Zm | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (chosen.current) return
+    const q = new URLSearchParams(window.location.search)
+    const y = Number(q.get("zmYear")), qu = Number(q.get("zmQuarter"))
+    if (Number.isInteger(y) && y >= 2010 && y <= 2100 && qu >= 1 && qu <= 4) {
+      chosen.current = true
+      setYear(y); setQuarter(qu)
+      return
+    }
+    if (initial) {
+      chosen.current = true
+      setYear(initial.year); setQuarter(initial.quarter)
+      return
+    }
+    // the page could not say (request failed): the last ended quarter by the clock
+    const timer = setTimeout(() => {
+      if (chosen.current) return
+      chosen.current = true
+      const now = new Date()
+      const cq = Math.floor(now.getMonth() / 3) + 1
+      setYear(cq === 1 ? now.getFullYear() - 1 : now.getFullYear()); setQuarter(cq === 1 ? 4 : cq - 1)
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [initial])
 
   const companyId = () => (typeof window !== "undefined" ? localStorage.getItem("companyId") : null)
 
   useEffect(() => {
+    if (!year || !quarter) return
     let alive = true
     setError(null)
     apiGet<Zm>(`/api/v1/ustva/zm?companyId=${companyId()}&year=${year}&quarter=${quarter}`)
@@ -61,7 +93,7 @@ export default function ZmCard() {
   }
 
   return (
-    <Card className="mt-6" data-testid="zm-card">
+    <Card className="mt-6" id="zm" data-testid="zm-card">
       <CardHeader>
         <CardTitle>{t("ustva.zmTitle")}</CardTitle>
       </CardHeader>
@@ -80,8 +112,8 @@ export default function ZmCard() {
             <span className="block text-gray-600 dark:text-gray-300">{t("ustva.zmQuarter")}</span>
             <select
               className="border rounded px-2 py-1 bg-white dark:bg-gray-800"
-              value={quarter}
-              onChange={(e) => setQuarter(Number(e.target.value))}
+              value={quarter || ""}
+              onChange={(e) => { chosen.current = true; setQuarter(Number(e.target.value)) }}
               data-testid="zm-quarter"
             >
               {[1, 2, 3, 4].map((q) => <option key={q} value={q}>Q{q}</option>)}

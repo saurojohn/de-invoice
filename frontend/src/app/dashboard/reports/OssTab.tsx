@@ -7,6 +7,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, ApiError } from "@/lib/api"
 import { useYearField } from "@/lib/year-field"
+import { loadFilingDeadlines } from "@/lib/filing-deadlines"
 
 interface OssLine {
   country: string
@@ -60,9 +61,11 @@ interface OssResult {
   disclaimer: string
 }
 
-function currentQuarter(): number {
-  // 0-indexed Date.getMonth() → 1-indexed quarter (1-4).
-  return Math.floor(new Date().getMonth() / 3) + 1
+/** The quarter before the running one, by the browser's clock (when the backend cannot say). */
+function lastEndedQuarter(): { year: number; quarter: number } {
+  const now = new Date()
+  const q = Math.floor(now.getMonth() / 3) + 1
+  return q === 1 ? { year: now.getFullYear() - 1, quarter: 4 } : { year: now.getFullYear(), quarter: q - 1 }
 }
 
 /**
@@ -86,10 +89,10 @@ function currentQuarter(): number {
  *   - 1 disclaimer line (the data is a preview,
  *     not a legal filing)
  *
- * The default year + quarter is the current
- * calendar quarter — the user mostly wants to
- * look at "what's in this quarter" and the
- * pickers are there for back-filing.
+ * The default year + quarter is the last ended
+ * quarter (Tier 801) — the one whose return is
+ * due; the pickers are there for the running
+ * quarter and for back-filing.
  */
 export function OssTab() {
   const { t } = useI18n()
@@ -101,11 +104,30 @@ export function OssTab() {
   toastRef.current = toast
   const tRef = useRef(t)
   tRef.current = t
-  const [year, setYear] = useState<number>(new Date().getFullYear())
-  const yearField = useYearField(year, setYear)
-  const [quarter, setQuarter] = useState<number>(currentQuarter())
+  // Tier 801: opens on the last ended quarter — the one to declare — or on
+  // the quarter in the link from the dashboard (?year=&quarter=); a quarter
+  // the user picks is never replaced by the default arriving later.
+  const [year, setYear] = useState<number>(0)
+  const chosen = useRef(false)
+  const yearField = useYearField(year, (y) => { chosen.current = true; setYear(y) })
+  const [quarter, setQuarter] = useState<number>(0)
   const [data, setData] = useState<OssResult | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const y = Number(q.get("year")), qu = Number(q.get("quarter"))
+    if (Number.isInteger(y) && y >= 2010 && y <= 2100 && qu >= 1 && qu <= 4) {
+      setYear(y); setQuarter(qu)
+      return
+    }
+    loadFilingDeadlines().then((d) => {
+      if (chosen.current) return
+      const last = lastEndedQuarter()
+      setYear(d?.defaults.oss.year ?? last.year)
+      setQuarter(d?.defaults.oss.quarter ?? last.quarter)
+    })
+  }, [])
 
   const load = useCallback(async (y: number, q: number) => {
     setLoading(true)
@@ -127,6 +149,7 @@ export function OssTab() {
   }, [])
 
   useEffect(() => {
+    if (!year || !quarter) return
     load(year, quarter)
   }, [year, quarter, load])
 
@@ -191,7 +214,7 @@ export function OssTab() {
               </label>
               <select
                 value={quarter}
-                onChange={(e) => setQuarter(Number(e.target.value))}
+                onChange={(e) => { chosen.current = true; setQuarter(Number(e.target.value)) }}
                 className="border rounded px-3 py-2 dark:bg-gray-800 dark:border-gray-700"
                 data-testid="oss-quarter"
               >

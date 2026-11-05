@@ -276,3 +276,19 @@ export class CreateUstPaymentDto {
   @IsOptional() @IsString() @MaxLength(500)
   note?: string
 }
+
+/**
+ * Tier 801: PUT /ustva/filing-settings — the UStVA rhythm and the
+ * Dauerfristverlängerung the Finanzamt granted. null clears a value: it is
+ * then taken from the books again.
+ */
+export class UstvaFilingSettingsDto {
+  @IsOptional()
+  @IsIn(['monthly', 'quarterly', 'none'])
+  ustvaRhythmus?: 'monthly' | 'quarterly' | 'none' | null
+
+  @IsOptional()
+  @StrictBoolean()
+  @IsBoolean()
+  dauerfristverlaengerung?: boolean | null
+}

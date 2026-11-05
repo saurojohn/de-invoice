@@ -8,6 +8,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import UstPaymentsCard from "./UstPaymentsCard"
 import ZmCard from "./ZmCard"
+import FilingSettingsCard from "./FilingSettingsCard"
+import { loadFilingDeadlines, type FilingDeadlines } from "@/lib/filing-deadlines"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut, isDuplicateExpense } from "@/lib/api"
@@ -142,7 +144,9 @@ function UstvaPageInner() {
   const currentYear = new Date().getFullYear()
 
   const [year, setYear] = useState(currentYear)
-  const yearField = useYearField(year, setYear)
+  // Tier 801: a period the user picks is never replaced by the default arriving later
+  const periodTouched = useRef(false)
+  const yearField = useYearField(year, (y) => { periodTouched.current = true; setYear(y) })
   const [period, setPeriod] = useState<PeriodMode>("year")
   const [data, setData] = useState<UstvaData | null>(null)
   const [filings, setFilings] = useState<UstvaFiling[]>([])
@@ -206,22 +210,41 @@ function UstvaPageInner() {
   // [router, year, period] effect below picks up the
   // new state and fetches the data.
   const urlPrefillApplied = useRef(false)
+  // Tier 801: without a period in the URL, the page opens on the return that
+  // is due next (or the last ended period) — GET /ustva/deadlines — and not on
+  // the whole running year. Nothing is fetched before that is known.
+  const [periodReady, setPeriodReady] = useState(false)
+  const [filing, setFiling] = useState<FilingDeadlines | null>(null)
   useEffect(() => {
     if (urlPrefillApplied.current) return
+    urlPrefillApplied.current = true
     const yStr = searchParams?.get("year")
     const mStr = searchParams?.get("month")
+    const qStr = searchParams?.get("quarter")
+    const pStr = searchParams?.get("period")
+    let fromUrl = false
     if (yStr) {
       const y = parseInt(yStr, 10)
-      if (Number.isInteger(y) && y >= 2010 && y <= 2100) setYear(y)
+      if (Number.isInteger(y) && y >= 2010 && y <= 2100) { setYear(y); fromUrl = true }
     }
     if (mStr) {
       const m = parseInt(mStr, 10)
-      if (m >= 1 && m <= 12) {
-        setPeriod(`m${m}` as PeriodMode)
-      }
+      if (m >= 1 && m <= 12) { setPeriod(`m${m}` as PeriodMode); fromUrl = true }
+    } else if (qStr) {
+      const q = parseInt(qStr, 10)
+      if (q >= 1 && q <= 4) { setPeriod(`q${q}` as PeriodMode); fromUrl = true }
+    } else if (pStr === "year") {
+      setPeriod("year"); fromUrl = true
     }
-    urlPrefillApplied.current = true
-     
+    loadFilingDeadlines().then((d) => {
+      setFiling(d)
+      const def = d?.defaults.ustva
+      if (!fromUrl && def && !periodTouched.current) {
+        setYear(def.year)
+        setPeriod((def.month ? `m${def.month}` : def.quarter ? `q${def.quarter}` : "year") as PeriodMode)
+      }
+      setPeriodReady(true)
+    })
   }, [searchParams])
 
   useEffect(() => {
@@ -230,9 +253,10 @@ function UstvaPageInner() {
       router.push("/login")
       return
     }
+    if (!periodReady) return
     loadAll(companyId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, year, period])
+  }, [router, year, period, periodReady])
 
   const buildQuery = (q: { year: number; period: PeriodMode }) => {
     const params = new URLSearchParams({ year: String(q.year) })
@@ -607,7 +631,7 @@ function UstvaPageInner() {
                 </label>
                 <select
                   value={period}
-                  onChange={(e) => setPeriod(e.target.value as PeriodMode)}
+                  onChange={(e) => { periodTouched.current = true; setPeriod(e.target.value as PeriodMode) }}
                   className="w-full px-3 py-2 border border-gray dark:border-gray-700-300 dark:border-gray-600 rounded-md"
                 >
                   <option value="year">{t("ustva.yearly")}</option>
@@ -658,6 +682,9 @@ function UstvaPageInner() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Tier 801: monthly or quarterly, and the Dauerfristverlängerung */}
+        <FilingSettingsCard initial={filing} onSaved={setFiling} />
 
         {loading || !data || !data.vorsteuer ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">…</div>
@@ -1451,7 +1478,7 @@ function UstvaPageInner() {
             {/* Tier 484: UStJA / Sondervorauszahlung / other Finanzamt payments */}
             <UstPaymentsCard />
             {/* Tier 491: Zusammenfassende Meldung */}
-            <ZmCard />
+            <ZmCard initial={filing?.defaults.zm ?? null} />
           </>
         )}
         {downloadError && (

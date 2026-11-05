@@ -4485,5 +4485,41 @@
     "title": "Auditor access: read only",
     "text": "You see this company’s books, including VAT and the change log; nothing can be changed. The access ends on {date}.",
     "archives": "Audit trail and GoBD archives"
+  },
+  "deadlines": {
+    "title": "Upcoming filing deadlines",
+    "loadFailed": "The filing deadlines could not be loaded.",
+    "none": "No VAT returns due.",
+    "filed": "submitted",
+    "today": "due today",
+    "tomorrow": "tomorrow",
+    "inDays": "in {days} days",
+    "overdueSince": "overdue for {days} days",
+    "running": "(period still running)",
+    "dueOn": "due {date}",
+    "assumed": "Assumed: {rhythm}, {dauerfrist}.",
+    "setIt": "Set it",
+    "rhythmMonthly": "monthly return",
+    "rhythmQuarterly": "quarterly return",
+    "withDauerfrist": "with permanent extension (Dauerfristverlängerung)",
+    "withoutDauerfrist": "without permanent extension",
+    "noBundesland": "No federal state set — only nationwide holidays move the deadlines.",
+    "note": {
+      "zm-monthly": "Intra-EU supplies of goods over €50,000 in the quarter — the EC Sales List is now due monthly (§ 18a(1) UStG).",
+      "oss-nil": "In the OSS scheme a nil return is due even without sales.",
+      "oss-check": "Sales to consumers in other EU countries — check whether an OSS return is needed (threshold €10,000, § 3c UStG)."
+    },
+    "settingsTitle": "Filing period set by the tax office",
+    "settingsRhythm": "VAT return",
+    "settingsDauerfrist": "Permanent extension (deadlines one month later)",
+    "settingsNone": "none (annual return only)",
+    "settingsMonthly": "monthly",
+    "settingsQuarterly": "quarterly",
+    "settingsSaved": "Saved — deadlines and default period follow this setting.",
+    "sourceSetting": "set",
+    "sourceFilings": "taken from the saved returns",
+    "sourceKleinunternehmer": "small business (§ 19 UStG)",
+    "sourceDefault": "assumed — please set it",
+    "sourceSondervorauszahlung": "taken from the special prepayment"
   }
 }

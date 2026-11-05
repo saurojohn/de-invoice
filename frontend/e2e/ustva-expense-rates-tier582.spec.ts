@@ -30,7 +30,8 @@ test("an expense with 19 % and 7 % is entered and corrected on the UStVA page", 
   const lines = (e: { taxLines: { vatRate: string; netAmount: string; vatAmount: string }[] }) =>
     e.taxLines.map((l) => [Number(l.vatRate), Number(l.netAmount), Number(l.vatAmount)])
 
-  await page.goto("/dashboard/accounting/ustva")
+  // Tier 801: the page opens on the return due next; today's expense is in the year
+  await page.goto("/dashboard/accounting/ustva?period=year")
   const toggle = page.getByTestId("ustva-add-expense-toggle")
   await expect(toggle).toBeVisible({ timeout: 90_000 })
   await page.waitForFunction(() => document.readyState === "complete")

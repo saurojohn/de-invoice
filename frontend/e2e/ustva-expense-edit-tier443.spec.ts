@@ -65,7 +65,8 @@ async function expense(request: APIRequestContext, tag: string, supplierId: stri
 
 async function openPage(page: Page) {
   await injectAuth(page)
-  await page.goto("/dashboard/accounting/ustva")
+  // Tier 801: the page opens on the return due next; today's expense is in the year
+  await page.goto("/dashboard/accounting/ustva?period=year")
   await expect(page.getByTestId("ustva-add-expense-toggle")).toBeVisible({ timeout: 90_000 })
   await page.waitForFunction(() => document.readyState === "complete")
   await page.waitForTimeout(500)

@@ -56,6 +56,11 @@ export default function ReportsPage() {
   const router = useRouter()
   const toast = useToast()
   const [activeTab, setActiveTab] = useState<TabType>("invoiceStats")
+  // Tier 801: the dashboard's deadline links open a tab (?tab=oss&year=&quarter=)
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab")
+    if (tab === "oss" || tab === "bwa" || tab === "vat" || tab === "pnl" || tab === "datev" || tab === "customers") setActiveTab(tab)
+  }, [])
   const [loading, setLoading] = useState(true)
 
   // Date range state

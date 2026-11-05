@@ -60,7 +60,8 @@ test("French tax is named apart on the UStVA page; a later credit note is a corr
   )
 
   // the UStVA: the German sale in the table, the French ones (less the credit note) in the note
-  await page.goto("/dashboard/accounting/ustva")
+  // Tier 801: the page opens on the return due next — here on the year, by the link
+  await page.goto("/dashboard/accounting/ustva?period=year")
   const sum = page.getByTestId("ustva-sales-vat-sum")
   await expect(sum).toBeVisible({ timeout: 60_000 })
   await expect(sum).toHaveText(/57,00/)
@@ -76,7 +77,8 @@ test("French tax is named apart on the UStVA page; a later credit note is a corr
   await expect(page.locator("table").first()).not.toContainText("20%")
 
   // the OSS tab: this quarter's sale, and the credit note as a correction of the quarter before
-  await page.goto("/dashboard/reports")
+  // (Tier 801: the tab opens on the last ended quarter; the link names this one)
+  await page.goto(`/dashboard/reports?tab=oss&year=${y}&quarter=${quarter}`)
   await page.getByTestId("tab-oss").click({ timeout: 60_000 })
   await expect(page.getByTestId("oss-tab")).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId("oss-total-vat")).toHaveText(/20,00/, { timeout: 30_000 })

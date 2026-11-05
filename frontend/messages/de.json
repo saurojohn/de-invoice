@@ -4485,5 +4485,41 @@
     "title": "Prüferzugang: nur lesen",
     "text": "Sie sehen die Bücher dieser Firma, einschließlich Umsatzsteuer und Änderungsprotokoll; ändern lässt sich nichts. Der Zugang endet am {date}.",
     "archives": "Audit-Trail und GoBD-Archive"
+  },
+  "deadlines": {
+    "title": "Nächste Abgabefristen",
+    "loadFailed": "Die Abgabefristen konnten nicht geladen werden.",
+    "none": "Keine Umsatzsteuer-Meldungen fällig.",
+    "filed": "übermittelt",
+    "today": "heute fällig",
+    "tomorrow": "morgen",
+    "inDays": "in {days} Tagen",
+    "overdueSince": "seit {days} Tagen überfällig",
+    "running": "(Zeitraum läuft noch)",
+    "dueOn": "fällig am {date}",
+    "assumed": "Angenommen: {rhythm}, {dauerfrist}.",
+    "setIt": "Festlegen",
+    "rhythmMonthly": "monatliche Voranmeldung",
+    "rhythmQuarterly": "vierteljährliche Voranmeldung",
+    "withDauerfrist": "mit Dauerfristverlängerung",
+    "withoutDauerfrist": "ohne Dauerfristverlängerung",
+    "noBundesland": "Kein Bundesland hinterlegt — nur bundesweite Feiertage verschieben die Fristen.",
+    "note": {
+      "zm-monthly": "Innergemeinschaftliche Lieferungen über 50.000 € im Quartal — die ZM ist ab jetzt monatlich abzugeben (§ 18a Abs. 1 UStG).",
+      "oss-nil": "Im OSS-Verfahren ist auch ohne Umsätze eine Nullmeldung abzugeben.",
+      "oss-check": "Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10.000 €, § 3c UStG)."
+    },
+    "settingsTitle": "Voranmeldungszeitraum laut Finanzamt",
+    "settingsRhythm": "Voranmeldung",
+    "settingsDauerfrist": "Dauerfristverlängerung (Fristen einen Monat später)",
+    "settingsNone": "keine (nur Jahreserklärung)",
+    "settingsMonthly": "monatlich",
+    "settingsQuarterly": "vierteljährlich",
+    "settingsSaved": "Gespeichert — Fristen und Standardzeitraum folgen dieser Angabe.",
+    "sourceSetting": "festgelegt",
+    "sourceFilings": "aus den gespeicherten Voranmeldungen abgeleitet",
+    "sourceKleinunternehmer": "Kleinunternehmer (§ 19 UStG)",
+    "sourceDefault": "angenommen — bitte festlegen",
+    "sourceSondervorauszahlung": "aus der Sondervorauszahlung abgeleitet"
   }
 }

@@ -24,6 +24,8 @@ import { InvoiceStatisticsService } from './invoice-statistics.service'; // Tier
 import { CashFlowService } from './cashflow.service';
 import { PnlService } from './pnl.service';
 import { OssService } from './oss.service';
+import { FilingDeadlinesService } from './filing-deadlines.service'; // Tier 801
+import { AuditModule } from '../audit/audit.module';
 import { BwaService } from './bwa.service';
 // Tier 167: DATEV Buchungsliste — per-Sachkonto
 // summary + auto revenue-side Sachkonto mapping
@@ -44,7 +46,7 @@ import { AssetsModule } from '../assets/assets.module';
 import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 
 @Module({
-  imports: [StorageModule, AssetsModule, ExchangeRateModule],
+  imports: [StorageModule, AssetsModule, ExchangeRateModule, AuditModule],
   controllers: [
     // Tier 173 split — the 7 new controllers
     // each own a domain, all share the
@@ -73,6 +75,7 @@ import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
     OssService,
     BwaService,
     DatevBuchungslisteService,
+    FilingDeadlinesService,
   ],
   exports: [
     ReportsService,

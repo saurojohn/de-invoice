@@ -12,6 +12,7 @@ import MandantSwitcher from "@/components/MandantSwitcher"
 import { ReadOnlyToggle, ReadOnlyBanner } from "@/components/ReadOnlyBanner"
 import { RevenueChart } from "@/components/RevenueChart"
 import { UstvaZahllastChart } from "@/components/UstvaZahllastChart"
+import { FilingDeadlinesCard } from "@/components/FilingDeadlinesCard"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n, L } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
@@ -793,6 +794,13 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* Tier 801: the UStVA, ZM and OSS returns due next */}
+        {isAccountant && (
+          <div className="mb-8">
+            <FilingDeadlinesCard />
+          </div>
         )}
 
         {/* Tier 161: USt-Voranmeldung Monatsvergleich.

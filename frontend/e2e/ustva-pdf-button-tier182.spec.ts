@@ -103,7 +103,7 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
         console.log(`[ustva] ${resp.status()} ${resp.url()}`)
       }
     })
-    await page.goto("/dashboard/accounting/ustva", {
+    await page.goto("/dashboard/accounting/ustva?period=year", {
       timeout: 90_000,
       waitUntil: "domcontentloaded",
     })
@@ -119,7 +119,7 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
 
   test("2. button is disabled for year period", async ({ page }) => {
     page.setDefaultTimeout(60_000)
-    await page.goto("/dashboard/accounting/ustva", {
+    await page.goto("/dashboard/accounting/ustva?period=year", {
       timeout: 90_000,
       waitUntil: "domcontentloaded",
     })
@@ -130,7 +130,8 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
       { timeout: 60_000 },
     )
     await computeResp
-    // The period <select> defaults to "year". The
+    // The whole year (?period=year — Tier 801: without
+    // it the page opens on the return due next). The
     // button must be disabled (PDF is per-month).
     const btn = page.getByTestId("ustva-export-pdf")
     await expect(btn).toBeVisible({ timeout: 30_000 })
@@ -139,7 +140,7 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
 
   test("3. button is disabled for q3 period", async ({ page }) => {
     page.setDefaultTimeout(60_000)
-    await page.goto("/dashboard/accounting/ustva", {
+    await page.goto("/dashboard/accounting/ustva?period=year", {
       timeout: 90_000,
       waitUntil: "domcontentloaded",
     })
@@ -149,6 +150,8 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
     )
     await computeResp
     // The <select> for period has a value="q3" option.
+    // (Tier 801: every test starts on the year — ?period=year —
+    // so picking Q3 or July is a change that fires compute.)
     const periodSelect = page.locator("select").first()
     // Wait for the period <select> to be visible
     await expect(periodSelect).toBeVisible({ timeout: 30_000 })
@@ -166,7 +169,7 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
 
   test("4. button is enabled for m7 (Juli) period", async ({ page }) => {
     page.setDefaultTimeout(60_000)
-    await page.goto("/dashboard/accounting/ustva", {
+    await page.goto("/dashboard/accounting/ustva?period=year", {
       timeout: 90_000,
       waitUntil: "domcontentloaded",
     })
@@ -196,7 +199,7 @@ test.describe("Tier 182 — UStVA-PDF download button", () => {
 
   test("5. clicking the button triggers a PDF download", async ({ page }) => {
     page.setDefaultTimeout(60_000)
-    await page.goto("/dashboard/accounting/ustva", {
+    await page.goto("/dashboard/accounting/ustva?period=year", {
       timeout: 90_000,
       waitUntil: "domcontentloaded",
     })
