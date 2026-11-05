@@ -4507,7 +4507,14 @@
     "note": {
       "zm-monthly": "Innergemeinschaftliche Lieferungen über 50.000 € im Quartal — die ZM ist ab jetzt monatlich abzugeben (§ 18a Abs. 1 UStG).",
       "oss-nil": "Im OSS-Verfahren ist auch ohne Umsätze eine Nullmeldung abzugeben.",
-      "oss-check": "Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10.000 €, § 3c UStG)."
+      "oss-check": "Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10.000 €, § 3c UStG).",
+      "annual-self": "Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — ohne Steuerberater.",
+      "annual-berater": "Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — durch den Steuerberater (§ 149 Abs. 3 AO).",
+      "annual-ku": "Einkommen- und Gewerbesteuererklärung; als Kleinunternehmer seit 2024 keine Umsatzsteuererklärung, wenn das Finanzamt sie nicht anfordert (§ 19 Abs. 1 Satz 4 UStG).",
+      "svz-estimate": "1/11 der Vorauszahlungen des Vorjahres (§ 47 UStDV), aus den Buchungen geschätzt — mit der USt 1 H anmelden und zahlen.",
+      "svz-partial": "1/11 der bisherigen Vorauszahlungen des laufenden Jahres (§ 47 UStDV) — vorläufig, das Jahr ist noch nicht zu Ende.",
+      "dauerfrist-monthly": "Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; dafür ist bis dahin eine Sondervorauszahlung von 1/11 der Vorjahres-Vorauszahlungen zu leisten (§§ 46–48 UStDV).",
+      "dauerfrist-quarterly": "Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; vierteljährlich ohne Sondervorauszahlung (§ 46 UStDV)."
     },
     "settingsTitle": "Voranmeldungszeitraum laut Finanzamt",
     "settingsRhythm": "Voranmeldung",
@@ -4520,6 +4527,19 @@
     "sourceFilings": "aus den gespeicherten Voranmeldungen abgeleitet",
     "sourceKleinunternehmer": "Kleinunternehmer (§ 19 UStG)",
     "sourceDefault": "angenommen — bitte festlegen",
-    "sourceSondervorauszahlung": "aus der Sondervorauszahlung abgeleitet"
+    "sourceSondervorauszahlung": "aus der Sondervorauszahlung abgeleitet",
+    "kind": {
+      "ustva": "UStVA",
+      "zm": "ZM",
+      "oss": "OSS",
+      "annual": "Jahreserklärungen",
+      "svz": "Sondervorauszahlung",
+      "dauerfrist": "Dauerfristverlängerung"
+    },
+    "paid": "gezahlt",
+    "possibleUntil": "möglich",
+    "byDate": "bis {date}",
+    "about": "ca. {amount}",
+    "settingsBerater": "Jahreserklärungen durch Steuerberater (Frist Ende Februar des übernächsten Jahres)"
   }
 }

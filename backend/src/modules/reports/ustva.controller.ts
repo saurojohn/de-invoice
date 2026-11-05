@@ -50,8 +50,12 @@ export class UstvaController {
   async putFilingSettings(@Query('companyId') companyId: string, @Body() body: UstvaFilingSettingsDto, @Req() req: any) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
     const prev = await updateCompanySettings(this.prisma, companyId, (s) => {
-      const old = { ustvaRhythmus: s.ustvaRhythmus ?? null, dauerfristverlaengerung: s.dauerfristverlaengerung ?? null }
-      for (const key of ['ustvaRhythmus', 'dauerfristverlaengerung'] as const) {
+      const old = {
+        ustvaRhythmus: s.ustvaRhythmus ?? null,
+        dauerfristverlaengerung: s.dauerfristverlaengerung ?? null,
+        jahreserklaerungDurchBerater: s.jahreserklaerungDurchBerater ?? null,
+      }
+      for (const key of ['ustvaRhythmus', 'dauerfristverlaengerung', 'jahreserklaerungDurchBerater'] as const) {
         if (body[key] === undefined) continue
         if (body[key] === null) delete s[key]
         else s[key] = body[key]
@@ -65,7 +69,7 @@ export class UstvaController {
       entityType: 'Company',
       entityId: companyId,
       oldData: prev as any,
-      metadata: { ustvaRhythmus: body.ustvaRhythmus, dauerfristverlaengerung: body.dauerfristverlaengerung },
+      metadata: { ustvaRhythmus: body.ustvaRhythmus, dauerfristverlaengerung: body.dauerfristverlaengerung, jahreserklaerungDurchBerater: body.jahreserklaerungDurchBerater },
       ipAddress: null,
       userAgent: 'de-invoice:UstvaController.putFilingSettings',
     })

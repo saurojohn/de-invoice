@@ -12,9 +12,16 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { deadlineDay, deadlinePeriodLabel, loadFilingDeadlines, type FilingDeadline, type FilingDeadlines } from "@/lib/filing-deadlines"
 
-const KIND_LABEL: Record<FilingDeadline["kind"], string> = { ustva: "UStVA", zm: "ZM", oss: "OSS" }
+const KIND_KEY: Record<FilingDeadline["kind"], string> = {
+  ustva: "deadlines.kind.ustva", zm: "deadlines.kind.zm", oss: "deadlines.kind.oss",
+  annual: "deadlines.kind.annual", svz: "deadlines.kind.svz", dauerfrist: "deadlines.kind.dauerfrist",
+}
 
 function href(d: FilingDeadline): string {
+  // Tier 802
+  if (d.kind === "annual") return "/dashboard/accounting"
+  if (d.kind === "svz") return "/dashboard/accounting/ustva#ust-payments"
+  if (d.kind === "dauerfrist") return "/dashboard/accounting/ustva#filing-settings"
   if (d.kind === "oss") return `/dashboard/reports?tab=oss&year=${d.year}&quarter=${d.quarter}`
   if (d.kind === "zm") return `/dashboard/accounting/ustva?zmYear=${d.year}&zmQuarter=${d.quarter}#zm`
   return d.month
@@ -38,7 +45,8 @@ export function FilingDeadlinesCard() {
   }, [])
 
   const when = (d: FilingDeadline) => {
-    if (d.status === "filed") return t("deadlines.filed")
+    if (d.status === "filed") return t(d.kind === "svz" ? "deadlines.paid" : "deadlines.filed")
+    if (d.status === "option") return t("deadlines.possibleUntil")
     if (d.daysLeft === 0) return t("deadlines.today")
     if (d.daysLeft < 0) return t("deadlines.overdueSince", { days: String(-d.daysLeft) })
     if (d.daysLeft === 1) return t("deadlines.tomorrow")
@@ -47,11 +55,13 @@ export function FilingDeadlinesCard() {
   const tone = (d: FilingDeadline) =>
     d.status === "filed"
       ? "text-emerald-700 dark:text-emerald-400"
-      : d.status === "overdue" || (d.status === "open" && d.daysLeft <= 3)
+      : d.status === "option"
+        ? "text-gray-500"
+        : d.status === "overdue" || (d.status === "open" && d.daysLeft <= 3)
         ? "text-red-700 dark:text-red-400"
         : d.status === "open" && d.daysLeft <= 10
           ? "text-amber-700 dark:text-amber-400"
-          : "text-gray-600 dark:text-gray-300"
+            : "text-gray-600 dark:text-gray-300"
 
   return (
     <Card data-testid="filing-deadlines-card">
@@ -71,11 +81,16 @@ export function FilingDeadlinesCard() {
                   <li key={`${d.kind}-${d.year}-${d.month ?? ""}-${d.quarter ?? ""}`} className="py-2" data-testid="filing-deadline" data-kind={d.kind} data-status={d.status}>
                     <Link href={href(d)} className="flex flex-wrap items-baseline justify-between gap-x-3 hover:underline">
                       <span className="font-medium text-gray-900 dark:text-gray-100">
-                        {KIND_LABEL[d.kind]} {deadlinePeriodLabel(d, locale)}
+                        {t(KIND_KEY[d.kind])} {deadlinePeriodLabel(d, locale)}
+                        {d.amount != null && d.amount > 0 && (
+                          <span className="ml-2 font-normal text-gray-700 dark:text-gray-200" data-testid="filing-deadline-amount">
+                            {t("deadlines.about", { amount: d.amount.toLocaleString(locale === "en" ? "en-GB" : locale === "zh" ? "zh-CN" : "de-DE", { style: "currency", currency: "EUR" }) })}
+                          </span>
+                        )}
                         {d.status === "running" && <span className="ml-2 text-xs font-normal text-gray-500">{t("deadlines.running")}</span>}
                       </span>
                       <span className="text-sm">
-                        <span className="text-gray-700 dark:text-gray-200" data-testid="filing-deadline-due">{t("deadlines.dueOn", { date: deadlineDay(d.dueDate) })}</span>
+                        <span className="text-gray-700 dark:text-gray-200" data-testid="filing-deadline-due">{t(d.status === "option" ? "deadlines.byDate" : "deadlines.dueOn", { date: deadlineDay(d.dueDate) })}</span>
                         <span className={`ml-2 ${tone(d)}`}>{when(d)}</span>
                       </span>
                     </Link>

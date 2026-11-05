@@ -27,7 +27,7 @@ export default function FilingSettingsCard({ initial, onSaved }: { initial: Fili
   const [saving, setSaving] = useState(false)
   if (!initial) return null
 
-  const save = async (patch: { ustvaRhythmus?: UstvaRhythm; dauerfristverlaengerung?: boolean }) => {
+  const save = async (patch: { ustvaRhythmus?: UstvaRhythm; dauerfristverlaengerung?: boolean; jahreserklaerungDurchBerater?: boolean }) => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setSaving(true)
@@ -72,6 +72,17 @@ export default function FilingSettingsCard({ initial, onSaved }: { initial: Fili
             />
             <span>{t("deadlines.settingsDauerfrist")}</span>
             <span className="text-xs text-gray-500" data-testid="ustva-dauerfrist-source">{t(SOURCE_KEY[initial.dauerfristSource])}</span>
+          </label>
+          {/* Tier 802: the later deadline of § 149 Abs. 3 AO */}
+          <label className="flex flex-wrap items-center gap-2 min-w-0">
+            <input
+              type="checkbox"
+              checked={initial.berater}
+              disabled={saving}
+              onChange={(e) => save({ jahreserklaerungDurchBerater: e.target.checked })}
+              data-testid="ustva-berater"
+            />
+            <span>{t("deadlines.settingsBerater")}</span>
           </label>
         </div>
       </CardContent>

@@ -21,6 +21,21 @@
  *    the company's Bundesland (where its Finanzamt is); without one, only the
  *    nationwide holidays count, which never gives a day too late.
  *
+ *
+ * Tier 802 — the annual return and the Sondervorauszahlung:
+ *
+ *  - Annual returns (USt, ESt/KSt, GewSt; § 149 Abs. 2 AO): 31 July of the
+ *    following year; prepared by a Steuerberater (§ 149 Abs. 3 AO) the end
+ *    of February of the second following year. The Corona extensions are
+ *    over: the year 2024 had 31.07.2025 / 30.04.2026, from 2025 on the rule
+ *    stands (2025 with a Berater: 28.02.2027, a Sunday → 01.03.2027).
+ *  - Sondervorauszahlung (§§ 47, 48 UStDV): a monthly filer with
+ *    Dauerfristverlängerung files and pays 1/11 of the previous year's
+ *    Vorauszahlungen by the deadline of the January return without the
+ *    extension — 10 February. The extension itself stays granted until it is
+ *    revoked; applying for it is possible by that day (by the Q1 deadline,
+ *    10 April, for a quarterly filer, who pays no Sondervorauszahlung).
+ *
  * All days are calendar days "YYYY-MM-DD" (Europe/Berlin), no clock times.
  */
 
@@ -151,4 +166,16 @@ export function periodName(p: Period): string {
 /** Whole days from one calendar day to another (negative when past). */
 export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86_400_000)
+}
+
+/** The annual returns of a year: § 149 Abs. 2 / 3 AO, shifted by § 108 Abs. 3 AO. */
+export function annualReturnDeadline(year: number, berater: boolean, land?: string | null): string {
+  if (!berater) return shiftToWorkingDay(`${year + 1}-07-31`, land)
+  if (year === 2024) return shiftToWorkingDay('2026-04-30', land)
+  return shiftToWorkingDay(isoDay(year + 2, 2, 0), land)
+}
+
+/** The Sondervorauszahlung of a year, and the application for the Dauerfristverlängerung of a monthly filer. */
+export function sondervorauszahlungDeadline(year: number, land?: string | null): string {
+  return ustvaDeadline({ year, month: 1 }, false, land)
 }

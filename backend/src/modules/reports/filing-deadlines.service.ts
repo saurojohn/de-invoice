@@ -5,7 +5,7 @@ import { UstvaService } from './ustva.service'
 import { OssService } from './oss.service'
 import {
   Period, UstvaRhythm, daysBetween, lastEndedPeriod, ossDeadline, periodContaining, periodEnd, periodName, previousPeriod,
-  ustvaDeadline, zmDeadline,
+  ustvaDeadline, zmDeadline, annualReturnDeadline, sondervorauszahlungDeadline, isoDay,
 } from './filing-deadlines'
 
 /**
@@ -20,10 +20,13 @@ import {
  * and the answer says so (`source`), so the page can ask for them.
  */
 
-export type DeadlineStatus = 'filed' | 'open' | 'overdue' | 'running'
+// Tier 802: 'option' — something that may be done by the day (apply for the Dauerfristverlängerung)
+export type DeadlineStatus = 'filed' | 'open' | 'overdue' | 'running' | 'option'
 
 export interface FilingDeadline {
-  kind: 'ustva' | 'zm' | 'oss'
+  // Tier 802: 'annual' — the annual returns; 'svz' — the Sondervorauszahlung;
+  // 'dauerfrist' — the application for the Dauerfristverlängerung
+  kind: 'ustva' | 'zm' | 'oss' | 'annual' | 'svz' | 'dauerfrist'
   year: number
   month: number | null
   quarter: number | null
@@ -35,6 +38,8 @@ export interface FilingDeadline {
   /** for the page to translate: 'zm-monthly' | 'oss-nil' | 'oss-check' */
   noteCode: string | null
   note: string | null
+  /** Tier 802: the Sondervorauszahlung, 1/11 of the previous year's Vorauszahlungen — an estimate */
+  amount?: number
 }
 
 const RHYTHMS: UstvaRhythm[] = ['monthly', 'quarterly', 'none']
@@ -48,6 +53,13 @@ const NOTES = {
   'zm-monthly': `Innergemeinschaftliche Lieferungen über ${ZM_MONTHLY_THRESHOLD.toLocaleString('de-DE')} € im Quartal — die ZM ist ab jetzt monatlich abzugeben (§ 18a Abs. 1 UStG).`,
   'oss-nil': 'Im OSS-Verfahren ist auch ohne Umsätze eine Nullmeldung abzugeben.',
   'oss-check': 'Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10 000 €, § 3c UStG).',
+  'annual-self': 'Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — ohne Steuerberater.',
+  'annual-berater': 'Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — durch den Steuerberater (§ 149 Abs. 3 AO).',
+  'annual-ku': 'Einkommen- und Gewerbesteuererklärung; als Kleinunternehmer seit 2024 keine Umsatzsteuererklärung, wenn das Finanzamt sie nicht anfordert (§ 19 Abs. 1 Satz 4 UStG).',
+  'svz-estimate': '1/11 der Vorauszahlungen des Vorjahres (§ 47 UStDV), aus den Buchungen geschätzt — mit der USt 1 H anmelden und zahlen.',
+  'svz-partial': '1/11 der bisherigen Vorauszahlungen des laufenden Jahres (§ 47 UStDV) — vorläufig, das Jahr ist noch nicht zu Ende.',
+  'dauerfrist-monthly': 'Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; dafür ist bis dahin eine Sondervorauszahlung von 1/11 der Vorjahres-Vorauszahlungen zu leisten (§§ 46–48 UStDV).',
+  'dauerfrist-quarterly': 'Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; vierteljährlich ohne Sondervorauszahlung (§ 46 UStDV).',
 } as const
 
 @Injectable()
@@ -105,6 +117,9 @@ export class FilingDeadlinesService {
 
     return {
       today,
+      // Tier 802: the annual returns are prepared by a Steuerberater (§ 149 Abs. 3 AO)
+      berater: s.jahreserklaerungDurchBerater === true,
+      kleinunternehmer: company?.defaultVatMode === 'kleinunternehmer',
       rhythm,
       rhythmSource,
       dauerfrist,
@@ -182,6 +197,42 @@ export class FilingDeadlinesService {
         show = r.totals.invoiceCount > 0
       }
       if (show) out.push(item('oss', ossPeriod, endOf(ossPeriod), ossDue, 'open', st.ossVerfahren ? 'oss-nil' : 'oss-check'))
+    }
+
+    // Tier 802: the annual returns of the ended years whose deadline is ahead.
+    // A Kleinunternehmer files no annual VAT return since 2024 unless asked
+    // (§ 19 Abs. 1 Satz 4 UStG, Wachstumschancengesetz) — the ESt and GewSt
+    // returns remain, same deadline.
+    const year = Number(today.slice(0, 4))
+    for (const y of [year - 2, year - 1]) {
+      const due = annualReturnDeadline(y, st.berater, land)
+      if (due < today) continue
+      const settled = await this.prisma.ustPayment.count({ where: { companyId, kind: 'ustja', year: y } })
+      const p: Period = { year: y }
+      out.push(item('annual', p, `${y}-12-31`, due, settled > 0 ? 'filed' : 'open', st.kleinunternehmer ? 'annual-ku' : st.berater ? 'annual-berater' : 'annual-self'))
+    }
+
+    // Tier 802: the Sondervorauszahlung (monthly with Dauerfrist), or the
+    // application for the Dauerfristverlängerung — from December to the day
+    if (rhythm === 'monthly') {
+      const target = today.slice(5) >= '12-01' ? year + 1 : year
+      const due = sondervorauszahlungDeadline(target, land)
+      if (due >= today && today >= `${target - 1}-12-01`) {
+        if (dauerfrist) {
+          const paid = await this.prisma.ustPayment.count({ where: { companyId, kind: 'sondervorauszahlung', year: target } })
+          const base = await this.ustva.compute(companyId, target - 1)
+          const amount = Math.max(0, Math.round((Number(base.differenzbetrag) / 11) * 100) / 100)
+          const row = item('svz', { year: target }, isoDay(target, 0, 0), due, paid > 0 ? 'filed' : 'open', target - 1 === year ? 'svz-partial' : 'svz-estimate')
+          out.push({ ...row, amount })
+        } else {
+          out.push(item('dauerfrist', { year: target }, isoDay(target, 0, 0), due, 'option', 'dauerfrist-monthly'))
+        }
+      }
+    } else if (rhythm === 'quarterly' && !dauerfrist) {
+      const due = ustvaDeadline({ year, quarter: 1 }, false, land)
+      if (due >= today && today >= `${year}-03-01`) {
+        out.push(item('dauerfrist', { year }, isoDay(year, 0, 0), due, 'option', 'dauerfrist-quarterly'))
+      }
     }
 
     out.sort((a, b) => (a.dueDate === b.dueDate ? a.kind.localeCompare(b.kind) : a.dueDate.localeCompare(b.dueDate)))

@@ -87,7 +87,7 @@ assert_eq "no return filed here yet: a past deadline is not called overdue (it w
   "$(P "[x for x in d['deadlines'] if x['status']=='overdue']")" "[]"
 assert_eq "ZM and OSS open on the last ended quarter" "$(P "(d['defaults']['zm'], d['defaults']['oss'])")" \
   "({'year': $Q1Y, 'quarter': $Q1}, {'year': $Q1Y, 'quarter': $Q1})"
-assert_eq "no ZM and no OSS sales: neither is listed" "$(P "[x['kind'] for x in d['deadlines'] if x['kind']!='ustva']")" "[]"
+assert_eq "no ZM and no OSS sales: neither is listed" "$(P "[x['kind'] for x in d['deadlines'] if x['kind'] in ('zm', 'oss')]")" "[]"
 
 # ── stated: quarterly with Dauerfristverlängerung ─────────────────────────
 AS PUT "/api/v1/ustva/filing-settings?companyId=$C" '{"ustvaRhythmus":"quarterly","dauerfristverlaengerung":true}'
@@ -98,7 +98,7 @@ assert_eq "the running quarter, a month later" \
 assert_eq "the UStVA page opens on a quarter" "$(P "d['defaults']['ustva']['month'] is None and d['defaults']['ustva']['quarter'] in (1,2,3,4)")" "True"
 assert_eq "the change is in the audit trail, with the old values" \
   "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select action, \"oldData\"::text from \"AuditLog\" where \"companyId\"='$C' and action='company.ustva_settings.updated'")" \
-  'company.ustva_settings.updated|{"ustvaRhythmus": null, "dauerfristverlaengerung": null}'
+  'company.ustva_settings.updated|{"ustvaRhythmus": null, "dauerfristverlaengerung": null, "jahreserklaerungDurchBerater": null}'
 
 AS PUT "/api/v1/ustva/filing-settings?companyId=$C" '{"ustvaRhythmus":"weekly"}'
 assert_eq "an unknown rhythm is refused" "$STATUS" "400"

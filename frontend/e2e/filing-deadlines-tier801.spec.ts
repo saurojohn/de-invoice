@@ -41,13 +41,15 @@ async function injectAuth(page: Page) {
   }, tk)
 }
 
-let before: { ustvaRhythmus: string | null; dauerfristverlaengerung: boolean | null } | null = null
+let before: { ustvaRhythmus: string | null; dauerfristverlaengerung: boolean | null; jahreserklaerungDurchBerater: boolean | null } | null = null
 
 test.beforeAll(async ({ request }) => {
   const d = await (await request.get(`${API}/api/v1/ustva/deadlines?${q}`, { headers: H })).json()
   before = {
     ustvaRhythmus: d.rhythmSource === "setting" ? d.rhythm : null,
     dauerfristverlaengerung: d.dauerfristSource === "setting" ? d.dauerfrist : null,
+    // Tier 802: false is the default, so only a set true is put back
+    jahreserklaerungDurchBerater: d.berater ? true : null,
   }
 })
 
@@ -119,11 +121,26 @@ test("the rhythm and the Dauerfristverlängerung are set on the UStVA page", asy
   await expect(dauerfrist).toBeChecked({ checked: !wasOn, timeout: 30_000 })
   await expect(page.getByTestId("ustva-dauerfrist-source")).toHaveText("festgelegt")
 
+  // Tier 802: the annual returns by a Steuerberater — the later deadline
+  const berater = page.getByTestId("ustva-berater")
+  const beraterWas = await berater.isChecked()
+  const saved3 = page.waitForResponse((r) => r.url().includes("/api/v1/ustva/filing-settings") && r.request().method() === "PUT", { timeout: 60_000 })
+  await berater.click()
+  expect((await saved3).status()).toBe(200)
+  await expect(berater).toBeChecked({ checked: !beraterWas, timeout: 30_000 })
+
   const now = await (await request.get(`${API}/api/v1/ustva/deadlines?${q}`, { headers: H })).json()
-  expect([now.rhythm, now.rhythmSource, now.dauerfrist, now.dauerfristSource]).toEqual([other, "setting", !wasOn, "setting"])
+  expect([now.rhythm, now.rhythmSource, now.dauerfrist, now.dauerfristSource, now.berater]).toEqual([other, "setting", !wasOn, "setting", !beraterWas])
+  const annual = now.deadlines.filter((x: any) => x.kind === "annual")
+  expect(annual.every((x: any) => x.noteCode === (now.kleinunternehmer ? "annual-ku" : beraterWas ? "annual-self" : "annual-berater"))).toBeTruthy()
   // the dashboard says nothing is assumed any more
   await page.goto("/dashboard")
   await expect(page.getByTestId("filing-deadlines-card")).toBeVisible({ timeout: 90_000 })
   await expect(page.getByTestId("filing-deadline").first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId("filing-deadlines-assumed")).toHaveCount(0)
+  // every row the backend names is on the card, under its own label
+  await expect(page.getByTestId("filing-deadline")).toHaveCount(now.deadlines.length)
+  for (const kind of new Set(now.deadlines.map((x: any) => x.kind as string))) {
+    await expect(page.locator(`[data-testid="filing-deadline"][data-kind="${kind}"]`).first()).not.toContainText("deadlines.")
+  }
 })

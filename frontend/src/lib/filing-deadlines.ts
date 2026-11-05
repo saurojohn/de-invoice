@@ -8,7 +8,8 @@ import { apiGet } from "@/lib/api"
 export type UstvaRhythm = "monthly" | "quarterly" | "none"
 
 export interface FilingDeadline {
-  kind: "ustva" | "zm" | "oss"
+  // Tier 802: the annual returns, the Sondervorauszahlung, the Dauerfrist application
+  kind: "ustva" | "zm" | "oss" | "annual" | "svz" | "dauerfrist"
   year: number
   month: number | null
   quarter: number | null
@@ -16,13 +17,17 @@ export interface FilingDeadline {
   periodEnd: string
   dueDate: string
   daysLeft: number
-  status: "filed" | "open" | "overdue" | "running"
-  noteCode: "zm-monthly" | "oss-nil" | "oss-check" | null
+  status: "filed" | "open" | "overdue" | "running" | "option"
+  noteCode: string | null
   note: string | null
+  /** the Sondervorauszahlung (an estimate) */
+  amount?: number
 }
 
 export interface FilingDeadlines {
   today: string
+  berater: boolean
+  kleinunternehmer: boolean
   rhythm: UstvaRhythm
   rhythmSource: "setting" | "filings" | "kleinunternehmer" | "default"
   dauerfrist: boolean
@@ -56,6 +61,7 @@ export function deadlinePeriodLabel(d: { year: number; month: number | null; qua
     return new Date(Date.UTC(d.year, d.month - 1, 1)).toLocaleDateString(tag, { month: "long", year: "numeric", timeZone: "UTC" })
   }
   if (d.quarter) return `Q${d.quarter} ${d.year}`
+  // the annual returns, the Sondervorauszahlung: the year alone
   return String(d.year)
 }
 

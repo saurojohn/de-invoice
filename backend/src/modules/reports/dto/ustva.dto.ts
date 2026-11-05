@@ -291,4 +291,10 @@ export class UstvaFilingSettingsDto {
   @StrictBoolean()
   @IsBoolean()
   dauerfristverlaengerung?: boolean | null
+
+  // Tier 802: the annual returns are prepared by a Steuerberater — the later deadline of § 149 Abs. 3 AO
+  @IsOptional()
+  @StrictBoolean()
+  @IsBoolean()
+  jahreserklaerungDurchBerater?: boolean | null
 }

@@ -89,7 +89,7 @@ export default function UstPaymentsCard() {
     k === "ustja" ? t("ustva.kindUstja") : k === "sondervorauszahlung" ? t("ustva.kindSonder") : t("ustva.kindSonstige")
 
   return (
-    <Card className="mt-6" data-testid="ust-payments-card">
+    <Card className="mt-6" id="ust-payments" data-testid="ust-payments-card">
       <CardHeader>
         <CardTitle>{t("ustva.otherPayments")}</CardTitle>
         <p className="text-sm text-gray-600 dark:text-gray-300">{t("ustva.otherPaymentsHint")}</p>
