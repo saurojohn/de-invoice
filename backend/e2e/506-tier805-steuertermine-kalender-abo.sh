@@ -117,8 +117,10 @@ assert_eq "a new link" "$STATUS/$(P "d['replaced']")" "201/True"
 URL2=$(P "d['url']"); T2=${URL2##*/}; T2=${T2%.ics}
 FEED "$T1"; assert_eq "the old link no longer works" "$FS" "404"
 FEED "$T2"; assert_eq "the new one does" "$FS" "200"
+# (by action, not by time: an audit row's createdAt is cut to the second, and
+# both rows can fall in the same one — CI run 42099331247 had them the other way)
 assert_eq "the audit trail has both" \
-  "$(q "select string_agg(action, ',' order by \"createdAt\") from \"AuditLog\" where \"companyId\"='$C' and action like 'company.calendar_link.%'")" \
+  "$(q "select string_agg(action, ',' order by action) from \"AuditLog\" where \"companyId\"='$C' and action like 'company.calendar_link.%'")" \
   "company.calendar_link.created,company.calendar_link.replaced"
 
 # the link is its admin's, and the company's while it is open
