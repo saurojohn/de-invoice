@@ -4540,6 +4540,7 @@
     "possibleUntil": "möglich",
     "byDate": "bis {date}",
     "about": "ca. {amount}",
-    "settingsBerater": "Jahreserklärungen durch Steuerberater (Frist Ende Februar des übernächsten Jahres)"
+    "settingsBerater": "Jahreserklärungen durch Steuerberater (Frist Ende Februar des übernächsten Jahres)",
+    "settingsReminderMail": "E-Mail-Erinnerung an die Administratoren 7 und 2 Tage vor jeder Frist"
   }
 }

@@ -97,8 +97,8 @@ assert_eq "the running quarter, a month later" \
   "$(P "[(x['year'], x['quarter'], x['dueDate']) for x in d['deadlines'] if x['kind']=='ustva' and x['status']=='running']")" "[($Q0Y, $Q0, '$Q0DUE_DF')]"
 assert_eq "the UStVA page opens on a quarter" "$(P "d['defaults']['ustva']['month'] is None and d['defaults']['ustva']['quarter'] in (1,2,3,4)")" "True"
 assert_eq "the change is in the audit trail, with the old values" \
-  "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select action, \"oldData\"::text from \"AuditLog\" where \"companyId\"='$C' and action='company.ustva_settings.updated'")" \
-  'company.ustva_settings.updated|{"ustvaRhythmus": null, "dauerfristverlaengerung": null, "jahreserklaerungDurchBerater": null}'
+  "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select action, \"oldData\" ? 'ustvaRhythmus', \"oldData\"->>'ustvaRhythmus' is null, \"oldData\" ? 'dauerfristverlaengerung', \"oldData\"->>'dauerfristverlaengerung' is null from \"AuditLog\" where \"companyId\"='$C' and action='company.ustva_settings.updated'")" \
+  'company.ustva_settings.updated|t|t|t|t'
 
 AS PUT "/api/v1/ustva/filing-settings?companyId=$C" '{"ustvaRhythmus":"weekly"}'
 assert_eq "an unknown rhythm is refused" "$STATUS" "400"

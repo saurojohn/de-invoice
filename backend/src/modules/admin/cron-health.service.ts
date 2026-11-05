@@ -100,6 +100,8 @@ export class CronHealthService {
     // Tier 727: the files every hour; whether the backups are fresh, every hour
     { name: 'hourly-files-backup', schedule: '20 * * * *', timeZone: 'Europe/Berlin', intervalMinutes: 60 },
     { name: 'backup-freshness-check', schedule: '40 * * * *', timeZone: 'Europe/Berlin', intervalMinutes: 60 },
+    // Tier 803: mails seven and two days before a filing deadline
+    { name: 'filing-deadline-reminders', schedule: '0 7 * * *', timeZone: 'Europe/Berlin', intervalMinutes: 1440 },
   ]
 
   /**

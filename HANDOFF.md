@@ -2669,6 +2669,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 803 — a reminder mail seven and two days before a filing deadline
+
+The second half of „先做第2条": the deadlines reach an owner who does not open the dashboard.
+
+- `FilingDeadlineMailScheduler` (`filing-deadline-reminders`, 07:00 Berlin daily, off with `DISABLE_CRON`, in the cron health registry — 13 jobs now, specs 143 and `cron-history-tier124` count them) → `FilingDeadlineMailService.remindAll()`: every open company (`closedAt: null`), one company's failure does not stop the others.
+- Per company: the rows of `GET /ustva/deadlines` with status `open` (or `overdue`) and 0–7 days left; `dueReminders` (filing-deadlines.ts) gives each the stage — 7 days or less the 7-day reminder, 2 or less the 2-day one, which marks the 7-day one too (a row reached late gets the later reminder only). Filed rows, options and the running period: never. One mail per company and day to every active admin, listing the rows (period, amount of a Sondervorauszahlung, due day, days left, the note), the § 108 Abs. 3 AO sentence, the link to the dashboard (`publicOrigin()`), how to switch it off. Sent stages are kept in `settings.fristErinnerungGesendet` (last 120 keys), only after the mail went out — a failed send is tried again the next morning. Audit `filing_deadlines.reminder_sent` with the items.
+- Through `MailService.send` as a company mail (not `system`): the company's own SMTP server, or the installation's once an admin has confirmed the address (Tier 736); without a server it is the `[NO-SMTP]` log line.
+- `settings.fristErinnerungMail` (default on; `false` switches it off) through `PUT /ustva/filing-settings`, a checkbox on the UStVA page; `POST /ustva/deadlines/remind` (`company.update`) runs it for one company at once.
+- Checked once with a real SMTP conversation: a throwaway sink on 127.0.0.1:2525 (scratchpad, stopped after) and a backend on :3015 against `tmp-ci-pg` — subject „Frist: UStVA Oktober 2026 — fällig am 10.11.2026", body as above.
+
+Spec `504-tier803-frist-erinnerung-per-mail.sh` (fails before: the route is a 404): the stages on fixed rows; on today's date exactly the open rows within seven days, sent to the admin, the audit row, nothing on a second run, nothing when switched off, 400 for a non-boolean, 403 read-only; the job registered, honouring `DISABLE_CRON`, skipping closed companies. Spec 385 found the audit user agent `…MailService` (developer wording in a report module) — now `de-invoice:filing-deadline-reminders`. 502's audit check looks at its two keys, not the whole object. Guards, 117 143 457 502 503 504 pass; Playwright `filing-deadlines-tier801` (toggles the reminder too and restores it), `cron-history-tier124`, mobile-width, feature-flags: 19 passed. tsc, eslint `--max-warnings 0`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 802 — the annual returns and the Sondervorauszahlung among the deadlines
 
 The owner, 05.11.2026: „先做第2条" — the deadlines Tier 801 left out.

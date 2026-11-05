@@ -27,7 +27,7 @@ export default function FilingSettingsCard({ initial, onSaved }: { initial: Fili
   const [saving, setSaving] = useState(false)
   if (!initial) return null
 
-  const save = async (patch: { ustvaRhythmus?: UstvaRhythm; dauerfristverlaengerung?: boolean; jahreserklaerungDurchBerater?: boolean }) => {
+  const save = async (patch: { ustvaRhythmus?: UstvaRhythm; dauerfristverlaengerung?: boolean; jahreserklaerungDurchBerater?: boolean; fristErinnerungMail?: boolean }) => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setSaving(true)
@@ -83,6 +83,17 @@ export default function FilingSettingsCard({ initial, onSaved }: { initial: Fili
               data-testid="ustva-berater"
             />
             <span>{t("deadlines.settingsBerater")}</span>
+          </label>
+          {/* Tier 803: the reminder mails to the admins */}
+          <label className="flex flex-wrap items-center gap-2 min-w-0">
+            <input
+              type="checkbox"
+              checked={initial.erinnerungMail}
+              disabled={saving}
+              onChange={(e) => save({ fristErinnerungMail: e.target.checked })}
+              data-testid="ustva-reminder-mail"
+            />
+            <span>{t("deadlines.settingsReminderMail")}</span>
           </label>
         </div>
       </CardContent>

@@ -4540,6 +4540,7 @@
     "possibleUntil": "possible",
     "byDate": "by {date}",
     "about": "approx. {amount}",
-    "settingsBerater": "Annual returns prepared by a tax adviser (deadline end of February of the second following year)"
+    "settingsBerater": "Annual returns prepared by a tax adviser (deadline end of February of the second following year)",
+    "settingsReminderMail": "E-mail reminder to the administrators 7 and 2 days before each deadline"
   }
 }

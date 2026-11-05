@@ -297,4 +297,10 @@ export class UstvaFilingSettingsDto {
   @StrictBoolean()
   @IsBoolean()
   jahreserklaerungDurchBerater?: boolean | null
+
+  // Tier 803: the reminder mails seven and two days before a deadline
+  @IsOptional()
+  @StrictBoolean()
+  @IsBoolean()
+  fristErinnerungMail?: boolean | null
 }

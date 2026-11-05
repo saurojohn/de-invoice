@@ -119,6 +119,8 @@ export class FilingDeadlinesService {
       today,
       // Tier 802: the annual returns are prepared by a Steuerberater (§ 149 Abs. 3 AO)
       berater: s.jahreserklaerungDurchBerater === true,
+      // Tier 803: the reminder mails (on unless switched off)
+      erinnerungMail: s.fristErinnerungMail !== false,
       kleinunternehmer: company?.defaultVatMode === 'kleinunternehmer',
       rhythm,
       rhythmSource,

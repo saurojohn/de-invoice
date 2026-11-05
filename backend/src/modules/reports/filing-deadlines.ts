@@ -179,3 +179,35 @@ export function annualReturnDeadline(year: number, berater: boolean, land?: stri
 export function sondervorauszahlungDeadline(year: number, land?: string | null): string {
   return ustvaDeadline({ year, month: 1 }, false, land)
 }
+
+/**
+ * Tier 803 — the reminder mails: seven days before a deadline and two days
+ * before it, once each. A row reached late (the server was down, or the
+ * first run is two days before) gets the later reminder only.
+ */
+export const REMINDER_STAGES = [2, 7] as const
+
+export interface RemindableRow {
+  kind: string
+  year: number
+  month: number | null
+  quarter: number | null
+  status: string
+  daysLeft: number
+}
+
+export const reminderKey = (r: RemindableRow, stage: number) =>
+  `${r.kind}:${r.year}:${r.month ?? (r.quarter ? `Q${r.quarter}` : '-')}:${stage}`
+
+/** The rows to remind of now, each with its stage and every key to mark as sent. */
+export function dueReminders<T extends RemindableRow>(rows: T[], sent: Set<string>): Array<{ row: T; stage: number; keys: string[] }> {
+  const out: Array<{ row: T; stage: number; keys: string[] }> = []
+  for (const row of rows) {
+    if (row.status !== 'open' && row.status !== 'overdue') continue
+    if (row.daysLeft < 0) continue
+    const stage = REMINDER_STAGES.find((s) => row.daysLeft <= s)
+    if (stage === undefined || sent.has(reminderKey(row, stage))) continue
+    out.push({ row, stage, keys: REMINDER_STAGES.filter((s) => s >= stage).map((s) => reminderKey(row, s)) })
+  }
+  return out
+}

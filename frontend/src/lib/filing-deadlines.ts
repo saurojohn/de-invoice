@@ -27,6 +27,8 @@ export interface FilingDeadline {
 export interface FilingDeadlines {
   today: string
   berater: boolean
+  /** Tier 803: the reminder mails seven and two days before a deadline */
+  erinnerungMail: boolean
   kleinunternehmer: boolean
   rhythm: UstvaRhythm
   rhythmSource: "setting" | "filings" | "kleinunternehmer" | "default"

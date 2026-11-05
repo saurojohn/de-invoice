@@ -7,6 +7,7 @@ import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
 import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, ReleaseFilingDto, UstvaFilingSettingsDto } from './dto/ustva.dto';
 import { FilingDeadlinesService } from './filing-deadlines.service';
+import { FilingDeadlineMailService } from './filing-deadline-mail.service';
 import { AuditService } from '../audit/audit.service';
 import { updateCompanySettings } from '../../common/company-settings';
 import { CreateUstvaExpenseDto } from './dto/ustva-expense.dto';
@@ -32,7 +33,17 @@ export class UstvaController {
     private prisma: PrismaService,
     private deadlines: FilingDeadlinesService,
     private audit: AuditService,
+    private deadlineMail: FilingDeadlineMailService,
   ) {}
+
+  // Tier 803: the reminder of the deadlines due now, for this company, at
+  // once (the 07:00 job does the same for every company)
+  @Post('deadlines/remind')
+  @Require('company.update')
+  async remindDeadlines(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.deadlineMail.remindCompany(companyId)
+  }
 
   // Tier 801: the returns due next (UStVA, ZM, OSS) and the period each
   // report opens on — filing-deadlines.ts
@@ -54,8 +65,9 @@ export class UstvaController {
         ustvaRhythmus: s.ustvaRhythmus ?? null,
         dauerfristverlaengerung: s.dauerfristverlaengerung ?? null,
         jahreserklaerungDurchBerater: s.jahreserklaerungDurchBerater ?? null,
+        fristErinnerungMail: s.fristErinnerungMail ?? null,
       }
-      for (const key of ['ustvaRhythmus', 'dauerfristverlaengerung', 'jahreserklaerungDurchBerater'] as const) {
+      for (const key of ['ustvaRhythmus', 'dauerfristverlaengerung', 'jahreserklaerungDurchBerater', 'fristErinnerungMail'] as const) {
         if (body[key] === undefined) continue
         if (body[key] === null) delete s[key]
         else s[key] = body[key]
@@ -69,7 +81,7 @@ export class UstvaController {
       entityType: 'Company',
       entityId: companyId,
       oldData: prev as any,
-      metadata: { ustvaRhythmus: body.ustvaRhythmus, dauerfristverlaengerung: body.dauerfristverlaengerung, jahreserklaerungDurchBerater: body.jahreserklaerungDurchBerater },
+      metadata: { ustvaRhythmus: body.ustvaRhythmus, dauerfristverlaengerung: body.dauerfristverlaengerung, jahreserklaerungDurchBerater: body.jahreserklaerungDurchBerater, fristErinnerungMail: body.fristErinnerungMail },
       ipAddress: null,
       userAgent: 'de-invoice:UstvaController.putFilingSettings',
     })

@@ -4540,6 +4540,7 @@
     "possibleUntil": "可申请",
     "byDate": "截至 {date}",
     "about": "约 {amount}",
-    "settingsBerater": "年度申报由税务顾问代办（截止日为后年 2 月底）"
+    "settingsBerater": "年度申报由税务顾问代办（截止日为后年 2 月底）",
+    "settingsReminderMail": "每个截止日前 7 天和 2 天给管理员发邮件提醒"
   }
 }

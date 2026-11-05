@@ -41,7 +41,7 @@ async function injectAuth(page: Page) {
   }, tk)
 }
 
-let before: { ustvaRhythmus: string | null; dauerfristverlaengerung: boolean | null; jahreserklaerungDurchBerater: boolean | null } | null = null
+let before: { ustvaRhythmus: string | null; dauerfristverlaengerung: boolean | null; jahreserklaerungDurchBerater: boolean | null; fristErinnerungMail: boolean | null } | null = null
 
 test.beforeAll(async ({ request }) => {
   const d = await (await request.get(`${API}/api/v1/ustva/deadlines?${q}`, { headers: H })).json()
@@ -50,6 +50,8 @@ test.beforeAll(async ({ request }) => {
     dauerfristverlaengerung: d.dauerfristSource === "setting" ? d.dauerfrist : null,
     // Tier 802: false is the default, so only a set true is put back
     jahreserklaerungDurchBerater: d.berater ? true : null,
+    // Tier 803: on is the default, so only a set false is put back
+    fristErinnerungMail: d.erinnerungMail ? null : false,
   }
 })
 
@@ -129,7 +131,16 @@ test("the rhythm and the Dauerfristverlängerung are set on the UStVA page", asy
   expect((await saved3).status()).toBe(200)
   await expect(berater).toBeChecked({ checked: !beraterWas, timeout: 30_000 })
 
+  // Tier 803: the reminder mails, on by default
+  const mail = page.getByTestId("ustva-reminder-mail")
+  const mailWas = await mail.isChecked()
+  const saved4 = page.waitForResponse((r) => r.url().includes("/api/v1/ustva/filing-settings") && r.request().method() === "PUT", { timeout: 60_000 })
+  await mail.click()
+  expect((await saved4).status()).toBe(200)
+  await expect(mail).toBeChecked({ checked: !mailWas, timeout: 30_000 })
+
   const now = await (await request.get(`${API}/api/v1/ustva/deadlines?${q}`, { headers: H })).json()
+  expect(now.erinnerungMail).toBe(!mailWas)
   expect([now.rhythm, now.rhythmSource, now.dauerfrist, now.dauerfristSource, now.berater]).toEqual([other, "setting", !wasOn, "setting", !beraterWas])
   const annual = now.deadlines.filter((x: any) => x.kind === "annual")
   expect(annual.every((x: any) => x.noteCode === (now.kleinunternehmer ? "annual-ku" : beraterWas ? "annual-self" : "annual-berater"))).toBeTruthy()
