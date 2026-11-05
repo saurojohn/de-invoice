@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 803b — CI green for Tier 801, 802 and 803
+
+Run 42039354713 (Tier 801, commit d4a68cf6): backend **501 passed / 0 failed / 1 skipped**, Playwright **1125 passed (39.0 m)**. Run 42046680052 (Tiers 802 + 803, commit 7d5e1f7e): backend **503 passed / 0 failed / 1 skipped** (502, 503, 504 among them), Playwright **1125 passed (40.3 m)**. Both: 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ — `all-pages-quiet-tier564`, which timed out locally on the dev server, passes on the production build. (A case-insensitive grep finds ~200 „refused" — passing assertions that say so; the check is for the upper-case `REFUSED` of the runner.)
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 803 — a reminder mail seven and two days before a filing deadline
 
 The second half of „先做第2条": the deadlines reach an owner who does not open the dashboard.
