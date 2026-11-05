@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 800b — CI green for Tier 800
+
+Run 42009697464 (commit 3889e4f9): backend **500 passed / 0 failed / 1 skipped** (499, 500, 501 among them), Playwright **1122 passed (38.2 m)**, 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 800 — the turn of the year, crossed live: a subscription billed in advance from its start, AfA from the month of acquisition, open payables of every year
 
 The owner, 05.11.2026: „要" to rehearsing the turn of the year. Tiers 752 and 791 had moved the clock to 11.01.2027 and run the suite there; the moment of the turn itself — 2026 data, then the midnight jobs, then 2027 — had not been crossed by one running process.
