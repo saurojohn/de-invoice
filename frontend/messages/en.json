@@ -4588,5 +4588,22 @@
     "unmarkFiled": "Remove the “filed” mark",
     "markedFiled": "Marked as filed — no more reminders",
     "unmarkedFiled": "Mark removed"
+  },
+  "abstimmung": {
+    "title": "Journal ↔ reports reconciliation",
+    "year": "Year",
+    "intro": "The EÜR, P&L, BWA, balance sheet and VAT return read invoices, expenses, payments and the cash book — not the journal. The vouchers below are in the journal and the DATEV export, but in none of these reports.",
+    "ok": "{year}: the journal and the reports agree — no voucher on an expense, revenue or tax account is missing from the reports.",
+    "summary": "{count} vouchers are missing from the reports: expenses {aufwand}, revenue {ertrag}, VAT {steuer}. Record them as an expense or invoice, or pass them to your tax adviser.",
+    "voucher": "Voucher",
+    "lines": "Lines on expense, revenue and tax accounts",
+    "what": "Origin",
+    "origin_manual": "manual voucher",
+    "origin_correction": "correction voucher",
+    "origin_bank-expense": "bank booking \"as expense\" without an expense",
+    "toBank": "bank import: \"Take into the expenses\"",
+    "truncated": "Only the first 2,000 vouchers of the year were checked.",
+    "failed": "The reconciliation could not be loaded.",
+    "formWarning": "A manual voucher on an expense, revenue or tax account is in the journal and the DATEV export, but not in the EÜR, P&L, BWA, balance sheet or VAT return. Record an invoice, expense or cash entry there instead."
   }
 }

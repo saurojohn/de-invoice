@@ -4588,5 +4588,22 @@
     "unmarkFiled": "Markierung „abgegeben“ aufheben",
     "markedFiled": "Als abgegeben markiert — keine Erinnerung mehr",
     "unmarkedFiled": "Markierung aufgehoben"
+  },
+  "abstimmung": {
+    "title": "Abstimmung Journal ↔ Auswertungen",
+    "year": "Jahr",
+    "intro": "EÜR, GuV, BWA, Bilanz und UStVA lesen Rechnungen, Ausgaben, Zahlungen und das Kassenbuch — nicht das Journal. Die Belege unten stehen im Journal und im DATEV-Export, aber in keiner dieser Auswertungen.",
+    "ok": "{year}: Journal und Auswertungen stimmen überein — kein Beleg auf einem Aufwands-, Erlös- oder Steuerkonto fehlt in den Auswertungen.",
+    "summary": "{count} Belege fehlen in den Auswertungen: Aufwand {aufwand}, Erlöse {ertrag}, Umsatz-/Vorsteuer {steuer}. Erfassen Sie sie als Ausgabe oder Rechnung, oder geben Sie sie Ihrem Berater.",
+    "voucher": "Beleg",
+    "lines": "Zeilen auf Aufwands-, Erlös- und Steuerkonten",
+    "what": "Herkunft",
+    "origin_manual": "manueller Beleg",
+    "origin_correction": "Korrekturbeleg",
+    "origin_bank-expense": "Bankbuchung „Als Aufwand\" ohne Ausgabe",
+    "toBank": "im Bankimport „In die Ausgaben übernehmen\"",
+    "truncated": "Nur die ersten 2 000 Belege des Jahres sind geprüft.",
+    "failed": "Die Abstimmung konnte nicht geladen werden.",
+    "formWarning": "Ein manueller Beleg auf einem Aufwands-, Erlös- oder Steuerkonto steht im Journal und im DATEV-Export, aber nicht in EÜR, GuV, BWA, Bilanz und UStVA. Eine Rechnung, Ausgabe oder Kassenbuchung erfassen Sie besser dort."
   }
 }

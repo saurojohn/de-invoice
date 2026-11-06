@@ -74,6 +74,7 @@ import { BeraterPackagerSection } from "./BeraterPackagerSection"
 import { EBilanzTab } from "./EBilanzTab"
 import { GobdArchiveSection } from "./GobdArchiveSection"
 import { BooksClosingCard } from "@/components/BooksClosingCard"
+import { JournalReconciliationCard } from "@/components/JournalReconciliationCard"
 import { useFormTexts } from "@/lib/tax-form-text"
 import { useHashAnchor } from "@/lib/hash-anchor"
 
@@ -418,6 +419,16 @@ export default function AccountingPage() {
     return { debit: d, credit: c, balanced: Math.abs(d - c) < 0.01 }
   }, [draftLines])
 
+  // Tier 812: a line on an expense, revenue or VAT account is in the journal
+  // and DATEV only — the reports read the documents, not the journal
+  const draftOffReports = useMemo(
+    () => draftLines.some((l) => {
+      const a = accounts.find((x) => x.id === l.accountId)
+      return !!a && (a.type === "expense" || a.type === "revenue" || a.category === "vat")
+    }),
+    [draftLines, accounts],
+  )
+
   const openCreate = () => {
     // Reset the draft each time the modal opens.
     setDraftDate(todayIso())
@@ -598,6 +609,8 @@ export default function AccountingPage() {
         </div>
         {/* Tier 609: closing the books (Festschreibung) */}
         <BooksClosingCard />
+        {/* Tier 812: the vouchers in the journal and in no report */}
+        <JournalReconciliationCard />
 
         <Card className="mb-4">
           <CardContent className="pt-6">
@@ -1243,6 +1256,11 @@ export default function AccountingPage() {
               </div>
             </div>
 
+            {draftOffReports && (
+              <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 rounded text-sm text-amber-800 dark:text-amber-200" data-testid="voucher-off-reports">
+                {t("abstimmung.formWarning")}
+              </div>
+            )}
             {createError && (
               <div className="mt-3 p-3 bg-red-50 border border-red-300 dark:border-red-700 rounded text-sm text-red-800">
                 {createError}

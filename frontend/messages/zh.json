@@ -4588,5 +4588,22 @@
     "unmarkFiled": "取消“已申报”标记",
     "markedFiled": "已标记为已申报——不再提醒",
     "unmarkedFiled": "标记已取消"
+  },
+  "abstimmung": {
+    "title": "凭证库与报表对账",
+    "year": "年份",
+    "intro": "EÜR、损益表、BWA、资产负债表和 UStVA 读取的是发票、支出、付款和现金日记账，不读凭证库。下面这些凭证在凭证库和 DATEV 导出里有，但不在上述任何报表里。",
+    "ok": "{year} 年：凭证库与报表一致——没有记在费用、收入或税科目上却缺失于报表的凭证。",
+    "summary": "有 {count} 张凭证不在报表里：费用 {aufwand}，收入 {ertrag}，增值税/进项税 {steuer}。请把它们录入为支出或发票，或交给税务顾问处理。",
+    "voucher": "凭证",
+    "lines": "费用、收入和税科目上的分录",
+    "what": "来源",
+    "origin_manual": "手工凭证",
+    "origin_correction": "更正凭证",
+    "origin_bank-expense": "银行\"记为费用\"但没有支出记录",
+    "toBank": "在银行导入页面\"转入支出\"",
+    "truncated": "只检查了该年前 2 000 张凭证。",
+    "failed": "对账结果加载失败。",
+    "formWarning": "记在费用、收入或税科目上的手工凭证只出现在凭证库和 DATEV 导出里，不会进入 EÜR、损益表、BWA、资产负债表和 UStVA。发票、支出或现金收支最好在对应页面录入。"
   }
 }

@@ -137,14 +137,15 @@ note "=== 3. GET /voucher-templates/list-for-apply ==="
 api_get "/api/v1/voucher-templates/list-for-apply?companyId=$COMPANY_ID"
 assert_status "200" "list-for-apply returns 200"
 
-# 2 templates: Bank fee template + default-name
-TPL_COUNT=$(python3 -c "import json,sys;print(len(json.loads(sys.stdin.read())))" <<< "$BODY")
+# 2 templates: Bank fee template + default-name. Only this spec's (Tier 812):
+# the shared company holds the templates other specs leave (178 makes one a run).
+TPL_COUNT=$(python3 -c "import json,sys;print(len([t for t in json.loads(sys.stdin.read()) if (t.get('description') or '').startswith('Tier50')]))" <<< "$BODY")
 assert_eq "template count" "$TPL_COUNT" "2"
 
 # Each item has `lines` (parsed, not raw linesJson)
 FIRST_LINES=$(python3 -c "
 import json,sys
-d=json.loads(sys.stdin.read())
+d=[t for t in json.loads(sys.stdin.read()) if (t.get('description') or '').startswith('Tier50')]
 print(len(d[0]['lines']))
 " <<< "$BODY")
 assert_eq "first template lines length" "$FIRST_LINES" "2"
@@ -154,7 +155,7 @@ echo
 note "=== 4. tier-14 list endpoint still works ==="
 api_get "/api/v1/voucher-templates?companyId=$COMPANY_ID"
 assert_status "200" "tier-14 list returns 200"
-LEGACY_COUNT=$(python3 -c "import json,sys;print(len(json.loads(sys.stdin.read())))" <<< "$BODY")
+LEGACY_COUNT=$(python3 -c "import json,sys;print(len([t for t in json.loads(sys.stdin.read()) if (t.get('description') or '').startswith('Tier50')]))" <<< "$BODY")
 assert_eq "legacy list count" "$LEGACY_COUNT" "2"
 
 # ───── 5b. Apply carries cost-center / cost-object /
