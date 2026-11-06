@@ -714,7 +714,12 @@ export async function buildBuchungenFromDb(
       // Tier 452: a Skonto credit note is settled against its bill's payment,
       // not paid — no money moved for it.
       // (notes is mostly NULL, and NOT LIKE on NULL excludes the row)
-      OR: [{ notes: null }, { NOT: { notes: { contains: '[skonto-voucher:' } } }],
+      // Tier 809: nor the counter-entry of a reversed bank booking — the
+      // Storno voucher books its money back.
+      OR: [
+        { notes: null },
+        { AND: [{ NOT: { notes: { contains: '[skonto-voucher:' } } }, { NOT: { notes: { contains: '[bank-expense-storno:' } } }] },
+      ],
     },
     select: {
       id: true, supplierId: true, invoiceNumber: true, description: true,

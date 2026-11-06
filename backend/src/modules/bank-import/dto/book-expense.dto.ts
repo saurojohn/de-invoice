@@ -53,6 +53,25 @@ export class BookExpenseDto {
   // difference becomes a supplier credit note split at the expense's rate.
   @IsOptional() @StrictBoolean() @IsBoolean()
   skonto?: boolean
+
+  // Tier 809: the category of the expense a plain booking now records (the
+  // EÜR / GuV / Anlage lines read it, e.g. „Bankgebühren", „Kfz").
+  @IsOptional() @IsString() @MaxLength(100)
+  category?: string
+}
+
+/**
+ * Tier 809 — POST /bank-statements/:id/transactions/:txnId/rebook-as-expense:
+ * a transaction booked „Als Aufwand" before Tier 809 (a voucher only, no
+ * expense the reports read) is reversed and booked again with its expense.
+ */
+export class RebookAsExpenseDto {
+  @IsOptional() @IsString() @MaxLength(100)
+  category?: string
+
+  // the rate of the bill behind it, when the old booking had no Vorsteuer
+  @IsOptional() @StrictNumber() @IsIn([0, 0.07, 0.19], { message: 'vatRate muss 0, 0.07 oder 0.19 sein' })
+  vatRate?: number
 }
 
 export class SuggestMatchesDto {

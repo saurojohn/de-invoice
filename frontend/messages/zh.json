@@ -289,7 +289,19 @@
     "taxBooked": "{label} 已记为已缴纳",
     "taxBookFailed": "税款未能记账",
     "taxNoFiling": "已识别 {label} 的付款——这份预申报在系统里还没有保存为已申报。",
-    "taxAlreadyPaid": "已识别 {label} 的付款——这一期已经记过付款。"
+    "taxAlreadyPaid": "已识别 {label} 的付款——这一期已经记过付款。",
+    "rebookExpense": "转入支出",
+    "bookExpenseHint": "这笔款会记为一条支出，计入 EÜR、损益表和 UStVA。只有发票上列明进项税时才能抵扣（§ 15 UStG）；银行手续费没有进项税。",
+    "rebookExpenseHint": "这笔款是在\"记为支出\"功能之前记的，EÜR、损益表和 UStVA 里都没有它。原凭证今天冲销，再连同支出记录重新入账，科目不变。",
+    "expenseVatRate": "进项税",
+    "expenseVatKeep": "与原凭证相同",
+    "expenseVatNone": "无（0 %）",
+    "expenseVatAmount": "其中进项税 {amount}",
+    "expenseCategory": "类别",
+    "expenseCategoryPlaceholder": "例如 银行手续费、车辆、办公用品",
+    "expenseDescription": "摘要",
+    "bookedWithoutExpense": "已记账但没有支出记录——报表里缺这笔",
+    "rebookedExpense": "已转入支出"
   },
   "banking": {
     "title": "在线银行 (FinTS)",

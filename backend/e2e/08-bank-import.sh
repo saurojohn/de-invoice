@@ -16,6 +16,9 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT v.id FROM \"Voucher\" v JOIN \"Expense\" e ON v.description LIKE '%[expense:' || e.id || ']%' WHERE e.\"companyId\" = '$COMPANY_ID' AND e.notes LIKE '%[bank-expense:%');
+   DELETE FROM \"Voucher\" WHERE id IN (SELECT v.id FROM \"Voucher\" v JOIN \"Expense\" e ON v.description LIKE '%[expense:' || e.id || ']%' WHERE e.\"companyId\" = '$COMPANY_ID' AND e.notes LIKE '%[bank-expense:%');
+   DELETE FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND notes LIKE '%[bank-expense:%';
    DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction', 'BankReconciliationReversal'));
    DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction', 'BankReconciliationReversal');
    DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO'));
@@ -684,7 +687,10 @@ fi
 # Verify voucher shape
 EXP_REFTYPE=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT \"referenceType\" FROM \"Voucher\" WHERE id = '$EXP_VCH_ID';" 2>/dev/null | tr -d ' ')
-assert_eq "expense voucher referenceType" "$EXP_REFTYPE" "BankTransaction"
+# Tier 809: the booking records an expense the reports read; the voucher pays it
+assert_eq "expense voucher referenceType" "$EXP_REFTYPE" "Expense"
+assert_eq "…and an expense recorded, paid with the transaction" "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+  "SELECT \"grossAmount\"::numeric(10,2) || ' ' || \"accountNumber\" || ' ' || to_char(\"paidAt\", 'YYYY-MM-DD') FROM \"Expense\" WHERE id = '$(json_field "$BODY" createdExpenseId)';" 2>/dev/null)" "85.50 4900 2026-06-02"
 
 EXP_DEBIT_ACCT=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
   "SELECT a.\"accountNumber\" || '|' || vl.debit
@@ -949,6 +955,9 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
   "DELETE FROM \"BankReconciliation\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankTransaction\" WHERE \"companyId\" = '$COMPANY_ID';
    DELETE FROM \"BankStatement\" WHERE \"companyId\" = '$COMPANY_ID';
+   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT v.id FROM \"Voucher\" v JOIN \"Expense\" e ON v.description LIKE '%[expense:' || e.id || ']%' WHERE e.\"companyId\" = '$COMPANY_ID' AND e.notes LIKE '%[bank-expense:%');
+   DELETE FROM \"Voucher\" WHERE id IN (SELECT v.id FROM \"Voucher\" v JOIN \"Expense\" e ON v.description LIKE '%[expense:' || e.id || ']%' WHERE e.\"companyId\" = '$COMPANY_ID' AND e.notes LIKE '%[bank-expense:%');
+   DELETE FROM \"Expense\" WHERE \"companyId\" = '$COMPANY_ID' AND notes LIKE '%[bank-expense:%';
    DELETE FROM \"VoucherLine\" WHERE \"voucherId\" IN (SELECT id FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction', 'BankReconciliationReversal'));
    DELETE FROM \"Voucher\" WHERE \"companyId\" = '$COMPANY_ID' AND \"referenceType\" IN ('BankReconciliation', 'BankTransaction', 'BankReconciliationReversal');
    DELETE FROM \"Payment\" WHERE \"invoiceId\" IN (SELECT id FROM \"Invoice\" WHERE \"invoiceNumber\" IN ('INV-2026-TEST-E2E', 'INV-2026-TEST-002', 'INV-2026-TEST-003', 'INV-2026-TEST-CAMT', 'INV-2026-TEST-AUTO'));

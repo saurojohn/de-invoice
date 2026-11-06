@@ -3,7 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { BankImportService } from './bank-import.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { CallerBoundUpload } from '../../auth/caller-bound-upload';
-import { BookExpenseDto, BookTaxPaymentDto, MatchTransactionDto, SuggestMatchesDto } from './dto/book-expense.dto';
+import { BookExpenseDto, BookTaxPaymentDto, MatchTransactionDto, RebookAsExpenseDto, SuggestMatchesDto } from './dto/book-expense.dto';
 
 // IMPORTANT: literal routes (`/import`, `/reconciliations/...`) MUST
 // be registered BEFORE `:id` routes. NestJS Express matches in
@@ -308,7 +308,7 @@ export class BankImportController {
     @Param('txnId') txnId: string,
     @Body() body: BookExpenseDto,
   ) {
-    const { expenseAccountNumber, description, supplierId, expenseId, vatRate, vatAmount, skonto } = body;
+    const { expenseAccountNumber, description, supplierId, expenseId, vatRate, vatAmount, skonto, category } = body;
     if (!companyId) throw new BadRequestException('companyId is required');
     const stmt = await this.svc.getStatement(companyId, id);
     if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');
@@ -324,6 +324,27 @@ export class BankImportController {
       vatRate: typeof vatRate === 'number' ? vatRate : undefined,
       vatAmount: typeof vatAmount === 'number' ? vatAmount : undefined,
       skonto: skonto === true,
+      category,
     });
+  }
+
+  /** Tier 809: a debit booked „Als Aufwand" before Tier 809 (a voucher, no
+   *  expense the reports read) — reversed and booked again with its expense. */
+  @Post(':id/transactions/:txnId/rebook-as-expense')
+  @Require('accounting.update')
+  async rebookAsExpense(
+    @Req() req: any,
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('txnId') txnId: string,
+    @Body() body: RebookAsExpenseDto,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const stmt = await this.svc.getStatement(companyId, id);
+    if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');
+    if (!stmt.transactions.some((t) => t.id === txnId)) {
+      throw new BadRequestException('Transaktion gehört nicht zu diesem Kontoauszug');
+    }
+    return this.svc.rebookAsExpense(companyId, txnId, req?.user?.id || undefined, { category: body.category, vatRate: body.vatRate });
   }
 }

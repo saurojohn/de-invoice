@@ -289,7 +289,19 @@
     "taxBooked": "{label} als bezahlt gebucht",
     "taxBookFailed": "Steuerzahlung konnte nicht gebucht werden",
     "taxNoFiling": "Zahlung für {label} erkannt — die Voranmeldung ist hier nicht als abgegeben gespeichert.",
-    "taxAlreadyPaid": "Zahlung für {label} erkannt — für sie ist schon eine Zahlung erfasst."
+    "taxAlreadyPaid": "Zahlung für {label} erkannt — für sie ist schon eine Zahlung erfasst.",
+    "rebookExpense": "In die Ausgaben übernehmen",
+    "bookExpenseHint": "Die Buchung wird als Ausgabe erfasst — sie zählt in EÜR, GuV und UStVA. Vorsteuer nur mit einer Rechnung, die sie ausweist (§ 15 UStG); Bankgebühren haben keine.",
+    "rebookExpenseHint": "Diese Buchung wurde vor der Erfassung als Ausgabe gebucht und fehlt in EÜR, GuV und UStVA. Der Beleg wird heute storniert und mit seiner Ausgabe neu gebucht — auf demselben Konto.",
+    "expenseVatRate": "Vorsteuer",
+    "expenseVatKeep": "wie gebucht",
+    "expenseVatNone": "keine (0 %)",
+    "expenseVatAmount": "darin Vorsteuer {amount}",
+    "expenseCategory": "Kategorie",
+    "expenseCategoryPlaceholder": "z. B. Bankgebühren, Kfz, Bürobedarf",
+    "expenseDescription": "Buchungstext",
+    "bookedWithoutExpense": "ohne Ausgabe gebucht — fehlt in den Auswertungen",
+    "rebookedExpense": "In die Ausgaben übernommen"
   },
   "banking": {
     "title": "Online-Banking (FinTS)",

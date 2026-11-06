@@ -16,6 +16,9 @@
  * nothing — it is corrected or taken out like any other field. The one
  * `paidAt` without a booking behind it that stays locked is a Skonto credit
  * note (Tier 452): it goes with its bank payment's Storno.
+ *
+ * Tier 809: an expense a bank booking recorded („Als Aufwand buchen") and
+ * its counter-entry after the Storno stay locked as a pair.
  */
 import { PrismaService } from '../../prisma/prisma.service'
 
@@ -76,6 +79,10 @@ export async function expenseLockReasons(
       reasons.set(e.id, `Die Eingangsrechnung ist über die Bank bezahlt (Beleg ${voucher.voucherNumber}). Stornieren Sie zuerst den Beleg, oder korrigieren Sie sie mit einer Gutschrift des Lieferanten.`)
     } else if (e.paidAt && (e.notes || '').includes('[skonto-voucher:')) {
       reasons.set(e.id, 'Der Skonto gehört zu einer Bankzahlung. Er wird mit dem Storno dieses Belegs zurückgenommen.')
+    } else if ((e.notes || '').includes('[bank-expense')) {
+      // Tier 809: recorded by a bank booking and reversed with it — the pair
+      // (the expense and its counter-entry) stays as it is.
+      reasons.set(e.id, 'Die Ausgabe gehört zu einem stornierten Bankbeleg und ist mit ihm zurückgenommen.')
     }
   }
   return reasons

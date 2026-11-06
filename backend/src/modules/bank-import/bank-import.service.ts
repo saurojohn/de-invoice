@@ -338,7 +338,15 @@ export class BankImportService {
           // Reconciliations (the customer-payment path) carry
           // their own voucherId and aren't joined here.
           include: {
-            voucher: { select: { id: true, voucherNumber: true, date: true } },
+            // Tier 809: referenceType and the debit lines' account types — a
+            // booking „Als Aufwand" from before Tier 809 (a voucher on an
+            // expense account, no expense) can be taken into the expenses.
+            voucher: {
+              select: {
+                id: true, voucherNumber: true, date: true, referenceType: true,
+                lines: { where: { debit: { gt: 0 } }, select: { account: { select: { type: true } } } },
+              },
+            },
           },
         },
       },
@@ -1362,8 +1370,28 @@ export class BankImportService {
    *
    * The transaction's `voucherId` is set so the UI
    * can show the Belegnummer in the txn list.
+   *
+   * Tier 809: a booking without an expense records one — the reports (EÜR,
+   * GuV, UStVA, BWA, Anlage EÜR) read expenses, not vouchers, so before this
+   * a debit booked „Als Aufwand" was in the journal and in DATEV and in no
+   * report: the profit and the tax came out too high, its Vorsteuer was never
+   * claimed. The expense is dated and paid with the transaction, on the
+   * chosen account, at the chosen VAT rate; the voucher pays it (tagged
+   * `[expense:<id>]`, like the payment of an entered bill). Its Storno writes
+   * the expense's counter-entry (voucher.service releaseBankBooking).
+   *
+   * Under the transaction's lock: two clicks booked the debit twice.
    */
   async bookExpense(
+    companyId: string,
+    bankTransactionId: string,
+    userId: string | undefined,
+    opts: Parameters<BankImportService['bookExpenseLocked']>[3] = {},
+  ) {
+    return withKeyLock(`banktxn:${bankTransactionId}`, () => this.bookExpenseLocked(companyId, bankTransactionId, userId, opts));
+  }
+
+  private async bookExpenseLocked(
     companyId: string,
     bankTransactionId: string,
     userId: string | undefined,
@@ -1381,6 +1409,7 @@ export class BankImportService {
       vatRate?: number
       vatAmount?: number
       skonto?: boolean
+      category?: string
     } = {},
   ) {
     const txn = await this.prisma.bankTransaction.findFirst({
@@ -1570,6 +1599,13 @@ export class BankImportService {
       const r = Number(skontoOf.vatRate);
       opts = { ...opts, vatRate: r, vatAmount: r > 0 ? Math.round(absAmount * r / (1 + r) * 100) / 100 : 0 };
     }
+    // Tier 809: a plain booking may name the rate alone — the VAT is the
+    // rate's share of the debit.
+    const plain = !opts.expenseId && !refund;
+    if (plain && opts.vatAmount === undefined && opts.vatRate !== undefined) {
+      const r = Number(opts.vatRate);
+      opts = { ...opts, vatAmount: Math.round((absAmount * r) / (1 + r) * 100) / 100 };
+    }
     const vatAmount = Math.max(0, Number(opts.vatAmount ?? 0));
     // Tier 393: more VAT than the payment made the voucher unbalanced, which
     // surfaced as "Soll und Haben müssen ausgeglichen sein" from the voucher
@@ -1638,6 +1674,11 @@ export class BankImportService {
     // rates. Cost account and Vorsteuer come from the expense (the request's
     // vatRate / vatAmount can describe one rate only).
     const lineParts: InvoicePart[] = parts.length > 1 ? parts : skontoOf && skontoOf.taxLines.length > 1 ? [skontoOf] : []
+    // Tier 809: a Vorsteuer at another rate had no account and left the voucher
+    // unbalanced („Soll und Haben müssen ausgeglichen sein").
+    if (!lineParts.length && vatAmount > 0 && !vorsteuerNumber) {
+      throw new BadRequestException('Vorsteuer wird zu 19 % oder 7 % gebucht — für einen anderen Satz die Eingangsrechnung erfassen.');
+    }
     // what a Skonto takes off each rate — for the credit note written below
     const skontoByRate: { rate: number; gross: number }[] = []
     if (lineParts.length) {
@@ -1686,15 +1727,46 @@ export class BankImportService {
     if (refund) {
       for (const l of lines) [l.debit, l.credit] = [l.credit, l.debit];
     }
-    const paidIds = parts.length > 1 ? parts.map((p) => p.id) : opts.expenseId ? [opts.expenseId] : []
+    // Tier 809: the expense this booking is — what the reports read.
+    let createdExpenseId: string | null = null;
+    if (plain) {
+      await assertPeriodOpen(this.prisma, companyId, [txn.valueDate], 'eine Ausgabe mit diesem Datum');
+      const created = await this.prisma.expense.create({
+        data: {
+          companyId,
+          supplierId: opts.supplierId || null,
+          description: description.slice(0, 500),
+          invoiceDate: txn.valueDate,
+          netAmount: netAmount.toFixed(4),
+          vatRate: vorsteuerNumber ? vatRate : 0,
+          vatAmount: vatAmount.toFixed(4),
+          grossAmount: absAmount.toFixed(4),
+          category: opts.category?.trim() || null,
+          accountNumber: expenseNumber,
+          status: 'booked',
+          paidAt: txn.valueDate,
+          notes: `Aus dem Kontoauszug [bank-expense:${txn.id}]`,
+        },
+        select: { id: true },
+      });
+      createdExpenseId = created.id;
+    }
+    const paidIds = parts.length > 1 ? parts.map((p) => p.id) : opts.expenseId ? [opts.expenseId] : createdExpenseId ? [createdExpenseId] : []
     const expenseTag = paidIds.map((id) => ` [expense:${id}]`).join('')
-    const voucher = await this.voucherService.create({
-      companyId,
-      date: txn.valueDate,
-      description: description + expenseTag,
-      referenceType: opts.expenseId ? 'Expense' : 'BankTransaction',
-      lines,
-    });
+    let voucher: Awaited<ReturnType<VoucherService['create']>>;
+    try {
+      voucher = await this.voucherService.create({
+        companyId,
+        date: txn.valueDate,
+        description: description + expenseTag,
+        referenceType: paidIds.length ? 'Expense' : 'BankTransaction',
+        lines,
+      });
+    } catch (e) {
+      // the expense was made for this booking only
+      if (createdExpenseId) await this.prisma.expense.delete({ where: { id: createdExpenseId } }).catch(() => undefined);
+      throw e;
+    }
 
     // Link voucher back to the transaction.
     await this.prisma.bankTransaction.update({
@@ -1776,7 +1848,60 @@ export class BankImportService {
       netAmount: netAmount,
       // Tier 577: every expense this debit paid
       ...(paidIds.length ? { expenseIds: paidIds } : {}),
+      ...(createdExpenseId ? { createdExpenseId } : {}),
     };
+  }
+
+  /**
+   * Tier 809 — a debit booked „Als Aufwand" before Tier 809 is a voucher on an
+   * expense account and no expense: in the journal and DATEV, in no report.
+   * It is reversed (a Storno dated today, as every correction) and booked
+   * again the Tier 809 way — the same account, its Vorsteuer (or the rate
+   * now given), an expense dated and paid with the transaction. Refused
+   * before the first write when the expense's period is closed or the
+   * voucher is not such a booking (a tax payment on 1780, a voucher edited
+   * by hand into more lines).
+   */
+  async rebookAsExpense(
+    companyId: string,
+    bankTransactionId: string,
+    userId: string | undefined,
+    body: { category?: string; vatRate?: number },
+  ) {
+    return withKeyLock(`banktxn:${bankTransactionId}`, async () => {
+      const txn = await this.prisma.bankTransaction.findFirst({ where: { id: bankTransactionId, companyId } })
+      if (!txn) throw new NotFoundException('Transaktion nicht gefunden')
+      if (!txn.voucherId) throw new BadRequestException('Diese Buchung ist nicht gebucht — bitte „Als Aufwand buchen".')
+      const v = await this.prisma.voucher.findFirst({
+        where: { id: txn.voucherId, companyId },
+        include: {
+          lines: { include: { account: { select: { accountNumber: true, type: true } } } },
+          _count: { select: { reversals: true } },
+        },
+      })
+      const notThis = 'Diese Buchung ist keine Aufwandsbuchung aus dem Kontoauszug ohne Ausgabe — sie wird hier nicht übernommen.'
+      if (!v || v.referenceType !== 'BankTransaction' || v.reversedById || v._count.reversals || Number(txn.amount) >= 0) {
+        throw new BadRequestException(notThis)
+      }
+      const debits = v.lines.filter((l) => Number(l.debit) > 0)
+      const cost = debits.filter((l) => l.account?.type === 'expense')
+      const vat = debits.filter((l) => l.account?.type !== 'expense')
+      if (cost.length !== 1 || vat.length > 1 || (vat[0] && !(Number(vat[0].vatRate) > 0))) {
+        throw new BadRequestException(
+          cost.length ? 'Der Beleg hat mehr als eine Aufwands- oder Vorsteuerzeile — bitte im Journal stornieren und neu buchen.' : notThis,
+        )
+      }
+      await assertPeriodOpen(this.prisma, companyId, [txn.valueDate], 'eine Ausgabe mit diesem Datum')
+      const rate = body.vatRate !== undefined ? body.vatRate : vat[0] ? Number(vat[0].vatRate) : 0
+      await this.voucherService.createReversal(v.id, companyId, 'In die Ausgaben übernommen')
+      return this.bookExpenseLocked(companyId, txn.id, userId, {
+        expenseAccountNumber: cost[0].account!.accountNumber,
+        description: v.description || undefined,
+        vatRate: rate,
+        ...(body.vatRate === undefined && vat[0] ? { vatAmount: Number(vat[0].debit) } : {}),
+        category: body.category,
+      })
+    })
   }
 
   /**

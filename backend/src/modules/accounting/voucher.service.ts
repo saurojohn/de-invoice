@@ -425,7 +425,7 @@ export class VoucherService {
     });
 
     // Tier 444: a Storno of a bank booking takes the payment back too.
-    await this.releaseBankBooking(companyId, original);
+    await this.releaseBankBooking(companyId, original, newVoucherNumber);
     // Tier 456: a Storno of a credit payout gives the customer the credit back.
     await this.restoreCreditPayout(companyId, original.id, newVoucherNumber);
 
@@ -475,6 +475,7 @@ export class VoucherService {
   private async releaseBankBooking(
     companyId: string,
     original: { id: string; date: Date; description: string | null; referenceType: string | null },
+    stornoNumber: string,
   ) {
     if (original.referenceType !== 'Expense' && original.referenceType !== 'BankTransaction') return;
     await this.prisma.bankTransaction.updateMany({
@@ -488,6 +489,44 @@ export class VoucherService {
     // Tier 577: one booking can pay several expenses (the parts of one invoice).
     const expenseIds = [...(original.description || '').matchAll(/\[expense:([0-9a-f-]{36})\]/g)].map((m) => m[1]);
     for (const expenseId of expenseIds) {
+      // Tier 809: an expense the booking itself recorded („Als Aufwand
+      // buchen") is no bill left to pay once the booking is reversed: it gets
+      // its counter-entry, dated with the Storno — the reports take it back
+      // in the period of the Storno, as the journal does. Not deleted (GoBD),
+      // and not left open as a bill nobody owes.
+      const own = await this.prisma.expense.findFirst({
+        where: { id: expenseId, companyId, notes: { contains: '[bank-expense:' }, reversesExpenseId: null },
+        select: {
+          id: true, supplierId: true, description: true, netAmount: true, vatRate: true, vatAmount: true,
+          grossAmount: true, category: true, accountNumber: true, costCenter: true, costObject: true,
+        },
+      });
+      if (own) {
+        const done = await this.prisma.expense.count({ where: { companyId, reversesExpenseId: own.id } });
+        if (done) continue;
+        const day = businessTodayDate();
+        await this.prisma.expense.create({
+          data: {
+            companyId,
+            supplierId: own.supplierId,
+            description: `Storno: ${own.description}`.slice(0, 500),
+            invoiceDate: day,
+            netAmount: own.netAmount.neg(),
+            vatRate: own.vatRate,
+            vatAmount: own.vatAmount.neg(),
+            grossAmount: own.grossAmount.neg(),
+            category: own.category,
+            accountNumber: own.accountNumber,
+            costCenter: own.costCenter,
+            costObject: own.costObject,
+            status: 'booked',
+            paidAt: day,
+            reversesExpenseId: own.id,
+            notes: `Storno ${stornoNumber} [bank-expense-storno:${original.id}]`,
+          },
+        });
+        continue;
+      }
       const paidInCash = await this.prisma.cashBookEntry.count({
         where: { companyId, expenseId, reversesId: null, reversedBy: null },
       });

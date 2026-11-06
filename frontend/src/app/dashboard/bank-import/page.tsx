@@ -9,6 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiDelete, apiFetch } from "@/lib/api"
+import { BookExpenseDialog, type BookExpenseValues } from "./BookExpenseDialog"
 
 interface BankStatement {
   id: string
@@ -55,8 +56,19 @@ interface BankTransaction {
     id: string
     voucherNumber: string
     date: string
+    // Tier 809: a booking „Als Aufwand" from before Tier 809 is
+    // referenceType "BankTransaction" with a debit on an expense account
+    referenceType?: string | null
+    lines?: { account: { type: string } | null }[]
   } | null
 }
+
+/** Tier 809: booked „Als Aufwand" before Tier 809 — a voucher, no expense. */
+const bookedWithoutExpense = (txn: BankTransaction) =>
+  !!txn.voucher &&
+  txn.voucher.referenceType === "BankTransaction" &&
+  Number(txn.amount) < 0 &&
+  (txn.voucher.lines || []).some((l) => l.account?.type === "expense")
 
 interface Candidate {
   invoiceId: string
@@ -377,21 +389,23 @@ export default function BankImportPage() {
     }
   }
 
-  /** Book a debit transaction as a GoBD expense. The
-   *  server picks the SKR03 4900 (Aufwandskonto)
-   *  default; the user can override with a custom
-   *  account number from the prompt. */
-  const bookExpense = async (txnId: string) => {
-    if (!openId) return
-    const acct = prompt(t("bankImport.expenseAccountPrompt"), "4900")
-    if (acct === null) return
+  /** Book a debit transaction as a GoBD expense. Tier 809: a dialog for the
+   *  account, the VAT rate, the category and the text — the booking records
+   *  an expense the reports read (was a prompt() for the account alone). */
+  const [expenseDialog, setExpenseDialog] = useState<{ txn: BankTransaction; mode: "book" | "rebook" } | null>(null)
+  const submitExpenseDialog = async (v: BookExpenseValues) => {
+    if (!openId || !expenseDialog) return
+    const { txn, mode } = expenseDialog
+    const txnId = txn.id
     const companyId = localStorage.getItem("companyId")!
     setBusyRecon(txnId)
     try {
       await apiPost(
-        `/api/v1/bank-statements/${openId}/transactions/${txnId}/book-expense?companyId=${companyId}`,
-        { expenseAccountNumber: acct || undefined }
+        `/api/v1/bank-statements/${openId}/transactions/${txnId}/${mode === "book" ? "book-expense" : "rebook-as-expense"}?companyId=${companyId}`,
+        v,
       )
+      setExpenseDialog(null)
+      if (mode === "rebook") toast.success(t("bankImport.rebookedExpense"))
       // Reload the statement to pick up the txn.voucher
       const detail = await apiGet<{ transactions: BankTransaction[] }>(
         `/api/v1/bank-statements/${openId}?companyId=${companyId}`
@@ -878,9 +892,10 @@ export default function BankImportPage() {
                                     size="sm"
                                     variant="outline"
                                     disabled={busyRecon === txn.id}
+                                    data-testid={`book-expense-${txn.id}`}
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      bookExpense(txn.id)
+                                      setExpenseDialog({ txn, mode: "book" })
                                     }}
                                   >
                                     {busyRecon === txn.id
@@ -954,6 +969,27 @@ export default function BankImportPage() {
                                   <span className="font-mono text-emerald-700">
                                     {txn.voucher.voucherNumber}
                                   </span>
+                                )}
+                                {/* Tier 809: booked before the expense was recorded — in no report */}
+                                {bookedWithoutExpense(txn) && (
+                                  <div className="mt-1">
+                                    <span className="block text-amber-700 dark:text-amber-400" data-testid={`booked-without-expense-${txn.id}`}>
+                                      {t("bankImport.bookedWithoutExpense")}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="mt-1"
+                                      disabled={busyRecon === txn.id}
+                                      data-testid={`rebook-expense-${txn.id}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setExpenseDialog({ txn, mode: "rebook" })
+                                      }}
+                                    >
+                                      {t("bankImport.rebookExpense")}
+                                    </Button>
+                                  </div>
                                 )}
                               </td>
                             </tr>
@@ -1450,6 +1486,17 @@ export default function BankImportPage() {
             </div>
           </div>
         </div>
+      )}
+      {expenseDialog && (
+        <BookExpenseDialog
+          mode={expenseDialog.mode}
+          amount={Number(expenseDialog.txn.amount)}
+          purpose={expenseDialog.txn.purpose}
+          counterparty={expenseDialog.txn.counterpartyName}
+          busy={busyRecon === expenseDialog.txn.id}
+          onCancel={() => setExpenseDialog(null)}
+          onSubmit={submitExpenseDialog}
+        />
       )}
     </div>
   )

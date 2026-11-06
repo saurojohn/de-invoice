@@ -289,7 +289,19 @@
     "taxBooked": "{label} booked as paid",
     "taxBookFailed": "The tax payment could not be booked",
     "taxNoFiling": "Payment for {label} recognised — the return is not saved as filed here.",
-    "taxAlreadyPaid": "Payment for {label} recognised — a payment is already recorded for it."
+    "taxAlreadyPaid": "Payment for {label} recognised — a payment is already recorded for it.",
+    "rebookExpense": "Take into the expenses",
+    "bookExpenseHint": "The booking is recorded as an expense — it counts in the EÜR, the P&L and the VAT return. Input VAT only with an invoice that shows it (§ 15 UStG); bank fees carry none.",
+    "rebookExpenseHint": "This booking was made before bookings were recorded as expenses and is missing from the EÜR, the P&L and the VAT return. The voucher is reversed today and booked again with its expense — on the same account.",
+    "expenseVatRate": "Input VAT",
+    "expenseVatKeep": "as booked",
+    "expenseVatNone": "none (0 %)",
+    "expenseVatAmount": "of which input VAT {amount}",
+    "expenseCategory": "Category",
+    "expenseCategoryPlaceholder": "e.g. bank fees, vehicle, office supplies",
+    "expenseDescription": "Booking text",
+    "bookedWithoutExpense": "booked without an expense — missing from the reports",
+    "rebookedExpense": "Taken into the expenses"
   },
   "banking": {
     "title": "Online Banking (FinTS)",
