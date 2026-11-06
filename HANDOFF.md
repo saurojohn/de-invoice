@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 814b — CI green for Tier 814 and 814a
+
+Run 42295573492 (Tier 814, c9963ca4): backend 512 passed, **1 failed** (spec 513's number printing, fixed in 814a), Playwright 1136 passed. Run 42301326959 (Tier 814a, 5cc94834): backend **513 passed / 0 failed / 1 skipped** (513, 514 among them), Playwright **1136 passed (35.9 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 814 — a GET writes nothing: the seed is a POST, the defaults of a first read are made once; the review of Tiers 811–813
 
 Measured on 06.11.2026 with statement logging on the test database (`log_statement = 'mod'`, reset after): every GET route — 202 without a path parameter, 62 with real ids of a company with data, the public ones read in their code. Tier 666/667 had done this once and left the seed route a GET. Found:
