@@ -154,7 +154,7 @@ ok "company seeded"
 #     auto-inference spec. The endpoint is
 #     idempotent (skips existing accounts).
 note "seeding default SKR03 accounts (incl. 4980 for the Sachkonten inference) ..."
-curl -sS "$API/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
+curl -sS -X POST "$API/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID" >/dev/null
 ok "default accounts seeded"
 

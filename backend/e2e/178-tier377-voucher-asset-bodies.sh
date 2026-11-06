@@ -127,7 +127,7 @@ note "=== 3. voucher lines only book on the company's own accounts ==="
 BODY=$(curl -s -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier377-e2e\",\"companyName\":\"$TAG Tenant B\"}")
 B_USER=$(json_field "$BODY" user.id); B_COMPANY=$(json_field "$BODY" company.id)
-curl -s -o /dev/null "$API/api/v1/accounting/accounts/seed?companyId=$B_COMPANY" -H "x-user-id: $B_USER" -H "x-company-id: $B_COMPANY"
+curl -s -o /dev/null -X POST "$API/api/v1/accounting/accounts/seed?companyId=$B_COMPANY" -H "x-user-id: $B_USER" -H "x-company-id: $B_COMPANY"
 B1200=$(sql "SELECT id FROM \"Account\" WHERE \"companyId\" = '$B_COMPANY' AND \"accountNumber\" = '1200';")
 [[ -n "$B1200" ]] && pass "tenant B has its own account 1200" || fail "tenant B accounts not seeded"
 BEFORE=$(V_COUNT)

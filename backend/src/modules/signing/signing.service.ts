@@ -179,7 +179,32 @@ export class SigningService {
         validUntil: this.readNotAfterFromCertPem(existing.certPem),
       }
     }
-    return this.regenerate(companyId)
+    // Tier 814: the first key is created, never upserted. Five first uses at
+    // once (cert-info, PDFs signed together) generated five keys and each
+    // upsert replaced the one before: four of them signed a PDF with a key
+    // the company no longer had. The first create wins; the others take it.
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } })
+    if (!company) throw new BadRequestException('Firma nicht gefunden')
+    if (existing) return this.regenerate(companyId) // a row without its key: repair it, as before
+    const { cert, key, fingerprint, commonName, validUntil } = this.generateSelfSignedCert(company.name)
+    try {
+      const row = await this.prisma.companySigningKey.create({
+        data: { companyId, certPem: cert, keyPem: key, fingerprint, commonName, rotatedAt: new Date() },
+      })
+      this.logger.log(`generated signing cert for company ${companyId} (CN=${commonName}, fp=${fingerprint})`)
+      return { cert, key, fingerprint, commonName, generatedAt: row.rotatedAt.toISOString(), validUntil }
+    } catch (e) {
+      if ((e as { code?: string })?.code !== 'P2002') throw e
+      const won = await this.prisma.companySigningKey.findUniqueOrThrow({ where: { companyId } })
+      return {
+        cert: won.certPem,
+        key: won.keyPem,
+        fingerprint: won.fingerprint,
+        commonName: won.commonName,
+        generatedAt: won.rotatedAt.toISOString(),
+        validUntil: this.readNotAfterFromCertPem(won.certPem),
+      }
+    }
   }
 
   /**

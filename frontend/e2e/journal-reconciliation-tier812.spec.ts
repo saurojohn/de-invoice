@@ -18,7 +18,7 @@ test("a manual voucher on an expense account is listed as missing from the repor
   const companyId: string = reg.user.companyId || reg.company.id
   const H = { "x-user-id": userId, "x-company-id": companyId }
   const q = `companyId=${companyId}`
-  await request.get(`${API}/api/v1/accounting/accounts/seed?${q}`, { headers: H })
+  await request.post(`${API}/api/v1/accounting/accounts/seed?${q}`, { headers: H })
   const accounts: any[] = await (await request.get(`${API}/api/v1/accounting/accounts?${q}`, { headers: H })).json()
   const id = (n: string) => accounts.find((a) => a.accountNumber === n).id
   const year = new Date().getFullYear()

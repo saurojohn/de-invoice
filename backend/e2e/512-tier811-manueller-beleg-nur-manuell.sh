@@ -29,7 +29,7 @@ AS() { # method path [body]
 }
 P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[2]))" "$BODY" "$1"; }
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
-AS GET "/api/v1/accounting/accounts/seed?companyId=$C"
+AS POST "/api/v1/accounting/accounts/seed?companyId=$C"
 acct() { q "select id from \"Account\" where \"companyId\"='$C' and \"accountNumber\"='$1'"; }
 A4900=$(acct 4900); A1576=$(acct 1576); A1200=$(acct 1200)
 [[ -n "$A4900" && -n "$A1576" && -n "$A1200" ]] && pass "fixture: the chart of accounts" || fail "fixture: the chart of accounts"

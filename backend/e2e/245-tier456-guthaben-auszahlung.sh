@@ -31,7 +31,7 @@ AS() { # method path [body]
   STATUS=$(echo "$resp" | tail -n1); BODY=$(echo "$resp" | sed '$d')
 }
 py() { echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);$1"; }
-AS GET "/api/v1/accounting/accounts/seed?companyId=$C"
+AS POST "/api/v1/accounting/accounts/seed?companyId=$C"
 AS GET "/api/v1/accounting/accounts?companyId=$C"
 BANK=$(py 'print([a["id"] for a in (d if isinstance(d,list) else d.get("data",[])) if a["accountNumber"]=="1200"][0])')
 [[ -n "$BANK" ]] && pass "fixture: Sachkonten, Bank 1200" || fail "no bank account: $BODY"

@@ -28,7 +28,7 @@ AS() { # method path [body]
 accounts() { AS GET "/api/v1/accounting/accounts?companyId=$C"; echo "$BODY" > /tmp/t467-acc.json; }
 acc() { python3 -c "import json;d=json.load(open('/tmp/t467-acc.json'));d=d if isinstance(d,list) else d.get('data',d);print(*[a['$2'] for a in d if a['accountNumber']=='$1'])"; }
 
-AS GET "/api/v1/accounting/accounts/seed?companyId=$C"
+AS POST "/api/v1/accounting/accounts/seed?companyId=$C"
 accounts
 assert_eq "SKR03 numbers (was 1000 1200 1400 1600 1800 2000 2200 2800 4200 4300 4400 4980 6000 8000)" \
   "$(python3 -c "import json;d=json.load(open('/tmp/t467-acc.json'));d=d if isinstance(d,list) else d.get('data',d);print(' '.join(sorted(a['accountNumber'] for a in d)))")" \
@@ -36,7 +36,7 @@ assert_eq "SKR03 numbers (was 1000 1200 1400 1600 1800 2000 2200 2800 4200 4300 
 assert_eq "1600 is Verbindlichkeiten L+L (was Vorsteuer)" "$(acc 1600 name)" "Verbindlichkeiten aus Lieferungen und Leistungen"
 assert_eq "1800 is Privatentnahmen (was Sonstige Vermögensgegenstände)" "$(acc 1800 name)" "Privatentnahmen allgemein"
 assert_eq "Vorsteuer 19 % on 1576" "$(acc 1576 name)" "Abziehbare Vorsteuer 19 %"
-AS GET "/api/v1/accounting/accounts/seed?companyId=$C"
+AS POST "/api/v1/accounting/accounts/seed?companyId=$C"
 accounts
 assert_eq "seeding again adds nothing" \
   "$(python3 -c "import json;d=json.load(open('/tmp/t467-acc.json'));d=d if isinstance(d,list) else d.get('data',d);print(len(d))")" "16"

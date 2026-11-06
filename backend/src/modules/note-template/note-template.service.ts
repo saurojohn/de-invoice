@@ -28,6 +28,7 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { withKeyLock } from '../../common/key-lock'
 
 const DEFAULT_TEMPLATES: Array<{
   label: string
@@ -96,7 +97,12 @@ export class NoteTemplateService {
       // First-touch: seed defaults so the operator
       // sees something useful instead of an empty
       // list on the dropdown.
-      await this.seedDefaults(companyId)
+      // Tier 814: once — five first requests at once each found no row and
+      // seeded: 15 templates (measured; the table has no unique key). Under
+      // the company's lock, looked at again inside it.
+      await withKeyLock(`note-templates:${companyId}`, async () => {
+        if ((await this.prisma.noteTemplate.count({ where: { companyId } })) === 0) await this.seedDefaults(companyId)
+      })
       const seeded = await this.prisma.noteTemplate.findMany({
         where: { companyId },
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -108,9 +114,8 @@ export class NoteTemplateService {
 
   /**
    * Insert the 5 German defaults for a company.
-   * Idempotent: uses the same `id` (uuid) on each
-   * call so re-runs are no-ops. Called from
-   * listForCompany when the company has no rows.
+   * Not idempotent by itself (no fixed ids, no unique key): listForCompany
+   * calls it under the company's lock when the company has no rows (Tier 814).
    */
   async seedDefaults(companyId: string): Promise<number> {
     let n = 0

@@ -17,6 +17,13 @@
  * manual vouchers should count in them is the owner's decision, open).
  *
  * A voucher with a Storno, and the Storno itself, cancel out and are left out.
+ *
+ * A correction (`/correct`: Storno + „<number>-K<n>") of a document's voucher
+ * — an invoice's, a bank match's, a bill's payment — changes the journal and
+ * not the document (Tiers 444 / 446: on purpose, its accounts change): what
+ * it adds is the correction less the document's voucher, by account; a
+ * change of account alone adds nothing the reports miss and is not listed.
+ * A correction of a manual voucher or of an old bank expense is listed whole.
  */
 import { PrismaService } from '../../prisma/prisma.service'
 import { businessDayIso, dayEnd, dayStart } from '../../common/business-date'
@@ -65,22 +72,53 @@ export interface ReconEntry {
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
-export function reconcile(vouchers: ReconVoucher[]): { entries: ReconEntry[]; totals: Record<ReconKind, number> } {
+/** The voucher a correction goes back to: „4711-K1-K2" → „4711". */
+export function rootNumberOf(voucherNumber: string): string {
+  let n = voucherNumber
+  while (/-K\d+$/.test(n)) n = n.replace(/-K\d+$/, '')
+  return n
+}
+
+export function reconcile(
+  vouchers: ReconVoucher[],
+  roots: Map<string, ReconVoucher> = new Map(),
+): { entries: ReconEntry[]; totals: Record<ReconKind, number> } {
   const entries: ReconEntry[] = []
   const totals: Record<ReconKind, number> = { aufwand: 0, ertrag: 0, steuer: 0 }
   for (const v of vouchers) {
-    const origin = originOf(v.referenceType)
+    let origin = originOf(v.referenceType)
     if (!origin) continue
-    const lines: ReconEntry['lines'] = []
-    for (const l of v.lines) {
-      const kind = kindOf(l.account, origin)
-      if (!kind || !l.account) continue
-      const debit = r2(Number(l.debit) || 0)
-      const credit = r2(Number(l.credit) || 0)
-      lines.push({ accountNumber: l.account.accountNumber, name: l.account.name, kind, debit, credit })
-      // the effect a report would show: costs and VAT paid on the debit side, revenue on the credit side
-      totals[kind] += kind === 'ertrag' ? credit - debit : debit - credit
+    // a correction counts as what it corrects
+    let against: ReconVoucher | null = null
+    if (origin === 'correction') {
+      const root = roots.get(rootNumberOf(v.voucherNumber))
+      const rootOrigin = root ? originOf(root.referenceType) : 'manual'
+      if (rootOrigin === null) against = root!
+      else if (rootOrigin === 'bank-expense') origin = 'bank-expense'
     }
+    // by account: the voucher's lines, less the document voucher's it corrects
+    const byAccount = new Map<string, { accountNumber: string; name: string; kind: ReconKind; net: number }>()
+    const add = (l: ReconVoucher['lines'][number], sign: number, o: ReconOrigin) => {
+      const kind = kindOf(l.account, o)
+      if (!kind || !l.account) return
+      const cur = byAccount.get(l.account.accountNumber) ?? { accountNumber: l.account.accountNumber, name: l.account.name, kind, net: 0 }
+      cur.net += sign * ((Number(l.debit) || 0) - (Number(l.credit) || 0))
+      byAccount.set(l.account.accountNumber, cur)
+    }
+    for (const l of v.lines) add(l, 1, origin === 'correction' && against ? 'manual' : origin)
+    if (against) for (const l of against.lines) add(l, -1, 'manual')
+    const lines: ReconEntry['lines'] = []
+    for (const a of byAccount.values()) {
+      const net = r2(a.net)
+      if (Math.abs(net) < 0.005) continue
+      lines.push({ accountNumber: a.accountNumber, name: a.name, kind: a.kind, debit: net > 0 ? net : 0, credit: net < 0 ? -net : 0 })
+    }
+    // a correction of a document that moves an amount between accounts of one kind adds nothing
+    const effect: Record<ReconKind, number> = { aufwand: 0, ertrag: 0, steuer: 0 }
+    for (const l of lines) effect[l.kind] += l.kind === 'ertrag' ? l.credit - l.debit : l.debit - l.credit
+    if (against && Object.values(effect).every((x) => Math.abs(x) < 0.005)) continue
+    // the effect a report would show: costs and VAT paid on the debit side, revenue on the credit side
+    for (const k of Object.keys(effect) as ReconKind[]) totals[k] += effect[k]
     if (lines.length) {
       entries.push({ id: v.id, voucherNumber: v.voucherNumber, date: businessDayIso(v.date), description: v.description, origin, lines })
     }
@@ -108,5 +146,17 @@ export async function journalReconciliation(prisma: PrismaService, companyId: st
     orderBy: [{ date: 'asc' }, { voucherNumber: 'asc' }],
     take: 2000,
   })
-  return { year, ...reconcile(vouchers), truncated: vouchers.length === 2000 }
+  // what the corrections go back to
+  const rootNumbers = [...new Set(vouchers.filter((v) => v.referenceType === 'VoucherCorrection').map((v) => rootNumberOf(v.voucherNumber)))]
+  const rootRows = rootNumbers.length
+    ? await prisma.voucher.findMany({
+      where: { companyId, voucherNumber: { in: rootNumbers } },
+      select: {
+        id: true, voucherNumber: true, date: true, description: true, referenceType: true,
+        lines: { select: { debit: true, credit: true, account: { select: { accountNumber: true, name: true, type: true, category: true } } } },
+      },
+    })
+    : []
+  const roots = new Map(rootRows.map((r) => [r.voucherNumber, r]))
+  return { year, ...reconcile(vouchers, roots), truncated: vouchers.length === 2000 }
 }

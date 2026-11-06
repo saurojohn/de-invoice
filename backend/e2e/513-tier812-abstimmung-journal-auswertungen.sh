@@ -40,7 +40,7 @@ AS() { # method path [body]
 }
 P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[2]))" "$BODY" "$1"; }
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
-AS GET "/api/v1/accounting/accounts/seed?companyId=$C"
+AS POST "/api/v1/accounting/accounts/seed?companyId=$C"
 acct() { q "select id from \"Account\" where \"companyId\"='$C' and \"accountNumber\"='$1'"; }
 A4900=$(acct 4900); A1576=$(acct 1576); A1200=$(acct 1200); A8200=$(acct 8200); A1776=$(acct 1776); A1800=$(acct 1800)
 Y=2026
@@ -75,6 +75,36 @@ assert_eq "listed by date: the rent, the cash sale, the old bank expense, the co
 assert_eq "…what they would add: 1 075 € costs, 100 € revenue, 171 € VAT (190 paid − 19 owed)" "$(P "d['totals']")" "{'aufwand': 1075, 'ertrag': 100, 'steuer': 171}"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=$Y"
 assert_eq "…and the reports really lack them: the EÜR is empty" "$(P "d['totals']['ausgabenTotal'], d['totals']['einnahmenTotal']")" "(0, 0)"
+# ── a correction of a document's voucher: what it changes, not the whole ──
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+TODAY=$(date +%F)
+{ echo '<?xml version="1.0" encoding="UTF-8"?><Document><BkToCstmrStmt><Stmt><Acct><Id><IBAN>DE02120300000000202051</IBAN></Id></Acct>'
+  for e in "119.00|Papier $TAG|Papier Schulz" "59.50|Toner $TAG|Toner Meyer"; do
+    IFS='|' read -r amt txt name <<< "$e"
+    echo "<Ntry><Amt>$amt</Amt><Ccy>EUR</Ccy><CdtDbtInd>DBIT</CdtDbtInd><BookgDt><Dt>$TODAY</Dt></BookgDt><ValDt><Dt>$TODAY</Dt></ValDt><TxDtls><CdtTrxTxInf><RltdPties><Cdtr><Nm>$name</Nm></Cdtr></RltdPties><RmtInf><Ustrd>$txt</Ustrd></RmtInf></CdtTrxTxInf></TxDtls></Ntry>"
+  done
+  echo '</Stmt></BkToCstmrStmt></Document>'; } > "$TMP/st.xml"
+ST=$(curl -sS -X POST -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/bank-statements/import?companyId=$C" \
+  -F "file=@$TMP/st.xml;type=application/xml" -F "companyId=$C" -F "userId=$U" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
+txn() { q "select id from \"BankTransaction\" where \"statementId\"='$ST' and purpose like '$1%'"; }
+AS POST "/api/v1/bank-statements/$ST/transactions/$(txn Papier)/book-expense?companyId=$C" '{"vatRate":0.19}'
+VP=$(json_field "$BODY" voucherId)
+AS POST "/api/v1/bank-statements/$ST/transactions/$(txn Toner)/book-expense?companyId=$C" '{"vatRate":0.19}'
+VT=$(json_field "$BODY" voucherId)
+A4980=$(acct 4980)
+AS GET "/api/v1/accounting/abstimmung?companyId=$C&year=${TODAY:0:4}"; BEFORE=$(P "d['totals']")
+AS POST "/api/v1/accounting/vouchers/$VP/correct?companyId=$C" "{\"date\":\"${TODAY}T00:00:00Z\",\"reason\":\"Konto\",\"lines\":[{\"accountId\":\"$A4980\",\"debit\":100,\"credit\":0},{\"accountId\":\"$A1576\",\"debit\":19,\"credit\":0},{\"accountId\":\"$A1200\",\"debit\":0,\"credit\":119}]}"
+assert_eq "fixture: the bank payment of a bill corrected to another account" "$STATUS" "201"
+AS POST "/api/v1/accounting/vouchers/$VT/correct?companyId=$C" "{\"date\":\"${TODAY}T00:00:00Z\",\"reason\":\"Betrag\",\"lines\":[{\"accountId\":\"$A4900\",\"debit\":60,\"credit\":0},{\"accountId\":\"$A1576\",\"debit\":9.5,\"credit\":0},{\"accountId\":\"$A1200\",\"debit\":0,\"credit\":69.5}]}"
+assert_eq "fixture: another one to another amount" "$STATUS" "201"
+AS GET "/api/v1/accounting/abstimmung?companyId=$C&year=${TODAY:0:4}"
+assert_eq "a correction of a document's voucher: only the one that changes an amount, by its difference (was: both, whole)" \
+  "$(P "[(e['origin'], [(l['accountNumber'], l['debit'], l['credit']) for l in e['lines']]) for e in d['entries'] if e['voucherNumber'].startswith(tuple(v for v in ['$(q "select \"voucherNumber\" from \"Voucher\" where id='$VP'")', '$(q "select \"voucherNumber\" from \"Voucher\" where id='$VT'")']))]")" \
+  "[('correction', [('4900', 10, 0)])]"
+assert_eq "…totals: +10 € costs (60 instead of 50), VAT unchanged (9,50 both)" \
+  "$(python3 -c "import sys,json;b=eval(sys.argv[1]);a=json.loads(sys.argv[2])['totals'];print({k: round(a[k]-b[k],2) for k in a})" "$BEFORE" "$BODY")" \
+  "{'aufwand': 10.0, 'ertrag': 0.0, 'steuer': 0.0}"
+
 AS GET "/api/v1/accounting/abstimmung?companyId=$C&year=$((Y - 1))"
 assert_eq "another year: nothing" "$(P "len(d['entries'])")" "0"
 AS GET "/api/v1/accounting/abstimmung?companyId=$C&year=abc"

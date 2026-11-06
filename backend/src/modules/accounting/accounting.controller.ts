@@ -154,8 +154,11 @@ export class AccountingController {
     return this.accountService.create(companyId, body);
   }
 
+  // Tier 814: a POST — it creates the chart of accounts. As a GET it was
+  // the one GET route that wrote (spec 514 sweeps them all): a link, an
+  // <img src>, a browser's prefetch or a mail scanner opening the URL ran it.
   @Require('accounting.create')
-  @Get('accounts/seed')
+  @Post('accounts/seed')
   async seedAccounts(@Query('companyId') companyId: string) {
     if (!companyId) {
       return { error: 'companyId ist erforderlich' };

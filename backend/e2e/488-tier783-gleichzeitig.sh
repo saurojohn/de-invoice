@@ -78,7 +78,7 @@ no5xx "$st" "one month's filing saved six times at once"
 assert_eq "…one filing for the month (was six)" "$(q "select count(*) from \"UStvaFiling\" where \"companyId\"='$C' and year=$Y and month=3")" "1"
 
 note "=== vouchers ==="
-AS GET "/api/v1/accounting/accounts/seed?companyId=$C" >/dev/null
+AS POST "/api/v1/accounting/accounts/seed?companyId=$C" >/dev/null
 A1=$(q "select id from \"Account\" where \"companyId\"='$C' and \"accountNumber\"='1200'"); A2=$(q "select id from \"Account\" where \"companyId\"='$C' and \"accountNumber\"='8200'")
 lines="[{\"accountId\":\"$A1\",\"debit\":119,\"credit\":0},{\"accountId\":\"$A2\",\"debit\":0,\"credit\":119}]"
 V=$(AS POST "/api/v1/accounting/vouchers?companyId=$C" "{\"companyId\":\"$C\",\"date\":\"$Y-06-01\",\"description\":\"$TAG Beleg\",\"createdById\":\"$U\",\"lines\":$lines}" | id)

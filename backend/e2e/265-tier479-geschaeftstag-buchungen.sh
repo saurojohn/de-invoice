@@ -32,7 +32,7 @@ P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[
 AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$TAG Kunde\",\"type\":\"business\",\"address\":{\"street\":\"Teststr. 9\",\"postalCode\":\"10115\",\"city\":\"Berlin\",\"country\":\"DE\"}}"; K=$(json_field "$BODY" id)
 
 note "=== voucher Storno ==="
-AS GET "/api/v1/accounting/accounts/seed?companyId=$C"
+AS POST "/api/v1/accounting/accounts/seed?companyId=$C"
 AS GET "/api/v1/accounting/accounts?companyId=$C"; echo "$BODY" > /tmp/t479-acc.json
 acc() { python3 -c "import json;d=json.load(open('/tmp/t479-acc.json'));d=d if isinstance(d,list) else d.get('data',d);print([a['id'] for a in d if a['accountNumber']=='$1'][0])"; }
 AS POST "/api/v1/accounting/vouchers" "{\"companyId\":\"$C\",\"date\":\"2026-06-15\",\"description\":\"Barverkauf\",\"referenceType\":\"Manual\",\"lines\":[{\"accountId\":\"$(acc 1000)\",\"debit\":100,\"credit\":0},{\"accountId\":\"$(acc 8200)\",\"debit\":0,\"credit\":100}]}"

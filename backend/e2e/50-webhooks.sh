@@ -610,7 +610,7 @@ else
 fi
 
 # 39. Create a voucher → voucher.created + voucher.posted
-SEED_RESP=$(curl -s "$API/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
+SEED_RESP=$(curl -s -X POST "$API/api/v1/accounting/accounts/seed?companyId=$COMPANY_ID" \
   -H "x-user-id: $USER_ID" -H "x-company-id: $COMPANY_ID")
 ACCT_IDS=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -c \
   "SELECT id FROM \"Account\" WHERE \"companyId\" = '$COMPANY_ID' AND active = true ORDER BY \"accountNumber\" LIMIT 2;" 2>/dev/null | tr -s ' \n' ' ' | sed 's/ $//')
