@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { updateCompanySettings } from '../../common/company-settings'
 import { businessDayIso, businessTodayIso } from '../../common/business-date'
 import { UstvaService } from './ustva.service'
 import { OssService } from './oss.service'
@@ -7,6 +8,7 @@ import {
   Period, UstvaRhythm, daysBetween, lastEndedPeriod, ossDeadline, periodContaining, periodEnd, periodName, previousPeriod,
   ustvaDeadline, zmDeadline, annualReturnDeadline, sondervorauszahlungDeadline, isoDay,
   prepaymentDeadline, prepaymentTaxOf, addDaysIso, allocatePrepayments, PREPAYMENT_EARLY_DAYS, type PrepaymentTax,
+  zmMonthly, filedKey, ZM_MONTHLY_THRESHOLD,
 } from './filing-deadlines'
 
 /**
@@ -49,11 +51,11 @@ const RHYTHMS: UstvaRhythm[] = ['monthly', 'quarterly', 'none']
 const SUBMITTED = ['submitted', 'accepted']
 /** How many ended periods are looked at for a missing UStVA. */
 const LOOKBACK = { monthly: 3, quarterly: 2 } as const
-/** § 18a Abs. 1 Satz 2 UStG: supplies of goods over this a quarter are reported monthly. */
-const ZM_MONTHLY_THRESHOLD = 50_000
 
 export const NOTES = {
-  'zm-monthly': `Innergemeinschaftliche Lieferungen über ${ZM_MONTHLY_THRESHOLD.toLocaleString('de-DE')} € im Quartal — die ZM ist ab jetzt monatlich abzugeben (§ 18a Abs. 1 UStG).`,
+  'zm-monthly': `Innergemeinschaftliche Warenlieferungen über ${ZM_MONTHLY_THRESHOLD.toLocaleString('de-DE')} € im laufenden Quartal oder in einem der vier davor — die ZM ist monatlich abzugeben (§ 18a Abs. 1 UStG).`,
+  // Tier 807
+  'zm-monthly-first': `In diesem Monat wurden ${ZM_MONTHLY_THRESHOLD.toLocaleString('de-DE')} € innergemeinschaftliche Warenlieferungen im Quartal überschritten: diese ZM umfasst auch die bereits abgelaufenen Monate des Quartals, ab jetzt ist sie monatlich abzugeben (§ 18a Abs. 1 Satz 3 UStG).`,
   'oss-nil': 'Im OSS-Verfahren ist auch ohne Umsätze eine Nullmeldung abzugeben.',
   'oss-check': 'Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10 000 €, § 3c UStG).',
   'annual-self': 'Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — ohne Steuerberater.',
@@ -194,13 +196,35 @@ export class FilingDeadlinesService {
       ustvaDefault ??= lastEndedPeriod(today, rhythm)
     }
 
-    // ZM — the last ended quarter, when it has anything to report
-    const zmPeriod = lastEndedPeriod(today, 'quarterly')
-    const zmDue = zmDeadline(zmPeriod, land)
-    if (zmDue >= today) {
-      const zm = await this.ustva.computeZm(companyId, zmPeriod.year, zmPeriod.quarter)
-      if (zm.rows.length > 0) {
-        out.push(item('zm', zmPeriod, endOf(zmPeriod), zmDue, 'open', zm.summen.L > ZM_MONTHLY_THRESHOLD ? 'zm-monthly' : null))
+    // ZM (Tier 807: monthly or quarterly by § 18a Abs. 1 Sätze 2, 3 UStG) —
+    // the last ended month when the ZM is monthly, else the quarter that just ended
+    const filedSet = new Set(Array.isArray(raw.meldungenAbgegeben) ? (raw.meldungenAbgegeben as Array<{ key: string }>).map((m) => m?.key) : [])
+    const zmStatus = (p: Period): DeadlineStatus => (filedSet.has(filedKey('zm', p)) ? 'filed' : 'open')
+    const lastMonth = lastEndedPeriod(today, 'monthly')
+    const monthQuarter = periodContaining(isoDay(lastMonth.year, lastMonth.month! - 1, 1), 'quarterly')
+    const zmMonthDue = zmDeadline(lastMonth, land)
+    const quarterEnded = lastMonth.month! % 3 === 0
+    if (zmMonthDue >= today) {
+      const prior: Period[] = []
+      let pq = monthQuarter
+      for (let i = 0; i < 4; i++) { pq = previousPeriod(pq); prior.push(pq) }
+      const firstMonth = (monthQuarter.quarter! - 1) * 3 + 1
+      const months: Period[] = []
+      for (let m = firstMonth; m <= lastMonth.month!; m++) months.push({ year: lastMonth.year, month: m })
+      const version = await this.zmVersion(companyId)
+      const [priorSums, monthSums] = await Promise.all([
+        Promise.all(prior.map((p) => this.zmGoods(companyId, p, version))),
+        Promise.all(months.map((p) => this.zmGoods(companyId, p, version))),
+      ])
+      const r = zmMonthly(priorSums.map((x) => x.goods), monthSums.map((x) => x.goods))
+      if (r.monthly) {
+        // the month the 50 000 € were passed reports the quarter's months so far
+        const first = !r.standing && r.passedAt === months.length - 1 && months.length > 1
+        const anything = first ? monthSums.some((x) => x.rows > 0) : monthSums[monthSums.length - 1].rows > 0
+        if (anything) out.push(item('zm', lastMonth, endOf(lastMonth), zmMonthDue, zmStatus(lastMonth), first ? 'zm-monthly-first' : 'zm-monthly'))
+      } else if (quarterEnded) {
+        const q = await this.zmGoods(companyId, monthQuarter, version)
+        if (q.rows > 0) out.push(item('zm', monthQuarter, endOf(monthQuarter), zmDeadline(monthQuarter, land), zmStatus(monthQuarter)))
       }
     }
 
@@ -214,7 +238,9 @@ export class FilingDeadlinesService {
         const r = await this.oss.compute(companyId, ossPeriod.year, ossPeriod.quarter!)
         show = r.totals.invoiceCount > 0
       }
-      if (show) out.push(item('oss', ossPeriod, endOf(ossPeriod), ossDue, 'open', st.ossVerfahren ? 'oss-nil' : 'oss-check'))
+      // Tier 807: marked as filed on the dashboard
+      const ossStatus: DeadlineStatus = filedSet.has(filedKey('oss', ossPeriod)) ? 'filed' : 'open'
+      if (show) out.push(item('oss', ossPeriod, endOf(ossPeriod), ossDue, ossStatus, st.ossVerfahren ? 'oss-nil' : 'oss-check'))
     }
 
     // Tier 802: the annual returns of the ended years whose deadline is ahead.
@@ -261,15 +287,60 @@ export class FilingDeadlinesService {
 
     out.sort((a, b) => (a.dueDate === b.dueDate ? a.kind.localeCompare(b.kind) : a.dueDate.localeCompare(b.dueDate)))
     const q = lastEndedPeriod(today, 'quarterly')
+    // the ZM card opens on the ZM row's period (a month when the ZM is monthly)
+    const zmRow = out.find((x) => x.kind === 'zm')
     return {
       ...st,
       defaults: {
         ustva: ustvaDefault ? { year: ustvaDefault.year, month: ustvaDefault.month ?? null, quarter: ustvaDefault.quarter ?? null } : null,
-        zm: { year: q.year, quarter: q.quarter! },
+        zm: zmRow?.month ? { year: zmRow.year, quarter: Math.ceil(zmRow.month / 3), month: zmRow.month } : { year: q.year, quarter: q.quarter!, month: null },
         oss: { year: q.year, quarter: q.quarter! },
       },
       deadlines: out,
     }
+  }
+
+  /**
+   * Tier 807: a period's intra-EU goods supplies and its ZM rows. The
+   * dashboard asks for up to seven periods; they are kept until an invoice or
+   * a customer of the company changes (`zmVersion`), so an invoice entered
+   * late is counted at once.
+   */
+  private zmSums = new Map<string, { version: string; value: { goods: number; rows: number } }>()
+  private async zmVersion(companyId: string): Promise<string> {
+    const [i, c] = await Promise.all([
+      this.prisma.invoice.aggregate({ where: { companyId }, _count: { _all: true }, _max: { updatedAt: true } }),
+      this.prisma.customer.aggregate({ where: { companyId }, _count: { _all: true }, _max: { updatedAt: true } }),
+    ])
+    return `${i._count._all}:${i._max.updatedAt?.toISOString() ?? ''}:${c._count._all}:${c._max.updatedAt?.toISOString() ?? ''}`
+  }
+  private async zmGoods(companyId: string, p: Period, version: string): Promise<{ goods: number; rows: number }> {
+    const k = `${companyId}:${p.year}:${p.month ?? ''}:${p.quarter ?? ''}`
+    const hit = this.zmSums.get(k)
+    if (hit && hit.version === version) return hit.value
+    const zm = await this.ustva.computeZm(companyId, p.year, p.quarter, p.month)
+    const value = { goods: zm.summen.L, rows: zm.rows.length }
+    if (this.zmSums.size > 2000) this.zmSums.clear()
+    this.zmSums.set(k, { version, value })
+    return value
+  }
+
+  /**
+   * Tier 807: a ZM or OSS return marked as filed (or the mark taken back) —
+   * nothing here submits them; the mark stops the reminders and turns the row
+   * green. settings.meldungenAbgegeben, the latest 200 marks.
+   */
+  async markFiled(companyId: string, userId: string | null, body: { kind: 'zm' | 'oss'; year: number; quarter?: number | null; month?: number | null; filed: boolean }) {
+    const p: Period = body.month ? { year: body.year, month: body.month } : { year: body.year, quarter: body.quarter ?? undefined }
+    const key = filedKey(body.kind, p)
+    const was = await updateCompanySettings(this.prisma, companyId, (s) => {
+      const list = Array.isArray(s.meldungenAbgegeben) ? (s.meldungenAbgegeben as Array<{ key: string; at: string; userId: string | null }>) : []
+      const had = list.some((m) => m?.key === key)
+      const rest = list.filter((m) => m?.key !== key)
+      s.meldungenAbgegeben = body.filed ? [...rest, { key, at: new Date().toISOString(), userId }].slice(-200) : rest
+      return had
+    })
+    return { key, filed: body.filed, changed: was !== body.filed }
   }
 
   private async prepayments(

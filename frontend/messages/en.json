@@ -2374,7 +2374,9 @@
     "bewirtungAnlass": "Occasion of the entertainment",
     "bewirtungTeilnehmer": "Participants (names, including yourself)",
     "bewirtungHint": "Entertainment expenses are deductible only with occasion and participants — at 70 % (§ 4 Abs. 5 Nr. 2 EStG). Place, day and amount are on the bill.",
-    "bewirtungNachweisFehlt": "Occasion / participants missing"
+    "bewirtungNachweisFehlt": "Occasion / participants missing",
+    "zmMonth": "Month",
+    "zmWholeQuarter": "whole quarter"
   },
   "voucher": {
     "title": "Voucher",
@@ -4505,7 +4507,7 @@
     "withoutDauerfrist": "without permanent extension",
     "noBundesland": "No federal state set — only nationwide holidays move the deadlines.",
     "note": {
-      "zm-monthly": "Intra-EU supplies of goods over €50,000 in the quarter — the EC Sales List is now due monthly (§ 18a(1) UStG).",
+      "zm-monthly": "Intra-EU supplies of goods over €50,000 in the running quarter or one of the four before — the EC Sales List is due monthly (§ 18a(1) UStG).",
       "oss-nil": "In the OSS scheme a nil return is due even without sales.",
       "oss-check": "Sales to consumers in other EU countries — check whether an OSS return is needed (threshold €10,000, § 3c UStG).",
       "annual-self": "VAT, income or corporate income tax and trade tax returns — without a tax adviser.",
@@ -4516,7 +4518,8 @@
       "dauerfrist-monthly": "With a permanent extension every VAT return is due one month later; in return a special prepayment of 1/11 of the previous year's advance payments is due by this day (§§ 46–48 UStDV).",
       "dauerfrist-quarterly": "With a permanent extension every VAT return is due one month later; quarterly filers pay no special prepayment (§ 46 UStDV).",
       "kst-paid-by-expense": "As set by the prepayment notice (corporate income tax + solidarity surcharge). It counts as paid once the booked expenses “Körperschaftsteuer” / “Solidaritätszuschlag” cover it — the oldest open one first. Enter a year’s back payment or refund as “Körperschaftsteuer-Nachzahlung” or “…-Erstattung”.",
-      "gewst-paid-by-expense": "As set by the municipality’s trade tax prepayment notice. It counts as paid once the booked expenses “Gewerbesteuer” cover it — the oldest open one first. Enter a year’s back payment or refund as “Gewerbesteuer-Nachzahlung” or “…-Erstattung”."
+      "gewst-paid-by-expense": "As set by the municipality’s trade tax prepayment notice. It counts as paid once the booked expenses “Gewerbesteuer” cover it — the oldest open one first. Enter a year’s back payment or refund as “Gewerbesteuer-Nachzahlung” or “…-Erstattung”.",
+      "zm-monthly-first": "This month the quarter’s intra-EU supplies of goods passed €50,000: this EC Sales List also covers the quarter’s months already over, and from now on it is due monthly (§ 18a(1) sentence 3 UStG)."
     },
     "settingsTitle": "Filing period set by the tax office",
     "settingsRhythm": "VAT return",
@@ -4559,6 +4562,10 @@
     "calendarCopy": "Copy",
     "calendarCopied": "Link copied",
     "calendarCopyFailed": "Could not copy — select the link and copy it",
-    "calendarOpen": "Open in calendar"
+    "calendarOpen": "Open in calendar",
+    "markFiled": "Mark as filed",
+    "unmarkFiled": "Remove the “filed” mark",
+    "markedFiled": "Marked as filed — no more reminders",
+    "unmarkedFiled": "Mark removed"
   }
 }

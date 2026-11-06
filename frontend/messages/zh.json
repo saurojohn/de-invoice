@@ -2374,7 +2374,9 @@
     "bewirtungAnlass": "招待事由",
     "bewirtungTeilnehmer": "参与人(姓名,包括您本人)",
     "bewirtungHint": "招待费只有在记录了事由和参与人时才可抵扣——按 70 %(§ 4 Abs. 5 Nr. 2 EStG)。地点、日期和金额以发票为准。",
-    "bewirtungNachweisFehlt": "缺少事由 / 参与人"
+    "bewirtungNachweisFehlt": "缺少事由 / 参与人",
+    "zmMonth": "月份",
+    "zmWholeQuarter": "整个季度"
   },
   "voucher": {
     "title": "记账凭证",
@@ -4505,7 +4507,7 @@
     "withoutDauerfrist": "没有延期一个月",
     "noBundesland": "未设置联邦州——只按全国性节假日顺延截止日。",
     "note": {
-      "zm-monthly": "本季度欧盟内货物供应超过 50,000 €——从现在起 ZM 须按月申报（§ 18a Abs. 1 UStG）。",
+      "zm-monthly": "本季度或前四个季度中有一个季度的欧盟内货物供应超过 50,000 €——ZM 须按月申报（§ 18a Abs. 1 UStG）。",
       "oss-nil": "参加 OSS 的企业即使没有销售也须提交零申报。",
       "oss-check": "有对其他欧盟国家消费者的销售——请检查是否需要 OSS 申报（门槛 10,000 €，§ 3c UStG）。",
       "annual-self": "增值税、个人所得税或企业所得税以及营业税年度申报——自己申报。",
@@ -4516,7 +4518,8 @@
       "dauerfrist-monthly": "有延期一个月后，每期预申报都晚一个月截止；条件是在此日期前缴纳上一年预缴总额 1/11 的特别预缴（§§ 46–48 UStDV）。",
       "dauerfrist-quarterly": "有延期一个月后，每期预申报都晚一个月截止；按季度申报的不用交特别预缴（§ 46 UStDV）。",
       "kst-paid-by-expense": "金额按预缴通知书（企业所得税 + 团结附加税）。已录入的“Körperschaftsteuer”/“Solidaritätszuschlag”支出足够时即视为已缴纳——先抵最早一期未缴的。某一年的补缴或退税请录为“Körperschaftsteuer-Nachzahlung”或“…-Erstattung”。",
-      "gewst-paid-by-expense": "金额按市政府的营业税预缴通知书。已录入的“Gewerbesteuer”支出足够时即视为已缴纳——先抵最早一期未缴的。某一年的补缴或退税请录为“Gewerbesteuer-Nachzahlung”或“…-Erstattung”。"
+      "gewst-paid-by-expense": "金额按市政府的营业税预缴通知书。已录入的“Gewerbesteuer”支出足够时即视为已缴纳——先抵最早一期未缴的。某一年的补缴或退税请录为“Gewerbesteuer-Nachzahlung”或“…-Erstattung”。",
+      "zm-monthly-first": "本月本季度的欧盟内货物供应累计超过 50,000 €：这份 ZM 还要包括本季度已过去的月份，此后须按月申报（§ 18a Abs. 1 Satz 3 UStG）。"
     },
     "settingsTitle": "税务局规定的预申报周期",
     "settingsRhythm": "预申报",
@@ -4559,6 +4562,10 @@
     "calendarCopy": "复制",
     "calendarCopied": "链接已复制",
     "calendarCopyFailed": "无法复制——请选中链接后手动复制",
-    "calendarOpen": "在日历中打开"
+    "calendarOpen": "在日历中打开",
+    "markFiled": "标记为已申报",
+    "unmarkFiled": "取消“已申报”标记",
+    "markedFiled": "已标记为已申报——不再提醒",
+    "unmarkedFiled": "标记已取消"
   }
 }

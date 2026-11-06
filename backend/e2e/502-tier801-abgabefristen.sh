@@ -86,7 +86,7 @@ assert_eq "the running month is listed with its deadline" \
 assert_eq "no return filed here yet: a past deadline is not called overdue (it was filed elsewhere)" \
   "$(P "[x for x in d['deadlines'] if x['status']=='overdue']")" "[]"
 assert_eq "ZM and OSS open on the last ended quarter" "$(P "(d['defaults']['zm'], d['defaults']['oss'])")" \
-  "({'year': $Q1Y, 'quarter': $Q1}, {'year': $Q1Y, 'quarter': $Q1})"
+  "({'year': $Q1Y, 'quarter': $Q1, 'month': None}, {'year': $Q1Y, 'quarter': $Q1})" # Tier 807: + month (a monthly ZM)
 assert_eq "no ZM and no OSS sales: neither is listed" "$(P "[x['kind'] for x in d['deadlines'] if x['kind'] in ('zm', 'oss')]")" "[]"
 
 # ── stated: quarterly with Dauerfristverlängerung ─────────────────────────

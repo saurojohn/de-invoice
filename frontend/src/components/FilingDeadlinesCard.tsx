@@ -7,6 +7,8 @@
  * opens its report on that period.
  */
 import { useEffect, useState } from "react"
+import { useToast } from "@/components/useToast"
+import { apiPut } from "@/lib/api"
 import Link from "next/link"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
@@ -27,14 +29,19 @@ function href(d: FilingDeadline): string {
   if (d.kind === "kst") return `/dashboard/accounting?kstYear=${d.year}#form-kst1`
   if (d.kind === "gewst") return `/dashboard/accounting?gewstYear=${d.year}#form-gewst`
   if (d.kind === "oss") return `/dashboard/reports?tab=oss&year=${d.year}&quarter=${d.quarter}`
-  if (d.kind === "zm") return `/dashboard/accounting/ustva?zmYear=${d.year}&zmQuarter=${d.quarter}#zm`
+  if (d.kind === "zm") return d.month
+    ? `/dashboard/accounting/ustva?zmYear=${d.year}&zmMonth=${d.month}#zm` // Tier 807: a monthly ZM
+    : `/dashboard/accounting/ustva?zmYear=${d.year}&zmQuarter=${d.quarter}#zm`
   return d.month
     ? `/dashboard/accounting/ustva?year=${d.year}&month=${d.month}`
     : `/dashboard/accounting/ustva?year=${d.year}&quarter=${d.quarter}`
 }
 
-export function FilingDeadlinesCard() {
+/** Tier 807: `canMarkFiled` — an admin (ustva.submit) can mark a ZM / OSS return as filed. */
+export function FilingDeadlinesCard({ canMarkFiled = false }: { canMarkFiled?: boolean }) {
   const { t, locale } = useI18n()
+  const toast = useToast()
+  const [busy, setBusy] = useState<string | null>(null)
   const [data, setData] = useState<FilingDeadlines | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -47,6 +54,25 @@ export function FilingDeadlinesCard() {
     })
     return () => { alive = false }
   }, [])
+
+  const markFiled = async (d: FilingDeadline) => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    const key = `${d.kind}-${d.year}-${d.month ?? ""}-${d.quarter ?? ""}`
+    setBusy(key)
+    try {
+      await apiPut(`/api/v1/ustva/deadlines/filed?companyId=${companyId}`, {
+        kind: d.kind, year: d.year, ...(d.month ? { month: d.month } : { quarter: d.quarter }), filed: d.status !== "filed",
+      })
+      const fresh = await loadFilingDeadlines(true)
+      if (fresh) setData(fresh)
+      toast.success(t(d.status === "filed" ? "deadlines.unmarkedFiled" : "deadlines.markedFiled"))
+    } catch (e: any) {
+      toast.error(e?.message || t("common.saveError"))
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const when = (d: FilingDeadline) => {
     if (d.status === "filed") return t(d.kind === "svz" || d.kind === "kst" || d.kind === "gewst" ? "deadlines.paid" : "deadlines.filed")
@@ -103,6 +129,17 @@ export function FilingDeadlinesCard() {
                       </span>
                     </Link>
                     {d.noteCode && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t(`deadlines.note.${d.noteCode}`)}</p>}
+                    {canMarkFiled && (d.kind === "zm" || d.kind === "oss") && (
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => markFiled(d)}
+                        className="mt-1 text-xs underline text-gray-600 dark:text-gray-300 disabled:opacity-50"
+                        data-testid="filing-deadline-mark"
+                      >
+                        {t(d.status === "filed" ? "deadlines.unmarkFiled" : "deadlines.markFiled")}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

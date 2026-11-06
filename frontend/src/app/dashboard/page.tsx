@@ -799,7 +799,7 @@ export default function DashboardPage() {
         {/* Tier 801: the UStVA, ZM and OSS returns due next */}
         {isAccountant && (
           <div className="mb-8">
-            <FilingDeadlinesCard />
+            <FilingDeadlinesCard canMarkFiled={role === "admin"} />
           </div>
         )}
 

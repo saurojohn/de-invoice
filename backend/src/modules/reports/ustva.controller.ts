@@ -5,7 +5,7 @@ import { Controller, Get, Post, Put, Delete, Body, Query, Param, BadRequestExcep
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
-import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, ReleaseFilingDto, UstvaFilingSettingsDto } from './dto/ustva.dto';
+import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, ReleaseFilingDto, UstvaFilingSettingsDto, MarkReturnFiledDto } from './dto/ustva.dto';
 import { FilingDeadlinesService } from './filing-deadlines.service';
 import { FilingDeadlineMailService } from './filing-deadline-mail.service';
 import { FilingCalendarService } from './filing-calendar.service';
@@ -58,6 +58,30 @@ export class UstvaController {
 
   // Tier 801: the UStVA rhythm and the Dauerfristverlängerung, as the
   // Finanzamt set them; null clears a value (taken from the books again)
+  // Tier 807: a ZM / OSS return marked as filed on the dashboard — nothing is
+  // submitted; the mark stops the reminders and shows the row as filed
+  @Put('deadlines/filed')
+  @Require('ustva.submit')
+  async markReturnFiled(@Query('companyId') companyId: string, @Body() body: MarkReturnFiledDto, @Req() req: any) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    if (body.kind === 'oss' && body.month) throw new BadRequestException('Die OSS-Meldung ist vierteljährlich — quarter statt month angeben')
+    if (!body.month === !body.quarter) throw new BadRequestException('Genau eines von quarter und month angeben')
+    const out = await this.deadlines.markFiled(companyId, req?.user?.id || null, body)
+    if (out.changed) {
+      await this.audit.writeActivity({
+        companyId,
+        userId: req?.user?.id || null,
+        action: body.filed ? 'filing_deadlines.return_marked_filed' : 'filing_deadlines.return_mark_removed',
+        entityType: 'Company',
+        entityId: companyId,
+        metadata: { key: out.key },
+        ipAddress: null,
+        userAgent: 'de-invoice:filing-deadlines',
+      })
+    }
+    return out
+  }
+
   // Tier 805: the calendar link of the deadlines (filing-calendar.service.ts).
   // The URL is answered once, by POST; GET says only whether there is one.
   @Get('calendar')

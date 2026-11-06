@@ -168,6 +168,38 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86_400_000)
 }
 
+/**
+ * Tier 807 — monthly or quarterly ZM (§ 18a Abs. 1 Sätze 2 und 3 UStG).
+ *
+ * The ZM is monthly; it may be quarterly while the intra-EU supplies of goods
+ * are 50 000 € or less both in the running quarter and in each of the four
+ * quarters before it. Passed during a quarter, the ZM is due by the 25th
+ * after the month in which it was passed, for that month and the months of
+ * the quarter already over — and monthly from then on. Tier 801 looked at
+ * the last ended quarter only, and kept its row quarterly with a note.
+ *
+ * `priorQuarters`: the goods supplies of the four quarters before the
+ * month's quarter; `monthsSoFar`: those of that quarter's months up to and
+ * including the month. (The app records no Dreiecksgeschäfte, § 25b — they
+ * would count too.)
+ */
+export const ZM_MONTHLY_THRESHOLD = 50_000
+export function zmMonthly(priorQuarters: number[], monthsSoFar: number[]): { monthly: boolean; standing: boolean; passedAt: number | null } {
+  const standing = priorQuarters.some((x) => x > ZM_MONTHLY_THRESHOLD)
+  let cum = 0
+  let passedAt: number | null = null
+  monthsSoFar.forEach((x, i) => {
+    cum += x
+    if (passedAt === null && cum > ZM_MONTHLY_THRESHOLD) passedAt = i
+  })
+  return { monthly: standing || passedAt !== null, standing, passedAt }
+}
+
+/** Tier 807: the key of a ZM / OSS return marked as filed ('zm:2026:M10', 'oss:2026:Q3'). */
+export function filedKey(kind: 'zm' | 'oss', p: Period): string {
+  return `${kind}:${p.year}:${p.month ? `M${p.month}` : `Q${p.quarter}`}`
+}
+
 /** The annual returns of a year: § 149 Abs. 2 / 3 AO, shifted by § 108 Abs. 3 AO. */
 export function annualReturnDeadline(year: number, berater: boolean, land?: string | null): string {
   if (!berater) return shiftToWorkingDay(`${year + 1}-07-31`, land)

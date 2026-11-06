@@ -29,20 +29,28 @@ const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", curren
  * the page (GET /ustva/deadlines), or on the quarter in the link from the
  * dashboard (?zmYear=&zmQuarter=). Nothing is fetched before that is known.
  */
-export default function ZmCard({ initial }: { initial?: { year: number; quarter: number } | null }) {
-  const { t } = useI18n()
+export default function ZmCard({ initial }: { initial?: { year: number; quarter: number; month?: number | null } | null }) {
+  const { t, locale } = useI18n()
   const [year, setYear] = useState(0)
   // a period the user picks is never replaced by the default arriving later
   const chosen = useRef(false)
   const yearField = useYearField(year, (y) => { chosen.current = true; setYear(y) })
   const [quarter, setQuarter] = useState(0)
+  // Tier 807: a month of the quarter (0 = the whole quarter) — the ZM is
+  // monthly above 50 000 € of goods supplies a quarter (§ 18a Abs. 1 UStG)
+  const [month, setMonth] = useState(0)
   const [zm, setZm] = useState<Zm | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (chosen.current) return
     const q = new URLSearchParams(window.location.search)
-    const y = Number(q.get("zmYear")), qu = Number(q.get("zmQuarter"))
+    const y = Number(q.get("zmYear")), qu = Number(q.get("zmQuarter")), mo = Number(q.get("zmMonth"))
+    if (Number.isInteger(y) && y >= 2010 && y <= 2100 && Number.isInteger(mo) && mo >= 1 && mo <= 12) {
+      chosen.current = true
+      setYear(y); setQuarter(Math.ceil(mo / 3)); setMonth(mo)
+      return
+    }
     if (Number.isInteger(y) && y >= 2010 && y <= 2100 && qu >= 1 && qu <= 4) {
       chosen.current = true
       setYear(y); setQuarter(qu)
@@ -50,7 +58,7 @@ export default function ZmCard({ initial }: { initial?: { year: number; quarter:
     }
     if (initial) {
       chosen.current = true
-      setYear(initial.year); setQuarter(initial.quarter)
+      setYear(initial.year); setQuarter(initial.quarter); setMonth(initial.month ?? 0)
       return
     }
     // the page could not say (request failed): the last ended quarter by the clock
@@ -64,27 +72,28 @@ export default function ZmCard({ initial }: { initial?: { year: number; quarter:
     return () => clearTimeout(timer)
   }, [initial])
 
+  const period = month ? `month=${month}` : `quarter=${quarter}`
   const companyId = () => (typeof window !== "undefined" ? localStorage.getItem("companyId") : null)
 
   useEffect(() => {
     if (!year || !quarter) return
     let alive = true
     setError(null)
-    apiGet<Zm>(`/api/v1/ustva/zm?companyId=${companyId()}&year=${year}&quarter=${quarter}`)
+    apiGet<Zm>(`/api/v1/ustva/zm?companyId=${companyId()}&year=${year}&${period}`)
       .then((d) => { if (alive) setZm(d) })
       .catch((e: any) => { if (alive) setError(e?.message || t("ustva.zmFailed")) })
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, quarter])
+  }, [year, quarter, month])
 
   const download = async () => {
     try {
-      const res = await apiFetch(`/api/v1/ustva/zm.csv?companyId=${companyId()}&year=${year}&quarter=${quarter}`)
+      const res = await apiFetch(`/api/v1/ustva/zm.csv?companyId=${companyId()}&year=${year}&${period}`)
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `ZM_${year}_Q${quarter}.csv`
+      a.download = month ? `ZM_${year}_M${String(month).padStart(2, "0")}.csv` : `ZM_${year}_Q${quarter}.csv`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e: any) {
@@ -113,10 +122,25 @@ export default function ZmCard({ initial }: { initial?: { year: number; quarter:
             <select
               className="border rounded px-2 py-1 bg-white dark:bg-gray-800"
               value={quarter || ""}
-              onChange={(e) => { chosen.current = true; setQuarter(Number(e.target.value)) }}
+              onChange={(e) => { chosen.current = true; setQuarter(Number(e.target.value)); setMonth(0) }}
               data-testid="zm-quarter"
             >
               {[1, 2, 3, 4].map((q) => <option key={q} value={q}>Q{q}</option>)}
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="block text-gray-600 dark:text-gray-300">{t("ustva.zmMonth")}</span>
+            <select
+              className="border rounded px-2 py-1 bg-white dark:bg-gray-800"
+              value={month}
+              onChange={(e) => { chosen.current = true; setMonth(Number(e.target.value)) }}
+              data-testid="zm-month"
+            >
+              <option value={0}>{t("ustva.zmWholeQuarter")}</option>
+              {quarter > 0 && [1, 2, 3].map((i) => {
+                const m = (quarter - 1) * 3 + i
+                return <option key={m} value={m}>{new Date(Date.UTC(2000, m - 1, 1)).toLocaleDateString(locale === "en" ? "en-GB" : locale === "zh" ? "zh-CN" : "de-DE", { month: "long", timeZone: "UTC" })}</option>
+              })}
             </select>
           </label>
           <Button size="sm" variant="outline" onClick={download} data-testid="zm-csv">CSV</Button>

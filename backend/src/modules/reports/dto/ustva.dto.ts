@@ -304,3 +304,25 @@ export class UstvaFilingSettingsDto {
   @IsBoolean()
   fristErinnerungMail?: boolean | null
 }
+
+/**
+ * Tier 807 — PUT /ustva/deadlines/filed: a ZM or OSS return marked as filed
+ * (or the mark taken back). A ZM month, or a quarter; OSS is quarterly.
+ */
+export class MarkReturnFiledDto {
+  @IsIn(['zm', 'oss'])
+  kind!: 'zm' | 'oss'
+
+  @StrictNumber() @IsInt() @Min(2010) @Max(2100)
+  year!: number
+
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(4)
+  quarter?: number | null
+
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(12)
+  month?: number | null
+
+  @StrictBoolean()
+  @IsBoolean()
+  filed!: boolean
+}

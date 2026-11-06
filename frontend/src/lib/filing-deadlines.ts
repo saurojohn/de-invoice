@@ -39,7 +39,8 @@ export interface FilingDeadlines {
   ossVerfahren: boolean
   defaults: {
     ustva: { year: number; month: number | null; quarter: number | null } | null
-    zm: { year: number; quarter: number }
+    // Tier 807: a month when the ZM is monthly
+    zm: { year: number; quarter: number; month: number | null }
     oss: { year: number; quarter: number }
   }
   deadlines: FilingDeadline[]

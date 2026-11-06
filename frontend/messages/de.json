@@ -2374,7 +2374,9 @@
     "bewirtungAnlass": "Anlass der Bewirtung",
     "bewirtungTeilnehmer": "Teilnehmer (Namen, auch Sie selbst)",
     "bewirtungHint": "Bewirtungskosten sind nur mit Anlass und Teilnehmern abziehbar — zu 70 % (§ 4 Abs. 5 Nr. 2 EStG). Ort, Tag und Betrag stehen auf der Rechnung.",
-    "bewirtungNachweisFehlt": "Anlass / Teilnehmer fehlen"
+    "bewirtungNachweisFehlt": "Anlass / Teilnehmer fehlen",
+    "zmMonth": "Monat",
+    "zmWholeQuarter": "ganzes Quartal"
   },
   "voucher": {
     "title": "Buchungsbeleg",
@@ -4505,7 +4507,7 @@
     "withoutDauerfrist": "ohne Dauerfristverlängerung",
     "noBundesland": "Kein Bundesland hinterlegt — nur bundesweite Feiertage verschieben die Fristen.",
     "note": {
-      "zm-monthly": "Innergemeinschaftliche Lieferungen über 50.000 € im Quartal — die ZM ist ab jetzt monatlich abzugeben (§ 18a Abs. 1 UStG).",
+      "zm-monthly": "Innergemeinschaftliche Warenlieferungen über 50.000 € im laufenden Quartal oder in einem der vier davor — die ZM ist monatlich abzugeben (§ 18a Abs. 1 UStG).",
       "oss-nil": "Im OSS-Verfahren ist auch ohne Umsätze eine Nullmeldung abzugeben.",
       "oss-check": "Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10.000 €, § 3c UStG).",
       "annual-self": "Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — ohne Steuerberater.",
@@ -4516,7 +4518,8 @@
       "dauerfrist-monthly": "Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; dafür ist bis dahin eine Sondervorauszahlung von 1/11 der Vorjahres-Vorauszahlungen zu leisten (§§ 46–48 UStDV).",
       "dauerfrist-quarterly": "Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; vierteljährlich ohne Sondervorauszahlung (§ 46 UStDV).",
       "kst-paid-by-expense": "Laut Vorauszahlungsbescheid (KSt + Solidaritätszuschlag). Als gezahlt gilt sie, wenn die gebuchten Ausgaben „Körperschaftsteuer“ / „Solidaritätszuschlag“ sie decken — die älteste offene zuerst. Nachzahlungen und Erstattungen eines Jahres als „Körperschaftsteuer-Nachzahlung“ bzw. „…-Erstattung“ erfassen.",
-      "gewst-paid-by-expense": "Laut Gewerbesteuer-Vorauszahlungsbescheid der Gemeinde. Als gezahlt gilt sie, wenn die gebuchten Ausgaben „Gewerbesteuer“ sie decken — die älteste offene zuerst. Nachzahlungen und Erstattungen eines Jahres als „Gewerbesteuer-Nachzahlung“ bzw. „…-Erstattung“ erfassen."
+      "gewst-paid-by-expense": "Laut Gewerbesteuer-Vorauszahlungsbescheid der Gemeinde. Als gezahlt gilt sie, wenn die gebuchten Ausgaben „Gewerbesteuer“ sie decken — die älteste offene zuerst. Nachzahlungen und Erstattungen eines Jahres als „Gewerbesteuer-Nachzahlung“ bzw. „…-Erstattung“ erfassen.",
+      "zm-monthly-first": "In diesem Monat wurden 50.000 € innergemeinschaftliche Warenlieferungen im Quartal überschritten: diese ZM umfasst auch die bereits abgelaufenen Monate des Quartals, ab jetzt ist sie monatlich abzugeben (§ 18a Abs. 1 Satz 3 UStG)."
     },
     "settingsTitle": "Voranmeldungszeitraum laut Finanzamt",
     "settingsRhythm": "Voranmeldung",
@@ -4559,6 +4562,10 @@
     "calendarCopy": "Kopieren",
     "calendarCopied": "Link kopiert",
     "calendarCopyFailed": "Kopieren nicht möglich — den Link markieren und kopieren",
-    "calendarOpen": "Im Kalender öffnen"
+    "calendarOpen": "Im Kalender öffnen",
+    "markFiled": "Als abgegeben markieren",
+    "unmarkFiled": "Markierung „abgegeben“ aufheben",
+    "markedFiled": "Als abgegeben markiert — keine Erinnerung mehr",
+    "unmarkedFiled": "Markierung aufgehoben"
   }
 }
