@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 808b — CI green for Tier 806, 807, 808 and 808a
+
+Run 42194647970 (Tier 806, a9f945df): backend **506 passed / 0 failed / 1 skipped**, Playwright **1127 passed (39.9 m)**. Run 42200062071 (Tiers 807 + 808, 3dc11e13): backend 508 / 0 / 1, Playwright 1128 passed, **1 failed** — `ui-walk-tier590`, the DATEV account labels; fixed in 808a. Run 42205870745 (Tier 808a, c334ecac): backend **508 passed / 0 failed / 1 skipped** (507, 508, 509 among them), Playwright **1129 passed (33.2 m)**. The green runs: 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 808 — a tax payment in the bank statement, booked where the reports read it
 
 A debit to the Finanzamt or the municipality could only be booked „Als Aufwand" — a voucher on 4900 (`bookExpense` without an expense) that the EÜR, the GuV, the UStVA and the deadlines never read; the payment had to be entered a second time (the UStVA's payment, a UstPayment, an expense „Gewerbesteuer") before the dashboard called the deadline paid. (That such a voucher reaches no report is how „Als Aufwand buchen" works since Tier 179 — only the journal and DATEV read it; noted, not changed here.)
