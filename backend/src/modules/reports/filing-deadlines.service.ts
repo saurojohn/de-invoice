@@ -6,7 +6,7 @@ import { OssService } from './oss.service'
 import {
   Period, UstvaRhythm, daysBetween, lastEndedPeriod, ossDeadline, periodContaining, periodEnd, periodName, previousPeriod,
   ustvaDeadline, zmDeadline, annualReturnDeadline, sondervorauszahlungDeadline, isoDay,
-  prepaymentDeadline, prepaymentTaxOf, addDaysIso, type PrepaymentTax,
+  prepaymentDeadline, prepaymentTaxOf, addDaysIso, allocatePrepayments, PREPAYMENT_EARLY_DAYS, type PrepaymentTax,
 } from './filing-deadlines'
 
 /**
@@ -63,12 +63,12 @@ export const NOTES = {
   'svz-partial': '1/11 der bisherigen Vorauszahlungen des laufenden Jahres (§ 47 UStDV) — vorläufig, das Jahr ist noch nicht zu Ende.',
   'dauerfrist-monthly': 'Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; dafür ist bis dahin eine Sondervorauszahlung von 1/11 der Vorjahres-Vorauszahlungen zu leisten (§§ 46–48 UStDV).',
   'dauerfrist-quarterly': 'Mit Dauerfristverlängerung ist jede Voranmeldung einen Monat später fällig; vierteljährlich ohne Sondervorauszahlung (§ 46 UStDV).',
-  'kst-paid-by-expense': 'Laut Vorauszahlungsbescheid (KSt + Solidaritätszuschlag). Als gezahlt gilt sie, sobald eine Ausgabe der Kategorie „Körperschaftsteuer“ bzw. „Solidaritätszuschlag“ um den Termin sie deckt.',
-  'gewst-paid-by-expense': 'Laut Gewerbesteuer-Vorauszahlungsbescheid der Gemeinde. Als gezahlt gilt sie, sobald eine Ausgabe der Kategorie „Gewerbesteuer“ um den Termin sie deckt.',
+  'kst-paid-by-expense': 'Laut Vorauszahlungsbescheid (KSt + Solidaritätszuschlag). Als gezahlt gilt sie, wenn die gebuchten Ausgaben „Körperschaftsteuer“ / „Solidaritätszuschlag“ sie decken — die älteste offene zuerst. Nachzahlungen und Erstattungen eines Jahres als „Körperschaftsteuer-Nachzahlung“ bzw. „…-Erstattung“ erfassen.',
+  'gewst-paid-by-expense': 'Laut Gewerbesteuer-Vorauszahlungsbescheid der Gemeinde. Als gezahlt gilt sie, wenn die gebuchten Ausgaben „Gewerbesteuer“ sie decken — die älteste offene zuerst. Nachzahlungen und Erstattungen eines Jahres als „Gewerbesteuer-Nachzahlung“ bzw. „…-Erstattung“ erfassen.',
 } as const
 
-/** Tier 804: an expense of the tax this many days before to this many after a due date pays it. */
-const PAID_WINDOW = { before: 45, after: 30 } as const
+/** Tier 806: the categories an expense of these taxes can have (prepaymentTaxOf decides). */
+const TAX_CATEGORY_PREFIXES = ['Gewerbesteuer', 'GewSt', 'Körperschaft', 'KSt', 'Solidarität', 'Soli']
 const PREPAYMENT_SETTING: Record<PrepaymentTax, string> = { kst: 'kstVorauszahlungen', gewst: 'gewstVorauszahlungen' }
 
 @Injectable()
@@ -80,6 +80,12 @@ export class FilingDeadlinesService {
   ) {}
 
   async settings(companyId: string) {
+    const { raw: _raw, ...st } = await this.settingsWithRaw(companyId)
+    return st
+  }
+
+  /** Tier 806: the settings and the company's raw settings JSON, read once for deadlines(). */
+  private async settingsWithRaw(companyId: string) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { settings: true, defaultVatMode: true, bundesland: true, ossVerfahren: true },
@@ -137,11 +143,12 @@ export class FilingDeadlinesService {
       dauerfristSource,
       bundesland: company?.bundesland ?? null,
       ossVerfahren: company?.ossVerfahren === true,
+      raw: s as Record<string, any>,
     }
   }
 
   async deadlines(companyId: string) {
-    const st = await this.settings(companyId)
+    const { raw, ...st } = await this.settingsWithRaw(companyId)
     const { today, rhythm, dauerfrist, bundesland: land } = st
     const out: FilingDeadline[] = []
     const item = (kind: FilingDeadline['kind'], p: Period, end: string, due: string, status: DeadlineStatus, noteCode: keyof typeof NOTES | null = null): FilingDeadline => ({
@@ -250,7 +257,7 @@ export class FilingDeadlinesService {
     // Bescheide (Buchhaltung → KSt 1 / Gewerbesteuer): the next one, and the
     // one before while it is unpaid — overdue only for a company that books
     // these taxes as expenses here (otherwise nothing here says it was paid).
-    out.push(...(await this.prepayments(companyId, today, land, item)))
+    out.push(...(await this.prepayments(companyId, today, land, item, raw)))
 
     out.sort((a, b) => (a.dueDate === b.dueDate ? a.kind.localeCompare(b.kind) : a.dueDate.localeCompare(b.dueDate)))
     const q = lastEndedPeriod(today, 'quarterly')
@@ -270,66 +277,54 @@ export class FilingDeadlinesService {
     today: string,
     land: string | null,
     item: (kind: FilingDeadline['kind'], p: Period, end: string, due: string, status: DeadlineStatus, noteCode?: keyof typeof NOTES | null) => FilingDeadline,
+    s: Record<string, any>,
   ): Promise<FilingDeadline[]> {
-    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } })
-    const s = (company?.settings ?? {}) as Record<string, any>
     const year = Number(today.slice(0, 4))
-    const quarters: Period[] = [{ year: year - 1, quarter: 4 }, ...[1, 2, 3, 4].map((q) => ({ year, quarter: q })), { year: year + 1, quarter: 1 }]
+    // the quarters a payment booked now can still be for (oldest first, § 225 AO)
+    const quarters: Period[] = []
+    for (const y of [year - 1, year]) for (const q of [1, 2, 3, 4]) quarters.push({ year: y, quarter: q })
+    quarters.push({ year: year + 1, quarter: 1 })
     const amountOf = (tax: PrepaymentTax, p: Period) => {
       const n = Number(s[PREPAYMENT_SETTING[tax]]?.[p.year]?.[`q${p.quarter}`])
       return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0
     }
-    // per tax: the one due next, and the one before it
-    const wanted: Array<{ tax: PrepaymentTax; p: Period; due: string; amount: number; next: boolean }> = []
-    for (const tax of ['kst', 'gewst'] as PrepaymentTax[]) {
-      const dues = quarters.map((p) => ({ p, due: prepaymentDeadline(tax, p.year, p.quarter!, land) }))
-      const i = dues.findIndex((d) => d.due >= today)
-      for (const [d, next] of [[dues[i], true], [dues[i - 1], false]] as const) {
-        if (!d) continue
-        const amount = amountOf(tax, d.p)
-        if (amount > 0) wanted.push({ tax, p: d.p, due: d.due, amount, next })
-      }
-    }
-    if (wanted.length === 0) return []
+    const perTax = (['kst', 'gewst'] as PrepaymentTax[]).map((tax) => {
+      const all = quarters.map((p) => ({ p, due: prepaymentDeadline(tax, p.year, p.quarter!, land), amount: amountOf(tax, p) }))
+      const i = all.findIndex((d) => d.due >= today)
+      return { tax, all, next: all[i], prev: i > 0 ? all[i - 1] : undefined }
+    })
+    if (!perTax.some((t) => (t.next && t.next.amount > 0) || (t.prev && t.prev.amount > 0))) return []
 
-    // the expenses of these taxes around the due dates — by the day paid, else
-    // the day dated (a day wider here; the German day is compared below)
-    const from = addDaysIso(wanted.map((w) => w.due).sort()[0], -PAID_WINDOW.before - 1)
-    const to = addDaysIso(wanted.map((w) => w.due).sort().slice(-1)[0], PAID_WINDOW.after + 2)
-    const range = { gte: new Date(`${from}T00:00:00Z`), lt: new Date(`${to}T00:00:00Z`) }
-    const [expenses, categories] = await Promise.all([
-      this.prisma.expense.findMany({
-        where: { companyId, OR: [{ paidAt: range }, { paidAt: null, invoiceDate: range }] },
-        select: { category: true, grossAmount: true, paidAt: true, invoiceDate: true },
-      }),
-      this.prisma.expense.findMany({ where: { companyId, category: { not: null } }, select: { category: true }, distinct: ['category'] }),
-    ])
-    // the taxes this company books as expenses at all
-    const booksTax = new Set(categories.map((e) => prepaymentTaxOf(e.category)).filter((t): t is PrepaymentTax => t !== null))
+    // the expenses of these taxes since a payment could be for the oldest quarter
+    const from = addDaysIso(perTax[0].all[0].due < perTax[1].all[0].due ? perTax[0].all[0].due : perTax[1].all[0].due, -PREPAYMENT_EARLY_DAYS - 1)
+    const since = new Date(`${from}T00:00:00Z`)
+    const expenses = await this.prisma.expense.findMany({
+      where: {
+        companyId,
+        OR: TAX_CATEGORY_PREFIXES.map((startsWith) => ({ category: { startsWith, mode: 'insensitive' as const } })),
+        AND: [{ OR: [{ paidAt: { gte: since } }, { paidAt: null, invoiceDate: { gte: since } }] }],
+      },
+      select: { category: true, grossAmount: true, paidAt: true, invoiceDate: true },
+    })
 
     const rows: FilingDeadline[] = []
-    for (const w of wanted) {
-      const lo = addDaysIso(w.due, -PAID_WINDOW.before)
-      const hi = addDaysIso(w.due, PAID_WINDOW.after)
-      const paidSum = expenses
-        .filter((e) => prepaymentTaxOf(e.category) === w.tax)
+    for (const t of perTax) {
+      const payments = expenses
+        .filter((e) => prepaymentTaxOf(e.category) === t.tax)
         .map((e) => ({ day: businessDayIso(e.paidAt ?? e.invoiceDate), amount: Number(e.grossAmount) }))
-        .filter((e) => e.day >= lo && e.day <= hi)
-        .reduce((a, e) => a + e.amount, 0)
-      const paid = paidSum >= w.amount - 0.005
-      let status: DeadlineStatus
-      if (paid) {
-        if (!w.next) continue
-        status = 'filed'
-      } else if (w.next) {
-        status = 'open'
-      } else if (booksTax.has(w.tax)) {
-        status = 'overdue'
-      } else continue
-      const p = w.p
-      const row = item(w.tax, p, periodEnd(p), w.due, status, w.tax === 'kst' ? 'kst-paid-by-expense' : 'gewst-paid-by-expense')
-      rows.push({ ...row, amount: w.amount })
+      const open = allocatePrepayments(t.all.filter((d) => d.amount > 0).map((d) => ({ due: d.due, amount: d.amount })), payments)
+      const note = t.tax === 'kst' ? 'kst-paid-by-expense' : 'gewst-paid-by-expense'
+      if (t.prev && t.prev.amount > 0) {
+        const left = open.get(t.prev.due)
+        // overdue only where this company books the tax and the quarter is tracked
+        if (left != null && left > 0) rows.push({ ...item(t.tax, t.prev.p, periodEnd(t.prev.p), t.prev.due, 'overdue', note), amount: t.prev.amount })
+      }
+      if (t.next && t.next.amount > 0) {
+        const status: DeadlineStatus = open.get(t.next.due) === 0 ? 'filed' : 'open'
+        rows.push({ ...item(t.tax, t.next.p, periodEnd(t.next.p), t.next.due, status, note), amount: t.next.amount })
+      }
     }
     return rows
   }
+
 }

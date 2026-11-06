@@ -1,3 +1,5 @@
+import { deadlineLabel, type DeadlineKind } from './filing-deadlines'
+
 /**
  * Tier 805 — the tax deadlines as an iCalendar feed (RFC 5545), to subscribe
  * to in Google, Apple or Outlook calendar. Pure: the rows in, the text out.
@@ -10,7 +12,7 @@
  */
 
 export interface CalendarRow {
-  kind: string
+  kind: DeadlineKind
   year: number
   month: number | null
   quarter: number | null
@@ -20,16 +22,11 @@ export interface CalendarRow {
   amount?: number
 }
 
-const KIND: Record<string, string> = {
-  ustva: 'UStVA', zm: 'ZM', oss: 'OSS', annual: 'Jahreserklärungen', svz: 'Sondervorauszahlung',
-  dauerfrist: 'Dauerfristverlängerung', kst: 'Körperschaftsteuer-Vorauszahlung', gewst: 'Gewerbesteuer-Vorauszahlung',
-}
-const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
 const PAYMENTS = new Set(['svz', 'kst', 'gewst'])
 
+/** Tier 806: the one label of filing-deadlines.ts (the mails use it too). */
 export function rowLabel(r: CalendarRow): string {
-  const period = r.month ? `${MONTHS[r.month - 1]} ${r.year}` : r.quarter ? `Q${r.quarter} ${r.year}` : String(r.year)
-  return `${KIND[r.kind] ?? r.kind} ${period}`
+  return deadlineLabel(r)
 }
 
 export function rowUid(r: CalendarRow, companyId: string): string {

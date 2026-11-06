@@ -1,3 +1,4 @@
+import { redactUrl, redactParams } from '../../common/redact-url' // Tier 806
 /**
  * Global NestJS exception filter — captures every
  * unhandled error from any route into ErrorEvent
@@ -93,17 +94,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         await this.tracker.capture({
           source: "backend",
           kind: "unhandled",
-          message: `[${req.method} ${req.originalUrl}] ${persistMessage}`,
+          message: `[${req.method} ${redactUrl(req.originalUrl)}] ${persistMessage}`,
           stack: persistStack,
-          url: req.originalUrl,
+          url: redactUrl(req.originalUrl),
           method: req.method,
           statusCode: status,
           userId: (req as any).userId || null,
           companyId: (req as any).companyId || null,
           context: {
             body: this.safeBody(req.body),
-            query: req.query,
-            params: req.params,
+            query: redactParams(req.query),
+            params: redactParams(req.params),
             ip: req.ip,
             userAgent: req.get("user-agent"),
           },
@@ -116,12 +117,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (isHttp || isPrismaNotFound) {
       this.logger.warn(
-        `[${req.method} ${req.originalUrl}] ${status} ${publicMessage}`,
+        `[${req.method} ${redactUrl(req.originalUrl)}] ${status} ${publicMessage}`,
       )
     } else {
       // Server-side log keeps the full message for debugging.
       this.logger.error(
-        `[${req.method} ${req.originalUrl}] ${status} ${persistMessage}`,
+        `[${req.method} ${redactUrl(req.originalUrl)}] ${status} ${persistMessage}`,
         persistStack ?? "",
       )
     }

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { randomBytes, timingSafeEqual } from 'crypto'
+import { randomBytes } from 'crypto'
 import { PrismaService } from '../../prisma/prisma.service'
 import { tokenHash } from '../../common/token-hash'
 import { updateCompanySettings } from '../../common/company-settings'
@@ -7,7 +7,7 @@ import { publicOrigin } from '../../common/public-origin'
 import { UsersService } from '../users/users.service'
 import { FilingDeadlinesService, NOTES, type FilingDeadline } from './filing-deadlines.service'
 import {
-  Period, addDaysIso, annualReturnDeadline, daysBetween, ossDeadline, periodContaining, periodEnd, periodName,
+  Period, addDaysIso, nextPeriod, annualReturnDeadline, daysBetween, ossDeadline, periodContaining, periodEnd, periodName,
   prepaymentDeadline, sondervorauszahlungDeadline, ustvaDeadline, isoDay, type PrepaymentTax,
 } from './filing-deadlines'
 import { buildIcs } from './filing-calendar'
@@ -34,11 +34,6 @@ interface KalenderAbo { tokenHash: string; createdAt: string; userId: string | n
 
 const isAbo = (v: unknown): v is KalenderAbo =>
   !!v && typeof v === 'object' && typeof (v as KalenderAbo).tokenHash === 'string' && /^[0-9a-f]{64}$/.test((v as KalenderAbo).tokenHash)
-
-const nextPeriod = (p: Period): Period =>
-  p.month
-    ? p.month === 12 ? { year: p.year + 1, month: 1 } : { year: p.year, month: p.month + 1 }
-    : p.quarter === 4 ? { year: p.year + 1, quarter: 1 } : { year: p.year, quarter: (p.quarter ?? 0) + 1 }
 
 const key = (r: { kind: string; year: number; month: number | null; quarter: number | null }) =>
   `${r.kind}:${r.year}:${r.month ?? ''}:${r.quarter ?? ''}`
@@ -93,7 +88,8 @@ export class FilingCalendarService {
       select: { id: true, name: true, settings: true },
     })
     const abo = ((company?.settings ?? {}) as Record<string, unknown>).kalenderAbo
-    if (!company || !isAbo(abo) || !timingSafeEqual(Buffer.from(abo.tokenHash), Buffer.from(hash))) throw gone()
+    // found by the hash itself: a database equality, no comparison left to make here
+    if (!company || !isAbo(abo)) throw gone()
     // the admin who made the link must still be one
     if (!abo.userId) throw gone()
     const member = await this.prisma.userCompany.findFirst({
@@ -102,12 +98,12 @@ export class FilingCalendarService {
     })
     if (!member || !UsersService.can(member.role, 'company.update')) throw gone()
 
-    const rows = await this.rows(company.id)
+    const rows = await this.rows(company.id, (company.settings ?? {}) as Record<string, any>)
     return buildIcs(rows, { companyId: company.id, companyName: company.name, origin: publicOrigin(), now: new Date() })
   }
 
   /** The dashboard's rows, and what follows within a year. */
-  async rows(companyId: string): Promise<FilingDeadline[]> {
+  async rows(companyId: string, s: Record<string, any>): Promise<FilingDeadline[]> {
     const d = await this.deadlines.deadlines(companyId)
     const { today, rhythm, dauerfrist, bundesland: land } = d
     const until = addDaysIso(today, HORIZON_DAYS)
@@ -141,8 +137,6 @@ export class FilingCalendarService {
       }
     }
     // the prepayments entered for the quarters ahead
-    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } })
-    const s = (company?.settings ?? {}) as Record<string, any>
     const year = Number(today.slice(0, 4))
     for (const tax of ['kst', 'gewst'] as PrepaymentTax[]) {
       const entered = s[tax === 'kst' ? 'kstVorauszahlungen' : 'gewstVorauszahlungen'] ?? {}

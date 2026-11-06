@@ -196,13 +196,106 @@ export function prepaymentDeadline(tax: PrepaymentTax, year: number, quarter: nu
 }
 export const addDaysIso = addDays
 
-/** Which prepayment an expense of this category pays, by the categories of accounting/expense-cost.ts. */
+/**
+ * Which prepayment an expense of this category pays, by the categories of
+ * accounting/expense-cost.ts. Tier 806: a back payment or a refund of a year
+ * („Gewerbesteuer-Nachzahlung 2025", „…Abschlusszahlung", „…Erstattung") is
+ * no prepayment — it would have marked the next quarter as paid.
+ */
 export function prepaymentTaxOf(category: string | null | undefined): PrepaymentTax | null {
   const c = String(category || '').trim()
-  if (!c || /berat|software|kurs|seminar|literatur|erstattung/i.test(c)) return null
+  if (!c || /berat|software|kurs|seminar|literatur|erstattung|nachzahlung|abschluss/i.test(c)) return null
   if (/^(Gewerbesteuer|GewSt(\b|-))/i.test(c)) return 'gewst'
   if (/^(Körperschafts?steuer|KSt(\b|-)|Solidaritätszuschlag|Soli(\b|-))/i.test(c)) return 'kst'
   return null
+}
+
+/** An expense counts for a prepayment from this many days before its day. */
+export const PREPAYMENT_EARLY_DAYS = 45
+/** The first booked payment of a tax starts the tracking at the prepayment due at most this many days before it. */
+export const PREPAYMENT_LATE_DAYS = 30
+
+/**
+ * Tier 806 — which prepayments the booked expenses of one tax have paid.
+ *
+ * Tier 804 counted every expense 45 days before to 30 days after a due day
+ * for that day: a quarter paid late (54 days after its day) paid the next one
+ * instead. Now the payments settle the oldest prepayment still open first
+ * (§ 225 Abs. 2 AO — what the Finanzamt does with a payment that names no
+ * debt), an expense counting from 45 days before a day on. Prepayments due
+ * before the first booked payment of the tax are left out — those were paid
+ * outside the books here, as the UStVA returns before the first one filed
+ * here (Tier 801): tracking starts at the prepayment due at most 30 days
+ * before the first booked payment. A negative amount (a refund entered as a credit note)
+ * takes back from the latest prepayment it can.
+ *
+ * `dues` are the prepayments with an amount, any order; the answer is what
+ * is still open of each, by its due day ('' for one left out).
+ */
+export function allocatePrepayments(
+  dues: Array<{ due: string; amount: number }>,
+  payments: Array<{ day: string; amount: number }>,
+): Map<string, number | null> {
+  const sorted = [...dues].sort((a, b) => a.due.localeCompare(b.due))
+  const pays = [...payments].filter((p) => p.amount !== 0).sort((a, b) => a.day.localeCompare(b.day))
+  const out = new Map<string, number | null>()
+  if (pays.length === 0) {
+    for (const d of sorted) out.set(d.due, null)
+    return out
+  }
+  // tracked from the first prepayment the first payment can be for: due at
+  // most PREPAYMENT_LATE_DAYS before it (a payment that late still counts)
+  const first = pays[0].day
+  const startAt = sorted.findIndex((d) => addDays(d.due, PREPAYMENT_LATE_DAYS) >= first)
+  const live = startAt < 0 ? [] : sorted.slice(startAt)
+  const paid = new Map<string, number>(live.map((d) => [d.due, 0]))
+  for (const p of pays) {
+    const open = live.filter((d) => addDays(d.due, -PREPAYMENT_EARLY_DAYS) <= p.day)
+    if (p.amount > 0) {
+      let left = p.amount
+      for (const d of open) {
+        if (left <= 0.005) break
+        const take = Math.min(left, d.amount - paid.get(d.due)!)
+        if (take <= 0.005) continue
+        paid.set(d.due, paid.get(d.due)! + take)
+        left -= take
+      }
+    } else {
+      let back = -p.amount
+      for (const d of [...open].reverse()) {
+        if (back <= 0.005) break
+        const take = Math.min(back, paid.get(d.due)!)
+        paid.set(d.due, paid.get(d.due)! - take)
+        back -= take
+      }
+    }
+  }
+  for (const d of sorted) {
+    out.set(d.due, paid.has(d.due) ? Math.max(0, Math.round((d.amount - paid.get(d.due)!) * 100) / 100) : null)
+  }
+  return out
+}
+
+/** Tier 806: the period after one (the counterpart of previousPeriod). */
+export function nextPeriod(p: Period): Period {
+  if (p.month) return p.month === 12 ? { year: p.year + 1, month: 1 } : { year: p.year, month: p.month + 1 }
+  const q = p.quarter ?? 4
+  return q === 4 ? { year: p.year + 1, quarter: 1 } : { year: p.year, quarter: q + 1 }
+}
+
+/**
+ * Tier 806: the name of a deadline in the mails and the calendar —
+ * „UStVA Oktober 2026", „Gewerbesteuer-Vorauszahlung Q4 2026". One map for
+ * both (they had one each, and the calendar's took any kind silently).
+ */
+export const KIND_LABEL = {
+  ustva: 'UStVA', zm: 'ZM', oss: 'OSS', annual: 'Jahreserklärungen', svz: 'Sondervorauszahlung',
+  dauerfrist: 'Dauerfristverlängerung', kst: 'Körperschaftsteuer-Vorauszahlung', gewst: 'Gewerbesteuer-Vorauszahlung',
+} as const
+export type DeadlineKind = keyof typeof KIND_LABEL
+export function deadlineLabel(r: { kind: DeadlineKind; year: number; month: number | null; quarter: number | null }): string {
+  const period = r.month ? `${MONTHS[r.month - 1]} ${r.year}` : r.quarter ? `Q${r.quarter} ${r.year}` : String(r.year)
+  return `${KIND_LABEL[r.kind]} ${period}`
 }
 
 /**
@@ -219,10 +312,16 @@ export interface RemindableRow {
   quarter: number | null
   status: string
   daysLeft: number
+  dueDate: string
 }
 
+/**
+ * Tier 806: the due day is part of the key — a deadline that moves (the
+ * Dauerfristverlängerung recorded, the Bundesland set) is reminded of again
+ * for its new day; the stage sent for the old day no longer holds it back.
+ */
 export const reminderKey = (r: RemindableRow, stage: number) =>
-  `${r.kind}:${r.year}:${r.month ?? (r.quarter ? `Q${r.quarter}` : '-')}:${stage}`
+  `${r.kind}:${r.year}:${r.month ?? (r.quarter ? `Q${r.quarter}` : '-')}:${r.dueDate}:${stage}`
 
 /** The rows to remind of now, each with its stage and every key to mark as sent. */
 export function dueReminders<T extends RemindableRow>(rows: T[], sent: Set<string>): Array<{ row: T; stage: number; keys: string[] }> {

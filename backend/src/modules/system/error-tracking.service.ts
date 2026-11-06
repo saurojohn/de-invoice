@@ -1,3 +1,4 @@
+import { redactUrl } from '../../common/redact-url' // Tier 806
 /**
  * Self-hosted Sentry-style error tracking.
  *
@@ -65,7 +66,14 @@ export class ErrorTrackingService {
    * ErrorEvent row (newly created or pre-existing
    * with `occurrences` incremented).
    */
-  async capture(input: CaptureInput) {
+  async capture(raw: CaptureInput) {
+    // Tier 806: no working secret link (calendar feed, invoice link) in a stored event,
+    // whichever side reported it
+    const input: CaptureInput = {
+      ...raw,
+      message: redactUrl(raw.message),
+      ...(raw.url != null ? { url: redactUrl(raw.url) } : {}),
+    }
     const stack = (input.stack || "").slice(0, STACK_MAX_BYTES)
     const fp =
       input.fingerprint ||

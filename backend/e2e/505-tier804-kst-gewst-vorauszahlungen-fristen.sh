@@ -19,7 +19,7 @@ TAG="e2e-505-$(date +%s%N | cut -c1-13)"
 RULES=$(cd "$SCRIPT_DIR/.." && npx ts-node -T -e "
 const f = require('./src/modules/reports/filing-deadlines')
 const d = (t, y, q) => f.prepaymentDeadline(t, y, q, 'NW')
-const r = { kind: 'gewst', year: 2026, month: null, quarter: 4, status: 'open', daysLeft: 6 }
+const r = { kind: 'gewst', year: 2026, month: null, quarter: 4, status: 'open', daysLeft: 6, dueDate: '2026-11-16' }
 console.log([
   [d('kst', 2026, 4), d('kst', 2027, 1), d('kst', 2029, 2)].join(','),
   [d('gewst', 2026, 4), d('gewst', 2027, 1), d('gewst', 2026, 3)].join(','),
@@ -32,7 +32,7 @@ IFS='|' read -r A B C D <<<"$RULES"
 assert_eq "KSt: 10.12.2026 (Thu), 10.03.2027 (Wed), 10.06.2029 a Sunday → Monday 11.06." "$A" "2026-12-10,2027-03-10,2029-06-11"
 assert_eq "GewSt: 15.11.2026 a Sunday → 16.11., 15.02.2027 (Mon), 15.08.2026 a Saturday → 17.08." "$B" "2026-11-16,2027-02-15,2026-08-17"
 assert_eq "which expenses pay which prepayment" "$C" "gewst,gewst,kst,kst,null,null,null,null"
-assert_eq "a prepayment is reminded of like a return" "$D" "gewst:2026:Q4:7"
+assert_eq "a prepayment is reminded of like a return" "$D" "gewst:2026:Q4:2026-11-16:7"
 
 # ── a fresh company, on today's date ───────────────────────────────────────
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
@@ -111,9 +111,11 @@ AS POST "/api/v1/ustva/deadlines/remind?companyId=$C" '{}'
 assert_eq "the reminder covers the prepayments due within seven days: $EXPECTED" \
   "$(P "[(x['kind'], x['dueDate']) for x in d['items'] if x['kind'] in ('kst', 'gewst')]")" "$EXPECTED"
 
-# the mail names them
-SRC="$SCRIPT_DIR/../src/modules/reports"
-assert_eq "the mail names the KSt and GewSt prepayments" \
-  "$(grep -c "kst: 'Körperschaftsteuer-Vorauszahlung', gewst: 'Gewerbesteuer-Vorauszahlung'" "$SRC/filing-deadline-mail.service.ts")" "1"
+# the mail names them (Tier 806: one label for the mails and the calendar)
+LABELS=$(cd "$SCRIPT_DIR/.." && npx ts-node -T -e "
+const f = require('./src/modules/reports/filing-deadlines')
+console.log([f.deadlineLabel({ kind: 'kst', year: 2026, month: null, quarter: 4 }), f.deadlineLabel({ kind: 'gewst', year: 2027, month: null, quarter: 1 })].join('|'))
+" 2>&1 | tail -1)
+assert_eq "the mail names the KSt and GewSt prepayments" "$LABELS" "Körperschaftsteuer-Vorauszahlung Q4 2026|Gewerbesteuer-Vorauszahlung Q1 2027"
 
 summary

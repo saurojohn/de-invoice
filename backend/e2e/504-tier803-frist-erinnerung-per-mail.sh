@@ -1,5 +1,6 @@
 #!/bin/bash
 # Tier 803 — a reminder mail seven and two days before a filing deadline
+# (Tier 806: the key carries the due day; what was sent is kept per admin)
 #
 # The dashboard named the deadlines (Tiers 801, 802); nothing told the owner
 # who did not open it. Every morning at 07:00 the job `filing-deadline-
@@ -14,21 +15,21 @@ TAG="e2e-504-$(date +%s%N | cut -c1-13)"
 # ── which rows, which stage ───────────────────────────────────────────────
 RULES=$(cd "$SCRIPT_DIR/.." && npx ts-node -T -e "
 const f = require('./src/modules/reports/filing-deadlines')
-const r = (kind, daysLeft, status = 'open', month = 10) => ({ kind, year: 2026, month, quarter: null, status, daysLeft })
+const r = (kind, daysLeft, status = 'open', month = 10) => ({ kind, year: 2026, month, quarter: null, status, daysLeft, dueDate: '2026-12-10' })
 const show = (rows, sent = []) => JSON.stringify(f.dueReminders(rows, new Set(sent)).map((x) => [x.row.kind, x.row.daysLeft, x.stage, x.keys.join('+')]))
 console.log([
   show([r('ustva', 8), r('ustva', 7, 'open', 9), r('ustva', 3, 'open', 8), r('ustva', 2, 'open', 7), r('ustva', 0, 'open', 6), r('ustva', -1, 'overdue', 5)]),
-  show([r('ustva', 5)], ['ustva:2026:10:7']),
-  show([r('ustva', 2)], ['ustva:2026:10:7']),
-  show([r('ustva', 1)], ['ustva:2026:10:2', 'ustva:2026:10:7']),
+  show([r('ustva', 5)], ['ustva:2026:10:2026-12-10:7']),
+  show([r('ustva', 2)], ['ustva:2026:10:2026-12-10:7']),
+  show([r('ustva', 1)], ['ustva:2026:10:2026-12-10:2', 'ustva:2026:10:2026-12-10:7']),
   show([r('ustva', 3, 'filed'), r('dauerfrist', 3, 'option'), r('ustva', 3, 'running')]),
 ].join('|'))
 " 2>&1 | tail -1)
 IFS='|' read -r A B C D E <<<"$RULES"
 assert_eq "7 days or less: the 7-day reminder; 2 or less: the 2-day one (which marks the 7-day one too); 8 days, past: none" "$A" \
-  '[["ustva",7,7,"ustva:2026:9:7"],["ustva",3,7,"ustva:2026:8:7"],["ustva",2,2,"ustva:2026:7:2+ustva:2026:7:7"],["ustva",0,2,"ustva:2026:6:2+ustva:2026:6:7"]]'
+  '[["ustva",7,7,"ustva:2026:9:2026-12-10:7"],["ustva",3,7,"ustva:2026:8:2026-12-10:7"],["ustva",2,2,"ustva:2026:7:2026-12-10:2+ustva:2026:7:2026-12-10:7"],["ustva",0,2,"ustva:2026:6:2026-12-10:2+ustva:2026:6:2026-12-10:7"]]'
 assert_eq "the 7-day reminder sent: nothing more at 5 days" "$B" "[]"
-assert_eq "…the 2-day one still comes" "$C" '[["ustva",2,2,"ustva:2026:10:2+ustva:2026:10:7"]]'
+assert_eq "…the 2-day one still comes" "$C" '[["ustva",2,2,"ustva:2026:10:2026-12-10:2+ustva:2026:10:2026-12-10:7"]]'
 assert_eq "both sent: nothing on the last day" "$D" "[]"
 assert_eq "filed, an option, the running period: never reminded of" "$E" "[]"
 

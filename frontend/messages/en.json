@@ -4515,8 +4515,8 @@
       "svz-partial": "1/11 of this year's advance payments so far (§ 47 UStDV) — provisional, the year has not ended.",
       "dauerfrist-monthly": "With a permanent extension every VAT return is due one month later; in return a special prepayment of 1/11 of the previous year's advance payments is due by this day (§§ 46–48 UStDV).",
       "dauerfrist-quarterly": "With a permanent extension every VAT return is due one month later; quarterly filers pay no special prepayment (§ 46 UStDV).",
-      "kst-paid-by-expense": "As set by the prepayment notice (corporate income tax + solidarity surcharge). It counts as paid once an expense of the category “Körperschaftsteuer” or “Solidaritätszuschlag” around the due date covers it.",
-      "gewst-paid-by-expense": "As set by the municipality’s trade tax prepayment notice. It counts as paid once an expense of the category “Gewerbesteuer” around the due date covers it."
+      "kst-paid-by-expense": "As set by the prepayment notice (corporate income tax + solidarity surcharge). It counts as paid once the booked expenses “Körperschaftsteuer” / “Solidaritätszuschlag” cover it — the oldest open one first. Enter a year’s back payment or refund as “Körperschaftsteuer-Nachzahlung” or “…-Erstattung”.",
+      "gewst-paid-by-expense": "As set by the municipality’s trade tax prepayment notice. It counts as paid once the booked expenses “Gewerbesteuer” cover it — the oldest open one first. Enter a year’s back payment or refund as “Gewerbesteuer-Nachzahlung” or “…-Erstattung”."
     },
     "settingsTitle": "Filing period set by the tax office",
     "settingsRhythm": "VAT return",

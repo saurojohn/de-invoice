@@ -4515,8 +4515,8 @@
       "svz-partial": "本年到目前为止预缴总额的 1/11（§ 47 UStDV）——暂估，本年还没结束。",
       "dauerfrist-monthly": "有延期一个月后，每期预申报都晚一个月截止；条件是在此日期前缴纳上一年预缴总额 1/11 的特别预缴（§§ 46–48 UStDV）。",
       "dauerfrist-quarterly": "有延期一个月后，每期预申报都晚一个月截止；按季度申报的不用交特别预缴（§ 46 UStDV）。",
-      "kst-paid-by-expense": "金额按预缴通知书（企业所得税 + 团结附加税）。在截止日前后录入一笔类别为“Körperschaftsteuer”或“Solidaritätszuschlag”、金额足够的支出后，即视为已缴纳。",
-      "gewst-paid-by-expense": "金额按市政府的营业税预缴通知书。在截止日前后录入一笔类别为“Gewerbesteuer”、金额足够的支出后，即视为已缴纳。"
+      "kst-paid-by-expense": "金额按预缴通知书（企业所得税 + 团结附加税）。已录入的“Körperschaftsteuer”/“Solidaritätszuschlag”支出足够时即视为已缴纳——先抵最早一期未缴的。某一年的补缴或退税请录为“Körperschaftsteuer-Nachzahlung”或“…-Erstattung”。",
+      "gewst-paid-by-expense": "金额按市政府的营业税预缴通知书。已录入的“Gewerbesteuer”支出足够时即视为已缴纳——先抵最早一期未缴的。某一年的补缴或退税请录为“Gewerbesteuer-Nachzahlung”或“…-Erstattung”。"
     },
     "settingsTitle": "税务局规定的预申报周期",
     "settingsRhythm": "预申报",
