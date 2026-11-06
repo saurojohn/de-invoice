@@ -301,7 +301,8 @@
     "expenseCategoryPlaceholder": "e.g. bank fees, vehicle, office supplies",
     "expenseDescription": "Booking text",
     "bookedWithoutExpense": "booked without an expense — missing from the reports",
-    "rebookedExpense": "Taken into the expenses"
+    "rebookedExpense": "Taken into the expenses",
+    "taxAdminOnly": "Tax payment recognised: {label} — an administrator can book it."
   },
   "banking": {
     "title": "Online Banking (FinTS)",

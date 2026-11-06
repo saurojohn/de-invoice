@@ -10,6 +10,7 @@ import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiDelete, apiFetch } from "@/lib/api"
 import { BookExpenseDialog, type BookExpenseValues } from "./BookExpenseDialog"
+import { roleCan, useRole } from "@/lib/role"
 
 interface BankStatement {
   id: string
@@ -176,6 +177,11 @@ export default function BankImportPage() {
   const { t, getDateLocale } = useI18n()
   const toast = useToast()
   const dl = getDateLocale()
+  // Tier 813: the actions the role allows — booking (invoice.create /
+  // accounting.update: accountant), a tax payment (ustva.submit: admin)
+  const role = useRole()
+  const canBook = roleCan(role, "accountant")
+  const canBookTax = roleCan(role, "admin")
 
   const [statements, setStatements] = useState<BankStatement[]>([])
   const [loading, setLoading] = useState(true)
@@ -872,6 +878,10 @@ export default function BankImportPage() {
                                     <div className="mb-1 text-amber-700 dark:text-amber-400" data-testid={`tax-payment-problem-${txn.id}`}>
                                       {t(sug.problem === "no-filing" ? "bankImport.taxNoFiling" : "bankImport.taxAlreadyPaid").replace("{label}", sug.label)}
                                     </div>
+                                  ) : !canBookTax ? (
+                                    <div className="mb-1 text-gray-600 dark:text-gray-300" data-testid={`tax-payment-admin-${txn.id}`}>
+                                      {t("bankImport.taxAdminOnly").replace("{label}", sug.label)}
+                                    </div>
                                   ) : (
                                     <Button
                                       size="sm"
@@ -887,7 +897,7 @@ export default function BankImportPage() {
                                     </Button>
                                   )
                                 })()}
-                                {isDebit && !txn.voucher && (
+                                {canBook && isDebit && !txn.voucher && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -903,7 +913,7 @@ export default function BankImportPage() {
                                       : t("bankImport.bookExpense")}
                                   </Button>
                                 )}
-                                {isDebit && !txn.voucher && (() => {
+                                {canBook && isDebit && !txn.voucher && (() => {
                                   const paidAmt = -amt
                                   const exact = openExpenses.find(
                                     (c) => Math.abs(Number(c.grossAmount) - paidAmt) < 0.005,
@@ -943,7 +953,7 @@ export default function BankImportPage() {
                                     </Button>
                                   ) : null
                                 })()}
-                                {!isDebit && !txn.voucher && (() => {
+                                {canBook && !isDebit && !txn.voucher && (() => {
                                   const cn = openCreditNotes.find(
                                     (c) => Math.abs(Math.abs(Number(c.grossAmount)) - amt) < 0.005,
                                   )
@@ -976,19 +986,21 @@ export default function BankImportPage() {
                                     <span className="block text-amber-700 dark:text-amber-400" data-testid={`booked-without-expense-${txn.id}`}>
                                       {t("bankImport.bookedWithoutExpense")}
                                     </span>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="mt-1"
-                                      disabled={busyRecon === txn.id}
-                                      data-testid={`rebook-expense-${txn.id}`}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setExpenseDialog({ txn, mode: "rebook" })
-                                      }}
-                                    >
-                                      {t("bankImport.rebookExpense")}
-                                    </Button>
+                                    {canBook && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="mt-1"
+                                        disabled={busyRecon === txn.id}
+                                        data-testid={`rebook-expense-${txn.id}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setExpenseDialog({ txn, mode: "rebook" })
+                                        }}
+                                      >
+                                        {t("bankImport.rebookExpense")}
+                                      </Button>
+                                    )}
                                   </div>
                                 )}
                               </td>

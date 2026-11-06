@@ -301,7 +301,8 @@
     "expenseCategoryPlaceholder": "z. B. Bankgebühren, Kfz, Bürobedarf",
     "expenseDescription": "Buchungstext",
     "bookedWithoutExpense": "ohne Ausgabe gebucht — fehlt in den Auswertungen",
-    "rebookedExpense": "In die Ausgaben übernommen"
+    "rebookedExpense": "In die Ausgaben übernommen",
+    "taxAdminOnly": "Steuerzahlung erkannt: {label} — buchen kann sie ein Administrator."
   },
   "banking": {
     "title": "Online-Banking (FinTS)",

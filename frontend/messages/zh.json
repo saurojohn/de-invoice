@@ -301,7 +301,8 @@
     "expenseCategoryPlaceholder": "例如 银行手续费、车辆、办公用品",
     "expenseDescription": "摘要",
     "bookedWithoutExpense": "已记账但没有支出记录——报表里缺这笔",
-    "rebookedExpense": "已转入支出"
+    "rebookedExpense": "已转入支出",
+    "taxAdminOnly": "识别为税款：{label}——需由管理员入账。"
   },
   "banking": {
     "title": "在线银行 (FinTS)",

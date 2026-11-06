@@ -40,7 +40,9 @@ CardHeader.displayName = "CardHeader"
 
 const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className = "", ...props }, ref) => (
-    <h3 ref={ref} className={`text-2xl font-semibold leading-none tracking-tight ${className}`} {...props} />
+    // Tier 813: a long German compound („Umsatzsteuerjahreserklärung") is
+    // wider than a 350 px phone at this size — it breaks rather than widen the page
+    <h3 ref={ref} className={`text-2xl font-semibold leading-none tracking-tight [overflow-wrap:anywhere] hyphens-auto ${className}`} {...props} />
   )
 )
 CardTitle.displayName = "CardTitle"
