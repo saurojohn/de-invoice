@@ -279,18 +279,22 @@ export class AccountingController {
     @Body() body: CreateVoucherDto,
     @Req() req: any,
   ) {
-    // Pick up the user id from the auth context.
-    // HeaderAuthGuard is opt-in (not global), so
-    // req.user may be unset — fall back to the
-    // x-user-id header directly. If neither is
-    // present, leave createdById undefined; the
-    // Voucher is still created and the Berater
-    // column just shows blank.
-    const createdById =
-      req?.user?.id || req?.headers?.['x-user-id'] || body.createdById;
+    // Tier 811: this route books a manual voucher and nothing else. The type
+    // was taken from the body: „Expense" with „[expense:<id>]" in the text
+    // marked an entered bill as paid by the bank (the expense list, its lock,
+    // DATEV's payment, the SEPA run read that pair), „BankReconciliation"
+    // kept it out of DATEV and refused its Storno. The page sends „Manual".
+    if (body.referenceType !== undefined && body.referenceType !== 'Manual') {
+      throw new BadRequestException(
+        `Über diese Schnittstelle werden nur manuelle Belege gebucht (referenceType "Manual"), nicht "${String(body.referenceType).slice(0, 50)}".`,
+      );
+    }
+    // Tier 811: who booked it is the signed-in user (Tier 783) — the
+    // x-user-id header or a createdById in the body named anyone.
     return this.voucherService.create({
       ...body,
-      createdById,
+      referenceType: 'Manual',
+      createdById: req?.user?.id || undefined,
       date: new Date(body.date),
     });
   }

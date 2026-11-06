@@ -60,6 +60,20 @@ api_post "/api/v1/expenses?companyId=$COMPANY_ID" "{
 assert_eq "create expense 1 HTTP" "$STATUS" "201"
 EXP1_ID=$(json_field "$BODY" id)
 
+# Tier 811: the bank payment of an expense is a voucher the bank import writes
+# (referenceType "Expense", "[expense:<id>]"); POST /accounting/vouchers books
+# manual vouchers only, so the fixture writes that voucher directly.
+bank_voucher() { # expenseId date description net vat gross → "id number"
+  docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -tA -c \
+    "WITH v AS (INSERT INTO \"Voucher\" (id, \"companyId\", \"voucherNumber\", date, description, \"referenceType\", status)
+       VALUES (gen_random_uuid()::text, '$COMPANY_ID', 'T6-' || substr(md5(random()::text), 1, 10), '$2', '$3 [expense:$1]', 'Expense', 'posted')
+       RETURNING id, \"voucherNumber\"),
+     l AS (INSERT INTO \"VoucherLine\" (id, \"voucherId\", \"accountId\", debit, credit, \"sortOrder\")
+       SELECT gen_random_uuid()::text, v.id, x.a, x.d, x.c, x.o FROM v,
+         (VALUES ('$A4900', $4, 0, 0), ('$A1576', $5, 0, 1), ('$A1200', 0, $6, 2)) AS x(a, d, c, o))
+     SELECT id || ' ' || \"voucherNumber\" FROM v;" 2>/dev/null | head -1
+}
+
 # 2) BEZAHLT — paired with a manual Voucher carrying the
 #    [expense:<id>] tag
 api_post "/api/v1/expenses?companyId=$COMPANY_ID" "{
@@ -76,20 +90,8 @@ assert_eq "create expense 2 HTTP" "$STATUS" "201"
 EXP2_ID=$(json_field "$BODY" id)
 
 # Create the corresponding Voucher with the [expense:tag]
-api_post "/api/v1/accounting/vouchers" "{
-  \"companyId\": \"$COMPANY_ID\",
-  \"date\": \"2026-06-10\",
-  \"description\": \"Bank Miete Test [expense:$EXP2_ID]\",
-  \"referenceType\": \"Expense\",
-  \"lines\": [
-    { \"accountId\": \"$A4900\", \"debit\": 500, \"credit\": 0 },
-    { \"accountId\": \"$A1576\", \"debit\": 95, \"credit\": 0 },
-    { \"accountId\": \"$A1200\", \"debit\": 0, \"credit\": 595 }
-  ]
-}" >/dev/null
-assert_eq "create Voucher for expense 2 HTTP" "$STATUS" "201"
-EXP2_VCH_ID=$(json_field "$BODY" id)
-EXP2_VCH_NUM=$(json_field "$BODY" voucherNumber)
+read -r EXP2_VCH_ID EXP2_VCH_NUM < <(bank_voucher "$EXP2_ID" 2026-06-10 "Bank Miete Test" 500 95 595)
+assert_eq "create Voucher for expense 2" "$([[ -n $EXP2_VCH_ID ]] && echo ok)" "ok"
 
 # 3)STORNIERT — has a Storno voucher pointing at it via
 #   [expense:tag] in description. The Storno is itself a
@@ -108,25 +110,13 @@ assert_eq "create expense 3 HTTP" "$STATUS" "201"
 EXP3_ID=$(json_field "$BODY" id)
 
 # Create the original Voucher for expense 3
-api_post "/api/v1/accounting/vouchers" "{
-  \"companyId\": \"$COMPANY_ID\",
-  \"date\": \"2026-06-10\",
-  \"description\": \"Bank Beratung [expense:$EXP3_ID]\",
-  \"referenceType\": \"Expense\",
-  \"lines\": [
-    { \"accountId\": \"$A4900\", \"debit\": 200, \"credit\": 0 },
-    { \"accountId\": \"$A1576\", \"debit\": 38, \"credit\": 0 },
-    { \"accountId\": \"$A1200\", \"debit\": 0, \"credit\": 238 }
-  ]
-}" >/dev/null
-assert_eq "create Voucher for expense 3 HTTP" "$STATUS" "201"
-EXP3_VCH_ID=$(json_field "$BODY" id)
+read -r EXP3_VCH_ID EXP3_VCH_NUM < <(bank_voucher "$EXP3_ID" 2026-06-10 "Bank Beratung" 200 38 238)
+assert_eq "create Voucher for expense 3" "$([[ -n $EXP3_VCH_ID ]] && echo ok)" "ok"
 
 # Now Storno it through the real route. Until Tier 447 the list only
 # recognised a Storno whose own description carried the tag, which
 # createReversal never writes ("Storno: <number> Grund: …"), so this spec
 # hand-crafted one; the list now sees the original as reversed.
-EXP3_VCH_NUM=$(json_field "$BODY" voucherNumber)
 api_post "/api/v1/accounting/vouchers/$EXP3_VCH_ID/reversal?companyId=$COMPANY_ID" '{"reason":"Test"}'
 assert_eq "create Storno Voucher HTTP" "$STATUS" "201"
 EXP3_STO_ID=$(json_field "$BODY" id)
