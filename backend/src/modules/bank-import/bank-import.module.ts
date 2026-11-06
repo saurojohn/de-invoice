@@ -3,6 +3,7 @@ import { BankImportController } from './bank-import.controller';
 import { BankImportService } from './bank-import.service';
 import { InvoiceModule } from '../invoice/invoice.module';
 import { AccountingModule } from '../accounting/accounting.module';
+import { ReportsModule } from '../reports/reports.module';
 
 @Module({
   // InvoiceModule is imported (not just PaymentService)
@@ -15,7 +16,8 @@ import { AccountingModule } from '../accounting/accounting.module';
   // Forderung 1406) so the double-entry ledger stays
   // in sync with the bank reality. VoucherService is
   // exported from AccountingModule.
-  imports: [InvoiceModule, AccountingModule],
+  // Tier 808: ReportsModule for UstvaService — a tax payment books the return's payment
+  imports: [InvoiceModule, AccountingModule, ReportsModule],
   controllers: [BankImportController],
   providers: [BankImportService],
   exports: [BankImportService],

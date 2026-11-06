@@ -1,5 +1,5 @@
 import { StrictNumber } from '../../../common/strict-number'
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsNotEmpty, Matches, Max, MaxLength, Min } from 'class-validator'
+import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, IsNotEmpty, Matches, Max, MaxLength, Min } from 'class-validator'
 
 import { StrictBoolean } from '../../../common/strict-boolean'
 /**
@@ -66,4 +66,24 @@ export class SuggestMatchesDto {
 export class MatchTransactionDto {
   @IsString() @IsNotEmpty({ message: 'invoiceId ist erforderlich' }) @MaxLength(64)
   invoiceId!: string
+}
+
+/**
+ * Tier 808 — POST /bank-statements/:id/transactions/:txnId/book-tax: the
+ * transaction is the payment (or refund) of a tax — a UStVA by month or
+ * quarter, the Sondervorauszahlung or the annual VAT return by year, a KSt /
+ * GewSt prepayment by quarter.
+ */
+export class BookTaxPaymentDto {
+  @IsIn(['ustva', 'svz', 'ustja', 'kst', 'gewst'])
+  kind!: 'ustva' | 'svz' | 'ustja' | 'kst' | 'gewst'
+
+  @StrictNumber() @IsInt() @Min(2010) @Max(2100)
+  year!: number
+
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(12)
+  month?: number | null
+
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(4)
+  quarter?: number | null
 }

@@ -24,6 +24,18 @@ interface BankStatement {
   _count?: { transactions: number }
 }
 
+/** Tier 808: GET /bank-statements/:id/tax-payments */
+interface TaxPaymentSuggestion {
+  transactionId: string
+  kind: "ustva" | "svz" | "ustja" | "kst" | "gewst"
+  year: number
+  month: number | null
+  quarter: number | null
+  label: string
+  amount: number
+  problem: null | "no-filing" | "already-paid"
+}
+
 interface BankTransaction {
   id: string
   statementId: string
@@ -171,6 +183,8 @@ export default function BankImportPage() {
   // Currently expanded statement + its transactions
   const [openId, setOpenId] = useState<string | null>(null)
   const [transactions, setTransactions] = useState<BankTransaction[]>([])
+  // Tier 808: the tax payments recognised among the open transactions
+  const [taxPayments, setTaxPayments] = useState<Record<string, TaxPaymentSuggestion>>({})
   const [loadingTx, setLoadingTx] = useState(false)
 
   // Selected transaction (for the candidates panel)
@@ -326,6 +340,38 @@ export default function BankImportPage() {
       }
     } catch (err: any) {
       toast.error(err?.message || L("Rückgängig fehlgeschlagen"))
+    } finally {
+      setBusyRecon(null)
+    }
+  }
+
+  // Tier 808: whenever the statement's transactions change, which of them are tax payments
+  useEffect(() => {
+    if (!openId) { setTaxPayments({}); return }
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    let alive = true
+    apiGet<{ suggestions: TaxPaymentSuggestion[] }>(`/api/v1/bank-statements/${openId}/tax-payments?companyId=${companyId}`)
+      .then((r) => { if (alive) setTaxPayments(Object.fromEntries((r.suggestions || []).map((x) => [x.transactionId, x]))) })
+      .catch(() => { if (alive) setTaxPayments({}) })
+    return () => { alive = false }
+  }, [openId, transactions])
+
+  /** Tier 808: book a transaction as the payment of the tax it was recognised as. */
+  const bookTax = async (txnId: string, sug: TaxPaymentSuggestion) => {
+    if (!openId) return
+    const companyId = localStorage.getItem("companyId")!
+    setBusyRecon(txnId)
+    try {
+      await apiPost(`/api/v1/bank-statements/${openId}/transactions/${txnId}/book-tax?companyId=${companyId}`, {
+        kind: sug.kind, year: sug.year,
+        ...(sug.month ? { month: sug.month } : {}), ...(sug.quarter ? { quarter: sug.quarter } : {}),
+      })
+      toast.success(t("bankImport.taxBooked").replace("{label}", sug.label))
+      const detail = await apiGet<{ transactions: BankTransaction[] }>(`/api/v1/bank-statements/${openId}?companyId=${companyId}`)
+      setTransactions(detail.transactions || [])
+    } catch (err: any) {
+      toast.error(err?.message || t("bankImport.taxBookFailed"))
     } finally {
       setBusyRecon(null)
     }
@@ -805,6 +851,28 @@ export default function BankImportPage() {
                                     no action here — the
                                     candidates panel handles
                                     the matching. */}
+                                {/* Tier 808: a tax payment, booked where the reports read it */}
+                                {!txn.voucher && taxPayments[txn.id] && (() => {
+                                  const sug = taxPayments[txn.id]
+                                  return sug.problem ? (
+                                    <div className="mb-1 text-amber-700 dark:text-amber-400" data-testid={`tax-payment-problem-${txn.id}`}>
+                                      {t(sug.problem === "no-filing" ? "bankImport.taxNoFiling" : "bankImport.taxAlreadyPaid").replace("{label}", sug.label)}
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      className="mr-2 mb-1"
+                                      disabled={busyRecon === txn.id}
+                                      data-testid={`book-tax-${txn.id}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        bookTax(txn.id, sug)
+                                      }}
+                                    >
+                                      {t(Number(txn.amount) > 0 ? "bankImport.bookTaxRefund" : "bankImport.bookTax").replace("{label}", sug.label)}
+                                    </Button>
+                                  )
+                                })()}
                                 {isDebit && !txn.voucher && (
                                   <Button
                                     size="sm"

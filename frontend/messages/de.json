@@ -283,7 +283,13 @@
     "reopenCandidateConfirm": "Soll {invoice} wirklich rückgängig gemacht werden? Es wird eine Storno-Buchung erstellt.",
     "statusReopened": "Rückgängig",
     "reversalVoucher": "Storno-Beleg",
-    "bookPaymentParts": "Zahlung {number} ({count} Teilbeträge)"
+    "bookPaymentParts": "Zahlung {number} ({count} Teilbeträge)",
+    "bookTax": "Steuerzahlung: {label}",
+    "bookTaxRefund": "Steuererstattung: {label}",
+    "taxBooked": "{label} als bezahlt gebucht",
+    "taxBookFailed": "Steuerzahlung konnte nicht gebucht werden",
+    "taxNoFiling": "Zahlung für {label} erkannt — die Voranmeldung ist hier nicht als abgegeben gespeichert.",
+    "taxAlreadyPaid": "Zahlung für {label} erkannt — für sie ist schon eine Zahlung erfasst."
   },
   "banking": {
     "title": "Online-Banking (FinTS)",

@@ -283,7 +283,13 @@
     "reopenCandidateConfirm": "Really reopen {invoice}? A reversal voucher will be written.",
     "statusReopened": "Reopened",
     "reversalVoucher": "Reversal voucher",
-    "bookPaymentParts": "Payment of {number} ({count} parts)"
+    "bookPaymentParts": "Payment of {number} ({count} parts)",
+    "bookTax": "Tax payment: {label}",
+    "bookTaxRefund": "Tax refund: {label}",
+    "taxBooked": "{label} booked as paid",
+    "taxBookFailed": "The tax payment could not be booked",
+    "taxNoFiling": "Payment for {label} recognised — the return is not saved as filed here.",
+    "taxAlreadyPaid": "Payment for {label} recognised — a payment is already recorded for it."
   },
   "banking": {
     "title": "Online Banking (FinTS)",

@@ -26,6 +26,10 @@ import { parseCamt053, detectFormat } from './camt053';
 import { PaymentService } from '../invoice/payment.service';
 import { VoucherService } from '../accounting/voucher.service';
 import { resolveDatevAccounts } from '../reports/datev.service';
+import { UstvaService } from '../reports/ustva.service';
+import { guessTaxPayment, type TaxPaymentGuess, type TaxPaymentKind } from './tax-payment';
+import { addDaysIso, deadlineLabel, prepaymentDeadline, type Period } from '../reports/filing-deadlines';
+import { businessDayIso } from '../../common/business-date';
 import type { ParsedStatement } from './parsers';
 import { mergeByAccount } from './parsers';
 
@@ -76,6 +80,18 @@ function preparedOpen<T extends OpenInvoiceRow>(list: T[]): PreparedOpen<T>[] {
   return rows
 }
 
+/** Tier 808: a recognised tax payment, as the bank page shows it. */
+export interface TaxPaymentTarget {
+  kind: TaxPaymentKind
+  year: number
+  month: number | null
+  quarter: number | null
+  label: string
+  amount: number
+  /** 'no-filing': the UStVA is not saved as filed here; 'already-paid': its payment is recorded */
+  problem: null | 'no-filing' | 'already-paid'
+}
+
 @Injectable()
 export class BankImportService {
   private readonly logger = new Logger(BankImportService.name);
@@ -83,6 +99,7 @@ export class BankImportService {
     private prisma: PrismaService,
     private paymentService: PaymentService,
     private voucherService: VoucherService,
+    private ustva: UstvaService,
   ) {}
 
   /** Detect format, parse, persist. Returns the new
@@ -1760,6 +1777,193 @@ export class BankImportService {
       // Tier 577: every expense this debit paid
       ...(paidIds.length ? { expenseIds: paidIds } : {}),
     };
+  }
+
+  /**
+   * Tier 808 — the tax payments among a statement's open transactions
+   * (tax-payment.ts), each with the period it is for and whether it can be
+   * booked. A guess without a period is completed from the amount: an unpaid
+   * UStVA of that amount, the prepayment of that amount due around the day.
+   */
+  async taxPaymentSuggestions(companyId: string, statementId: string) {
+    const stmt = await this.prisma.bankStatement.findFirst({ where: { id: statementId, companyId }, select: { id: true } })
+    if (!stmt) throw new NotFoundException('Kontoauszug nicht gefunden')
+    const txns = await this.prisma.bankTransaction.findMany({
+      where: { statementId, companyId, voucherId: null, matches: { none: {} } },
+      select: { id: true, amount: true, valueDate: true, counterpartyName: true, purpose: true },
+      orderBy: { valueDate: 'asc' },
+    })
+    const suggestions: Array<TaxPaymentTarget & { transactionId: string }> = []
+    for (const t of txns) {
+      const guess = guessTaxPayment(t)
+      if (!guess) continue
+      const target = await this.taxPaymentTarget(companyId, guess, Number(t.amount), businessDayIso(t.valueDate))
+      if (target) suggestions.push({ transactionId: t.id, ...target })
+    }
+    return { suggestions }
+  }
+
+  private async taxPaymentTarget(companyId: string, g: TaxPaymentGuess, amount: number, day: string): Promise<TaxPaymentTarget | null> {
+    const year = Number(day.slice(0, 4))
+    const month = Number(day.slice(5, 7))
+    const refund = amount > 0
+    // a refund comes from the Finanzamt for a return; prepayments are paid
+    if (refund && g.kind !== 'ustva' && g.kind !== 'ustja') return null
+    if (g.kind === 'svz') return { ...this.taxLabel('svz', { year: g.year ?? (month >= 11 ? year + 1 : year) }), amount, problem: null }
+    if (g.kind === 'ustja') return { ...this.taxLabel('ustja', { year: g.year ?? year - 1 }), amount, problem: null }
+    if (g.kind === 'ustva') {
+      const filings = await this.prisma.uStvaFiling.findMany({
+        where: { companyId, status: { in: ['submitted', 'accepted'] }, OR: [{ month: { not: null } }, { quarter: { not: null } }] },
+        select: { year: true, month: true, quarter: true, payableVat: true, paidAt: true },
+      })
+      let f = g.year && (g.month || g.quarter)
+        ? filings.find((x) => x.year === g.year && (g.month ? x.month === g.month : x.month == null && x.quarter === g.quarter))
+        : undefined
+      if (!f && !(g.month || g.quarter)) {
+        const same = filings.filter((x) => !x.paidAt && Math.abs(Number(x.payableVat) + amount) < 0.005)
+        if (same.length === 1) f = same[0]
+      }
+      if (!f) {
+        if (!g.year || !(g.month || g.quarter)) return null
+        return { ...this.taxLabel('ustva', { year: g.year, month: g.month ?? undefined, quarter: g.quarter ?? undefined }), amount, problem: 'no-filing' }
+      }
+      const p: Period = f.month ? { year: f.year, month: f.month } : { year: f.year, quarter: f.quarter ?? undefined }
+      return { ...this.taxLabel('ustva', p), amount, problem: f.paidAt ? 'already-paid' : null }
+    }
+    // KSt / GewSt: the quarter named, else the one of that amount due around the day
+    if (g.year && g.quarter) return { ...this.taxLabel(g.kind, { year: g.year, quarter: g.quarter }), amount, problem: null }
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true, bundesland: true } })
+    const entered = ((company?.settings as any) ?? {})[g.kind === 'kst' ? 'kstVorauszahlungen' : 'gewstVorauszahlungen'] ?? {}
+    const near: Array<{ p: Period; gap: number; same: boolean }> = []
+    for (const y of [year - 1, year, year + 1]) {
+      for (const q of [1, 2, 3, 4]) {
+        const due = prepaymentDeadline(g.kind, y, q, company?.bundesland)
+        if (day < addDaysIso(due, -45) || day > addDaysIso(due, 60)) continue
+        const gap = Math.abs(Date.parse(day) - Date.parse(due))
+        near.push({ p: { year: y, quarter: q }, gap, same: Math.abs(Number(entered?.[y]?.[`q${q}`] ?? 0) + amount) < 0.005 })
+      }
+    }
+    near.sort((a, b) => Number(b.same) - Number(a.same) || a.gap - b.gap)
+    return near[0] ? { ...this.taxLabel(g.kind, near[0].p), amount, problem: null } : null
+  }
+
+  private taxLabel(kind: TaxPaymentKind, p: Period): Omit<TaxPaymentTarget, 'amount' | 'problem'> {
+    const base = { kind, year: p.year, month: p.month ?? null, quarter: p.quarter ?? null }
+    const label = kind === 'ustja'
+      ? `Umsatzsteuer ${p.year} (Jahreserklärung)`
+      : deadlineLabel({ kind: kind === 'svz' ? 'svz' : kind, year: p.year, month: p.month ?? null, quarter: p.quarter ?? null })
+    return { ...base, label }
+  }
+
+  /**
+   * Tier 808 — a tax payment booked from the bank, where the reports read it:
+   *  - UStVA: the return's payment (paidAt / paidAmount — the EÜR's „an das
+   *    Finanzamt gezahlte USt", the balance sheet's VAT balance), voucher
+   *    Bank → USt-Vorauszahlungen (1780); a refund the other way;
+   *  - Sondervorauszahlung, Abschlusszahlung / Erstattung of the annual
+   *    return: a UstPayment, the same voucher;
+   *  - KSt / GewSt prepayment: an expense „Körperschaftsteuer" /
+   *    „Gewerbesteuer" (2200 / 4320) paid by this transaction — the
+   *    deadlines count it (Tier 806), the GuV and KSt 1 treat it as tax.
+   * Before, „Als Aufwand buchen" put it on 4900 as a voucher no report reads,
+   * and the payment had to be entered once more.
+   */
+  async bookTaxPayment(
+    companyId: string,
+    bankTransactionId: string,
+    userId: string | undefined,
+    body: { kind: TaxPaymentKind; year: number; month?: number | null; quarter?: number | null },
+  ) {
+    return withKeyLock(`banktxn:${bankTransactionId}`, async () => {
+      const txn = await this.prisma.bankTransaction.findFirst({ where: { id: bankTransactionId, companyId } })
+      if (!txn) throw new NotFoundException('Transaktion nicht gefunden')
+      if (txn.voucherId) throw new BadRequestException('Diese Buchung ist bereits gebucht')
+      if (await this.prisma.bankReconciliation.count({ where: { bankTransactionId, companyId } })) {
+        throw new BadRequestException('Diese Buchung hat bereits eine Zuordnung — bitte zuerst ablehnen.')
+      }
+      const amount = Number(txn.amount)
+      const abs = Math.round(Math.abs(amount) * 100) / 100
+      const refund = amount > 0
+      if (refund && body.kind !== 'ustva' && body.kind !== 'ustja') {
+        throw new BadRequestException('Ein Zahlungseingang ist nur als Erstattung einer UStVA oder der Umsatzsteuer-Jahreserklärung zu buchen.')
+      }
+      const p: Period = body.month ? { year: body.year, month: body.month } : body.quarter ? { year: body.year, quarter: body.quarter } : { year: body.year }
+      const { label } = this.taxLabel(body.kind, p)
+      const day = businessDayIso(txn.valueDate)
+      const counterparty = txn.counterpartyName || (body.kind === 'gewst' ? 'Gemeinde' : 'Finanzamt')
+      const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } })
+      const accts = resolveDatevAccounts(((company?.settings as any) ?? {}).datev)
+
+      if (body.kind === 'kst' || body.kind === 'gewst') {
+        if (!body.quarter) throw new BadRequestException('Für eine Vorauszahlung das Quartal angeben')
+        await assertPeriodOpen(this.prisma, companyId, [txn.valueDate], 'eine Ausgabe mit diesem Datum')
+        const accountNumber = body.kind === 'kst' ? accts.corporateTax : accts.tradeTax
+        await this.ensureAccount(companyId, accountNumber, body.kind === 'kst' ? 'Körperschaftsteuer' : 'Gewerbesteuer', 'expense', 'taxes')
+        const expense = await this.prisma.expense.create({
+          data: {
+            companyId,
+            description: `${label} — ${counterparty}`.slice(0, 500),
+            invoiceDate: txn.valueDate,
+            netAmount: abs.toFixed(4),
+            vatRate: 0,
+            vatAmount: 0,
+            grossAmount: abs.toFixed(4),
+            category: body.kind === 'kst' ? 'Körperschaftsteuer' : 'Gewerbesteuer',
+            accountNumber,
+            status: 'booked',
+            notes: `Tier 808: aus dem Kontoauszug [banktxn:${txn.id}]`,
+          },
+        })
+        try {
+          const booked = await this.bookExpense(companyId, txn.id, userId, { expenseId: expense.id, expenseAccountNumber: accountNumber, description: `${label} — ${counterparty}` })
+          return { kind: body.kind, label, voucherId: booked.voucherId, expenseId: expense.id }
+        } catch (e) {
+          // the expense was made for this booking only
+          await this.prisma.expense.delete({ where: { id: expense.id } }).catch(() => undefined)
+          throw e
+        }
+      }
+
+      // the VAT payments: the return or the UstPayment first checked, then the voucher, then the record
+      let filingId: string | null = null
+      if (body.kind === 'ustva') {
+        if (!body.month === !body.quarter) throw new BadRequestException('Für eine UStVA genau einen Monat oder ein Quartal angeben')
+        const f = await this.prisma.uStvaFiling.findFirst({
+          where: { companyId, year: body.year, ...(body.month ? { month: body.month } : { month: null, quarter: body.quarter }) },
+          select: { id: true, status: true, paidAt: true },
+        })
+        if (!f || !['submitted', 'accepted'].includes(f.status)) {
+          throw new BadRequestException(`Die ${label} ist hier nicht als abgegeben gespeichert — erst die Voranmeldung speichern, dann die Zahlung buchen.`)
+        }
+        if (f.paidAt) throw new BadRequestException(`Für die ${label} ist bereits eine Zahlung erfasst.`)
+        filingId = f.id
+      }
+      const bank = await this.ensureAccount(companyId, accts.bank, 'Bank', 'asset', 'liquidity')
+      const vat = await this.ensureAccount(companyId, accts.ustPrepayment, 'Umsatzsteuer-Vorauszahlungen', 'liability', 'vat')
+      const lines = refund
+        ? [{ accountId: bank.id, description: `Bank ${counterparty}`, debit: abs, credit: 0 }, { accountId: vat.id, description: label, debit: 0, credit: abs }]
+        : [{ accountId: vat.id, description: label, debit: abs, credit: 0 }, { accountId: bank.id, description: `Bank ${counterparty}`, debit: 0, credit: abs }]
+      const voucher = await this.voucherService.create({
+        companyId,
+        date: txn.valueDate,
+        description: `${refund ? 'Erstattung' : 'Zahlung'} ${label} — ${counterparty}`,
+        referenceType: 'BankTransaction',
+        lines,
+      })
+      await this.prisma.bankTransaction.update({ where: { id: txn.id }, data: { voucherId: voucher.id } })
+      if (filingId) {
+        await this.ustva.recordFilingPayment(companyId, filingId, { paidAt: day, amount: -amount })
+        return { kind: body.kind, label, voucherId: voucher.id, filingId }
+      }
+      const pay = await this.ustva.createUstPayment(companyId, {
+        kind: body.kind === 'svz' ? 'sondervorauszahlung' : 'ustja',
+        year: body.year,
+        paidAt: day,
+        amount: Math.round(-amount * 100) / 100,
+        note: `Bank ${counterparty}`.slice(0, 200),
+      })
+      return { kind: body.kind, label, voucherId: voucher.id, ustPaymentId: pay.id }
+    })
   }
 
   /**

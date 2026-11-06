@@ -102,6 +102,10 @@ export interface DatevAccountMap {
   inputVatIgE: string
   inputVatReverseCharge: string
   expenseDefault: string
+  /** Tier 808: the taxes paid from the bank — USt-Vorauszahlungen, Gewerbesteuer, Körperschaftsteuer */
+  ustPrepayment: string
+  tradeTax: string
+  corporateTax: string
 }
 
 /** SKR03 defaults. The Berater can override any of them per company.
@@ -146,6 +150,9 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   inputVatIgE: '1574',          // abziehbare Vorsteuer aus igE 19 %
   inputVatReverseCharge: '1577', // abziehbare Vorsteuer nach § 13b 19 %
   expenseDefault: '4900',       // sonstige betriebliche Aufwendungen
+  ustPrepayment: '1780',        // Tier 808: Umsatzsteuer-Vorauszahlungen (also the Sondervorauszahlung and the Abschlusszahlung)
+  tradeTax: '4320',             // Tier 808: Gewerbesteuer
+  corporateTax: '2200',         // Tier 808: Körperschaftsteuer (with the Solidaritätszuschlag)
 }
 
 /** Merge a partial per-company config over the SKR03 defaults. */

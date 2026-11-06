@@ -3,7 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { BankImportService } from './bank-import.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { CallerBoundUpload } from '../../auth/caller-bound-upload';
-import { BookExpenseDto, MatchTransactionDto, SuggestMatchesDto } from './dto/book-expense.dto';
+import { BookExpenseDto, BookTaxPaymentDto, MatchTransactionDto, SuggestMatchesDto } from './dto/book-expense.dto';
 
 // IMPORTANT: literal routes (`/import`, `/reconciliations/...`) MUST
 // be registered BEFORE `:id` routes. NestJS Express matches in
@@ -262,6 +262,35 @@ export class BankImportController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     return this.svc.listReconciliations(companyId, id);
+  }
+
+  /** Tier 808: the tax payments recognised among the statement's open transactions. */
+  @Get(':id/tax-payments')
+  @Require('invoice.read')
+  async taxPayments(@Query('companyId') companyId: string, @Param('id') id: string) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    return this.svc.taxPaymentSuggestions(companyId, id);
+  }
+
+  /** Tier 808: book a transaction as a tax payment — where the reports read it
+   *  (the UStVA's payment, a UstPayment, a KSt / GewSt expense). ustva.submit,
+   *  as recording a UStVA payment by hand. */
+  @Post(':id/transactions/:txnId/book-tax')
+  @Require('ustva.submit')
+  async bookTax(
+    @Req() req: any,
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Param('txnId') txnId: string,
+    @Body() body: BookTaxPaymentDto,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const stmt = await this.svc.getStatement(companyId, id);
+    if (!stmt) throw new BadRequestException('Kontoauszug nicht gefunden');
+    if (!stmt.transactions.some((t) => t.id === txnId)) {
+      throw new BadRequestException('Transaktion gehört nicht zu diesem Kontoauszug');
+    }
+    return this.svc.bookTaxPayment(companyId, txnId, req?.user?.id || undefined, body);
   }
 
   /** Book a debit bank transaction (money leaving

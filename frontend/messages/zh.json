@@ -283,7 +283,13 @@
     "reopenCandidateConfirm": "确定撤销 {invoice}？将生成一张冲销凭证。",
     "statusReopened": "已撤销",
     "reversalVoucher": "冲销凭证",
-    "bookPaymentParts": "支付 {number}（共 {count} 笔支出）"
+    "bookPaymentParts": "支付 {number}（共 {count} 笔支出）",
+    "bookTax": "税款：{label}",
+    "bookTaxRefund": "退税：{label}",
+    "taxBooked": "{label} 已记为已缴纳",
+    "taxBookFailed": "税款未能记账",
+    "taxNoFiling": "已识别 {label} 的付款——这份预申报在系统里还没有保存为已申报。",
+    "taxAlreadyPaid": "已识别 {label} 的付款——这一期已经记过付款。"
   },
   "banking": {
     "title": "在线银行 (FinTS)",
