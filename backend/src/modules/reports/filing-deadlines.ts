@@ -269,7 +269,10 @@ export function allocatePrepayments(
   payments: Array<{ day: string; amount: number }>,
 ): Map<string, number | null> {
   const sorted = [...dues].sort((a, b) => a.due.localeCompare(b.due))
-  const pays = [...payments].filter((p) => p.amount !== 0).sort((a, b) => a.day.localeCompare(b.day))
+  // Tier 810: on one day the payments before what is taken back — a Storno
+  // dated with its payment came first in the database's order now and then,
+  // took nothing back, and the payment then paid the quarter
+  const pays = [...payments].filter((p) => p.amount !== 0).sort((a, b) => a.day.localeCompare(b.day) || b.amount - a.amount)
   const out = new Map<string, number | null>()
   if (pays.length === 0) {
     for (const d of sorted) out.set(d.due, null)

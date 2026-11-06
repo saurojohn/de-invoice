@@ -1450,8 +1450,10 @@ export class BankImportService {
     // Refuse if a reconciliation already exists —
     // the user can either confirm it (invoice path) or
     // reject it first, then book as expense.
+    // Tier 810: a rejected suggestion is no Zuordnung — the message says to
+    // reject first, and the rejected row still refused the booking.
     const existingRecon = await this.prisma.bankReconciliation.findFirst({
-      where: { bankTransactionId, companyId },
+      where: { bankTransactionId, companyId, status: { not: 'rejected' } },
     });
     if (existingRecon) {
       throw new BadRequestException(
@@ -1914,7 +1916,8 @@ export class BankImportService {
     const stmt = await this.prisma.bankStatement.findFirst({ where: { id: statementId, companyId }, select: { id: true } })
     if (!stmt) throw new NotFoundException('Kontoauszug nicht gefunden')
     const txns = await this.prisma.bankTransaction.findMany({
-      where: { statementId, companyId, voucherId: null, matches: { none: {} } },
+      // Tier 810: a rejected invoice suggestion does not hide the tax payment
+      where: { statementId, companyId, voucherId: null, matches: { none: { status: { not: 'rejected' } } } },
       select: { id: true, amount: true, valueDate: true, counterpartyName: true, purpose: true },
       orderBy: { valueDate: 'asc' },
     })
@@ -2003,7 +2006,7 @@ export class BankImportService {
       const txn = await this.prisma.bankTransaction.findFirst({ where: { id: bankTransactionId, companyId } })
       if (!txn) throw new NotFoundException('Transaktion nicht gefunden')
       if (txn.voucherId) throw new BadRequestException('Diese Buchung ist bereits gebucht')
-      if (await this.prisma.bankReconciliation.count({ where: { bankTransactionId, companyId } })) {
+      if (await this.prisma.bankReconciliation.count({ where: { bankTransactionId, companyId, status: { not: 'rejected' } } })) {
         throw new BadRequestException('Diese Buchung hat bereits eine Zuordnung — bitte zuerst ablehnen.')
       }
       const amount = Number(txn.amount)
@@ -2036,7 +2039,9 @@ export class BankImportService {
             category: body.kind === 'kst' ? 'Körperschaftsteuer' : 'Gewerbesteuer',
             accountNumber,
             status: 'booked',
-            notes: `Tier 808: aus dem Kontoauszug [banktxn:${txn.id}]`,
+            // Tier 810: tagged like a Tier 809 bank expense — a Storno of the
+            // payment writes its counter-entry (it was left as an open bill)
+            notes: `Tier 808: aus dem Kontoauszug [bank-expense:${txn.id}]`,
           },
         })
         try {
@@ -2049,7 +2054,11 @@ export class BankImportService {
         }
       }
 
-      // the VAT payments: the return or the UstPayment first checked, then the voucher, then the record
+      // the VAT payments: the return checked or the UstPayment written first,
+      // then the voucher, tagged with it — Tier 810: its Storno takes the
+      // payment back (voucher.service releaseBankBooking); before, the return
+      // stayed paid and the UstPayment counted after the Storno, and the
+      // freed transaction could be booked a second time
       let filingId: string | null = null
       if (body.kind === 'ustva') {
         if (!body.month === !body.quarter) throw new BadRequestException('Für eine UStVA genau einen Monat oder ein Quartal angeben')
@@ -2068,26 +2077,35 @@ export class BankImportService {
       const lines = refund
         ? [{ accountId: bank.id, description: `Bank ${counterparty}`, debit: abs, credit: 0 }, { accountId: vat.id, description: label, debit: 0, credit: abs }]
         : [{ accountId: vat.id, description: label, debit: abs, credit: 0 }, { accountId: bank.id, description: `Bank ${counterparty}`, debit: 0, credit: abs }]
-      const voucher = await this.voucherService.create({
-        companyId,
-        date: txn.valueDate,
-        description: `${refund ? 'Erstattung' : 'Zahlung'} ${label} — ${counterparty}`,
-        referenceType: 'BankTransaction',
-        lines,
-      })
+      const pay = filingId
+        ? null
+        : await this.ustva.createUstPayment(companyId, {
+          kind: body.kind === 'svz' ? 'sondervorauszahlung' : 'ustja',
+          year: body.year,
+          paidAt: day,
+          amount: Math.round(-amount * 100) / 100,
+          note: `Bank ${counterparty}`.slice(0, 200),
+        })
+      let voucher: Awaited<ReturnType<VoucherService['create']>>
+      try {
+        voucher = await this.voucherService.create({
+          companyId,
+          date: txn.valueDate,
+          description: `${refund ? 'Erstattung' : 'Zahlung'} ${label} — ${counterparty}${filingId ? ` [ustva-filing:${filingId}]` : ` [ust-payment:${pay!.id}]`}`,
+          referenceType: 'BankTransaction',
+          lines,
+        })
+      } catch (e) {
+        // the UstPayment was written for this booking only
+        if (pay) await this.prisma.ustPayment.delete({ where: { id: pay.id } }).catch(() => undefined)
+        throw e
+      }
       await this.prisma.bankTransaction.update({ where: { id: txn.id }, data: { voucherId: voucher.id } })
       if (filingId) {
         await this.ustva.recordFilingPayment(companyId, filingId, { paidAt: day, amount: -amount })
         return { kind: body.kind, label, voucherId: voucher.id, filingId }
       }
-      const pay = await this.ustva.createUstPayment(companyId, {
-        kind: body.kind === 'svz' ? 'sondervorauszahlung' : 'ustja',
-        year: body.year,
-        paidAt: day,
-        amount: Math.round(-amount * 100) / 100,
-        note: `Bank ${counterparty}`.slice(0, 200),
-      })
-      return { kind: body.kind, label, voucherId: voucher.id, ustPaymentId: pay.id }
+      return { kind: body.kind, label, voucherId: voucher.id, ustPaymentId: pay!.id }
     })
   }
 

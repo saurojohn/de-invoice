@@ -2,7 +2,7 @@ import { withKeyLock } from '../../common/key-lock';
 import { assertBooksOpen } from '../reports/filed-period';
 import { DOCUMENT_NAMES, ISSUED_STATUSES, SALES_TYPES } from '../invoice/document-scope';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { businessTodayDate } from '../../common/business-date';
+import { businessDayIso, businessTodayDate } from '../../common/business-date';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountService } from './account.service';
@@ -482,6 +482,34 @@ export class VoucherService {
       where: { companyId, voucherId: original.id },
       data: { voucherId: null },
     });
+    // Tier 810: a tax payment booked from the bank (Tier 808) — its Storno
+    // takes the payment back: the return is unpaid again (if this booking
+    // paid it), the UstPayment gets its counter-entry, dated with the Storno.
+    const filingTag = /\[ustva-filing:([0-9a-f-]{36})\]/.exec(original.description || '')?.[1];
+    if (filingTag) {
+      const f = await this.prisma.uStvaFiling.findFirst({ where: { id: filingTag, companyId }, select: { paidAt: true } });
+      // only the payment of this booking (a date entered by hand since stays)
+      if (f?.paidAt && businessDayIso(f.paidAt) === businessDayIso(original.date)) {
+        await this.prisma.uStvaFiling.update({ where: { id: filingTag }, data: { paidAt: null, paidAmount: null } });
+      }
+    }
+    const paymentTag = /\[ust-payment:([0-9a-f-]{36})\]/.exec(original.description || '')?.[1];
+    if (paymentTag) {
+      const pay = await this.prisma.ustPayment.findFirst({ where: { id: paymentTag, companyId } });
+      const done = pay && (await this.prisma.ustPayment.count({ where: { companyId, note: { contains: `[ust-payment-storno:${pay.id}]` } } }));
+      if (pay && !done) {
+        await this.prisma.ustPayment.create({
+          data: {
+            companyId,
+            kind: pay.kind,
+            year: pay.year,
+            paidAt: businessTodayDate(),
+            amount: pay.amount.neg(),
+            note: `Storno ${stornoNumber} [ust-payment-storno:${pay.id}]`,
+          },
+        });
+      }
+    }
     // Tier 452: a Skonto credit note written with this payment goes with it.
     await this.prisma.expense.deleteMany({
       where: { companyId, notes: { contains: `[skonto-voucher:${original.id}]` } },
