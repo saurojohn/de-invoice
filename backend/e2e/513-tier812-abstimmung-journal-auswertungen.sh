@@ -102,8 +102,8 @@ assert_eq "a correction of a document's voucher: only the one that changes an am
   "$(P "[(e['origin'], [(l['accountNumber'], l['debit'], l['credit']) for l in e['lines']]) for e in d['entries'] if e['voucherNumber'].startswith(tuple(v for v in ['$(q "select \"voucherNumber\" from \"Voucher\" where id='$VP'")', '$(q "select \"voucherNumber\" from \"Voucher\" where id='$VT'")']))]")" \
   "[('correction', [('4900', 10, 0)])]"
 assert_eq "…totals: +10 € costs (60 instead of 50), VAT unchanged (9,50 both)" \
-  "$(python3 -c "import sys,json;b=eval(sys.argv[1]);a=json.loads(sys.argv[2])['totals'];print({k: round(a[k]-b[k],2) for k in a})" "$BEFORE" "$BODY")" \
-  "{'aufwand': 10.0, 'ertrag': 0.0, 'steuer': 0.0}"
+  "$(python3 -c "import sys,json;b=eval(sys.argv[1]);a=json.loads(sys.argv[2])['totals'];print(' '.join('%s=%.2f' % (k, a[k]-b[k]) for k in sorted(a)))" "$BEFORE" "$BODY")" \
+  "aufwand=10.00 ertrag=0.00 steuer=0.00"
 
 AS GET "/api/v1/accounting/abstimmung?companyId=$C&year=$((Y - 1))"
 assert_eq "another year: nothing" "$(P "len(d['entries'])")" "0"
