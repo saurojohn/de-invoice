@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 810b — CI green for Tier 809 and 810
+
+Run 42244347810 (Tier 809, 66005937): backend **509 passed / 0 failed / 1 skipped** (510 among them), Playwright **1130 passed (40.5 m)** (`bank-expense-dialog-tier809` among them). Run 42251055075 (Tier 810, 3b100ef8): backend **510 passed / 0 failed / 1 skipped** (511 among them), Playwright **1130 passed (33.2 m)**. Both: 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 810 — the review of Tiers 806–809: a rejected suggestion no longer blocks a booking; the Storno of a tax payment takes the payment back
 
 Reviewed: the reminders per admin (806), the ZM rule and the marks (807), the bank tax payments (808), the bank expenses (809), and their pages. The reminder claims, `zmMonthly` (§ 18a Abs. 1: monthly while any of the running and the four quarters before is over 50 000 €), the ZM card's month and the mark button (admin only, as `ustva.submit` is `ROLES.ADMIN`) hold. Four findings, fixed:
