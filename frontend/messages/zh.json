@@ -1897,7 +1897,10 @@
     "mandatory_legalForm": "名称中含法律形式（如“… GmbH”）",
     "mandatory_register": "商业登记（登记法院和编号）",
     "mandatory_directors": "总经理（全部）",
-    "mandatory_board": "董事会（全部成员）"
+    "mandatory_board": "董事会（全部成员）",
+    "datevAccount_ustPrepayment": "增值税预缴 (1780)",
+    "datevAccount_tradeTax": "营业税 (4320)",
+    "datevAccount_corporateTax": "企业所得税 (2200)"
   },
   "statement": {
     "title": "客户对账单",

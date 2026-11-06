@@ -1897,7 +1897,10 @@
     "mandatory_legalForm": "Legal form in the name (e.g. “… GmbH”)",
     "mandatory_register": "Commercial register (court and number)",
     "mandatory_directors": "Managing directors (all)",
-    "mandatory_board": "Board (all members)"
+    "mandatory_board": "Board (all members)",
+    "datevAccount_ustPrepayment": "VAT prepayments (1780)",
+    "datevAccount_tradeTax": "Trade tax (4320)",
+    "datevAccount_corporateTax": "Corporate income tax (2200)"
   },
   "statement": {
     "title": "Customer Statement",

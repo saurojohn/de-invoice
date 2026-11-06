@@ -1897,7 +1897,10 @@
     "mandatory_legalForm": "Rechtsform im Namen (z. B. „… GmbH“)",
     "mandatory_register": "Handelsregister (Registergericht und Nummer)",
     "mandatory_directors": "Geschäftsführer (alle)",
-    "mandatory_board": "Vorstand (alle Mitglieder)"
+    "mandatory_board": "Vorstand (alle Mitglieder)",
+    "datevAccount_ustPrepayment": "Umsatzsteuer-Vorauszahlungen (1780)",
+    "datevAccount_tradeTax": "Gewerbesteuer (4320)",
+    "datevAccount_corporateTax": "Körperschaftsteuer (2200)"
   },
   "statement": {
     "title": "Kontoauszug",
