@@ -180,7 +180,7 @@ export async function euerExpenses(prisma: PrismaService, companyId: string, sta
       // Tier 483: the input tax paid is its own EÜR line (gezahlte Vorsteuer)
       // Tier 503: id for the gift limit (accounting/gifts.ts)
       // Tier 539: the Bewirtung record, for the hint
-      select: { id: true, netAmount: true, grossAmount: true, vatAmount: true, category: true, bewirtungAnlass: true, bewirtungTeilnehmer: true },
+      select: { id: true, netAmount: true, grossAmount: true, vatAmount: true, category: true, accountNumber: true, bewirtungAnlass: true, bewirtungTeilnehmer: true },
     }),
     prisma.expense.count({
       where: { ...scope, paidAt: null, invoiceDate: { gte: start, lte: end } },

@@ -438,7 +438,7 @@ export class AnlageGService {
           status: { in: ['booked', 'deductible'] },
           ...NOT_AFA_BOOKING, // Tier 438: the booked AfA is line 2500, below
         },
-        select: { id: true, netAmount: true, grossAmount: true, category: true },
+        select: { id: true, netAmount: true, grossAmount: true, category: true, accountNumber: true },
       })
     // Tier 503: gifts above the 50 € limit are no Betriebsausgabe — neither
     // their cost nor their input tax (accounting/gifts.ts).

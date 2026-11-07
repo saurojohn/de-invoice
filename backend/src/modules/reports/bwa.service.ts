@@ -324,7 +324,7 @@ export class BwaService {
           OR: [{ category: null }, { category: { not: 'AfA' } }],
           invoiceDate: { gte: yearStart, lte: monthEnd },
         },
-        select: { netAmount: true, grossAmount: true, category: true, invoiceDate: true },
+        select: { netAmount: true, grossAmount: true, category: true, invoiceDate: true, accountNumber: true },
       }),
       this.prisma.asset.findMany({ where: { companyId } }),
       this.prisma.expense.findMany({
@@ -515,7 +515,7 @@ export class BwaService {
           OR: [{ category: null }, { category: { not: 'AfA' } }],
           invoiceDate: { gte: vorjahresYtdStart, lte: vorjahresYtdEnd },
         },
-        select: { netAmount: true, grossAmount: true, category: true },
+        select: { netAmount: true, grossAmount: true, category: true, accountNumber: true },
       }),
       this.prisma.expense.findMany({
         where: {

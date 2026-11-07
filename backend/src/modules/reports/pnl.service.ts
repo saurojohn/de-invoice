@@ -1,4 +1,5 @@
 import { assetDisposals } from '../assets/disposals'
+import { isAssetPurchase } from '../accounting/expense-cost'
 import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -176,7 +177,7 @@ export class PnlService {
     const expenseRows = (start: Date, end: Date) =>
       this.prisma.expense.findMany({
         where: { companyId, invoiceDate: { gte: start, lte: end } },
-        select: { invoiceDate: true, netAmount: true, category: true, status: true, relatedAssetId: true },
+        select: { invoiceDate: true, netAmount: true, category: true, status: true, relatedAssetId: true, accountNumber: true },
       })
     const [cyExpenses, pyExpenses] = await Promise.all([
       expenseRows(yearStart, yearEnd),
@@ -191,7 +192,8 @@ export class PnlService {
         const cents = Math.round(Number(e.netAmount ?? 0) * 100)
         const booked = e.status === 'booked' || e.status === 'deductible'
         if (booked && /^(Material|Waren)/.test(e.category ?? '')) b.mat += cents
-        if (booked && e.relatedAssetId == null) b.exp += cents
+        // Tier 815: an asset's purchase (an Anlagekonto) is no cost — its AfA is
+        if (booked && e.relatedAssetId == null && !isAssetPurchase(e.accountNumber)) b.exp += cents
         if (e.relatedAssetId != null) b.afa += cents
         out.set(idx, b)
       }

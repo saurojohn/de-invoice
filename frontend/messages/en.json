@@ -4605,6 +4605,9 @@
     "toBank": "bank import: \"Take into the expenses\"",
     "truncated": "Only the first 2,000 vouchers of the year were checked.",
     "failed": "The reconciliation could not be loaded.",
-    "formWarning": "A manual voucher on an expense, revenue or tax account is in the journal and the DATEV export, but not in the EÜR, P&L, BWA, balance sheet or VAT return. Record an invoice, expense or cash entry there instead."
+    "formWarning": "A manual voucher on an expense, revenue or tax account is in the journal and the DATEV export, but not in the EÜR, P&L, BWA, balance sheet or VAT return. Record an invoice, expense or cash entry there instead.",
+    "assetsTitle": "Purchases with no asset in the asset register",
+    "assetsHint": "An expense on a fixed-asset account (0…) is the purchase of an asset: it lowers the profit through its depreciation, not by itself. Without the asset in the register there is no depreciation — the cost is missing from every report.",
+    "toAssets": "to the asset register"
   }
 }

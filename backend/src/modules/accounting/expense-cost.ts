@@ -17,6 +17,25 @@ export interface CostExpense {
   netAmount?: Num
   grossAmount?: Num
   category?: string | null
+  /** Tier 815: the Sachkonto — an Anlagekonto makes it the purchase of an asset */
+  accountNumber?: string | null
+}
+
+/**
+ * Tier 815 — an expense on an Anlagekonto (class 0 of SKR03 and of SKR04:
+ * 0027 Software, 0400 Betriebsausstattung, 0320 Pkw, 0480 GWG, …) is the
+ * purchase of a fixed asset, not a cost: it is capitalised, and its cost
+ * reaches the profit through the AfA of the asset register (§ 6, § 7 EStG;
+ * § 4 Abs. 3 Satz 3, 4 EStG for the EÜR; § 253 HGB). Measured in the
+ * year-end dry run: a laptop of 1 500 € net entered on 0400 and in the
+ * asset register stood in the GuV, the EÜR and the BWA as 1 500 € of
+ * „sonstige Aufwendungen" and again as 416,67 € AfA — the profit 1 500 €
+ * too low, the KSt and GewSt with it. Its input tax stays deductible (UStVA)
+ * and, in the EÜR, a Betriebsausgabe when paid. An expense on 0xxx with no
+ * asset behind it is listed by the Abstimmung (journal-reconciliation.ts).
+ */
+export function isAssetPurchase(accountNumber: string | null | undefined): boolean {
+  return /^0\d{3}$/.test(String(accountNumber ?? '').trim())
 }
 
 /**
@@ -84,6 +103,7 @@ export function rawExpenseCost(e: CostExpense, kleinunternehmer: boolean): numbe
 }
 
 export function expenseCost(e: CostExpense, kleinunternehmer: boolean): number {
+  if (isAssetPurchase(e.accountNumber)) return 0 // Tier 815: its AfA is the cost
   return notAnExpense(e.category) ? 0 : rawExpenseCost(e, kleinunternehmer)
 }
 

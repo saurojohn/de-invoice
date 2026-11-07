@@ -270,6 +270,7 @@ export class GuVService {
         vatAmount: true,
         grossAmount: true,
         category: true,
+        accountNumber: true, // Tier 815: an asset's purchase is no cost (expense-cost.ts)
       },
     })
 

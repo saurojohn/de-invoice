@@ -2,6 +2,7 @@ import { flowFromLeft } from '../../common/pdf-flow'
 import { resolveRechtsform, isKapitalgesellschaft as isKapitalgesellschaftFn } from '../company/rechtsform'
 import { expenseCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { nonDeductibleGifts } from './gifts'
+import { prepaymentsOfYear } from './prepayments-of-year'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { GuVService } from './guv.service'
@@ -329,11 +330,19 @@ export class KSt1Service {
     // Zu zahlen = KSt + Soli + GewSt. Tier 439: no credit of the GewSt
     // against the KSt — § 35 EStG is for natural persons (see the header).
     const zuZahlen = round2(kst + soli + gewst)
-    // Tier 507: the prepayments of the year — KSt (+ Soli) and GewSt, as
-    // recorded (settings.kstVorauszahlungen / gewstVorauszahlungen).
-    const sumQ = (v: any) => ['q1', 'q2', 'q3', 'q4'].reduce((s, q) => s + (Number(v?.[q]) || 0), 0)
-    const vorauszahlungen = round2(sumQ(settings.kstVorauszahlungen?.[year]) + sumQ(settings.gewstVorauszahlungen?.[year]))
+    // Tier 507: the prepayments of the year — KSt (+ Soli) and GewSt.
+    // Tier 815: what was paid for the year (the prepayments booked, e.g. from
+    // the bank, Tier 808), else what was entered (prepayments-of-year.ts).
+    // Was: the entered amounts only — a KSt prepayment paid but not entered
+    // stayed in the Bilanz's tax provision.
+    const pre = await prepaymentsOfYear(this.prisma, companyId, year, settings, company.bundesland)
+    const vorauszahlungen = round2(pre.kst.used + pre.gewst.used)
     const verbleibend = round2(zuZahlen - vorauszahlungen)
+    const kz60 = corrections.find((l) => l.kennziffer === '60')
+    if (kz60 && vorauszahlungen) {
+      // one wording (the interface translates it by its text, numbers masked)
+      kz60.note = `Vorauszahlungen für ${year}: KSt/Soli ${pre.kst.used.toFixed(2)} €, GewSt ${pre.gewst.used.toFixed(2)} € — die gebuchten Zahlungen, ohne solche die eingetragenen Beträge; unten mit der Steuer verrechnet, nicht im Einkommen.`
+    }
 
     return {
       year,

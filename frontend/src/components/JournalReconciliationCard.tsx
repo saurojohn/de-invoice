@@ -30,6 +30,8 @@ interface Result {
   entries: Entry[]
   totals: Record<Kind, number>
   truncated: boolean
+  /** Tier 815: purchases on an Anlagekonto with no asset in the register */
+  assetPurchases?: Array<{ id: string; date: string; description: string; accountNumber: string; net: number }>
 }
 
 const day = (iso: string) => iso.split("-").reverse().join(".")
@@ -73,7 +75,21 @@ export function JournalReconciliationCard() {
       <CardContent className="space-y-3 text-sm">
         <p className="text-gray-600 dark:text-gray-300">{t("abstimmung.intro")}</p>
         {failed && <p className="text-red-700 dark:text-red-400">{t("abstimmung.failed")}</p>}
-        {data && data.entries.length === 0 && (
+        {data && (data.assetPurchases?.length ?? 0) > 0 && (
+          <div className="rounded border border-amber-300 dark:border-amber-700 p-3" data-testid="abstimmung-asset-purchases">
+            <p className="font-medium text-amber-800 dark:text-amber-300">{t("abstimmung.assetsTitle")}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t("abstimmung.assetsHint")}</p>
+            <ul className="mt-2 space-y-1">
+              {data.assetPurchases!.map((a) => (
+                <li key={a.id} className="text-xs font-mono" data-testid="abstimmung-asset-purchase">
+                  {day(a.date)} · {a.accountNumber} · {formatMoney(a.net)} · {a.description}
+                </li>
+              ))}
+            </ul>
+            <Link href="/dashboard/assets" className="text-xs underline">{t("abstimmung.toAssets")}</Link>
+          </div>
+        )}
+        {data && data.entries.length === 0 && (data.assetPurchases?.length ?? 0) === 0 && (
           <p className="text-emerald-700 dark:text-emerald-400" data-testid="abstimmung-ok">{t("abstimmung.ok").replace("{year}", String(data.year))}</p>
         )}
         {data && data.entries.length > 0 && (

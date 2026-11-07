@@ -4605,6 +4605,9 @@
     "toBank": "im Bankimport „In die Ausgaben übernehmen\"",
     "truncated": "Nur die ersten 2 000 Belege des Jahres sind geprüft.",
     "failed": "Die Abstimmung konnte nicht geladen werden.",
-    "formWarning": "Ein manueller Beleg auf einem Aufwands-, Erlös- oder Steuerkonto steht im Journal und im DATEV-Export, aber nicht in EÜR, GuV, BWA, Bilanz und UStVA. Eine Rechnung, Ausgabe oder Kassenbuchung erfassen Sie besser dort."
+    "formWarning": "Ein manueller Beleg auf einem Aufwands-, Erlös- oder Steuerkonto steht im Journal und im DATEV-Export, aber nicht in EÜR, GuV, BWA, Bilanz und UStVA. Eine Rechnung, Ausgabe oder Kassenbuchung erfassen Sie besser dort.",
+    "assetsTitle": "Anschaffungen ohne Anlage im Anlagenverzeichnis",
+    "assetsHint": "Eine Ausgabe auf einem Anlagekonto (0…) ist die Anschaffung eines Wirtschaftsguts: Sie mindert den Gewinn nicht selbst, sondern über die AfA. Ohne die Anlage im Anlagenverzeichnis gibt es keine AfA — die Kosten fehlen in jeder Auswertung.",
+    "toAssets": "zum Anlagenverzeichnis"
   }
 }

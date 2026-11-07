@@ -4,7 +4,8 @@ import { test, expect } from "@playwright/test"
  * Tier 812 — the journal against the reports: the accounting page lists the
  * vouchers that are in the journal and DATEV and in no report, and the
  * „Neuer Beleg" form says so when an expense, revenue or VAT account is
- * picked. A fresh company, so nothing is left on the shared one.
+ * picked. A fresh company, so nothing is left on the shared one. Tier 815: a
+ * purchase on an Anlagekonto with no asset in the register is listed too.
  */
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
@@ -30,6 +31,12 @@ test("a manual voucher on an expense account is listed as missing from the repor
     },
   })
   expect(made.status(), "manual voucher").toBe(201)
+  // Tier 815: a purchase on an Anlagekonto with no asset in the register
+  const printer = await request.post(`${API}/api/v1/expenses?${q}`, {
+    headers: H,
+    data: { description: `Drucker ${tag}`, invoiceDate: `${year}-01-20`, netAmount: 900, vatRate: 0.19, vatAmount: 171, grossAmount: 1071, category: "Betriebsausstattung", accountNumber: "0400" },
+  })
+  expect(printer.status(), "asset purchase").toBe(201)
 
   await page.context().addCookies([
     { name: "x-user-id", value: userId, domain: "localhost", path: "/" },
@@ -48,6 +55,7 @@ test("a manual voucher on an expense account is listed as missing from the repor
   await expect(card.getByTestId("abstimmung-entry")).toHaveCount(1, { timeout: 30_000 })
   await expect(card.getByTestId("abstimmung-summary")).toContainText("1.000,00")
   await expect(card.getByTestId("abstimmung-entry")).toContainText("4900")
+  await expect(card.getByTestId("abstimmung-asset-purchase")).toContainText(`Drucker ${tag}`)
   // last year: nothing booked, nothing missing
   await card.getByTestId("abstimmung-year").selectOption(String(year - 1))
   await expect(card.getByTestId("abstimmung-ok")).toBeVisible({ timeout: 30_000 })

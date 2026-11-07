@@ -27,6 +27,7 @@
  */
 import { PrismaService } from '../../prisma/prisma.service'
 import { businessDayIso, dayEnd, dayStart } from '../../common/business-date'
+import { isAssetPurchase } from './expense-cost'
 
 export type ReconKind = 'aufwand' | 'ertrag' | 'steuer'
 export type ReconOrigin = 'manual' | 'correction' | 'bank-expense'
@@ -158,5 +159,42 @@ export async function journalReconciliation(prisma: PrismaService, companyId: st
     })
     : []
   const roots = new Map(rootRows.map((r) => [r.voucherNumber, r]))
-  return { year, ...reconcile(vouchers, roots), truncated: vouchers.length === 2000 }
+  return { year, ...reconcile(vouchers, roots), truncated: vouchers.length === 2000, assetPurchases: await assetPurchasesWithoutAsset(prisma, companyId, year) }
+}
+
+/**
+ * Tier 815 — an expense on an Anlagekonto is the purchase of an asset: it
+ * costs nothing in the reports, its AfA does (expense-cost.ts isAssetPurchase).
+ * Without its asset in the register there is no AfA, and the cost is in no
+ * report at all. Listed: the year's purchases with no asset of the same net
+ * cost acquired within 120 days (each asset answers one purchase).
+ */
+export async function assetPurchasesWithoutAsset(prisma: PrismaService, companyId: string, year: number) {
+  const purchases = (await prisma.expense.findMany({
+    where: {
+      companyId,
+      status: { in: ['booked', 'deductible'] },
+      invoiceDate: { gte: dayStart(year, 0, 1), lte: dayEnd(year, 11, 31) },
+      accountNumber: { startsWith: '0' },
+      relatedAssetId: null,
+    },
+    select: { id: true, invoiceDate: true, description: true, accountNumber: true, netAmount: true, grossAmount: true },
+    orderBy: { invoiceDate: 'asc' },
+  })).filter((e) => isAssetPurchase(e.accountNumber) && Number(e.grossAmount) > 0)
+  if (!purchases.length) return []
+  const assets = await prisma.asset.findMany({
+    where: { companyId, anschaffungsDatum: { gte: dayStart(year - 1, 8, 1), lte: dayEnd(year + 1, 3, 30) } },
+    select: { id: true, anschaffungsDatum: true, anschaffungsKosten: true },
+  })
+  const used = new Set<string>()
+  const DAY = 24 * 60 * 60 * 1000
+  return purchases
+    .filter((e) => {
+      const hit = assets.find((a) => !used.has(a.id)
+        && Math.abs(Number(a.anschaffungsKosten) - Number(e.netAmount)) < 0.01
+        && Math.abs(a.anschaffungsDatum.getTime() - e.invoiceDate.getTime()) <= 120 * DAY)
+      if (hit) used.add(hit.id)
+      return !hit
+    })
+    .map((e) => ({ id: e.id, date: businessDayIso(e.invoiceDate), description: e.description, accountNumber: e.accountNumber, net: r2(Number(e.netAmount)) }))
 }

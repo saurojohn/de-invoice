@@ -1,4 +1,5 @@
 import { flowFromLeft } from '../../common/pdf-flow'
+import { prepaymentsOfYear } from './prepayments-of-year'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AnlageGService } from './anlage-g.service'
@@ -127,8 +128,11 @@ export class GewstService {
     const vq2 = Number(vorauszahlungenYear.q2) || 0
     const vq3 = Number(vorauszahlungenYear.q3) || 0
     const vq4 = Number(vorauszahlungenYear.q4) || 0
-    const vorauszahlungenTotal = vq1 + vq2 + vq3 + vq4
-    const hasVorauszahlungen = vorauszahlungenTotal > 0
+    // Tier 815: Kz 11 is what was paid for the year (the GewSt prepayments
+    // booked), else the four amounts entered — as KSt 1 and the Bilanz count it
+    const pre = (await prepaymentsOfYear(this.prisma, companyId, year, settings, (await this.prisma.company.findUnique({ where: { id: companyId }, select: { bundesland: true } }))?.bundesland)).gewst
+    const vorauszahlungenTotal = pre.used
+    const hasVorauszahlungen = vorauszahlungenTotal !== 0
 
     // ── BMF Vordruck GewSt 1A lines ──────────────
     const messzahl = 0.035
@@ -159,12 +163,16 @@ export class GewstService {
       },
       {
         kennziffer: '11',
-        label: 'Summe Vorauszahlungen (Q1 + Q2 + Q3 + Q4, manuell vom Berater)',
+        label: pre.source === 'paid' ? 'Summe Vorauszahlungen (gezahlt, aus den gebuchten Zahlungen)' : 'Summe Vorauszahlungen (Q1 + Q2 + Q3 + Q4, manuell vom Berater)',
         amount: round2(vorauszahlungenTotal),
-        source: hasVorauszahlungen ? 'manual' : 'placeholder',
-        note: hasVorauszahlungen
-          ? undefined
-          : 'Der Berater trägt die tatsächlichen Vorauszahlungen aus den 4 Quartalsbescheiden auf der Seite Buchhaltung unter Gewerbesteuer ein.',
+        source: pre.source === 'paid' ? 'computed' : hasVorauszahlungen ? 'manual' : 'placeholder',
+        note: pre.source === 'paid'
+          ? pre.entered && Math.abs(pre.entered - pre.paid) > 0.005
+            ? `Die für ${year} gebuchten Gewerbesteuer-Vorauszahlungen — eingetragen sind ${pre.entered.toFixed(2)} €.`
+            : `Die für ${year} gebuchten Gewerbesteuer-Vorauszahlungen.`
+          : hasVorauszahlungen
+            ? 'Eingetragen; keine Zahlung gebucht.'
+            : 'Der Berater trägt die tatsächlichen Vorauszahlungen aus den 4 Quartalsbescheiden auf der Seite Buchhaltung unter Gewerbesteuer ein.',
       },
       {
         kennziffer: '12',

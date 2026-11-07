@@ -75,12 +75,31 @@ import { EBilanzService } from './ebilanz.service';
 import { GobdArchiveService } from './gobd-archive.service';
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
+import { assertBooksOpen } from '../reports/filed-period';
 import { Require } from '../../auth/roles.decorator';
 import { cleanRow as cleanSoRow } from './anlage-so-rules';
 import { AnlageSOV2Service } from './anlage-so-v2.service';
 import { companySettingsTransaction } from '../../common/company-settings'
 
 const WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+/**
+ * Tier 815: the prepayments of a year whose books are closed are not changed —
+ * they reduce that year's tax provision in its Bilanz (prepayments-of-year.ts),
+ * which the closing (Festschreibung, Tier 609) keeps as it was. Saving them
+ * unchanged (the page saves the Hebesatz with the year shown) passes.
+ */
+async function assertPrepaymentsOpen(
+  db: Parameters<typeof assertBooksOpen>[0],
+  companyId: string,
+  year: number,
+  before: Record<string, unknown> | undefined,
+  after: Record<string, number>,
+  what: string,
+) {
+  const same = ['q1', 'q2', 'q3', 'q4'].every((q) => (Number(before?.[q]) || 0) === after[q])
+  if (!same) await assertBooksOpen(db, companyId, [`${year}-12-31T12:00:00Z`], `das Ändern der ${what} ${year}`)
+}
 
 @Controller('accounting')
 export class AccountingController {
@@ -1557,7 +1576,9 @@ export class AccountingController {
         const n = Number(v)
         return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0
       }
-      all[body.year] = { q1: toNum(body.q1), q2: toNum(body.q2), q3: toNum(body.q3), q4: toNum(body.q4) }
+      const nextYear = { q1: toNum(body.q1), q2: toNum(body.q2), q3: toNum(body.q3), q4: toNum(body.q4) }
+      await assertPrepaymentsOpen(tx as any, companyId, body.year, all[body.year], nextYear, 'KSt-Vorauszahlungen')
+      all[body.year] = nextYear
       await tx.company.update({
         where: { id: companyId },
         data: { settings: { ...settings, kstVorauszahlungen: all } } as any,
@@ -1592,12 +1613,9 @@ export class AccountingController {
         const n = Number(v)
         return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0
       }
-      vorauszahlungenAll[body.year] = {
-        q1: toNum(body.q1),
-        q2: toNum(body.q2),
-        q3: toNum(body.q3),
-        q4: toNum(body.q4),
-      }
+      const nextYear = { q1: toNum(body.q1), q2: toNum(body.q2), q3: toNum(body.q3), q4: toNum(body.q4) }
+      await assertPrepaymentsOpen(tx as any, companyId, body.year, vorauszahlungenAll[body.year], nextYear, 'Gewerbesteuer-Vorauszahlungen')
+      vorauszahlungenAll[body.year] = nextYear
       const next: Record<string, any> = {
         ...settings,
         gewstVorauszahlungen: vorauszahlungenAll,
