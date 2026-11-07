@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 816b — CI green for Tier 816
+
+Run 42368162600 (Tier 816, 96568ccb): backend **515 passed / 0 failed / 1 skipped** (516 among them), Playwright **1137 passed (35.9 m)** (`ustva-manual-vat-tier816` among them); 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 816 — manual vouchers in the reports, decided as an accountant: GuV / BWA / Bilanz count them, the EÜR when money moved, the UStVA shows their VAT
 
 The question Tier 812 left open — the owner answered on 07.11.2026 „你来以会计师的角度决定" (decide it as an accountant). Decided, `accounting/manual-journal.ts`:
