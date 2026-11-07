@@ -8,6 +8,7 @@ import PDFDocument from 'pdfkit';
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { bewirtungNachweisFehlt, deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense-cost'
+import { manualJournalLines, type ManualKind } from './manual-journal'
 import { bookedAfaCost } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
@@ -110,6 +111,12 @@ export interface EuerResult {
 // expense via a settings page.
 type RevenueCtx = { kleinunternehmer: boolean }
 const isTaxFreeSupply = (inv: any) => inv.reverseCharge === true || inv.euTransaction === true
+
+/** Tier 816: the Kennziffer of a manual voucher's line (manual-journal.ts); income taxes have none. */
+const EUER_MANUAL_KZ: Partial<Record<ManualKind, string>> = {
+  umsatz: '4190', ertrag: '4190', zinsertrag: '4190',
+  material: '4300', personal: '5100', raum: '5400', afa: '4600', zins: '5900', sonstige: '5900',
+}
 
 const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx: RevenueCtx) => boolean }> = [
   {
@@ -367,6 +374,15 @@ export class EuerService {
 
     ausgabenBuckets.set('4600', (await bookedAfaCost(this.prisma, companyId, year)).amount)
     ausgabenBuckets.set('4610', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
+    // Tier 816: the journal's own bookings that moved money — a manual voucher
+    // with a line on a cash or bank account (manual-journal.ts; § 4 Abs. 3
+    // EStG knows no accrual entry). Income taxes are no Betriebsausgabe.
+    for (const l of await manualJournalLines(this.prisma, companyId, yearStart, yearEnd, { cashOnly: true })) {
+      const kz = EUER_MANUAL_KZ[l.kind]
+      if (!kz) continue
+      const buckets = kz.startsWith('41') ? einnahmenBuckets : ausgabenBuckets
+      buckets.set(kz, (buckets.get(kz) || 0) + l.amount)
+    }
 
     // Build the final lines in the order the BMF
     // uses (so the PDF/UI reads top-to-bottom in

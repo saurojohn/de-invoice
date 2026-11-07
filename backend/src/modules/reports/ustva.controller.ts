@@ -177,6 +177,24 @@ export class UstvaController {
     return this.ustva.compute(companyId, year, quarter, month);
   }
 
+  /** Tier 816: the VAT of the period's manual vouchers — not in the return,
+   *  shown beside it (manual-journal.ts manualVat). */
+  @Get('manual-vat')
+  @Require('ustva.read')
+  async manualVat(
+    @Query('companyId') companyId: string,
+    @Query('year') yearStr: string,
+    @Query('quarter') quarterStr?: string,
+    @Query('month') monthStr?: string,
+  ) {
+    if (!companyId || !yearStr) throw new BadRequestException('companyId and year are required');
+    const year = parseInt(yearStr, 10);
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new BadRequestException('year ist ungültig');
+    const quarter = quarterStr ? parseInt(quarterStr, 10) : undefined;
+    const month = monthStr ? parseInt(monthStr, 10) : undefined;
+    return this.ustva.manualVatOf(companyId, year, quarter, month);
+  }
+
   // Tier 177: UStVA-PDF. Phase 3 Berater-Walkthrough
   // found that USER-GUIDE Pfad 4.2 promised a
   // "UStVA-PDF" download but no such endpoint

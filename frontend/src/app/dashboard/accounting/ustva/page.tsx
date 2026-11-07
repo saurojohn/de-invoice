@@ -152,6 +152,8 @@ function UstvaPageInner() {
   const yearField = useYearField(year, (y) => { periodTouched.current = true; setYear(y) })
   const [period, setPeriod] = useState<PeriodMode>("year")
   const [data, setData] = useState<UstvaData | null>(null)
+  // Tier 816: the VAT of the period's manual vouchers — not in the return
+  const [manualVat, setManualVat] = useState<{ vorsteuer: number; umsatzsteuer: number; vouchers: Array<{ voucherNumber: string; date: string; accountNumber: string; name: string; amount: number }> } | null>(null)
   const [filings, setFilings] = useState<UstvaFiling[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -283,15 +285,17 @@ function UstvaPageInner() {
       // which crashed the entire page via the
       // error boundary. apiGet injects x-user-id
       // + x-company-id from localStorage.
-      const [compute, filingList, expList, supList] = await Promise.all([
+      const [compute, filingList, expList, supList, mv] = await Promise.all([
         apiGet<any>(`/api/v1/ustva/compute?companyId=${companyId}&${q}`).catch(() => null),
         apiGet<any[]>(`/api/v1/ustva/filings?companyId=${companyId}`).catch(() => []),
         apiGet<any[]>(`/api/v1/ustva/expenses?companyId=${companyId}&${q}`).catch(() => []),
         // Tier 443: the "Lieferant" select listed customers — the backend then
         // refused every chosen one ("Lieferant nicht gefunden").
         apiGet<any>(`/api/v1/suppliers?companyId=${companyId}`).catch(() => []),
+        apiGet<any>(`/api/v1/ustva/manual-vat?companyId=${companyId}&${q}`).catch(() => null),
       ])
       setData(compute)
+      setManualVat(mv && Array.isArray(mv.vouchers) ? mv : null)
       setFilings(Array.isArray(filingList) ? filingList : [])
       setExpenses(Array.isArray(expList) ? expList : [])
       const supplierRows = Array.isArray(supList) ? supList : supList?.data ?? []
@@ -877,6 +881,23 @@ function UstvaPageInner() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Tier 816: manual vouchers with VAT — not in this return */}
+            {manualVat && manualVat.vouchers.length > 0 && (
+              <div className="mb-6 rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-200" data-testid="ustva-manual-vat">
+                <p className="font-medium">
+                  {t("ustva.manualVatTitle")
+                    .replace("{vorsteuer}", formatCurrency(manualVat.vorsteuer))
+                    .replace("{umsatzsteuer}", formatCurrency(manualVat.umsatzsteuer))}
+                </p>
+                <p className="mt-1 text-xs">{t("ustva.manualVatHint")}</p>
+                <ul className="mt-2 space-y-0.5 text-xs font-mono">
+                  {manualVat.vouchers.map((v, i) => (
+                    <li key={i}>{formatDate(v.date)} · {v.voucherNumber} · {v.accountNumber} {v.name} · {formatCurrency(v.amount)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Tier 417: the amounts under their official Kennzahlen */}
             {data.kennzahlen && data.kennzahlen.some((k) => k.value !== 0) && (

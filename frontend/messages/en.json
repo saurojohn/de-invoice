@@ -2398,7 +2398,9 @@
     "bewirtungHint": "Entertainment expenses are deductible only with occasion and participants — at 70 % (§ 4 Abs. 5 Nr. 2 EStG). Place, day and amount are on the bill.",
     "bewirtungNachweisFehlt": "Occasion / participants missing",
     "zmMonth": "Month",
-    "zmWholeQuarter": "whole quarter"
+    "zmWholeQuarter": "whole quarter",
+    "manualVatTitle": "Not in this return: input VAT {vorsteuer} and output VAT {umsatzsteuer} from manual vouchers",
+    "manualVatHint": "The return is computed from invoices and expenses. Input VAT needs an invoice (§ 15 UStG), and a manual voucher can repeat an invoice already entered — it is not counted. Record the transaction as an invoice or expense, or settle it with your tax adviser."
   },
   "voucher": {
     "title": "Voucher",
@@ -4593,9 +4595,9 @@
   "abstimmung": {
     "title": "Journal ↔ reports reconciliation",
     "year": "Year",
-    "intro": "The EÜR, P&L, BWA, balance sheet and VAT return read invoices, expenses, payments and the cash book — not the journal. The vouchers below are in the journal and the DATEV export, but in none of these reports.",
-    "ok": "{year}: the journal and the reports agree — no voucher on an expense, revenue or tax account is missing from the reports.",
-    "summary": "{count} vouchers are missing from the reports: expenses {aufwand}, revenue {ertrag}, VAT {steuer}. Record them as an expense or invoice, or pass them to your tax adviser.",
+    "intro": "The P&L, BWA, balance sheet, E-Bilanz, corporate and trade tax count the vouchers below (as the DATEV export does); the EÜR only those that moved money (a line on cash or bank). No VAT return counts their VAT — it needs the invoice.",
+    "ok": "{year}: no manual vouchers on expense, revenue or tax accounts — the journal and the reports agree.",
+    "summary": "{count} manual vouchers: expenses {aufwand}, revenue {ertrag} (in the P&L, BWA, balance sheet; in the EÜR only with cash/bank), VAT {steuer} (in no VAT return). Check whether one of them repeats an invoice or expense already entered.",
     "voucher": "Voucher",
     "lines": "Lines on expense, revenue and tax accounts",
     "what": "Origin",
@@ -4605,7 +4607,7 @@
     "toBank": "bank import: \"Take into the expenses\"",
     "truncated": "Only the first 2,000 vouchers of the year were checked.",
     "failed": "The reconciliation could not be loaded.",
-    "formWarning": "A manual voucher on an expense, revenue or tax account is in the journal and the DATEV export, but not in the EÜR, P&L, BWA, balance sheet or VAT return. Record an invoice, expense or cash entry there instead.",
+    "formWarning": "A manual voucher on an expense or revenue account counts in the P&L, BWA and balance sheet, in the EÜR only with a line on cash or bank. No VAT return counts its VAT. Record an invoice, expense or cash entry there instead — otherwise it counts twice.",
     "assetsTitle": "Purchases with no asset in the asset register",
     "assetsHint": "An expense on a fixed-asset account (0…) is the purchase of an asset: it lowers the profit through its depreciation, not by itself. Without the asset in the register there is no depreciation — the cost is missing from every report.",
     "toAssets": "to the asset register"

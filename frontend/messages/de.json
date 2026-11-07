@@ -2398,7 +2398,9 @@
     "bewirtungHint": "Bewirtungskosten sind nur mit Anlass und Teilnehmern abziehbar — zu 70 % (§ 4 Abs. 5 Nr. 2 EStG). Ort, Tag und Betrag stehen auf der Rechnung.",
     "bewirtungNachweisFehlt": "Anlass / Teilnehmer fehlen",
     "zmMonth": "Monat",
-    "zmWholeQuarter": "ganzes Quartal"
+    "zmWholeQuarter": "ganzes Quartal",
+    "manualVatTitle": "Nicht in dieser Voranmeldung: Vorsteuer {vorsteuer} und Umsatzsteuer {umsatzsteuer} aus manuellen Belegen",
+    "manualVatHint": "Die Voranmeldung rechnet mit Rechnungen und Ausgaben. Vorsteuer setzt eine Rechnung voraus (§ 15 UStG), und ein manueller Beleg kann eine erfasste Rechnung wiederholen — er wird nicht mitgezählt. Erfassen Sie den Vorgang als Rechnung oder Ausgabe, oder klären Sie ihn mit Ihrem Berater."
   },
   "voucher": {
     "title": "Buchungsbeleg",
@@ -4593,9 +4595,9 @@
   "abstimmung": {
     "title": "Abstimmung Journal ↔ Auswertungen",
     "year": "Jahr",
-    "intro": "EÜR, GuV, BWA, Bilanz und UStVA lesen Rechnungen, Ausgaben, Zahlungen und das Kassenbuch — nicht das Journal. Die Belege unten stehen im Journal und im DATEV-Export, aber in keiner dieser Auswertungen.",
-    "ok": "{year}: Journal und Auswertungen stimmen überein — kein Beleg auf einem Aufwands-, Erlös- oder Steuerkonto fehlt in den Auswertungen.",
-    "summary": "{count} Belege fehlen in den Auswertungen: Aufwand {aufwand}, Erlöse {ertrag}, Umsatz-/Vorsteuer {steuer}. Erfassen Sie sie als Ausgabe oder Rechnung, oder geben Sie sie Ihrem Berater.",
+    "intro": "GuV, BWA, Bilanz, E-Bilanz, KSt und GewSt zählen die Belege unten mit (wie im DATEV-Export); die EÜR nur die, die Geld bewegt haben (eine Zeile auf Kasse oder Bank). Ihre Umsatz- und Vorsteuer zählt keine Voranmeldung — sie braucht die Rechnung.",
+    "ok": "{year}: keine manuellen Belege auf Aufwands-, Erlös- oder Steuerkonten — Journal und Auswertungen stimmen überein.",
+    "summary": "{count} manuelle Belege: Aufwand {aufwand}, Erlöse {ertrag} (in GuV, BWA, Bilanz; in der EÜR nur mit Kasse/Bank), Umsatz-/Vorsteuer {steuer} (in keiner Voranmeldung). Prüfen Sie, ob einer davon eine erfasste Rechnung oder Ausgabe wiederholt.",
     "voucher": "Beleg",
     "lines": "Zeilen auf Aufwands-, Erlös- und Steuerkonten",
     "what": "Herkunft",
@@ -4605,7 +4607,7 @@
     "toBank": "im Bankimport „In die Ausgaben übernehmen\"",
     "truncated": "Nur die ersten 2 000 Belege des Jahres sind geprüft.",
     "failed": "Die Abstimmung konnte nicht geladen werden.",
-    "formWarning": "Ein manueller Beleg auf einem Aufwands-, Erlös- oder Steuerkonto steht im Journal und im DATEV-Export, aber nicht in EÜR, GuV, BWA, Bilanz und UStVA. Eine Rechnung, Ausgabe oder Kassenbuchung erfassen Sie besser dort.",
+    "formWarning": "Ein manueller Beleg auf einem Aufwands- oder Erlöskonto zählt in GuV, BWA und Bilanz, in der EÜR nur mit einer Zeile auf Kasse oder Bank. Seine Umsatz- und Vorsteuer zählt keine Voranmeldung. Eine Rechnung, Ausgabe oder Kassenbuchung erfassen Sie besser dort — sonst zählt sie doppelt.",
     "assetsTitle": "Anschaffungen ohne Anlage im Anlagenverzeichnis",
     "assetsHint": "Eine Ausgabe auf einem Anlagekonto (0…) ist die Anschaffung eines Wirtschaftsguts: Sie mindert den Gewinn nicht selbst, sondern über die AfA. Ohne die Anlage im Anlagenverzeichnis gibt es keine AfA — die Kosten fehlen in jeder Auswertung.",
     "toAssets": "zum Anlagenverzeichnis"

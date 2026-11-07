@@ -1,4 +1,5 @@
 import { flowFromLeft } from '../../common/pdf-flow'
+import { manualJournalLines, type ManualKind } from './manual-journal'
 import { kursdifferenzen } from './kursdifferenzen'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { Injectable } from '@nestjs/common'
@@ -155,6 +156,12 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
     matcher: () => false, // fallback
   },
 ]
+
+/** Tier 816: the Kennziffer of a manual voucher's line (manual-journal.ts); income taxes have none, AfA is 4600. */
+const ANLAGE_S_MANUAL_KZ: Partial<Record<ManualKind, string>> = {
+  umsatz: '4190', ertrag: '4190', zinsertrag: '4190',
+  material: '4620', personal: '4630', raum: '4640', zins: '4710', sonstige: '4720',
+}
 
 const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => boolean }> = [
   {
@@ -334,6 +341,16 @@ export class AnlageSService {
 
     // Build the final lines in the order the
     // BMF uses.
+    // Tier 816: the journal's own bookings that moved money (manual-journal.ts),
+    // as in the EÜR
+    let manualAfa = 0
+    for (const l of await manualJournalLines(this.prisma, companyId, yearStart, yearEnd, { cashOnly: true })) {
+      if (l.kind === 'afa') { manualAfa += l.amount; continue }
+      const kz = ANLAGE_S_MANUAL_KZ[l.kind]
+      if (!kz) continue
+      if (kz === '4190') einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + l.amount)
+      else ausgabenBuckets.set(kz, (ausgabenBuckets.get(kz) || 0) + l.amount)
+    }
     const einnahmen: AnlageSLine[] = REVENUE_LINES.map((d) => ({
       kennziffer: d.kz,
       label: d.label,
@@ -351,7 +368,7 @@ export class AnlageSService {
         return {
           kennziffer: d.kz,
           label: d.label,
-          amount: round2(bookedAfa.amount),
+          amount: round2(bookedAfa.amount + manualAfa),
         }
       }
       return {

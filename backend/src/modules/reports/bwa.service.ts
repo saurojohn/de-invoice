@@ -1,6 +1,7 @@
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals } from '../assets/disposals'
 import { expenseCost } from '../accounting/expense-cost'
+import { manualJournalLines, type ManualKind } from '../accounting/manual-journal'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -179,6 +180,11 @@ const BWA_BUCKET_MATCHERS: Array<{ bucket: string; test: (cat: string) => boolea
  * separately before falling through to
  * this matcher.
  */
+/** Tier 816: the bucket of a manual voucher's line (manual-journal.ts); revenue, other income, Habenzinsen and AfA are summed apart. */
+const MANUAL_BUCKET: Partial<Record<ManualKind, string>> = {
+  material: '2000', personal: '3000', raum: '3200', zins: '4200', steuer: '5000', sonstige: '3600',
+}
+
 function bucketFor(category: string | null): string {
   const c = category || ''
   for (const m of BWA_BUCKET_MATCHERS) {
@@ -355,7 +361,13 @@ export class BwaService {
     const cash = await cashBookings(
       this.prisma, companyId, vormonatStart < yearStart ? vormonatStart : yearStart, monthEnd,
     )
+    // Tier 816: the journal's own bookings (manual-journal.ts) — revenue,
+    // costs by bucket, other income, Habenzinsen, AfA
+    const manualDate = (iso: string) => new Date(`${iso}T12:00:00`)
+    const manual = await manualJournalLines(this.prisma, companyId, vormonatStart < yearStart ? vormonatStart : yearStart, monthEnd)
+    const manualOf = (kind: string) => manual.filter((l) => l.kind === kind).map((l) => ({ date: manualDate(l.date), amount: l.amount }))
     const revenueItems = [
+      ...manualOf('umsatz'),
       ...invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
       ...cash.filter((c) => c.direction === 'in').map((c) => ({ date: c.date, amount: cashCost(c) })),
     ]
@@ -396,6 +408,7 @@ export class BwaService {
       // Tier 440: book value of assets sold or scrapped (disposals.ts).
       ...(await assetDisposals(this.prisma, companyId, vormonatStart < yearStart ? vormonatStart : yearStart, monthEnd))
         .map((d) => ({ date: d.date, amount: d.restbuchwert, bucket: '3600' })),
+      ...manual.filter((l) => MANUAL_BUCKET[l.kind]).map((l) => ({ date: manualDate(l.date), amount: l.amount, bucket: MANUAL_BUCKET[l.kind]! })),
     ]
 
     // Helper: sum entries in a date window for a
@@ -420,7 +433,8 @@ export class BwaService {
     const werbungMonat = sumBucket('3400', monthStart, monthEnd)
     const instandhaltungMonat = sumBucket('3500', monthStart, monthEnd)
     const sonstigeMonat = sumBucket('3600', monthStart, monthEnd)
-    const zinsertragMonat = 0 // 4100 — no data in v1
+    const zinsertragMonat = sumInMonth(manualOf('zinsertrag'), monthStart, monthEnd) // 4100 — Tier 816: Habenzinsen of manual vouchers
+    const zinsertragYtd = sumInMonth(manualOf('zinsertrag'), yearStart, monthEnd)
     const zinsaufwandMonat = sumBucket('4200', monthStart, monthEnd)
     const steuernEinkommenMonat = sumBucket('5000', monthStart, monthEnd)
     const sonstigeSteuernMonat = sumBucket('5100', monthStart, monthEnd)
@@ -455,7 +469,7 @@ export class BwaService {
       new Prisma.Decimal(0),
     ).toNumber()
     const useBookedAfA = totalBookedAfA !== 0
-    const monthAfA = useBookedAfA
+    const monthAfA = sumInMonth(manualOf('afa'), monthStart, monthEnd) + (useBookedAfA
       ? bookedAfaRows
           .filter((e) => e.invoiceDate >= monthStart && e.invoiceDate <= monthEnd)
           .reduce(
@@ -465,8 +479,8 @@ export class BwaService {
       : assetList.reduce(
           (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA / 12),
           0,
-        )
-    const ytdAfA = useBookedAfA
+        ))
+    const ytdAfA = sumInMonth(manualOf('afa'), yearStart, monthEnd) + (useBookedAfA
       ? bookedAfaRows
           .filter((e) => e.invoiceDate >= yearStart && e.invoiceDate <= monthEnd)
           .reduce(
@@ -476,7 +490,7 @@ export class BwaService {
       : assetList.reduce(
           (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA * (month / 12)),
           0,
-        )
+        ))
 
     // Vorjahres-YTD (Jan - same month prior year)
     // — needs separate queries because our
@@ -530,8 +544,12 @@ export class BwaService {
 
     // Tier 411: after the invoice discount, as for the current year.
     const cashVorjahr = await cashBookings(this.prisma, companyId, vorjahresYtdStart, vorjahresYtdEnd)
+    const manualVorjahr = await manualJournalLines(this.prisma, companyId, vorjahresYtdStart, vorjahresYtdEnd)
+    const manualVorjahrSum = (kind: string) => manualVorjahr.filter((l) => l.kind === kind).reduce((s, l) => s + l.amount, 0)
+    const sonstigeErloeseVorjahresYtd = manualVorjahrSum('ertrag')
     const vorjahresYtdInvoice = vorjahresInvoices.reduce((s, i) => s + invoiceNetRevenue(i), 0)
       + cashVorjahr.filter((c) => c.direction === 'in').reduce((s, c) => s + cashCost(c), 0)
+      + manualVorjahrSum('umsatz')
     // Tier 93: bucket the prior-year expenses the
     // same way as the current year (one filter
     // pass per expense, one sum per bucket). The
@@ -547,6 +565,7 @@ export class BwaService {
       ...cashVorjahr.filter((c) => c.direction === 'out').map((c) => ({ amount: cashCost(c), bucket: '3600' })),
       ...(await assetDisposals(this.prisma, companyId, vorjahresYtdStart, vorjahresYtdEnd))
         .map((d) => ({ amount: d.restbuchwert, bucket: '3600' })),
+      ...manualVorjahr.filter((l) => MANUAL_BUCKET[l.kind]).map((l) => ({ amount: l.amount, bucket: MANUAL_BUCKET[l.kind]! })),
     ]
     const vorjahresYtdByBucket = (bucket: string) =>
       vorjahresBucketed.filter((e) => e.bucket === bucket).reduce((s, e) => s + e.amount, 0)
@@ -562,7 +581,7 @@ export class BwaService {
     const vorjahresYtdSteuernEinkommen = vorjahresYtdByBucket('5000')
     const vorjahresYtdSonstigeSteuern = vorjahresYtdByBucket('5100')
 
-    const vorjahresYtdAfA = vorjahresBookedAfa
+    const vorjahresYtdAfA = manualVorjahrSum('afa') + vorjahresBookedAfa
       .filter((e) => e.invoiceDate >= vorjahresYtdStart && e.invoiceDate <= vorjahresYtdEnd)
       // Tier 245: Decimal累加 (siehe oben)
       .reduce(
@@ -587,8 +606,8 @@ export class BwaService {
       credits.map((c) => ({ date: c.createdAt, amount: Number(c.amount) > 0 ? Number(c.amount) : 0 })),
       monthStart,
       monthEnd,
-    )
-    const sonstigeErloeseYtd = credits
+    ) + sumInMonth(manualOf('ertrag'), monthStart, monthEnd)
+    const sonstigeErloeseYtd = sumInMonth(manualOf('ertrag'), yearStart, monthEnd) + credits
       .filter((c) => Number(c.amount) > 0)
       .reduce(
         (s, c) => s.plus(c.amount ?? new Prisma.Decimal(0)),
@@ -597,7 +616,7 @@ export class BwaService {
     // No prior-year credit data; we use 0
     // (a real BWA would have it from the prior
     // year).
-    const sonstigeErloeseVorjahresYtd = 0
+    // Tier 816: the other income of manual vouchers is known for the prior year
 
     // Build the lines array in DATEV BWA order
     const erloeseMonat = invoiceMonat + sonstigeErloeseMonat
@@ -708,9 +727,9 @@ export class BwaService {
         // calling it out.
         bucket: '4100',
         label: 'Zinserträge',
-        monat: 0,
+        monat: round2(zinsertragMonat),
         vormonat: 0,
-        ytd: 0,
+        ytd: round2(zinsertragYtd),
         vorjahresYtd: 0,
         ytdChangePct: 0,
       },
@@ -785,7 +804,7 @@ export class BwaService {
     // — the bottom of the § 275 HGB GKV. 4100 is
     // 0 in v1, so finanzergebnis = -4200.
     const finanzergebnisMonat = zinsertragMonat - zinsaufwandMonat
-    const finanzergebnisYtd = -zinsaufwandYtd
+    const finanzergebnisYtd = zinsertragYtd - zinsaufwandYtd
     const finanzergebnisVorjahresYtd = -vorjahresYtdZinsaufwand
     const steuernMonat = steuernEinkommenMonat + sonstigeSteuernMonat
     const steuernYtd = steuernEinkommenYtd + sonstigeSteuernYtd

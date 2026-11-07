@@ -3,6 +3,7 @@ import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { expenseCost, isIncomeTax } from './expense-cost'
 import { bookedAfaCost } from './booked-afa'
 import { cashBookings } from '../cashbook/cash-bookings'
+import { manualJournalLines, sumByKind } from './manual-journal'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -318,11 +319,11 @@ export class GuVService {
         !/^AfA/i.test(e.category || ''),
     )
 
-    const materialaufwand = materialExpenses.reduce(
+    let materialaufwand = materialExpenses.reduce(
       (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
-    const personalaufwand = personalExpenses.reduce(
+    let personalaufwand = personalExpenses.reduce(
       (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
@@ -339,7 +340,7 @@ export class GuVService {
     // Tier 440: the book value of assets sold or scrapped in the year
     // (Aufwand aus Anlagenabgang; disposals.ts).
     sonstigeAufwendungen += sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd))
-    const zinsaufwendungen = zinsExpenses.reduce(
+    let zinsaufwendungen = zinsExpenses.reduce(
       (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
       new Prisma.Decimal(0),
     ).toNumber()
@@ -362,7 +363,7 @@ export class GuVService {
       },
       select: { amount: true },
     })
-    const sonstigeErtrage = credits.reduce(
+    let sonstigeErtrage = credits.reduce(
       (s, t) => s + (Number(t.amount) > 0 ? Number(t.amount) : 0),
       0,
     )
@@ -382,6 +383,19 @@ export class GuVService {
       0,
     )
     const hasAssets = yearAssets.length > 0
+
+    // Tier 816: the journal's own bookings — manual vouchers, corrections, old
+    // bank expenses — on expense and revenue accounts (manual-journal.ts).
+    // Income taxes booked by hand stay out: position 14 is computed.
+    const manual = sumByKind(await manualJournalLines(this.prisma, companyId, yearStart, yearEnd))
+    umsatzerloese += manual.umsatz
+    sonstigeErtrage += manual.ertrag
+    materialaufwand += manual.material
+    personalaufwand += manual.personal
+    sonstigeAufwendungen += manual.raum + manual.sonstige
+    zinsaufwendungen += manual.zins
+    const zinsertraege = manual.zinsertrag
+    const manualAfa = manual.afa
 
     // ===== BUILD SECTIONS =====
 
@@ -443,10 +457,12 @@ export class GuVService {
           position: '7a',
           label: 'Abschreibungen auf Sachanlagen',
           amount: useBookedAfA
-            ? round2(bookedAfASum)
+            ? round2(bookedAfASum + manualAfa)
             : hasAssets
-              ? round2(annualAfA)
-              : null,
+              ? round2(annualAfA + manualAfa)
+              : manualAfa
+                ? round2(manualAfa)
+                : null,
           note: useBookedAfA
             ? 'Gebucht aus Anlagenverzeichnis ("AfA buchen").'
             : hasAssets
@@ -464,6 +480,7 @@ export class GuVService {
         materialaufwand +
           personalaufwand +
           (useBookedAfA ? bookedAfASum : annualAfA) +
+          manualAfa +
           sonstigeAufwendungen,
       ),
       // 7a is "nicht ausgewiesen" only when we
@@ -489,8 +506,9 @@ export class GuVService {
         {
           position: '11',
           label: 'Sonstige Zinsen und ähnliche Erträge',
-          amount: null,
-          note: 'Habenzinsen werden in de-invoice nicht erfasst.',
+          // Tier 816: Habenzinsen booked by hand (manual-journal.ts)
+          amount: zinsertraege ? round2(zinsertraege) : null,
+          note: zinsertraege ? 'Aus manuellen Belegen.' : 'Habenzinsen werden in de-invoice nicht erfasst.',
         },
         {
           position: '12',
@@ -503,7 +521,7 @@ export class GuVService {
           amount: round2(zinsaufwendungen),
         },
       ],
-      subtotal: round2(-zinsaufwendungen), // financial income side is 0, so financial result = -(zinsaufwendungen)
+      subtotal: round2(zinsertraege - zinsaufwendungen), // Tier 816: Habenzinsen of manual vouchers
       nichtAusgewiesen: 4,
     }
 

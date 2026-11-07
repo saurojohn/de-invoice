@@ -2,6 +2,7 @@ import { flowFromLeft } from '../../common/pdf-flow'
 import { kursdifferenzen } from './kursdifferenzen'
 import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
 import { resolveGewinnermittlung } from '../company/gewinnermittlung'
+import { manualJournalLines, type ManualKind } from './manual-journal'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
@@ -155,6 +156,11 @@ export interface AnlageGResult {
 // the lines. The old per-invoice matchers had two defects: 2110 took any
 // invoice with VAT and ran first, so 2120 (7 %) was never reached; and a mixed
 // 19 % + 7 % invoice could only land on one line.
+/** Tier 816: the category a manual voucher's cost line is sorted by (manual-journal.ts). */
+const MANUAL_CATEGORY: Partial<Record<ManualKind, string>> = {
+  material: 'Material', personal: 'Personal', raum: 'Raumkosten', zins: 'Zinsen', sonstige: 'Sonstiges',
+}
+
 const EINNAHMEN_LINES: Array<{ kz: string; label: string }> = [
   { kz: '2110', label: 'Umsatzerlöse 19% USt (Standard-Besteuerung)' },
   { kz: '2120', label: 'Umsatzerlöse 7% USt (ermäßigt)' },
@@ -512,6 +518,20 @@ export class AnlageGService {
       else if (/^(Miete|Pacht)/i.test(cat)) finanzierung.mieteImmobil += cost
       else if (/^Leasing/i.test(cat)) finanzierung.leasingMobil += cost
       if (/^Grundsteuer/i.test(cat)) grundsteuer += cost
+    }
+    // Tier 816: the journal's own bookings (manual-journal.ts) — all of them
+    // for a balance-sheet company, those that moved money for the EÜR; costs
+    // by the Kennziffer their kind's category finds, revenue as Sonstige
+    // Erlöse, income taxes not at all (§ 4 Abs. 5b EStG, § 10 Nr. 2 KStG)
+    for (const l of await manualJournalLines(this.prisma, companyId, yearStart, yearEnd, { cashOnly: zufluss })) {
+      if (l.kind === 'umsatz' || l.kind === 'ertrag' || l.kind === 'zinsertrag') { addTo('2190', l.amount); continue }
+      if (l.kind === 'afa') { addCost('2500', l.amount); continue }
+      if (l.kind === 'steuer') continue
+      const n = Number(l.accountNumber)
+      const category = l.kind === 'raum' && n >= 4210 && n <= 4229 ? 'Miete' : MANUAL_CATEGORY[l.kind] ?? 'Sonstiges'
+      addCost(BETRIEBSAUSGABEN_LINES.find((d) => d.matcher({ category } as any))!.kz, l.amount)
+      if (l.kind === 'zins') finanzierung.zinsen += l.amount
+      else if (n >= 4210 && n <= 4229) finanzierung.mieteImmobil += l.amount // Miete / Pacht (SKR03)
     }
     addCost('2500', (await bookedAfaCost(this.prisma, companyId, year)).amount)
     // Tier 440: book value of assets sold or scrapped (disposals.ts).

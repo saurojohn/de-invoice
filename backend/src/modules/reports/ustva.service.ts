@@ -1,6 +1,7 @@
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assertPeriodOpen } from './filed-period';
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
+import { manualVat } from '../accounting/manual-journal'
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { assertNoDuplicateExpense, withExpenseNumberLock } from '../expense/expense-duplicate';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -167,6 +168,12 @@ export class UstvaService {
       start: new Date(year, 0, 1),
       end: new Date(year, 11, 31, 23, 59, 59, 999),
     };
+  }
+
+  /** Tier 816: the VAT of the period's manual vouchers, which the return does not add. */
+  async manualVatOf(companyId: string, year: number, quarter?: number, month?: number) {
+    const { start, end } = this.getDateRange(year, quarter, month);
+    return manualVat(this.prisma, companyId, start, end);
   }
 
   async compute(companyId: string, year: number, quarter?: number, month?: number): Promise<UstvaData> {

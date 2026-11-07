@@ -119,6 +119,15 @@ note "=== 7. credit notes (Gutschriften) reduce Kz 4100 ==="
 # total positive invoice subtotal (i.e. CNs
 # reduced it). If there are no CNs, this test
 # is a no-op — we just check the structure.
+# Tier 816: the revenue lines of manual vouchers with a cash / bank line in 2026, and their Storno
+MANUAL_4190=$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "
+  with v as (
+    select v.id, v.\"referenceType\", o.\"referenceType\" as orig from \"Voucher\" v left join \"Voucher\" o on o.id = v.\"reversedById\"
+    where v.\"companyId\" = '$COMPANY_ID' and v.status = 'posted' and v.date >= '2026-01-01' and v.date < '2027-01-01'
+      and (v.\"referenceType\" is null or v.\"referenceType\" in ('Manual', 'VoucherCorrection', 'BankTransaction')
+           or (v.\"referenceType\" = 'VoucherReversal' and (o.\"referenceType\" is null or o.\"referenceType\" in ('Manual', 'VoucherCorrection', 'BankTransaction'))))
+      and exists (select 1 from \"VoucherLine\" l join \"Account\" a on a.id = l.\"accountId\" where l.\"voucherId\" = v.id and a.category = 'liquidity'))
+  select coalesce(sum(l.credit - l.debit), 0)::numeric(12,2) from v join \"VoucherLine\" l on l.\"voucherId\" = v.id join \"Account\" a on a.id = l.\"accountId\" where a.type = 'revenue'")
 CN_CHECK=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -130,8 +139,12 @@ d = json.load(open('$TMP'))
 # Kz 4100 is the only Kz that holds a negative
 # contribution from credit notes.
 sonstige = next(l for l in d['einnahmen'] if l['kennziffer'] == '4190')
-if sonstige['amount'] != 0:
-    print(f'Kz 4190 has data — credit notes may have leaked into Sonstige')
+# Tier 816: 4190 holds the revenue of manual vouchers that moved money
+# (manual-journal.ts) — what the shared company's other specs booked; any
+# other amount there is a leak
+manual = float('$MANUAL_4190')
+if abs(sonstige['amount'] - manual) > 0.005:
+    print(f'Kz 4190 has data beyond the manual vouchers ({sonstige[\"amount\"]} vs {manual}) — credit notes may have leaked into Sonstige')
 else:
     print('true')
 ")

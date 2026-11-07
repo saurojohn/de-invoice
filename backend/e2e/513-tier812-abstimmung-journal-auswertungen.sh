@@ -74,7 +74,10 @@ assert_eq "listed by date: the rent, the cash sale, the old bank expense, the co
   "[('$Y-10-05', 'manual', [('4900', 'aufwand', 1000, 0), ('1576', 'steuer', 190, 0)]), ('$Y-10-06', 'manual', [('8200', 'ertrag', 0, 100), ('1776', 'steuer', 0, 19)]), ('$Y-10-10', 'bank-expense', [('4900', 'aufwand', 50, 0)]), ('$(q "select to_char(date,'YYYY-MM-DD') from \"Voucher\" where \"referenceType\"='VoucherCorrection' and \"companyId\"='$C'")', 'correction', [('4900', 'aufwand', 25, 0)])]"
 assert_eq "…what they would add: 1 075 € costs, 100 € revenue, 171 € VAT (190 paid − 19 owed)" "$(P "d['totals']")" "{'aufwand': 1075, 'ertrag': 100, 'steuer': 171}"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=$Y"
-assert_eq "…and the reports really lack them: the EÜR is empty" "$(P "d['totals']['ausgabenTotal'], d['totals']['einnahmenTotal']")" "(0, 0)"
+# Tier 816: the EÜR counts the manual vouchers that moved money (a line on 1200):
+# the rent 1 000, the old bank expense 50, the corrected Porto 25 (its original
+# 20 and that one's Storno cancel out); the cash sale 100 as income
+assert_eq "…the EÜR counts those that moved money (Tier 816; was: none of them)" "$(P "'%.2f %.2f' % (d['totals']['ausgabenTotal'], d['totals']['einnahmenTotal'])")" "1075.00 100.00"
 # ── a correction of a document's voucher: what it changes, not the whole ──
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 TODAY=$(date +%F)
