@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsOptional, IsEmail, IsString, MinLength } from 'class-validator';
 
 export class LoginDto {
   @IsEmail()
@@ -19,4 +19,10 @@ export class RegisterDto {
   
   @IsString()
   companyName!: string;
+
+  // Tier 821: the token of an invitation to register a company of one's own
+  // (registration.ts) — needed while the registration is closed
+  @IsOptional()
+  @IsString()
+  companyInvite?: string;
 }

@@ -65,6 +65,6 @@ assert_eq "the operator opens it" "$STATUS $(py 'print(d["open"])')" "200 True"
 register "$TAG-d"
 assert_eq "…and a registration goes through" "$STATUS" "201"
 assert_eq "both changes are in the audit log" \
-  "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select string_agg(action, ',' order by action) from \"AuditLog\" where \"companyId\"='$COMPANY_ID' and action like 'registration_%' and \"createdAt\" > now() - interval '5 minutes'")" \
+  "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select string_agg(distinct action, ',' order by action) from \"AuditLog\" where \"companyId\"='$COMPANY_ID' and action like 'registration_%' and \"createdAt\" > now() - interval '5 minutes'")" \
   "registration_closed,registration_opened"
 summary

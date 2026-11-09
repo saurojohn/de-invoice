@@ -223,7 +223,9 @@
     },
     "inviteOnly": "新用户由管理员邀请加入。",
     "registrationClosedTitle": "注册已关闭",
-    "registrationClosedText": "本系统的新用户由管理员邀请，您会通过电子邮件收到邀请链接。"
+    "registrationClosedText": "本系统的新用户由管理员邀请，您会通过电子邮件收到邀请链接。",
+    "companyInviteNote": "您受邀创建自己的公司。请设置密码并填写公司名称，之后就可以在系统里开具自己的发票。",
+    "companyInviteInvalid": "此邀请已失效（已被使用、已撤销或已过期），请联系对方重新邀请。"
   },
   "bankImport": {
     "openAmount": "未付",
@@ -2287,7 +2289,20 @@
     "registrationClose": "关闭注册",
     "registrationOpen": "开放注册",
     "registrationOpened": "注册已开放。",
-    "registrationClosed": "注册已关闭。"
+    "registrationClosed": "注册已关闭。",
+    "companyInviteTitle": "邀请新公司",
+    "companyInviteHint": "对方创建自己的公司，并在那里开具自己的发票，与您的数据完全分开。每个邀请只能创建一家公司、只对该邮箱有效，有效期 7 天。",
+    "companyInviteSend": "发送邀请",
+    "companyInviteMailed": "邀请邮件已发出。如需自己转发，链接如下：",
+    "companyInviteNotMailed": "邮件未能发出，请自己把链接发给对方：",
+    "companyInviteCopy": "复制链接",
+    "companyInviteCopied": "链接已复制",
+    "companyInvitePending": "待使用",
+    "companyInviteUsed": "公司已创建",
+    "companyInviteExpired": "已过期",
+    "companyInviteRevoked": "已撤销",
+    "companyInviteUntil": "有效至",
+    "companyInviteRevoke": "撤销"
   },
   "ustva": {
     "ossNote": "按目的国税率开给其他欧盟国家消费者的销售额：净额 {net} — 已计入 Kz 45，仅作为计税基础。其税额（{vat}）不在本期申报内，通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",

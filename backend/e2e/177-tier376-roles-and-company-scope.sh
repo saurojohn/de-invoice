@@ -37,10 +37,13 @@ grep -qE "@CompanyIdParam\('id'\)" "$SRC/modules/company/company.controller.ts" 
 # one is asked for again. Tier 736: auth/resend-verification — a new link to
 # the caller's own address. Tier 737: auth/my-data, auth/delete-account(/check)
 # — the caller's own data and account; the deletion asks for the password.
-# Tier 820: PUT auth/registration — the operator's, by SystemAdminGuard.)
-EXPECTED_NO_ROLE="GET auth/delete-account/check
+# Tier 820: PUT auth/registration — the operator's, by SystemAdminGuard.
+# Tier 821: auth/registration/invites — the operator's too.)
+EXPECTED_NO_ROLE="DELETE auth/registration/invites/:id
+GET auth/delete-account/check
 GET auth/me
 GET auth/my-data
+GET auth/registration/invites
 GET search/customers
 GET search/global
 GET search/invoices
@@ -52,6 +55,7 @@ POST auth/2fa/setup
 POST auth/2fa/status
 POST auth/change-password
 POST auth/delete-account
+POST auth/registration/invites
 POST auth/resend-verification
 POST users/me/switch-company
 PUT auth/registration"

@@ -4,19 +4,32 @@
  * Tier 820 — whether this installation takes new registrations
  * (GET /auth/registration, public). `null` until it answers: the offer to
  * register is not shown before it is known (backend/…/auth/registration.ts).
+ * Tier 821: with an invitation to register a company of one's own, the
+ * address it is for (null when the token is unknown, used or expired).
  */
 import { useEffect, useState } from "react"
 import { API_BASE } from "@/lib/api"
 
-export function useRegistrationOpen(): boolean | null {
-  const [open, setOpen] = useState<boolean | null>(null)
+export interface RegistrationState {
+  open: boolean
+  invite: { email: string; expiresAt: string } | null
+}
+
+export function useRegistrationState(companyInvite?: string): RegistrationState | null {
+  const [state, setState] = useState<RegistrationState | null>(null)
   useEffect(() => {
     let alive = true
-    fetch(`${API_BASE}/api/v1/auth/registration`)
+    const q = companyInvite ? `?invite=${encodeURIComponent(companyInvite)}` : ""
+    fetch(`${API_BASE}/api/v1/auth/registration${q}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive) setOpen(d ? d.open === true : true) })
-      .catch(() => { if (alive) setOpen(true) })
+      .then((d) => { if (alive) setState(d ? { open: d.open === true, invite: d.invite ?? null } : { open: true, invite: null }) })
+      .catch(() => { if (alive) setState({ open: true, invite: null }) })
     return () => { alive = false }
-  }, [])
-  return open
+  }, [companyInvite])
+  return state
+}
+
+export function useRegistrationOpen(): boolean | null {
+  const state = useRegistrationState()
+  return state ? state.open : null
 }

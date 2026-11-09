@@ -1,9 +1,9 @@
 import { publicOrigin } from '../../common/public-origin'
 import { isSystemAdmin, SystemAdminGuard } from '../../auth/system-admin.guard';
-import { registrationState, REGISTRATION_CLOSED_MESSAGE } from './registration';
+import { registrationState, REGISTRATION_CLOSED_MESSAGE, pendingCompanyInvite, createCompanyInvite, listCompanyInvites, revokeCompanyInvite, useCompanyInvite, COMPANY_INVITE_MISMATCH, INVITE_DAYS } from './registration';
 import { withKeyLock } from '../../common/key-lock';
 import { updateCompanySettings } from '../../common/company-settings';
-import { Controller, Post, Put, Body, Get, HttpCode, HttpStatus, BadRequestException, ForbiddenException, Logger, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Post, Put, Delete, Param, Query, Body, Get, HttpCode, HttpStatus, BadRequestException, ForbiddenException, Logger, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService, EMAIL_VERIFY_TTL_MS } from './auth.service';
 import { AccountService } from './account.service';
@@ -339,9 +339,77 @@ export class AuthController {
    */
   @Public()
   @Get('registration')
-  async registration() {
+  async registration(@Query('invite') invite?: string) {
     const { open } = await registrationState(this.prisma)
-    return { open }
+    // Tier 821: an invitation to register a company of one's own — its
+    // address, while it can be used (the page fills it in)
+    const found = invite ? await pendingCompanyInvite(this.prisma, invite) : null
+    return { open, invite: found ? { email: found.email, expiresAt: found.expiresAt } : null }
+  }
+
+  /**
+   * Tier 821 — the operator invites someone to register a company of their
+   * own (registration.ts). The link is mailed and returned — the operator may
+   * pass it on themselves when the mail does not go out.
+   */
+  @UseGuards(HeaderAuthGuard, SystemAdminGuard)
+  @Post('registration/invites')
+  async inviteCompany(@Body() body: { email?: unknown }, @Req() req: any) {
+    const { invite, token } = await createCompanyInvite(this.prisma, req.user.companyId, body?.email)
+    const link = `${publicOrigin(req).replace(/\/$/, '')}/register?company-invite=${token}`
+    let mailed = false
+    try {
+      await this.mailService.send(req.user.companyId, {
+        to: invite.email,
+        subject: 'Einladung: Ihre Firma bei de-invoice anlegen',
+        text:
+          `Sie wurden eingeladen, Ihre eigene Firma bei de-invoice anzulegen und dort Ihre Rechnungen zu schreiben.\n\n` +
+          `Öffnen Sie diesen Link, wählen Sie ein Passwort und geben Sie den Namen Ihrer Firma an (gültig ${INVITE_DAYS} Tage, für diese E-Mail-Adresse):\n${link}\n\n` +
+          `Falls Sie diese Einladung nicht erwartet haben, ignorieren Sie diese E-Mail.`,
+        html:
+          `<p>Sie wurden eingeladen, Ihre eigene Firma bei de-invoice anzulegen und dort Ihre Rechnungen zu schreiben.</p>` +
+          `<p>Öffnen Sie diesen Link, wählen Sie ein Passwort und geben Sie den Namen Ihrer Firma an (gültig ${INVITE_DAYS} Tage, für diese E-Mail-Adresse):</p>` +
+          `<p><a href="${link}">Firma anlegen</a></p><p>Oder kopieren Sie diesen Link:<br><code>${link}</code></p>`,
+      })
+      mailed = true
+    } catch (err) {
+      this.logger.warn(`company invite to ${invite.email} not mailed: ${(err as Error).message}`)
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[DEV-COMPANY-INVITE-LINK] email=${invite.email} link=${link}`)
+    }
+    await this.audit.writeActivity({
+      companyId: req.user.companyId,
+      userId: req.user.id,
+      action: 'company_invite_created',
+      entityType: 'company',
+      entityId: invite.id,
+      ipAddress: req.ip,
+      userAgent: req?.headers?.['user-agent'] || null,
+    })
+    return { id: invite.id, email: invite.email, expiresAt: invite.expiresAt, link, mailed }
+  }
+
+  @UseGuards(HeaderAuthGuard, SystemAdminGuard)
+  @Get('registration/invites')
+  async companyInvites(@Req() req: any) {
+    return listCompanyInvites(this.prisma, req.user.companyId)
+  }
+
+  @UseGuards(HeaderAuthGuard, SystemAdminGuard)
+  @Delete('registration/invites/:id')
+  async revokeCompanyInvite(@Param('id') id: string, @Req() req: any) {
+    const found = await revokeCompanyInvite(this.prisma, req.user.companyId, id)
+    await this.audit.writeActivity({
+      companyId: req.user.companyId,
+      userId: req.user.id,
+      action: 'company_invite_revoked',
+      entityType: 'company',
+      entityId: found.id,
+      ipAddress: req.ip,
+      userAgent: req?.headers?.['user-agent'] || null,
+    })
+    return { id: found.id, status: 'revoked' }
   }
 
   /**
@@ -385,9 +453,15 @@ export class AuthController {
   }
 
   private async registerLocked(dto: RegisterDto, req: any, res: Response) {
-    // Tier 820: after the first company, by invitation only (registration.ts)
-    if (!(await registrationState(this.prisma)).open) {
+    // Tier 820: after the first company, by invitation only (registration.ts);
+    // Tier 821: or with an invitation to register a company of one's own
+    const { open } = await registrationState(this.prisma)
+    const invite = open ? null : await pendingCompanyInvite(this.prisma, dto.companyInvite)
+    if (!open && !invite) {
       throw new ForbiddenException(REGISTRATION_CLOSED_MESSAGE)
+    }
+    if (invite && normalizeUserEmail(dto.email) !== invite.email) {
+      throw new ForbiddenException(COMPANY_INVITE_MISMATCH)
     }
     if (dto.password.length < 8) {
       throw new BadRequestException('Passwort muss mindestens 8 Zeichen lang sein');
@@ -416,7 +490,11 @@ export class AuthController {
       // Generic message — don't confirm the email exists
       throw new BadRequestException('Registrierung fehlgeschlagen. Bitte überprüfen Sie Ihre Angaben.');
     }
-    const created = await this.authService.register({ ...dto, email, companyName });
+    const { companyInvite: _token, ...fields } = dto
+    const created = await this.authService.register({ ...fields, email, companyName });
+    if (invite) {
+      await useCompanyInvite(this.prisma, dto.companyInvite!, created.user.companyId ?? (created as any).company?.id ?? '')
+    }
     // Tier 401: registration auto-logs the user in (the page writes the ids and
     // redirects to /dashboard), so it has to mint a session like /auth/login.
     const session = await this.sessions.issue(res, created.user.id, req);

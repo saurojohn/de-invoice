@@ -12,7 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { storeSession } from "@/lib/auth"
-import { useRegistrationOpen } from "@/lib/registration"
+import { useRegistrationState } from "@/lib/registration"
 
 type Strength = { ok: boolean; msg: string }
 
@@ -35,6 +35,8 @@ function RegisterPageInner() {
   const router = useRouter()
   const search = useSearchParams()
   const inviteToken = search.get("invite") || ""
+  // Tier 821: an invitation to register a company of one's own
+  const companyInvite = search.get("company-invite") || ""
   const { t } = useI18n()
   const toast = useToast()
 
@@ -48,7 +50,11 @@ function RegisterPageInner() {
   const [loading, setLoading] = useState(false)
 
   const isInviteMode = !!inviteToken
-  const registrationOpen = useRegistrationOpen() // Tier 820
+  const registration = useRegistrationState(companyInvite || undefined) // Tier 820 / 821
+  const invitedEmail = registration?.invite?.email ?? null
+  useEffect(() => {
+    if (invitedEmail) setForm((f) => ({ ...f, email: invitedEmail }))
+  }, [invitedEmail])
 
   const isValidEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
@@ -106,6 +112,7 @@ function RegisterPageInner() {
           email: form.email.trim().toLowerCase(),
           password: form.password,
           companyName: form.companyName.trim(),
+          ...(invitedEmail ? { companyInvite } : {}),
         }),
       })
       if (!res.ok) {
@@ -254,7 +261,7 @@ function RegisterPageInner() {
 
   // ================== Self-service registration UI ==================
   // Tier 820: after the first company by invitation only
-  if (registrationOpen === false) {
+  if (registration && !registration.open && !registration.invite) {
     return (
       <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <Card className="w-full max-w-md" data-testid="registration-closed">
@@ -262,7 +269,9 @@ function RegisterPageInner() {
             <CardTitle className="text-center text-2xl">{t("auth.registrationClosedTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-center">
-            <p className="text-gray-600 dark:text-gray-300">{t("auth.registrationClosedText")}</p>
+            <p className="text-gray-600 dark:text-gray-300">
+              {companyInvite ? t("auth.companyInviteInvalid") : t("auth.registrationClosedText")}
+            </p>
             <Button className="w-full" onClick={() => router.push("/")}>{t("auth.login")}</Button>
           </CardContent>
         </Card>
@@ -278,6 +287,11 @@ function RegisterPageInner() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmitSelf} className="space-y-4" autoComplete="on">
+            {invitedEmail && (
+              <div className="bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100 p-3 rounded text-sm" data-testid="company-invite-note">
+                {t("auth.companyInviteNote")}
+              </div>
+            )}
             {error && (
               <div className="bg-red-100 text-red-700 p-3 rounded text-sm" role="alert">
                 {error}
@@ -313,6 +327,7 @@ function RegisterPageInner() {
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 placeholder="email@example.com"
                 required
+                readOnly={!!invitedEmail}
               />
             </div>
             <div>

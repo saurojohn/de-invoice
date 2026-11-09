@@ -223,7 +223,9 @@
     },
     "inviteOnly": "Neue Benutzer werden vom Administrator eingeladen.",
     "registrationClosedTitle": "Registrierung geschlossen",
-    "registrationClosedText": "Auf dieser Installation lädt der Administrator neue Benutzer ein — Sie erhalten dann einen Link per E-Mail."
+    "registrationClosedText": "Auf dieser Installation lädt der Administrator neue Benutzer ein — Sie erhalten dann einen Link per E-Mail.",
+    "companyInviteNote": "Sie wurden eingeladen, Ihre eigene Firma anzulegen. Wählen Sie ein Passwort und geben Sie den Namen Ihrer Firma an — danach schreiben Sie dort Ihre Rechnungen.",
+    "companyInviteInvalid": "Diese Einladung ist nicht mehr gültig — sie wurde schon benutzt, widerrufen oder ist abgelaufen. Bitten Sie um eine neue."
   },
   "bankImport": {
     "openAmount": "offen",
@@ -2287,7 +2289,20 @@
     "registrationClose": "Registrierung schließen",
     "registrationOpen": "Registrierung öffnen",
     "registrationOpened": "Die Registrierung ist offen.",
-    "registrationClosed": "Die Registrierung ist geschlossen."
+    "registrationClosed": "Die Registrierung ist geschlossen.",
+    "companyInviteTitle": "Firma einladen",
+    "companyInviteHint": "Jemand legt seine eigene Firma an und schreibt dort seine Rechnungen — getrennt von Ihren Daten. Die Einladung gilt für eine Firma, für diese E-Mail-Adresse, 7 Tage.",
+    "companyInviteSend": "Einladen",
+    "companyInviteMailed": "Die Einladung ist per E-Mail unterwegs. Der Link, falls Sie ihn selbst weitergeben möchten:",
+    "companyInviteNotMailed": "Die E-Mail konnte nicht gesendet werden — geben Sie den Link selbst weiter:",
+    "companyInviteCopy": "Link kopieren",
+    "companyInviteCopied": "Link kopiert",
+    "companyInvitePending": "offen",
+    "companyInviteUsed": "Firma angelegt",
+    "companyInviteExpired": "abgelaufen",
+    "companyInviteRevoked": "widerrufen",
+    "companyInviteUntil": "bis",
+    "companyInviteRevoke": "Widerrufen"
   },
   "ustva": {
     "ossNote": "Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz: netto {net} — in Kz 45 enthalten, nur als Bemessungsgrundlage. Ihre Steuer ({vat}) steht nicht in dieser Voranmeldung; sie wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG), siehe Berichte → OSS.",
