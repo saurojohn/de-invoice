@@ -290,13 +290,16 @@ export class BwaService {
     // 3100 Abschreibungen line can use real
     // booked values when present, falling back to
     // the in-memory computed value otherwise.
+    // Tier 817: from the month before when it lies in the prior year (the
+    // Vormonat column of January is December)
+    const spanStart = vormonatStart < yearStart ? vormonatStart : yearStart
     const [invoices, expenses, assetList, bookedAfaRows] = await Promise.all([
       this.prisma.invoice.findMany({
         where: {
           companyId,
           status: { in: ['paid', 'sent', 'overdue'] },
           type: { in: SALES_TYPES }, // Tier 424: not a Proforma
-          issueDate: { gte: yearStart, lte: monthEnd },
+          issueDate: { gte: spanStart, lte: monthEnd },
         },
         // Tier 118.5: BWA is a German BWA (Betriebswirtschaftliche
         // Auswertung) which sums everything in EUR. We pull
@@ -328,7 +331,7 @@ export class BwaService {
           // Tier 425: `not: 'AfA'` alone is `category <> 'AfA'` in SQL, which drops every
           // expense WITHOUT a category (NULL) — the usual case.
           OR: [{ category: null }, { category: { not: 'AfA' } }],
-          invoiceDate: { gte: yearStart, lte: monthEnd },
+          invoiceDate: { gte: spanStart, lte: monthEnd },
         },
         select: { netAmount: true, grossAmount: true, category: true, invoiceDate: true, accountNumber: true },
       }),
@@ -337,10 +340,10 @@ export class BwaService {
         where: {
           companyId,
           category: 'AfA',
-          afaYear: year,
+          afaYear: { in: [year, vormonatStart.getFullYear()] },
           relatedAssetId: { not: null },
         },
-        select: { grossAmount: true, invoiceDate: true },
+        select: { grossAmount: true, invoiceDate: true, afaYear: true },
       }),
     ])
 
@@ -464,33 +467,23 @@ export class BwaService {
     // per month) — same v1 proration logic.
     // Tier 245: Decimal累加 — s.plus(Math.abs(...)) preserves
     // 4-decimal precision on AfA amounts.
-    const totalBookedAfA = bookedAfaRows.reduce(
+    // Tier 817: one rule for every window — the Vormonat column of January
+    // reads the prior year's AfA (booked, or computed when none was booked)
+    const bookedAfaOf = (y: number) => bookedAfaRows.filter((e) => e.afaYear === y)
+    const sumAfaRows = (rows: typeof bookedAfaRows) => rows.reduce(
       (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
       new Prisma.Decimal(0),
     ).toNumber()
-    const useBookedAfA = totalBookedAfA !== 0
-    const monthAfA = sumInMonth(manualOf('afa'), monthStart, monthEnd) + (useBookedAfA
-      ? bookedAfaRows
-          .filter((e) => e.invoiceDate >= monthStart && e.invoiceDate <= monthEnd)
-          .reduce(
-            (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
-            new Prisma.Decimal(0),
-          ).toNumber()
-      : assetList.reduce(
-          (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA / 12),
-          0,
-        ))
-    const ytdAfA = sumInMonth(manualOf('afa'), yearStart, monthEnd) + (useBookedAfA
-      ? bookedAfaRows
-          .filter((e) => e.invoiceDate >= yearStart && e.invoiceDate <= monthEnd)
-          .reduce(
-            (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
-            new Prisma.Decimal(0),
-          ).toNumber()
-      : assetList.reduce(
-          (s, a) => s + (this.assets.computeAfA(a, monthEnd).annualAfA * (month / 12)),
-          0,
-        ))
+    const useBookedAfA = sumAfaRows(bookedAfaOf(year)) !== 0
+    const afaIn = (start: Date, end: Date, months: number) => {
+      const rows = bookedAfaOf(start.getFullYear())
+      return sumInMonth(manualOf('afa'), start, end) + (sumAfaRows(rows) !== 0
+        ? sumAfaRows(rows.filter((e) => e.invoiceDate >= start && e.invoiceDate <= end))
+        : assetList.reduce((s, a) => s + (this.assets.computeAfA(a, end).annualAfA * (months / 12)), 0))
+    }
+    const monthAfA = afaIn(monthStart, monthEnd, 1)
+    const ytdAfA = afaIn(yearStart, monthEnd, month)
+    const vormonatAfA = afaIn(vormonatStart, vormonatEnd, 1)
 
     // Vorjahres-YTD (Jan - same month prior year)
     // — needs separate queries because our
@@ -594,7 +587,7 @@ export class BwaService {
     const credits = await this.prisma.customerCreditTransaction.findMany({
       where: {
         companyId,
-        createdAt: { gte: yearStart, lte: monthEnd },
+        createdAt: { gte: spanStart, lte: monthEnd },
         type: { in: ['overpayment', 'gutschrift'] },
       },
       select: { amount: true, createdAt: true },
@@ -602,17 +595,13 @@ export class BwaService {
     // Tier 792: in the month it was booked — each credit was dated `new
     // Date()`, so the month column held the whole year's credits when the
     // month asked for was the current one, and none otherwise.
-    const sonstigeErloeseMonat = sumInMonth(
-      credits.map((c) => ({ date: c.createdAt, amount: Number(c.amount) > 0 ? Number(c.amount) : 0 })),
-      monthStart,
-      monthEnd,
-    ) + sumInMonth(manualOf('ertrag'), monthStart, monthEnd)
-    const sonstigeErloeseYtd = sumInMonth(manualOf('ertrag'), yearStart, monthEnd) + credits
-      .filter((c) => Number(c.amount) > 0)
-      .reduce(
-        (s, c) => s.plus(c.amount ?? new Prisma.Decimal(0)),
-        new Prisma.Decimal(0),
-      ).toNumber()
+    const creditItems = [
+      ...credits.map((c) => ({ date: c.createdAt, amount: Number(c.amount) > 0 ? Number(c.amount) : 0 })),
+      ...manualOf('ertrag'),
+    ]
+    const sonstigeErloeseMonat = sumInMonth(creditItems, monthStart, monthEnd)
+    const sonstigeErloeseVormonat = sumInMonth(creditItems, vormonatStart, vormonatEnd)
+    const sonstigeErloeseYtd = sumInMonth(creditItems, yearStart, monthEnd)
     // No prior-year credit data; we use 0
     // (a real BWA would have it from the prior
     // year).
@@ -620,7 +609,7 @@ export class BwaService {
 
     // Build the lines array in DATEV BWA order
     const erloeseMonat = invoiceMonat + sonstigeErloeseMonat
-    const erloeseVormonat = invoiceVormonat
+    const erloeseVormonat = invoiceVormonat + sonstigeErloeseVormonat
     const erloeseYtd = invoiceYtd + sonstigeErloeseYtd
     const erloeseVorjahresYtd = vorjahresYtdInvoice + sonstigeErloeseVorjahresYtd
 
@@ -642,7 +631,7 @@ export class BwaService {
         bucket: '1300',
         label: 'Sonstige betriebliche Erträge',
         monat: round2(sonstigeErloeseMonat),
-        vormonat: 0,
+        vormonat: round2(sonstigeErloeseVormonat),
         ytd: round2(sonstigeErloeseYtd),
         vorjahresYtd: round2(sonstigeErloeseVorjahresYtd),
         ytdChangePct: 0,
@@ -651,7 +640,7 @@ export class BwaService {
         bucket: '2000',
         label: 'Materialaufwand',
         monat: round2(materialMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('2000', vormonatStart, vormonatEnd)),
         ytd: round2(materialYtd),
         vorjahresYtd: round2(vorjahresYtdMaterial),
         ytdChangePct: pctChange(materialYtd, vorjahresYtdMaterial),
@@ -660,7 +649,7 @@ export class BwaService {
         bucket: '3000',
         label: 'Personalkosten',
         monat: round2(personalMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('3000', vormonatStart, vormonatEnd)),
         ytd: round2(personalYtd),
         vorjahresYtd: round2(vorjahresYtdPersonal),
         ytdChangePct: pctChange(personalYtd, vorjahresYtdPersonal),
@@ -669,7 +658,7 @@ export class BwaService {
         bucket: '3100',
         label: 'Abschreibungen (AfA)',
         monat: round2(monthAfA),
-        vormonat: 0,
+        vormonat: round2(vormonatAfA),
         ytd: round2(ytdAfA),
         vorjahresYtd: round2(vorjahresYtdAfA),
         ytdChangePct: pctChange(ytdAfA, vorjahresYtdAfA),
@@ -678,7 +667,7 @@ export class BwaService {
         bucket: '3200',
         label: 'Raumkosten (Miete, Heizung, Nebenkosten)',
         monat: round2(raumMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('3200', vormonatStart, vormonatEnd)),
         ytd: round2(raumYtd),
         vorjahresYtd: round2(vorjahresYtdRaum),
         ytdChangePct: pctChange(raumYtd, vorjahresYtdRaum),
@@ -687,7 +676,7 @@ export class BwaService {
         bucket: '3300',
         label: 'Versicherungen, Beiträge',
         monat: round2(versicherungMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('3300', vormonatStart, vormonatEnd)),
         ytd: round2(versicherungYtd),
         vorjahresYtd: round2(vorjahresYtdVersicherung),
         ytdChangePct: pctChange(versicherungYtd, vorjahresYtdVersicherung),
@@ -696,7 +685,7 @@ export class BwaService {
         bucket: '3400',
         label: 'Werbung, Reise, Bewirtung',
         monat: round2(werbungMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('3400', vormonatStart, vormonatEnd)),
         ytd: round2(werbungYtd),
         vorjahresYtd: round2(vorjahresYtdWerbung),
         ytdChangePct: pctChange(werbungYtd, vorjahresYtdWerbung),
@@ -705,7 +694,7 @@ export class BwaService {
         bucket: '3500',
         label: 'Instandhaltung, Wartung, Reparatur',
         monat: round2(instandhaltungMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('3500', vormonatStart, vormonatEnd)),
         ytd: round2(instandhaltungYtd),
         vorjahresYtd: round2(vorjahresYtdInstandhaltung),
         ytdChangePct: pctChange(instandhaltungYtd, vorjahresYtdInstandhaltung),
@@ -714,7 +703,7 @@ export class BwaService {
         bucket: '3600',
         label: 'Sonstige betriebliche Aufwendungen',
         monat: round2(sonstigeMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('3600', vormonatStart, vormonatEnd)),
         ytd: round2(sonstigeYtd),
         vorjahresYtd: round2(vorjahresYtdSonstige),
         ytdChangePct: pctChange(sonstigeYtd, vorjahresYtdSonstige),
@@ -728,7 +717,7 @@ export class BwaService {
         bucket: '4100',
         label: 'Zinserträge',
         monat: round2(zinsertragMonat),
-        vormonat: 0,
+        vormonat: round2(sumInMonth(manualOf('zinsertrag'), vormonatStart, vormonatEnd)),
         ytd: round2(zinsertragYtd),
         vorjahresYtd: 0,
         ytdChangePct: 0,
@@ -737,7 +726,7 @@ export class BwaService {
         bucket: '4200',
         label: 'Zinsaufwendungen',
         monat: round2(zinsaufwandMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('4200', vormonatStart, vormonatEnd)),
         ytd: round2(zinsaufwandYtd),
         vorjahresYtd: round2(vorjahresYtdZinsaufwand),
         ytdChangePct: pctChange(zinsaufwandYtd, vorjahresYtdZinsaufwand),
@@ -746,7 +735,7 @@ export class BwaService {
         bucket: '5000',
         label: 'Steuern vom Einkommen und Ertrag (GewSt, KSt, ESt)',
         monat: round2(steuernEinkommenMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('5000', vormonatStart, vormonatEnd)),
         ytd: round2(steuernEinkommenYtd),
         vorjahresYtd: round2(vorjahresYtdSteuernEinkommen),
         ytdChangePct: pctChange(steuernEinkommenYtd, vorjahresYtdSteuernEinkommen),
@@ -755,7 +744,7 @@ export class BwaService {
         bucket: '5100',
         label: 'Sonstige Steuern (Grundsteuer, Kfz-Steuer)',
         monat: round2(sonstigeSteuernMonat),
-        vormonat: 0,
+        vormonat: round2(sumBucket('5100', vormonatStart, vormonatEnd)),
         ytd: round2(sonstigeSteuernYtd),
         vorjahresYtd: round2(vorjahresYtdSonstigeSteuern),
         ytdChangePct: pctChange(sonstigeSteuernYtd, vorjahresYtdSonstigeSteuern),
@@ -851,14 +840,15 @@ export class BwaService {
         jahresergebnisVorjahresYtd,
       },
       counts: {
-        invoices: invoices.length,
-        expenses: expenses.length,
+        // Tier 817: the year's — the rows of a December before are the Vormonat's
+        invoices: invoices.filter((i) => i.issueDate >= yearStart).length,
+        expenses: expenses.filter((e) => e.invoiceDate >= yearStart).length,
         assets: assetList.length,
         // Tier 87: how many AfA bookings exist
         // for this year. 0 = computed fallback
         // for the 3100 line; >0 = real booked
         // AfA Expense rows.
-        afaBookings: bookedAfaRows.length,
+        afaBookings: bookedAfaOf(year).length,
       },
       // Tier 87: expose to the UI which mode
       // the 3100 line is in ('booked' from

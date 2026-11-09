@@ -52,7 +52,10 @@ export function manualKindOf(account: { accountNumber: string; type: string; cat
   const n = Number(account.accountNumber)
   if (account.type === 'revenue') {
     if (n >= 8000 && n <= 8999) return 'umsatz'
-    if (n >= 2650 && n <= 2699) return 'zinsertrag'
+    // Tier 817: 2650–2659 Zinserträge, 2670–2689 Diskont- und zinsähnliche
+    // Erträge (GuV 11); 2660–2669 Erträge aus Kursdifferenzen are other
+    // operating income (GuV 4), not interest
+    if ((n >= 2650 && n <= 2659) || (n >= 2670 && n <= 2689)) return 'zinsertrag'
     return 'ertrag'
   }
   if (account.type !== 'expense') return null
@@ -61,7 +64,10 @@ export function manualKindOf(account: { accountNumber: string; type: string; cat
   if (n >= 4100 && n <= 4199) return 'personal'
   if (n >= 4200 && n <= 4299) return 'raum'
   if (n >= 4800 && n <= 4899) return 'afa'
-  if (n >= 2100 && n <= 2199) return 'zins'
+  // Tier 817: 2100–2149 Zinsen und ähnliche Aufwendungen (GuV 13); 2150–2199
+  // (Aufwendungen aus Kursdifferenzen, nicht abziehbare Vorsteuer, …) are
+  // other operating costs (GuV 8) — and no interest the GewSt adds back
+  if (n >= 2100 && n <= 2149) return 'zins'
   return 'sonstige'
 }
 

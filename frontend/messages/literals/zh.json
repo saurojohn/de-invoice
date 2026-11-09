@@ -152,7 +152,7 @@
  "Umsatz": "营业额",
  "Umsatz YTD": "本年度营业额",
  "Umsatz nach Kostenträger (YTD)": "按成本对象的营业额（本年度）",
- "Umsatz ohne USt − Aufwand (netto)": "不含增值税的营业额 − 支出（净额）",
+ "Umsatz ohne USt − Kosten (mit AfA, ohne Anlagenkäufe, vor Ertragsteuern)": "不含增值税的营业额 − 成本（含折旧，不含固定资产购置，税前）",
  "Umsatz- und Aufwandsentwicklung (12 Monate)": "营业额与支出走势（12 个月）",
  "Umsatz- und Aufwandsentwicklung (letzte 12 Monate)": "营业额与支出走势（最近 12 个月）",
  "Umsatzsteuer − Vorsteuer": "销项税 − 进项税",

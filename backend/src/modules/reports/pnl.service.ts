@@ -1,5 +1,6 @@
 import { assetDisposals } from '../assets/disposals'
-import { isAssetPurchase } from '../accounting/expense-cost'
+import { isAssetPurchase, isIncomeTax } from '../accounting/expense-cost'
+import { manualJournalLines } from '../accounting/manual-journal'
 import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -183,17 +184,18 @@ export class PnlService {
       expenseRows(yearStart, yearEnd),
       expenseRows(new Date(year - 1, 0, 1), new Date(year - 1, 11, 31, 23, 59, 59, 999)),
     ])
-    type Buckets = { mat: number; exp: number; afa: number }
+    type Buckets = { mat: number; exp: number; afa: number; rev: number }
     const bucketByMonth = (rows: typeof cyExpenses) => {
       const out = new Map<number, Buckets>()
       for (const e of rows) {
         const idx = e.invoiceDate.getMonth()
-        const b = out.get(idx) ?? { mat: 0, exp: 0, afa: 0 }
+        const b = out.get(idx) ?? { mat: 0, exp: 0, afa: 0, rev: 0 }
         const cents = Math.round(Number(e.netAmount ?? 0) * 100)
         const booked = e.status === 'booked' || e.status === 'deductible'
         if (booked && /^(Material|Waren)/.test(e.category ?? '')) b.mat += cents
         // Tier 815: an asset's purchase (an Anlagekonto) is no cost — its AfA is
-        if (booked && e.relatedAssetId == null && !isAssetPurchase(e.accountNumber)) b.exp += cents
+        // Tier 817: a tax on income is not in the operating result (the GuV's 14)
+        if (booked && e.relatedAssetId == null && !isAssetPurchase(e.accountNumber) && !isIncomeTax(e.category)) b.exp += cents
         if (e.relatedAssetId != null) b.afa += cents
         out.set(idx, b)
       }
@@ -201,12 +203,34 @@ export class PnlService {
     }
     const cyBuckets = bucketByMonth(cyExpenses)
     const pyBuckets = bucketByMonth(pyExpenses)
+    // Tier 817: the manual vouchers' lines (manual-journal.ts), as the GuV
+    // counts them — income as revenue, Wareneinkauf as material, the rest as
+    // other costs; income taxes not
+    for (const [rows, buckets] of [
+      [await manualJournalLines(this.prisma, companyId, yearStart, yearEnd), cyBuckets],
+      [await manualJournalLines(this.prisma, companyId, new Date(year - 1, 0, 1), new Date(year - 1, 11, 31, 23, 59, 59, 999)), pyBuckets],
+    ] as const) {
+      for (const l of rows) {
+        if (l.kind === 'steuer') continue
+        const idx = Number(l.date.slice(5, 7)) - 1
+        const b = buckets.get(idx) ?? { mat: 0, exp: 0, afa: 0, rev: 0 }
+        const cents = Math.round(l.amount * 100)
+        if (l.kind === 'umsatz' || l.kind === 'ertrag' || l.kind === 'zinsertrag') b.rev += cents
+        else {
+          b.exp += cents
+          if (l.kind === 'material') b.mat += cents
+        }
+        buckets.set(idx, b)
+      }
+    }
     const eur = (cents: number | undefined) => (cents ?? 0) / 100
 
     const result: PnlMonth[] = months.map((m) => {
       const cy = cyBuckets.get(m.idx)
       const py = pyBuckets.get(m.idx)
-      const { revenue, vat } = sumInvoices(cyInvoices, m.mStart, m.mEnd)
+      const own = sumInvoices(cyInvoices, m.mStart, m.mEnd)
+      const revenue = Math.round((own.revenue + eur(cy?.rev)) * 100) / 100
+      const vat = own.vat
       const mat = eur(cy?.mat);
       const totalExp = eur(cy?.exp) + cashOut(m.mStart, m.mEnd) - eur(cy?.afa);
       const otherExp = Math.max(0, totalExp - mat);
@@ -214,7 +238,7 @@ export class PnlService {
       // (2642.8599999999997) in the API's answer.
       const operatingResult = Math.round((revenue - mat - otherExp) * 100) / 100;
       // Prior year
-      const pRev = sumInvoices(pyInvoices, m.pStart, m.pEnd).revenue
+      const pRev = sumInvoices(pyInvoices, m.pStart, m.pEnd).revenue + eur(py?.rev)
       const pMat = eur(py?.mat);
       const pTotal = eur(py?.exp) + cashOut(m.pStart, m.pEnd) - eur(py?.afa);
       const pOther = Math.max(0, pTotal - pMat);

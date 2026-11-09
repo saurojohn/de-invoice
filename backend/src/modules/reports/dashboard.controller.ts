@@ -1,4 +1,7 @@
 import { NOT_AFA_BOOKING } from '../accounting/booked-afa'
+import { expenseCost, isIncomeTax } from '../accounting/expense-cost'
+import { manualJournalLines } from '../accounting/manual-journal'
+import { cashBookings } from '../cashbook/cash-bookings'
 /**
  * DashboardController — Tier 173 split.
  *
@@ -42,6 +45,38 @@ export class DashboardController {
     private readonly prisma: PrismaService,
     private readonly agingService: AgingService,
   ) {}
+
+  /**
+   * Tier 817 — what the year's result has besides the invoices written:
+   * the costs of the bills booked (expenseCost: an Anlagekonto's purchase
+   * costs nothing, a Kleinunternehmer's gross), the AfA booked, the
+   * Kassenbuch's sales and purchases, the manual vouchers' lines (income
+   * taxes left out on every side — the figure is before them).
+   */
+  private async ytdResultParts(companyId: string, start: Date, end: Date): Promise<{ net: number }> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
+    const kleinunternehmer = company?.defaultVatMode === 'kleinunternehmer'
+    const rows = await this.prisma.expense.findMany({
+      where: { companyId, invoiceDate: { gte: start, lte: end }, status: { in: ['booked', 'deductible'] } },
+      select: { netAmount: true, grossAmount: true, category: true, accountNumber: true, relatedAssetId: true },
+    })
+    let cents = 0
+    for (const e of rows) {
+      if (isIncomeTax(e.category)) continue
+      // an AfA booking of the asset register (booked-afa.ts) is its amount
+      cents -= Math.round((e.relatedAssetId != null ? Math.abs(Number(e.grossAmount ?? 0)) : expenseCost(e, kleinunternehmer)) * 100)
+    }
+    for (const c of await cashBookings(this.prisma, companyId, start, end)) {
+      const v = Math.round((kleinunternehmer ? c.gross : c.net) * 100)
+      cents += c.direction === 'in' ? v : -v
+    }
+    for (const l of await manualJournalLines(this.prisma, companyId, start, end)) {
+      if (l.kind === 'steuer') continue
+      const v = Math.round(l.amount * 100)
+      cents += l.kind === 'umsatz' || l.kind === 'ertrag' || l.kind === 'zinsertrag' ? v : -v
+    }
+    return { net: cents / 100 }
+  }
 
   @Get('dashboard')
   @Require('reports.read')
@@ -144,6 +179,7 @@ export class DashboardController {
     const openPayables = cents(openPay._sum.grossAmount) / 100
     const ytdInv = aggregateInvoices(yearStart, todayEnd)
     const ytdExp = aggregateExpenses(yearStart, todayEnd)
+    const ytdCosts = await this.ytdResultParts(companyId, yearStart, todayEnd)
     const lastInv = aggregateInvoices(lastMonthStart, lastMonthEnd)
     const lastExp = aggregateExpenses(lastMonthStart, lastMonthEnd)
     const thisInv = aggregateInvoices(thisMonthStart, todayEnd)
@@ -176,7 +212,12 @@ export class DashboardController {
         // Tier 591: net revenue less net expenses. It was `revenue − expenses`
         // — the invoices' gross totals less the expenses' net amounts, a
         // "profit" too high by the output VAT of the year.
-        net: Math.round((ytdInv.revenue - ytdInv.ust - ytdExp.expenses) * 100) / 100,
+        // Tier 817: less the costs as the GuV counts them, not every bill
+        // received — an asset's purchase is no cost (its AfA is), a blocked
+        // bill and a tax on income are none; with the Kassenbuch and the
+        // manual vouchers (manual-journal.ts). It deducted a laptop of
+        // 1 500 € bought on 0400 in full.
+        net: Math.round((ytdInv.revenue - ytdInv.ust + ytdCosts.net) * 100) / 100,
       },
       thisMonth: {
         revenue: thisInv.revenue,

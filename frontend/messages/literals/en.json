@@ -152,7 +152,7 @@
  "Umsatz": "Revenue",
  "Umsatz YTD": "Revenue this year",
  "Umsatz nach Kostenträger (YTD)": "Revenue by cost object (this year)",
- "Umsatz ohne USt − Aufwand (netto)": "Revenue without VAT − expenses (net)",
+ "Umsatz ohne USt − Kosten (mit AfA, ohne Anlagenkäufe, vor Ertragsteuern)": "Revenue without VAT − costs (with depreciation, without asset purchases, before income taxes)",
  "Umsatz- und Aufwandsentwicklung (12 Monate)": "Revenue and expenses (12 months)",
  "Umsatz- und Aufwandsentwicklung (letzte 12 Monate)": "Revenue and expenses (last 12 months)",
  "Umsatzsteuer − Vorsteuer": "VAT − input VAT",
