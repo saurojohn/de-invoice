@@ -18,7 +18,7 @@ test.afterAll(async ({ request }) => {
   await request.put(`${API}/api/v1/auth/registration`, { headers: H, data: { open: true } })
 })
 
-test("closed: no offer to register, /register explains, the operator opens it again", async ({ page, request }) => {
+test("closed: no offer to register, /register explains, an invitation link is no registration", async ({ page, request }) => {
   const closed = await request.put(`${API}/api/v1/auth/registration`, { headers: H, data: { open: false } })
   expect(closed.status()).toBe(200)
   await page.addInitScript(() => {
@@ -41,8 +41,13 @@ test("closed: no offer to register, /register explains, the operator opens it ag
   // an invitation link is no registration: it opens its own form
   await page.goto("/register?invite=not-a-real-token")
   await expect(page.getByText("Registrierung geschlossen")).toHaveCount(0)
+})
 
-  // the operator's user page: closed, and the button opens it
+// Tier 821a: a test of its own, signed in before its first page — in one test
+// after the signed-out pages, the user page made no request at all for 90 s on
+// the first attempt in CI, twice (the retry passed in 11 s)
+test("the operator's user page: closed, and the button opens it", async ({ page, request }) => {
+  expect((await request.put(`${API}/api/v1/auth/registration`, { headers: H, data: { open: false } })).status()).toBe(200)
   await page.context().addCookies([
     { name: "x-user-id", value: userId, domain: "localhost", path: "/" },
     { name: "x-company-id", value: companyId, domain: "localhost", path: "/" },
@@ -50,6 +55,7 @@ test("closed: no offer to register, /register explains, the operator opens it ag
   await page.addInitScript(({ userId, companyId }: { userId: string; companyId: string }) => {
     localStorage.setItem("userId", userId)
     localStorage.setItem("companyId", companyId)
+    localStorage.setItem("cookie-consent", JSON.stringify({ necessary: true, savedAt: new Date().toISOString() }))
   }, { userId, companyId })
   // the card is the operator's: wait for /auth/me, so that a failure says what it answered
   const me = page.waitForResponse((r) => r.url().includes("/api/v1/auth/me") && r.request().method() === "GET", { timeout: 90_000 })

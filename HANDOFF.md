@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 821b — CI green for Tier 821; the Tier 820 page spec split
+
+Run 42711761784 (Tier 821 + 821a, f976aad7): six jobs, backend **519 passed / 0 failed / 1 skipped** (520 among them), Playwright **1146 passed (43.7 m)**, `reminders-ustva-tier595` passed at 23:00 UTC (the date fix), no Traceback, no `REFUSED` — and **1 flaky** again: `registration-closed-tier820`, first attempt. With the 821a check the reason showed: after the signed-out pages (home, /register, an invitation link) the same page got the session's cookies and went to /dashboard/settings/users — and made **no** `GET /auth/me` in 90 s; the retry passed in 11 s. Split: the signed-out checks are one test, the operator's card another that is signed in before its first page (as `company-invite-tier821`, which never failed). Locally 3 × 3 passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 821a — CI for Tier 820: a date-boundary spec and a first attempt; both specs hardened
 
 Run 42704101797 (Tier 820, 13685ef7): six jobs; backend **518 passed / 0 failed / 1 skipped**; Playwright **1144 passed, 1 failed, 1 flaky** — not green:
