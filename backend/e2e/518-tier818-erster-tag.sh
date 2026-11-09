@@ -14,7 +14,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 TAG="e2e-518-$(date +%s%N | cut -c1-13)"
-TODAY=$(date +%F)
+TODAY=$(TZ=Europe/Berlin date +%F) # the business day: CI runs in UTC, and at 00:45 in Berlin UTC still has the day before
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier818-e2e\",\"companyName\":\"$TAG GmbH\"}" \
   | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['user']['id'], d['user'].get('companyId') or d['company']['id'])" 2>/dev/null)
@@ -36,7 +36,7 @@ AS PUT "/api/v1/invoices/$I/status?companyId=$C" '{"status":"sent"}'
 AS POST "/api/v1/invoices/$I/payments?companyId=$C" "{\"amount\":1190,\"paymentDate\":\"$TODAY\",\"paymentMethod\":\"bank_transfer\"}"
 [[ "$STATUS" == 2* ]] && pass "fixture: an invoice of 1 190 € gross, paid" || fail "payment → $STATUS $BODY"
 
-FROM=$(date +%Y-%m-01)
+FROM="${TODAY:0:8}01"
 AS GET "/api/v1/reports/datev-preview?companyId=$C&startDate=$FROM&endDate=$TODAY"
 assert_eq "the revenue account is credited, the customer debited and credited — no negative column" \
   "$(py "a={x['konto']:x for x in d['byAccount']};r=a.get('8400');print('%.2f/%.2f' % (r['soll'], r['haben']), min(min(x['soll'],x['haben']) for x in d['byAccount']) >= 0)")" \

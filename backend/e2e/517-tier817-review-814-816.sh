@@ -17,7 +17,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 TAG="e2e-517-$(date +%s%N | cut -c1-13)"
-TODAY=$(date +%Y-%m-%d)
+TODAY=$(TZ=Europe/Berlin date +%F) # the business day (Tier 821b)
 YEAR=${TODAY:0:4}
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier817-e2e\",\"companyName\":\"$TAG GmbH\"}" \

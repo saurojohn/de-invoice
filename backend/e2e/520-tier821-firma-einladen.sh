@@ -73,7 +73,7 @@ assert_eq "its admin, and no operator" "$(py 'print(d["role"], d["operator"])')"
 fixture_issuer "$B_C"
 CALL POST "/api/v1/customers?companyId=$B_C" '{"name":"Kunde von B","type":"business","address":{"street":"Weg 1","postalCode":"50667","city":"Köln","country":"DE"}}' -H "x-user-id: $B_U" -H "x-company-id: $B_C"
 K=$(json_field "$BODY" id)
-CALL POST "/api/v1/invoices?companyId=$B_C" "{\"customerId\":\"$K\",\"issueDate\":\"$(date +%F)\",\"items\":[{\"description\":\"Leistung\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":500,\"vatRate\":0.19}]}" -H "x-user-id: $B_U" -H "x-company-id: $B_C"
+CALL POST "/api/v1/invoices?companyId=$B_C" "{\"customerId\":\"$K\",\"issueDate\":\"$(TZ=Europe/Berlin date +%F)\",\"items\":[{\"description\":\"Leistung\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":500,\"vatRate\":0.19}]}" -H "x-user-id: $B_U" -H "x-company-id: $B_C"
 assert_eq "it writes its own invoice" "$STATUS $(py 'print(d["total"])')" "201 595"
 CALL GET "/api/v1/invoices?companyId=$COMPANY_ID" "" -H "x-user-id: $B_U" -H "x-company-id: $COMPANY_ID"
 assert_eq "…and cannot read the operator's (not its company: refused)" "$( [[ "$STATUS" == 401 || "$STATUS" == 403 ]] && echo refused || echo "$STATUS")" "refused"

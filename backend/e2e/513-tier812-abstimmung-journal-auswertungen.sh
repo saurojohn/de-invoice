@@ -69,9 +69,10 @@ q "with v as (insert into \"Voucher\" (id, \"companyId\", \"voucherNumber\", dat
    select gen_random_uuid()::text, v.id, x.a, x.d, x.c, x.o from v, (values ('$A4900', 50, 0, 0), ('$A1200', 0, 50, 1)) as x(a, d, c, o)" >/dev/null
 
 AS GET "/api/v1/accounting/abstimmung?companyId=$C&year=$Y"
+# (Tier 821b: the correction is dated now; its day is Berlin's — after 23:00 UTC that is the next one)
 assert_eq "listed by date: the rent, the cash sale, the old bank expense, the correction (dated today) — not the Privatentnahme, not the reversed pair, not the corrected original" \
   "$(P "[(e['date'], e['origin'], [(l['accountNumber'], l['kind'], l['debit'], l['credit']) for l in e['lines']]) for e in d['entries']]")" \
-  "[('$Y-10-05', 'manual', [('4900', 'aufwand', 1000, 0), ('1576', 'steuer', 190, 0)]), ('$Y-10-06', 'manual', [('8200', 'ertrag', 0, 100), ('1776', 'steuer', 0, 19)]), ('$Y-10-10', 'bank-expense', [('4900', 'aufwand', 50, 0)]), ('$(q "select to_char(date,'YYYY-MM-DD') from \"Voucher\" where \"referenceType\"='VoucherCorrection' and \"companyId\"='$C'")', 'correction', [('4900', 'aufwand', 25, 0)])]"
+  "[('$Y-10-05', 'manual', [('4900', 'aufwand', 1000, 0), ('1576', 'steuer', 190, 0)]), ('$Y-10-06', 'manual', [('8200', 'ertrag', 0, 100), ('1776', 'steuer', 0, 19)]), ('$Y-10-10', 'bank-expense', [('4900', 'aufwand', 50, 0)]), ('$(q "select to_char((date at time zone 'UTC') at time zone 'Europe/Berlin','YYYY-MM-DD') from \"Voucher\" where \"referenceType\"='VoucherCorrection' and \"companyId\"='$C'")', 'correction', [('4900', 'aufwand', 25, 0)])]"
 assert_eq "…what they would add: 1 075 € costs, 100 € revenue, 171 € VAT (190 paid − 19 owed)" "$(P "d['totals']")" "{'aufwand': 1075, 'ertrag': 100, 'steuer': 171}"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=$Y"
 # Tier 816: the EÜR counts the manual vouchers that moved money (a line on 1200):
@@ -80,7 +81,7 @@ AS GET "/api/v1/accounting/euer?companyId=$C&year=$Y"
 assert_eq "…the EÜR counts those that moved money (Tier 816; was: none of them)" "$(P "'%.2f %.2f' % (d['totals']['ausgabenTotal'], d['totals']['einnahmenTotal'])")" "1075.00 100.00"
 # ── a correction of a document's voucher: what it changes, not the whole ──
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-TODAY=$(date +%F)
+TODAY=$(TZ=Europe/Berlin date +%F) # the business day: CI runs in UTC, and at 00:45 in Berlin UTC still has the day before
 { echo '<?xml version="1.0" encoding="UTF-8"?><Document><BkToCstmrStmt><Stmt><Acct><Id><IBAN>DE02120300000000202051</IBAN></Id></Acct>'
   for e in "119.00|Papier $TAG|Papier Schulz" "59.50|Toner $TAG|Toner Meyer"; do
     IFS='|' read -r amt txt name <<< "$e"
