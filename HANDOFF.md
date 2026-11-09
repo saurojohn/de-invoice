@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 819b — CI green for Tier 819
+
+Run 42687629138 (Tier 819, 817b2a9b): all six jobs, backend **517 passed / 0 failed / 1 skipped**, Playwright **1144 passed (31.4 m)** (`home-login-tier819` among them); 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 819 — signing in on the home page
 
 The owner asked (09.11.2026) to sign in on the home page directly. The form of /login is `components/LoginForm.tsx` now, and both the home page and /login use it — one set of rules: the 2FA step (Tier 780), the lockout after five failed attempts, the translated messages, `storeSession` (Tier 401). The home page shows it beside the hero text (on a phone above it — the owner's own system, signing in is what the page is for); „Anmelden" in the header scrolls to it and puts the cursor in the e-mail field. A browser with a session (`hasSession()`, read after mount) is offered „Zum Dashboard" instead of the form; the header's „Abmelden" was a state nothing ever set, and is gone. de / en / zh.
