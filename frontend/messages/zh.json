@@ -1072,7 +1072,9 @@
     "featureAccountingDesc": "完整的复式记账，科目表管理，自动生成会计凭证",
     "featureVatTitle": "VAT申报",
     "featureVatDesc": "实时VAT计算，支持欧盟多国税率，自动生成申报报表",
-    "footer": "保留所有权利."
+    "footer": "保留所有权利.",
+    "signedIn": "您已在此浏览器中登录。",
+    "toDashboard": "进入工作台"
   },
   "import": {
     "title": "批量导入",

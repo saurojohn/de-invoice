@@ -1,0 +1,205 @@
+"use client"
+
+/**
+ * Tier 819 — the sign-in form, on /login and on the home page (the owner
+ * asked to sign in on the home page directly, without the extra page). One
+ * component, so both places keep the same rules: the 2FA step, the lockout
+ * after five failed attempts, the translated messages, the session stored
+ * through storeSession (Tier 401).
+ */
+import { API_BASE } from "@/lib/api"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { useI18n } from "@/components/useI18n"
+import { useToast } from "@/components/useToast"
+import { storeSession } from "@/lib/auth"
+
+const MAX_ATTEMPTS = 5
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 min
+
+export default function LoginForm({ autoFocus = false }: { autoFocus?: boolean }) {
+  const router = useRouter()
+  const { t } = useI18n()
+  const toast = useToast()
+  const [form, setForm] = useState({ email: "", password: "" })
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null)
+  const [attemptCount, setAttemptCount] = useState(0)
+
+  const isValidEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+
+    if (lockoutUntil && Date.now() < lockoutUntil) {
+      const mins = Math.ceil((lockoutUntil - Date.now()) / 60000)
+      setError(
+        t("auth.tooManyAttempts", { minutes: String(mins) }) ||
+          `Zu viele fehlgeschlagene Versuche. Bitte warten Sie ${mins} Minuten.`,
+      )
+      return
+    }
+
+    if (!isValidEmail(form.email)) {
+      setError(t("auth.invalidEmail"))
+      return
+    }
+    if (form.password.length < 1) {
+      setError(t("auth.passwordRequired") || "Bitte geben Sie Ihr Passwort ein")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+        method: "POST",
+        // Tier 401: without credentials the browser DISCARDS the Set-Cookie on
+        // this cross-origin response (:3100 → :3001) and the session would
+        // exist server-side but never reach the browser.
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        // Map known backend errors to i18n keys where
+        // we can; otherwise fall back to a translated
+        // generic "login failed" so the user never
+        // sees English/Chinese raw messages.
+        const msg =
+          data.message === "Invalid credentials"
+            ? t("auth.invalidCredentials") || t("auth.loginFailed")
+            : t("auth.loginFailed")
+        const next = attemptCount + 1
+        setAttemptCount(next)
+        if (next >= MAX_ATTEMPTS) {
+          setLockoutUntil(Date.now() + LOCKOUT_DURATION_MS)
+        }
+        setError(msg)
+        return
+      }
+
+      const data = await res.json()
+      // 2FA gate: if the password was right but 2FA is
+      // on, the server returned twoFactorRequired:true
+      // instead of { id, email, companyId }. Stash the
+      // email so /verify-2fa can re-use it without the
+      // user re-typing, and route to the 2FA page.
+      if (data?.twoFactorRequired) {
+        localStorage.setItem("pending2faEmail", data.email || form.email.toLowerCase())
+        // Tier 780: the challenge /auth/2fa/verify takes (it took the e-mail,
+        // so a code alone signed in). This tab only, gone with it.
+        try { sessionStorage.setItem("pending2faToken", data.twoFactorToken || "") } catch { /* private mode */ }
+        router.push(`/login/verify-2fa?email=${encodeURIComponent(data.email || form.email)}`)
+        return
+      }
+      // Tier 401: one place stores the ids and records whether the response
+      // carried a session (see src/lib/auth.ts). It also writes the two
+      // mirrored cookies the middleware reads.
+      storeSession(data)
+      setAttemptCount(0)
+      setLockoutUntil(null)
+      router.push("/dashboard")
+    } catch {
+      const msg = t("auth.networkError") || "Netzwerkfehler"
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const remainingLockout = lockoutUntil ? Math.max(0, lockoutUntil - Date.now()) : 0
+  const isLockedOut = remainingLockout > 0
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4" autoComplete="on" data-testid="login-form">
+      {error && (
+        <div className="bg-red-100 text-red-700 p-3 rounded text-sm" role="alert">
+          {error}
+        </div>
+      )}
+      {isLockedOut && (
+        <div className="bg-orange-100 text-orange-800 p-3 rounded text-sm" role="alert">
+          {t("auth.locked", { minutes: String(Math.ceil(remainingLockout / 60000)) }) ||
+            `Konto vorübergehend gesperrt. Bitte versuchen Sie es in ${Math.ceil(remainingLockout / 60000)} Minuten erneut.`}
+        </div>
+      )}
+      <div>
+        <label className="block text-sm font-medium mb-1" htmlFor="email">
+          {t("auth.email")}
+        </label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="username"
+          inputMode="email"
+          maxLength={254}
+          autoFocus={autoFocus}
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          placeholder="email@example.com"
+          required
+          disabled={isLockedOut}
+          aria-invalid={!!error}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1" htmlFor="password">
+          {t("auth.password")}
+        </label>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          maxLength={128}
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          placeholder="••••••••"
+          required
+          disabled={isLockedOut}
+          aria-invalid={!!error}
+        />
+        <div className="text-right mt-1">
+          <a
+            href="/forgot-password"
+            className="text-xs text-blue-600 hover:underline"
+          >
+            {t("auth.forgotPassword")}
+          </a>
+        </div>
+      </div>
+      <Button type="submit" className="w-full" disabled={loading || isLockedOut}>
+        {loading
+          ? t("common.loading") || "..."
+          : isLockedOut
+            ? t("auth.lockedShort") || "Gesperrt"
+            : t("auth.login")}
+      </Button>
+      {attemptCount > 0 && !isLockedOut && (
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+          {t("auth.attemptsLeft", { count: String(MAX_ATTEMPTS - attemptCount) }) ||
+            `${MAX_ATTEMPTS - attemptCount} verbleibende Versuche`}
+        </p>
+      )}
+      <p className="text-center text-sm">
+        {t("auth.noAccount")}{" "}
+        <a href="/register" className="text-blue-600 hover:underline">
+          {t("auth.register")}
+        </a>
+      </p>
+    </form>
+  )
+}

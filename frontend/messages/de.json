@@ -1072,7 +1072,9 @@
     "featureAccountingDesc": "Vollständige doppelte Buchführung, Kontenplanverwaltung, automatische Erstellung von Buchungsbelegen",
     "featureVatTitle": "MwSt-Erklärung",
     "featureVatDesc": "Echtzeit-MwSt-Berechnung, Unterstützung für EU-weite Steuersätze, automatische Erstellung von Erklärungsberichten",
-    "footer": "Alle Rechte vorbehalten."
+    "footer": "Alle Rechte vorbehalten.",
+    "signedIn": "Sie sind in diesem Browser angemeldet.",
+    "toDashboard": "Zum Dashboard"
   },
   "import": {
     "title": "Bulk-Import",

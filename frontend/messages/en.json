@@ -1072,7 +1072,9 @@
     "featureAccountingDesc": "Complete double-entry bookkeeping, chart of accounts management, automatic voucher generation",
     "featureVatTitle": "VAT Declaration",
     "featureVatDesc": "Real-time VAT calculation, EU-wide tax rates, automatic declaration report generation",
-    "footer": "All rights reserved."
+    "footer": "All rights reserved.",
+    "signedIn": "You are signed in in this browser.",
+    "toDashboard": "Go to the dashboard"
   },
   "import": {
     "title": "Bulk Import",
