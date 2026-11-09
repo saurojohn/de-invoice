@@ -1913,7 +1913,8 @@
     "mandatory_board": "Vorstand (alle Mitglieder)",
     "datevAccount_ustPrepayment": "Umsatzsteuer-Vorauszahlungen (1780)",
     "datevAccount_tradeTax": "Gewerbesteuer (4320)",
-    "datevAccount_corporateTax": "Körperschaftsteuer (2200)"
+    "datevAccount_corporateTax": "Körperschaftsteuer (2200)",
+    "unsavedChanges": "Firmendaten geändert — noch nicht gespeichert. Dieses „Speichern“ sichert sie; die Schaltflächen der einzelnen Karten (Mahnungen, DATEV, …) speichern nur ihre Karte."
   },
   "statement": {
     "title": "Kontoauszug",

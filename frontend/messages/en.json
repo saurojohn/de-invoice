@@ -1913,7 +1913,8 @@
     "mandatory_board": "Board (all members)",
     "datevAccount_ustPrepayment": "VAT prepayments (1780)",
     "datevAccount_tradeTax": "Trade tax (4320)",
-    "datevAccount_corporateTax": "Corporate income tax (2200)"
+    "datevAccount_corporateTax": "Corporate income tax (2200)",
+    "unsavedChanges": "Company details changed — not saved yet. This “Save” stores them; the buttons of the single cards (dunning, DATEV, …) save only their card."
   },
   "statement": {
     "title": "Customer Statement",

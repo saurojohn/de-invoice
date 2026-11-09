@@ -305,6 +305,24 @@ export default function SettingsPage() {
     ossVerfahren: false,
     bundesland: null,
   })
+  // Tier 818: the company details as last loaded or saved. The page's only
+  // button that saves them is at its very end, below a dozen cards — several
+  // of which have a „Speichern" of their own that saves only that card. In
+  // the first-day drill the details were typed in at the top, the nearest
+  // „Speichern" (the dunning card's) said „gespeichert", and they were lost.
+  // While they differ, a bar at the bottom of the window says so and saves.
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
+  const applyStored = (f: CompanySettings) => {
+    setForm(f)
+    setSavedSnapshot(JSON.stringify(f))
+  }
+  const unsaved = savedSnapshot !== null && JSON.stringify(form) !== savedSnapshot
+  useEffect(() => {
+    if (!unsaved) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = "" }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [unsaved])
 
   const [storageForm, setStorageForm] = useState<StorageSettings>({
     localPath: "",
@@ -358,7 +376,7 @@ export default function SettingsPage() {
             const bankInfo = data.bankInfo || {}
             const settings = data.settings || {}
 
-            setForm({
+            applyStored({
               name: data.name || "",
               legalName: data.legalName || "",
               taxId: data.taxId || "",
@@ -627,7 +645,7 @@ export default function SettingsPage() {
         const address = fresh.address || {}
         const bankInfo = fresh.bankInfo || {}
         const settings = fresh.settings || {}
-        setForm({
+        applyStored({
           name: fresh.name ?? "",
           legalName: fresh.legalName ?? "",
           taxId: fresh.taxId ?? "",
@@ -781,6 +799,8 @@ export default function SettingsPage() {
         // but cache-bust here is defence in depth.)
         setCurrentLogo(`${apiBase()}/api/v1/companies/logo/${data.filename}`)
         setForm({ ...form, logoPath: data.filename })
+        // the logo routes store it themselves (Tier 818: not an unsaved change)
+        setSavedSnapshot((prev) => (prev ? JSON.stringify({ ...JSON.parse(prev), logoPath: data.filename }) : prev))
         toast.success(t("settings.logoUploaded"))
       } else {
         const msg = data?.message || t("settings.uploadError")
@@ -812,6 +832,8 @@ export default function SettingsPage() {
       await apiPost("/api/v1/companies/remove-logo", {})
       setCurrentLogo(null)
       setForm({ ...form, logoPath: "" })
+        // the logo routes store it themselves (Tier 818: not an unsaved change)
+        setSavedSnapshot((prev) => (prev ? JSON.stringify({ ...JSON.parse(prev), logoPath: "" }) : prev))
       toast.success(t("settings.logoRemoved") || "Logo entfernt")
     } catch (error) {
       const msg =
@@ -1189,6 +1211,15 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setForm({ ...form, address: { ...form.address, postalCode: e.target.value } })
                         }
+                        // Tier 818: „70173 Stuttgart" typed into the postcode
+                        // (the first-day drill) — split into postcode and city
+                        // while the city is empty
+                        onBlur={() => {
+                          const m = /^\s*(\d{4,5})\s+(\S.*?)\s*$/.exec(form.address.postalCode)
+                          if (m && !form.address.city.trim()) {
+                            setForm({ ...form, address: { ...form.address, postalCode: m[1], city: m[2] } })
+                          }
+                        }}
                         placeholder="12345"
                         data-testid="settings-postal-code"
                       />
@@ -2105,6 +2136,20 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Tier 818: unsaved company details — the save is at hand wherever one is */}
+          {unsaved && (
+            <div
+              className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center gap-3 border-t border-amber-300 bg-amber-50 px-4 py-3 shadow-lg dark:border-amber-700 dark:bg-amber-950"
+              data-testid="settings-unsaved"
+              role="status"
+            >
+              <span className="flex-1 min-w-0 text-sm text-amber-900 dark:text-amber-100">{t("settings.unsavedChanges")}</span>
+              <Button type="submit" disabled={saving} data-testid="settings-unsaved-save">
+                {saving ? t("common.saving") : t("common.save")}
+              </Button>
+            </div>
+          )}
 
           {/* Submit */}
           <div className="flex gap-4">

@@ -1913,7 +1913,8 @@
     "mandatory_board": "董事会（全部成员）",
     "datevAccount_ustPrepayment": "增值税预缴 (1780)",
     "datevAccount_tradeTax": "营业税 (4320)",
-    "datevAccount_corporateTax": "企业所得税 (2200)"
+    "datevAccount_corporateTax": "企业所得税 (2200)",
+    "unsavedChanges": "公司信息已修改，尚未保存。点此“保存”即可保存；各卡片（催款、DATEV 等）自己的按钮只保存该卡片。"
   },
   "statement": {
     "title": "客户对账单",

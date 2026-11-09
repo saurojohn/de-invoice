@@ -679,6 +679,12 @@ export class DatevExportController {
     const filename = `EXTF_Buchungsstapel_${businessDayIso(startDate)}_L${String(laufNr).padStart(3, '0')}.csv`
 
     // Totals
+    // Tier 818: each Buchung puts its amount on the Soll side of one account
+    // and the Haben side of the other (S: Konto Soll / Gegenkonto Haben; H:
+    // the other way; a negative amount — a credit note — swaps them). The
+    // overview showed one signed balance in both columns (8400: Soll
+    // −1 190, Haben 1 190; „Haben −1 428 €" in total), seen in the
+    // first-day drill.
     let totalSoll = 0
     let totalHaben = 0
     let totalNet = 0 // abs sum
@@ -687,31 +693,20 @@ export class DatevExportController {
       { konto: string; soll: number; haben: number; count: number }
     >()
     const issues: { severity: 'error' | 'warning'; message: string }[] = []
-    for (const b of buchungen) {
-      const signed = b.shVz === 'H' ? -b.betrag : b.betrag
-      totalSoll += signed
-      totalHaben += -signed
-      totalNet += Math.abs(b.betrag)
-      const a = byAccount.get(b.konto) || {
-        konto: b.konto,
-        soll: 0,
-        haben: 0,
-        count: 0,
-      }
-      a.soll += signed
-      a.haben += -signed
+    const post = (konto: string, side: 'soll' | 'haben', amount: number) => {
+      const a = byAccount.get(konto) || { konto, soll: 0, haben: 0, count: 0 }
+      a[side] += amount
       a.count += 1
-      byAccount.set(b.konto, a)
-      const a2 = byAccount.get(b.gegenkonto) || {
-        konto: b.gegenkonto,
-        soll: 0,
-        haben: 0,
-        count: 0,
-      }
-      a2.soll += -signed
-      a2.haben += signed
-      a2.count += 1
-      byAccount.set(b.gegenkonto, a2)
+      byAccount.set(konto, a)
+    }
+    for (const b of buchungen) {
+      const kontoSoll = (b.shVz === 'H') === (b.betrag < 0)
+      const amount = Math.abs(b.betrag)
+      totalNet += amount
+      totalSoll += amount
+      totalHaben += amount
+      post(b.konto, kontoSoll ? 'soll' : 'haben', amount)
+      post(b.gegenkonto, kontoSoll ? 'haben' : 'soll', amount)
       // Validation
       if (!b.konto || !b.gegenkonto) {
         issues.push({
@@ -735,11 +730,21 @@ export class DatevExportController {
     // Soll must equal total Haben. A non-zero
     // delta here means the export would fail
     // DATEV's own validator.
-    const balanceDelta = Math.round((totalSoll + totalHaben) * 100) / 100
+    const balanceDelta = Math.round((totalSoll - totalHaben) * 100) / 100
     if (Math.abs(balanceDelta) > 0.01) {
       issues.push({
         severity: 'error',
         message: `Soll/Haben nicht ausgeglichen (Δ=${balanceDelta.toFixed(2)} €) — DATEV-Import wird fehlschlagen`,
+      })
+    }
+
+    // Tier 818: without them the adviser's DATEV refuses the file (Beraternummer
+    // 1001–9999999, Mandantennummer 1–99999 in the EXTF header) — a new company
+    // has none, and the preview said nothing
+    if (!settings?.beraterNr || !settings?.mandantenNr) {
+      issues.push({
+        severity: 'warning',
+        message: 'Berater-Nr. und Mandanten-Nr. fehlen (Einstellungen → DATEV-Konten) — ohne sie nimmt DATEV den Buchungsstapel nicht an. Die Nummern nennt Ihr Steuerberater.',
       })
     }
 
@@ -758,7 +763,7 @@ export class DatevExportController {
       totalHaben: Math.round(totalHaben * 100) / 100,
       balanceDelta,
       byAccount: Array.from(byAccount.values())
-        .sort((a, b) => (a.soll + a.haben) - (b.soll + b.haben))
+        .sort((a, b) => a.konto.localeCompare(b.konto, 'de', { numeric: true }))
         .map((a) => ({
           konto: a.konto,
           soll: Math.round(a.soll * 100) / 100,

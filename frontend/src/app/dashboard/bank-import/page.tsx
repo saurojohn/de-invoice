@@ -1,6 +1,7 @@
 "use client"
 
 import { formatMoney } from "@/lib/money"
+import { matchReasonText } from "@/lib/match-reason"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -647,10 +648,10 @@ export default function BankImportPage() {
       )
       if (res.autoConfirmed > 0) {
         setSuggestMsg(
-          `${res.generated} Vorschläge — ${res.autoConfirmed} automatisch bestätigt (Schwelle ${res.threshold}).`
+          `${L("Vorschläge")}: ${res.generated} — ${L("automatisch bestätigt")}: ${res.autoConfirmed} (${L("Schwelle")} ${res.threshold}).`
         )
       } else {
-        setSuggestMsg(`${res.generated} Vorschläge erzeugt.`)
+        setSuggestMsg(`${L("Vorschläge erzeugt")}: ${res.generated}`)
       }
       setTimeout(() => setSuggestMsg(null), 6000)
       // Reload both: recons changed AND the
@@ -739,7 +740,7 @@ export default function BankImportPage() {
                         <div className="font-medium text-sm">
                           {s.fileName}{" "}
                           <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                            ({s.format.toUpperCase()}, {s._count?.transactions ?? 0} txns)
+                            ({s.format.toUpperCase()}, {s._count?.transactions ?? 0} {t("bankImport.transactionsTitle")})
                           </span>
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -752,10 +753,10 @@ export default function BankImportPage() {
                             </span>
                           )}
                           {s.openingBalance && (
-                            <span className="mr-3">Open: € {fmtMoney(Number(s.openingBalance))}</span>
+                            <span className="mr-3">{t("bankImport.openingLabel")}: {formatMoney(Number(s.openingBalance))}</span>
                           )}
                           {s.closingBalance && (
-                            <span>Close: € {fmtMoney(Number(s.closingBalance))}</span>
+                            <span>{t("bankImport.closingLabel")}: {formatMoney(Number(s.closingBalance))}</span>
                           )}
                         </div>
                       </div>
@@ -1103,12 +1104,12 @@ export default function BankImportPage() {
                             </span>
                             {c.dueDate && (
                               <span className="text-gray-500 dark:text-gray-400">
-                                {t("bankImport.tableDate")}: {fmtDate(c.dueDate, dl)}
+                                {L("Fällig")}: {fmtDate(c.dueDate, dl)}
                               </span>
                             )}
                           </div>
                           <div className="text-xs text-gray-400 italic mt-1">
-                            {c.matchReason}
+                            {matchReasonText(c.matchReason)}
                           </div>
                           {/* Action buttons — shown only for
                               suggested matches (not confirmed /
@@ -1385,28 +1386,28 @@ export default function BankImportPage() {
                 </div>
                 <div className="text-sm font-mono font-bold mt-1">
                   {pendingPreview.preview.openingBalance
-                    ? `${pendingPreview.preview.openingBalance} €`
+                    ? formatMoney(Number(pendingPreview.preview.openingBalance))
                     : "—"}
                 </div>
               </div>
               <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
-                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Schluss</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">{L("Schluss")}</div>
                 <div className="text-sm font-mono font-bold mt-1">
                   {pendingPreview.preview.closingBalance
-                    ? `${pendingPreview.preview.closingBalance} €`
+                    ? formatMoney(Number(pendingPreview.preview.closingBalance))
                     : "—"}
                 </div>
               </div>
               <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
                 <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Soll</div>
                 <div className="text-sm font-mono font-bold mt-1 text-red-700 dark:text-red-300">
-                  {pendingPreview.preview.totalDebit} €
+                  {formatMoney(Number(pendingPreview.preview.totalDebit))}
                 </div>
               </div>
               <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
                 <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Σ Haben</div>
                 <div className="text-sm font-mono font-bold mt-1 text-green-700 dark:text-green-300">
-                  {pendingPreview.preview.totalCredit} €
+                  {formatMoney(Number(pendingPreview.preview.totalCredit))}
                 </div>
               </div>
             </div>

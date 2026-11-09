@@ -1482,7 +1482,9 @@ function CreateInvoicePageInner() {
                             openNewCustomerModal()
                           }}
                         >
-                          + {t("invoice.createNewCustomerWithName").replace("{name}", customerSearch.trim() || "")}
+                          + {customerSearch.trim()
+                            ? t("invoice.createNewCustomerWithName").replace("{name}", customerSearch.trim())
+                            : t("invoice.createNewCustomer") /* Tier 818: not „Neuen Kunden „" anlegen" */}
                         </div>
                       </>
                     ) : (
@@ -2208,6 +2210,9 @@ function CreateInvoicePageInner() {
                         (i) => selectProduct(filteredProducts[i], index),
                         () => setShowProductDropdown(false),
                       )}
+                      // Tier 818: closes when the field is left (as the Artikelnr. does) —
+                      // „Keine Produkte gefunden" stayed open over the next row
+                      onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
                     />
                     {showProductDropdown && activeItemIndex === index && productSearch && (
                       <div id={`product-options-${index}`} role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg max-h-40 overflow-y-auto z-10">
@@ -2848,7 +2853,7 @@ function CreateInvoicePageInner() {
               <CardHeader>
                 <CardTitle>{t("invoice.newCustomerModalTitle")}</CardTitle>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {t("invoice.createNewCustomerWithName").replace("{name}", newCustomerModal.name || "—")}
+                  {newCustomerModal.name ? t("invoice.createNewCustomerWithName").replace("{name}", newCustomerModal.name) : t("invoice.createNewCustomer")}
                 </p>
               </CardHeader>
               <CardContent>

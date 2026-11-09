@@ -1863,7 +1863,16 @@ export default function InvoiceDetailPage() {
     : false
 
   if (loading) return <div className="p-8 text-center">{t("invoicePage.loading1")}</div>
-  if (!invoice) return <div className="p-8 text-center">{t("invoicePage.notFound")}</div>
+  // Tier 818: a way out — „/dashboard/invoices/new" (the drill typed it) ended here with nothing to click
+  if (!invoice) return (
+    <div className="p-8 text-center space-y-4" data-testid="invoice-not-found">
+      <p>{t("invoicePage.notFound")}</p>
+      <div className="flex justify-center gap-3">
+        <Button variant="outline" onClick={() => router.push("/dashboard/invoices")}>{t("invoicePage.back")}</Button>
+        <Button onClick={() => router.push("/dashboard/invoices/create")}>{t("invoice.createInvoice")}</Button>
+      </div>
+    </div>
+  )
   // Tier 610: a quote / a delivery note — no payment, e-invoice or reminder
   const nonFiscal = invoice.type === "QU" || invoice.type === "DN" || invoice.type === "OC"
   const statusOptions =
