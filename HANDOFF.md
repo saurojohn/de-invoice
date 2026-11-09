@@ -2669,6 +2669,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 818b — CI green for Tier 818; the dev database stays as it is
+
+Run 42671061264 (push, ae4d5676) ran only three of its six jobs — Backend lint, Backend typecheck and Frontend typecheck were never created (`jobs?filter=all`: 3), the run „failure" with every job green, and „cannot be retried". Dispatched again (`production_build=false`), run 42676285230 on the same commit: all six jobs green, backend **517 passed / 0 failed / 1 skipped** (518 among them), Playwright **1142 passed (40.5 m)** (`settings-unsaved-tier818`, `erster-tag-tier818` among them); 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. A run that shows fewer jobs than the workflow has is no result — dispatch it again.
+
+The test data in the dev database (`de-invoice-postgres`: the one company „SH Leder GmbH" with 318 invoices, 33 expenses, 220 customers, 103 vouchers, all from specs; one user): the owner decided on 09.11.2026 to **keep it as it is** — production starts on a new, empty database (the first-day drill above), nothing of the dev database goes there.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 818 — the first-day drill: the production images on an empty database, what a new owner meets
 
 The images built from this tree (`--pull=false`, tags `:day1`, never `:latest`) ran as in `infra/prod/docker-compose.yml` — read-only root, `cap_drop: ALL`, 1 GB, `prisma migrate deploy` on an empty `postgres:16-alpine`, Caddy in front on one origin (http://localhost:3121) — not the compose file itself. Walked in the browser as an owner on the first day: register, company details, the first customer and invoice, „Versendet", the XRechnung check, a bank statement (MT940: the customer's payment and the rent), the match, the rent as an expense, the UStVA, the DATEV export.
