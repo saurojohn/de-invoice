@@ -2669,6 +2669,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 821a — CI for Tier 820: a date-boundary spec and a first attempt; both specs hardened
+
+Run 42704101797 (Tier 820, 13685ef7): six jobs; backend **518 passed / 0 failed / 1 skipped**; Playwright **1144 passed, 1 failed, 1 flaky** — not green:
+
+- **`reminders-ustva-tier595` failed 3×** — a date boundary in the spec, not the code: it built the invoice date with `toISOString()` (UTC) and the month to compute with `getMonth()` (the runner's time — CI has `TZ: Europe/Berlin`). The run was at 22:16 UTC on 09.11.: „40 days ago" was 30.09. in UTC and 01.10. in Berlin — the spec asked for October (0 €, expected 570). Reproduced here at 23:24 CET with the old spec (570 / 0), passes with the fix: the month is taken from the date string sent. No other spec mixes the two (grep).
+- **`registration-closed-tier820` flaky** — the first attempt did not find the operator's card in 90 s, the retry passed in 11.6 s. Not explained from the log; both card specs (820, 821) now wait for `GET /auth/me` and assert `operator: true` with what it answered, so a repeat says why.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 821 — inviting someone to register a company of their own
 
 The owner asked (09.11.2026) to let people they choose open their own company on the installation and write its invoices — with the registration closed to everyone else (Tier 820).

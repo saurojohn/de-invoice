@@ -59,7 +59,9 @@ test("the reminders page and the UStVA sum row", async ({ page, request }) => {
   await expect(page.locator("body")).not.toContainText("€2380")
   await expect(page.locator("body")).not.toContainText("Fällig seit: Überfällig seit")
 
-  const [y, m] = [d.getFullYear(), d.getMonth() + 1]
+  // Tier 821: the month of the date sent — getMonth() is the runner's (CI: Berlin);
+  // at 22:16 UTC on 09.11.2026 „40 days ago" was 30.09. in UTC and 01.10. there
+  const [y, m] = [Number(issue.slice(0, 4)), Number(issue.slice(5, 7))]
   const kz = await (await request.get(`${API}/api/v1/ustva/compute?${q}&year=${y}&month=${m}`, { headers: H })).json()
   expect(kz.umsatzsteuer, "fixture: the month's output VAT is 380 + 190 (§ 13b)").toBe(570)
   // the invoice's month: forty days ago, in January that is last year

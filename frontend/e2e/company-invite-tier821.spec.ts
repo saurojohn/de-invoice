@@ -31,7 +31,11 @@ test("an invited company registers through the link, with the registration close
     localStorage.setItem("companyId", companyId)
     localStorage.setItem("cookie-consent", JSON.stringify({ necessary: true, savedAt: new Date().toISOString() }))
   }, { userId, companyId })
+  // the card is the operator's: wait for /auth/me, so that a failure says what it answered
+  const me = page.waitForResponse((r) => r.url().includes("/api/v1/auth/me") && r.request().method() === "GET", { timeout: 90_000 })
   await page.goto("/dashboard/settings/users")
+  const meBody = await (await me).json()
+  expect(meBody.operator, `GET /auth/me as the seed admin: ${JSON.stringify({ role: meBody.role, operator: meBody.operator, companyId: meBody.companyId })}`).toBe(true)
   await expect(page.getByTestId("registration-card")).toBeVisible({ timeout: 90_000 })
   await page.getByTestId("company-invite-email").fill(email)
   await page.getByTestId("company-invite-send").click()

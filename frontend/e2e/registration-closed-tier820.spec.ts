@@ -51,7 +51,11 @@ test("closed: no offer to register, /register explains, the operator opens it ag
     localStorage.setItem("userId", userId)
     localStorage.setItem("companyId", companyId)
   }, { userId, companyId })
+  // the card is the operator's: wait for /auth/me, so that a failure says what it answered
+  const me = page.waitForResponse((r) => r.url().includes("/api/v1/auth/me") && r.request().method() === "GET", { timeout: 90_000 })
   await page.goto("/dashboard/settings/users")
+  const meBody = await (await me).json()
+  expect(meBody.operator, `GET /auth/me as the seed admin: ${JSON.stringify({ role: meBody.role, operator: meBody.operator, companyId: meBody.companyId })}`).toBe(true)
   const card = page.getByTestId("registration-card")
   await expect(card).toBeVisible({ timeout: 90_000 })
   await expect(page.getByTestId("registration-state")).toContainText("Geschlossen")
