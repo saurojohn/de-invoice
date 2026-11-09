@@ -220,7 +220,10 @@
       "notice": "请通过我们发给您的链接确认电子邮件地址 {email}。在此之前，de-invoice 不会为您的公司发送任何邮件（发票、催款单、邀请）——除非您在“设置 → 电子邮件”中配置了自己的 SMTP 服务器。",
       "resend": "重新发送链接",
       "resent": "新的确认链接已发往 {email}。"
-    }
+    },
+    "inviteOnly": "新用户由管理员邀请加入。",
+    "registrationClosedTitle": "注册已关闭",
+    "registrationClosedText": "本系统的新用户由管理员邀请，您会通过电子邮件收到邀请链接。"
   },
   "bankImport": {
     "openAmount": "未付",
@@ -2277,7 +2280,14 @@
     "youAreAdmin": "您是唯一的管理员",
     "roleAuditor": "税务审计员（只读，有期限）",
     "roleAuditorDesc": "用于税务机关查阅数据（AO 第 147 条第 6 款）：可查看所有发票、支出、账目、增值税申报和变更日志，并可下载 GoBD 归档。审计员不能修改任何内容，也不能管理用户。访问在所选日期结束，可在此延长。",
-    "accessUntil": "访问截止"
+    "accessUntil": "访问截止",
+    "registrationTitle": "公开注册",
+    "registrationIsOpen": "开放：任何知道网址的人都能注册自己的公司。",
+    "registrationIsClosed": "已关闭：新用户只能通过邀请加入（见下方）。",
+    "registrationClose": "关闭注册",
+    "registrationOpen": "开放注册",
+    "registrationOpened": "注册已开放。",
+    "registrationClosed": "注册已关闭。"
   },
   "ustva": {
     "ossNote": "按目的国税率开给其他欧盟国家消费者的销售额：净额 {net} — 已计入 Kz 45，仅作为计税基础。其税额（{vat}）不在本期申报内，通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",

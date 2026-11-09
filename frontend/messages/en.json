@@ -220,7 +220,10 @@
       "notice": "Please confirm your e-mail address {email} with the link we sent you. Until then de-invoice sends no e-mails for your company (invoices, reminders, invitations) — except through your own SMTP server under Settings → E-mail.",
       "resend": "Send the link again",
       "resent": "A new confirmation link is on its way to {email}."
-    }
+    },
+    "inviteOnly": "New users are invited by the administrator.",
+    "registrationClosedTitle": "Registration closed",
+    "registrationClosedText": "On this installation the administrator invites new users — you will then receive a link by e-mail."
   },
   "bankImport": {
     "openAmount": "open",
@@ -2277,7 +2280,14 @@
     "youAreAdmin": "You are the only administrator",
     "roleAuditor": "Tax auditor (read only, time-limited)",
     "roleAuditorDesc": "For the tax office’s data access (§ 147 (6) AO): sees all invoices, expenses, bookings, VAT returns and the change log and can download the GoBD archives. The auditor can change nothing, not even users. The access ends on the chosen day and can be extended here.",
-    "accessUntil": "Access until"
+    "accessUntil": "Access until",
+    "registrationTitle": "Public registration",
+    "registrationIsOpen": "Open: anyone who knows the address can register a company of their own.",
+    "registrationIsClosed": "Closed: new users come in by invitation only (below).",
+    "registrationClose": "Close registration",
+    "registrationOpen": "Open registration",
+    "registrationOpened": "Registration is open.",
+    "registrationClosed": "Registration is closed."
   },
   "ustva": {
     "ossNote": "Sales to consumers in other EU states at the rate of those states: net {net} — included in Kz 45, as a base only. Their tax ({vat}) is not in this return; it is declared through the OSS scheme at the BZSt (§ 18j UStG), see Reports → OSS.",

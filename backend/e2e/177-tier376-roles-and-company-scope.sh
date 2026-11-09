@@ -36,7 +36,8 @@ grep -qE "@CompanyIdParam\('id'\)" "$SRC/modules/company/company.controller.ts" 
 # (Tier 575: auth/change-password — the caller's own password, and the current
 # one is asked for again. Tier 736: auth/resend-verification — a new link to
 # the caller's own address. Tier 737: auth/my-data, auth/delete-account(/check)
-# — the caller's own data and account; the deletion asks for the password.)
+# — the caller's own data and account; the deletion asks for the password.
+# Tier 820: PUT auth/registration — the operator's, by SystemAdminGuard.)
 EXPECTED_NO_ROLE="GET auth/delete-account/check
 GET auth/me
 GET auth/my-data
@@ -52,7 +53,8 @@ POST auth/2fa/status
 POST auth/change-password
 POST auth/delete-account
 POST auth/resend-verification
-POST users/me/switch-company"
+POST users/me/switch-company
+PUT auth/registration"
 ACTUAL_NO_ROLE=$(python3 - "$SRC" <<'PY'
 import re, glob, sys
 src = sys.argv[1]

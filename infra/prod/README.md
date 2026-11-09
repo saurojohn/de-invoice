@@ -214,7 +214,10 @@ company are the installation's operators (backups, schedulers, storage
 settings, system notifications), and registration is open to whoever
 reaches the page: the first to register owns the installation. To narrow
 the operators further, set `SYSTEM_ADMIN_EMAILS` in `.env` (it can only
-narrow that circle, not name someone outside it).
+narrow that circle, not name someone outside it). After that first
+registration the page takes no more (Tier 820, `REGISTRATION=first-only`):
+colleagues and the tax adviser are invited under Einstellungen →
+Benutzerverwaltung (the invitation is mailed — SMTP must work).
 
 Do not insert a company row by hand and do not run a test seed against a
 production database — an earlier version of this section suggested both. A

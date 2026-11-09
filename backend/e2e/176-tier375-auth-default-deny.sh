@@ -37,7 +37,9 @@ else
 fi
 
 # Adding a public route must be a deliberate edit of this list.
-EXPECTED_PUBLIC="GET calendar/:token
+# (Tier 820: GET auth/registration — whether the page offers to register.)
+EXPECTED_PUBLIC="GET auth/registration
+GET calendar/:token
 GET companies/imprint
 GET companies/logo/:name
 GET customer-portal/invoice/:id

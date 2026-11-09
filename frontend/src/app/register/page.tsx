@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { storeSession } from "@/lib/auth"
+import { useRegistrationOpen } from "@/lib/registration"
 
 type Strength = { ok: boolean; msg: string }
 
@@ -47,6 +48,7 @@ function RegisterPageInner() {
   const [loading, setLoading] = useState(false)
 
   const isInviteMode = !!inviteToken
+  const registrationOpen = useRegistrationOpen() // Tier 820
 
   const isValidEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
@@ -251,6 +253,23 @@ function RegisterPageInner() {
   }
 
   // ================== Self-service registration UI ==================
+  // Tier 820: after the first company by invitation only
+  if (registrationOpen === false) {
+    return (
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md" data-testid="registration-closed">
+          <CardHeader>
+            <CardTitle className="text-center text-2xl">{t("auth.registrationClosedTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-gray-600 dark:text-gray-300">{t("auth.registrationClosedText")}</p>
+            <Button className="w-full" onClick={() => router.push("/")}>{t("auth.login")}</Button>
+          </CardContent>
+        </Card>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">

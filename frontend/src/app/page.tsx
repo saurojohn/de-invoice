@@ -7,6 +7,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import LoginForm from "@/components/LoginForm"
 import { useI18n } from "@/components/useI18n"
 import { hasSession } from "@/lib/auth"
+import { useRegistrationOpen } from "@/lib/registration"
 
 export default function HomePage() {
   const { t } = useI18n()
@@ -14,6 +15,8 @@ export default function HomePage() {
   // the page offers the dashboard instead of the form. Read after mount: the
   // server renders no localStorage. (It was a state nothing ever set to true.)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  // Tier 820: closed after the first company — then no offer to register
+  const registrationOpen = useRegistrationOpen()
   useEffect(() => {
     setIsLoggedIn(hasSession())
   }, [])
@@ -38,9 +41,11 @@ export default function HomePage() {
                 <Button variant="ghost" onClick={toLogin}>
                   {t("auth.login")}
                 </Button>
-                <Button onClick={() => window.location.href = '/register'}>
-                  {t("auth.register")}
-                </Button>
+                {registrationOpen && (
+                  <Button onClick={() => window.location.href = '/register'}>
+                    {t("auth.register")}
+                  </Button>
+                )}
               </>
             ) : (
               <Button onClick={() => window.location.href = '/dashboard'} data-testid="home-to-dashboard">
@@ -62,9 +67,11 @@ export default function HomePage() {
             {t("home.heroSubtitle")}
           </p>
           <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-            <Button size="lg" onClick={() => window.location.href = '/register'}>
-              {t("home.startFree")}
-            </Button>
+            {registrationOpen && (
+              <Button size="lg" onClick={() => window.location.href = '/register'}>
+                {t("home.startFree")}
+              </Button>
+            )}
             <Button
               size="lg"
               variant="outline"

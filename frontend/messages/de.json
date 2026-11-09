@@ -220,7 +220,10 @@
       "notice": "Bitte bestätigen Sie Ihre E-Mail-Adresse {email} mit dem Link, den wir Ihnen geschickt haben. Bis dahin versendet de-invoice keine E-Mails für Ihre Firma (Rechnungen, Mahnungen, Einladungen) — außer über einen eigenen SMTP-Server unter Einstellungen → E-Mail.",
       "resend": "Link erneut senden",
       "resent": "Ein neuer Bestätigungslink ist an {email} unterwegs."
-    }
+    },
+    "inviteOnly": "Neue Benutzer werden vom Administrator eingeladen.",
+    "registrationClosedTitle": "Registrierung geschlossen",
+    "registrationClosedText": "Auf dieser Installation lädt der Administrator neue Benutzer ein — Sie erhalten dann einen Link per E-Mail."
   },
   "bankImport": {
     "openAmount": "offen",
@@ -2277,7 +2280,14 @@
     "youAreAdmin": "Sie sind der einzige Administrator",
     "roleAuditor": "Betriebsprüfer (nur lesen, befristet)",
     "roleAuditorDesc": "Für den Datenzugriff der Finanzverwaltung (§ 147 Abs. 6 AO): sieht alle Rechnungen, Ausgaben, Buchungen, Umsatzsteuer-Voranmeldungen und das Änderungsprotokoll und kann die GoBD-Archive laden. Ändern kann der Prüfer nichts, auch keine Benutzer. Der Zugang endet am gewählten Tag und lässt sich hier verlängern.",
-    "accessUntil": "Zugang bis"
+    "accessUntil": "Zugang bis",
+    "registrationTitle": "Öffentliche Registrierung",
+    "registrationIsOpen": "Offen: Jeder, der die Adresse kennt, kann eine eigene Firma registrieren.",
+    "registrationIsClosed": "Geschlossen: Neue Benutzer kommen nur über eine Einladung (unten).",
+    "registrationClose": "Registrierung schließen",
+    "registrationOpen": "Registrierung öffnen",
+    "registrationOpened": "Die Registrierung ist offen.",
+    "registrationClosed": "Die Registrierung ist geschlossen."
   },
   "ustva": {
     "ossNote": "Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz: netto {net} — in Kz 45 enthalten, nur als Bemessungsgrundlage. Ihre Steuer ({vat}) steht nicht in dieser Voranmeldung; sie wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG), siehe Berichte → OSS.",

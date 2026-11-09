@@ -172,8 +172,11 @@ audit trail + health check).
 
 ### Add a new admin user
 
-The app has no public "register" flow that creates a new
-company (admin invites only). Two options:
+Registration is open only until the first company exists (Tier 820:
+`REGISTRATION=first-only` in the compose file — the first person to open
+/register owns the installation). After that, new people come in by
+invitation only; the operator can open or close the registration under
+Einstellungen → Benutzerverwaltung. Two options:
 
 1. **Via the existing admin's UI**: Settings → Users →
    Invite. The new user gets an emailed link.

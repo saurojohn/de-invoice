@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { storeSession } from "@/lib/auth"
+import { useRegistrationOpen } from "@/lib/registration"
 
 const MAX_ATTEMPTS = 5
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 min
@@ -29,6 +30,7 @@ export default function LoginForm({ autoFocus = false }: { autoFocus?: boolean }
   const [loading, setLoading] = useState(false)
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null)
   const [attemptCount, setAttemptCount] = useState(0)
+  const registrationOpen = useRegistrationOpen() // Tier 820
 
   const isValidEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
@@ -194,12 +196,18 @@ export default function LoginForm({ autoFocus = false }: { autoFocus?: boolean }
             `${MAX_ATTEMPTS - attemptCount} verbleibende Versuche`}
         </p>
       )}
-      <p className="text-center text-sm">
-        {t("auth.noAccount")}{" "}
-        <a href="/register" className="text-blue-600 hover:underline">
-          {t("auth.register")}
-        </a>
-      </p>
+      {registrationOpen ? (
+        <p className="text-center text-sm">
+          {t("auth.noAccount")}{" "}
+          <a href="/register" className="text-blue-600 hover:underline">
+            {t("auth.register")}
+          </a>
+        </p>
+      ) : registrationOpen === false ? (
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400" data-testid="login-invite-only">
+          {t("auth.inviteOnly")}
+        </p>
+      ) : null}
     </form>
   )
 }

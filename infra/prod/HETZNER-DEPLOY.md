@@ -289,7 +289,9 @@ Open `https://<your-domain>/register` and create your account. Registration
 is open, and the admins of the **first** company are the installation's
 operators (backups, schedulers, storage settings): whoever registers first
 owns the installation. `SYSTEM_ADMIN_EMAILS` in `.env` can narrow that
-circle further.
+circle further. After this first registration the page takes no more
+(Tier 820): everyone else is invited under Einstellungen →
+Benutzerverwaltung.
 
 Then open **Einstellungen** and complete that company's details — legal
 name, address, e-mail, phone, register entry, managing director, VAT ID.

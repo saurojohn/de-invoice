@@ -243,6 +243,9 @@ services:
       # here, only those of them — the list narrows that circle, it cannot
       # name someone outside it (registration does not verify addresses).
       SYSTEM_ADMIN_EMAILS: ${SYSTEM_ADMIN_EMAILS:-}
+      # Tier 820: after the first company, new people by invitation only (the
+      # operator can open it again on the user page; „open" here opens it by default)
+      REGISTRATION: ${REGISTRATION:-first-only}
       # Tier 549: when set, GET /metrics needs `Authorization: Bearer <token>`.
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       # Optional — VIES mock mode for offline tests.

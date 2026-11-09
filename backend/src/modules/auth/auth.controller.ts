@@ -1,6 +1,9 @@
 import { publicOrigin } from '../../common/public-origin'
-import { isSystemAdmin } from '../../auth/system-admin.guard';
-import { Controller, Post, Body, Get, HttpCode, HttpStatus, BadRequestException, Logger, Req, Res, UseGuards } from '@nestjs/common';
+import { isSystemAdmin, SystemAdminGuard } from '../../auth/system-admin.guard';
+import { registrationState, REGISTRATION_CLOSED_MESSAGE } from './registration';
+import { withKeyLock } from '../../common/key-lock';
+import { updateCompanySettings } from '../../common/company-settings';
+import { Controller, Post, Put, Body, Get, HttpCode, HttpStatus, BadRequestException, ForbiddenException, Logger, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService, EMAIL_VERIFY_TTL_MS } from './auth.service';
 import { AccountService } from './account.service';
@@ -331,6 +334,41 @@ export class AuthController {
   }
 
   /**
+   * Tier 820 — whether this installation takes new registrations (the home
+   * page and /register hide the offer when not). Public.
+   */
+  @Public()
+  @Get('registration')
+  async registration() {
+    const { open } = await registrationState(this.prisma)
+    return { open }
+  }
+
+  /**
+   * Tier 820 — the operator opens or closes the registration (kept with the
+   * first company; see registration.ts).
+   */
+  @UseGuards(HeaderAuthGuard, SystemAdminGuard)
+  @Put('registration')
+  async setRegistration(@Body() body: { open?: unknown }, @Req() req: any) {
+    if (typeof body?.open !== 'boolean') throw new BadRequestException('open (true/false) ist erforderlich')
+    const value = body.open ? 'open' : 'closed'
+    await updateCompanySettings(this.prisma, req.user.companyId, (settings) => {
+      ;(settings as Record<string, unknown>).registration = value
+    })
+    await this.audit.writeActivity({
+      companyId: req.user.companyId,
+      userId: req.user.id,
+      action: body.open ? 'registration_opened' : 'registration_closed',
+      entityType: 'company',
+      entityId: req.user.companyId,
+      ipAddress: req.ip,
+      userAgent: req?.headers?.['user-agent'] || null,
+    })
+    return registrationState(this.prisma)
+  }
+
+  /**
    * Register: also rate-limited. Validates password strength server-side.
    */
   @Public()
@@ -341,6 +379,16 @@ export class AuthController {
     @Req() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // Tier 820: one at a time, so that two first registrations of an empty
+    // installation cannot both pass the check below
+    return withKeyLock('auth:register', () => this.registerLocked(dto, req, res))
+  }
+
+  private async registerLocked(dto: RegisterDto, req: any, res: Response) {
+    // Tier 820: after the first company, by invitation only (registration.ts)
+    if (!(await registrationState(this.prisma)).open) {
+      throw new ForbiddenException(REGISTRATION_CLOSED_MESSAGE)
+    }
     if (dto.password.length < 8) {
       throw new BadRequestException('Passwort muss mindestens 8 Zeichen lang sein');
     }

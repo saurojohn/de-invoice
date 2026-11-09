@@ -351,6 +351,8 @@ echo "   Registration is open, and the admins of the FIRST company"
 echo "   are the installation's operators (backups, schedulers,"
 echo "   storage): whoever registers first owns the installation."
 echo "   Optionally narrow the operators with SYSTEM_ADMIN_EMAILS in .env."
+echo "   After it, registration is closed: invite everyone else under"
+echo "   Einstellungen -> Benutzerverwaltung (needs SMTP)."
 echo
 echo "3. ENABLE OFF-SITE BACKUPS (Hetzner Storage Box):"
 echo "   See HETZNER-DEPLOY.md step 9."
