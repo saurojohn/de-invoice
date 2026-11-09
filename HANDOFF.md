@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 817b — CI green for Tier 817
+
+Run 42662429392 (Tier 817, 10317ff7): backend **516 passed / 0 failed / 1 skipped** (517 among them), Playwright **1137 passed (34.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. Locally before the push: the 52 related and guard specs, after `up.sh` logs to `/tmp/backend.log` again (spec 464 reads the invitation link there, as in CI).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 817 — the review of Tiers 814–816: the dashboard's profit counts costs, exchange differences are no interest, the BWA's Vormonat column is filled
 
 Reviewed: the manual journal across the reports (816), the asset purchase (815), the prepayments of a year (815), the bank paths (809–814). Measured with a probe on the test database (a manual voucher corrected twice: the GuV, the EÜR and the journal all 1 200; the Abstimmung lists the last correction). Found and fixed:
