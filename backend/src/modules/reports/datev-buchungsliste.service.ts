@@ -1,3 +1,4 @@
+import { inferredAccountName } from './datev-sachkonto-inference'
 import { businessTodayIso } from '../../common/business-date'
 import { SKR03_ANLAGEN_NAMES } from './datev-anlagen'
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
@@ -442,7 +443,7 @@ export class DatevBuchungslisteService {
       } else {
         map.set(konto, {
           konto,
-          kontoName: SKR03_NAMES[konto]
+          kontoName: SKR03_NAMES[konto] ?? inferredAccountName(konto) // Tier 830
             ?? (/^\d{5}$/.test(konto) ? (Number(konto) >= 70000 ? 'Kreditor' : 'Debitor') : ''),
           count: 1,
           sumSoll: side === 'S' ? betrag : 0,

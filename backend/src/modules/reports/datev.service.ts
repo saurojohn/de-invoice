@@ -38,6 +38,7 @@
  * applies to — the layout of DATEV's sample.
  */
 
+import { inferExpenseAccount } from './datev-sachkonto-inference'
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 26.3: SKR03 Sachkonten auto-inference from the line description, for
 // voucher lines that have no account yet.
@@ -761,6 +762,17 @@ export async function buildBuchungenFromDb(
     ).map((x) => [x.id, x.type]),
   )
 
+  // Tier 830: the Sachkonto of a bill without one of its own — from its
+  // category and text (datev-sachkonto-inference.ts), 4900 only when nothing
+  // matches. Every bill without an account went to 4900: in the month-end
+  // drill goods, rent, the Fachbuch, Google Ads and an EU purchase alike —
+  // the adviser had to book each one again.
+  const expenseAccount = (accountNumber: string | null | undefined, category: string | null | undefined, text: string | null | undefined) => {
+    if (accountNumber) return accountNumber
+    const inferred = inferExpenseAccount(`${category ?? ''} ${text ?? ''}`)
+    return inferred.confidence > 0 ? inferred.accountNumber : a.expenseDefault
+  }
+
   for (const exp of expenses) {
     if (exp.relatedAssetId) {
       const k = anlagenKonten(afaAssetType.get(exp.relatedAssetId))
@@ -789,7 +801,7 @@ export async function buildBuchungenFromDb(
       belegdatum: exp.invoiceDate,
       belegfeld1,
       konto: kreditor(exp.supplierId),
-      gegenkonto: exp.accountNumber || a.expenseDefault,
+      gegenkonto: expenseAccount(exp.accountNumber, exp.category, exp.description),
       shVz: 'H' as const,
       buchungstext: exp.description.substring(0, 60),
       kost1: (exp as any).costCenter ?? undefined,
@@ -878,7 +890,7 @@ export async function buildBuchungenFromDb(
         : same(c.rate, 0.07) ? a.revenue7 : a.revenue19
       if (!kleinunternehmer && c.rate > 0) key = vatRateToUstSchluessel(c.rate, 'output')?.key ?? ''
     } else {
-      gegenkonto = a.expenseDefault
+      gegenkonto = expenseAccount(null, null, c.description) // Tier 830
       if (!kleinunternehmer && c.rate > 0) key = vatRateToUstSchluessel(c.rate, 'input')?.key ?? ''
     }
     out.push({

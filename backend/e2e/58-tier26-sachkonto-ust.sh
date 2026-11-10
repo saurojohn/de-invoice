@@ -14,7 +14,7 @@
 #   3. A VoucherLine with no accountId AND a
 #      description that matches the SKR03 inference
 #      rules gets the inferred account assigned
-#      automatically (Tier 26.3 — Adobe → 4980).
+#      automatically (Tier 26.3 — Adobe → 4964).
 #   4. A VoucherLine with no accountId AND no
 #      description stays uncategorised (the 4900
 #      fallback is NOT auto-applied because we
@@ -62,7 +62,7 @@ pass "required accounts present"
 
 # ---- 1. Voucher with one inference-able line ----
 echo
-echo "=== 1. Sachkonten auto-inference (Adobe → 4980) ==="
+echo "=== 1. Sachkonten auto-inference (Adobe → 4964) ==="
 VOUCHER_BODY=$(cat <<EOF
 {
   "companyId": "$COMPANY_ID",
@@ -93,12 +93,12 @@ assert_status 201 "voucher with Adobe line created" \
   "$(jq -r '.id // empty' /tmp/t58_voucher1.json)"
 
 # Fetch the Voucher back and check that the line
-# has an accountId set to a 4980 account.
+# has an accountId set to a 4964 account.
 VOUCHER_ID=$(jq -r '.id' /tmp/t58_voucher1.json)
 api_get "/api/v1/accounting/vouchers/$VOUCHER_ID?companyId=$COMPANY_ID"
 echo "$BODY" > /tmp/t58_voucher1_get.json
 INFERRED_ACCOUNT=$(jq -r '.lines[] | select(.description | test("Adobe")) | .account.accountNumber' /tmp/t58_voucher1_get.json)
-assert_eq "Adobe line inferred to 4980" "$INFERRED_ACCOUNT" "4980"
+assert_eq "Adobe line inferred to 4964" "$INFERRED_ACCOUNT" "4964"
 
 # ---- 2. VoucherLine with no description stays null ----
 echo

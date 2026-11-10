@@ -107,8 +107,10 @@ assert_eq "partial payment: Bank 1200 an 10000, 500,00 S (was: missing)" "$(P "r
 assert_eq "no separate tax rows, no collective account" "$(P "sum(1 for d in data if d['Konto'] in ('1406','1400') or d['Gegenkonto (ohne BU-Schlüssel)'] in ('1776','1771','1760'))")" "0"
 
 note "=== 3. expenses on the supplier's account ==="
-assert_eq "expense: Kreditor 70001 an 4900, gross 119,00 H, key 9 (was Bank, key 1)" "$(P "row('Büromaterial')")" "70001|4900|119,00|H|9|$TTMM"
-assert_eq "§ 13b without supplier: Diverse Kreditoren 70000, net, key 94 (was 12)" "$(P "row('Subunternehmer')")" "70000|4900|2000,00|H|94|$TTMM"
+# (Tier 830: the Sachkonto from the bill's category and text — Bürobedarf 4930,
+# Fremdleistungen 3100; both were 4900)
+assert_eq "expense: Kreditor 70001 an 4930, gross 119,00 H, key 9 (was Bank, key 1)" "$(P "row('Büromaterial')")" "70001|4930|119,00|H|9|$TTMM"
+assert_eq "§ 13b without supplier: Diverse Kreditoren 70000, net, key 94 (was 12), on 3100" "$(P "row('Subunternehmer')")" "70000|3100|2000,00|H|94|$TTMM"
 
 note "=== 4. a voucher is one booking, not one per line ==="
 assert_eq "Bank 1200 an 4900, 119,00 H, key 9 — the tax line folded in (was 3 rows, 2 of them duplicates)" \

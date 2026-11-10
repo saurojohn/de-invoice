@@ -41,6 +41,13 @@ VCH_ID="e2e0e0e0-0001-0000-0007-0000000000b1"
 VCH_NO="E2E-T7C-VCH-01"
 BANK_ACC="e2e0e0e0-0001-0000-0007-0000000000b2"
 RECV_ACC="e2e0e0e0-0001-0000-0007-0000000000b3"
+# Tier 830: the ids this spec creates — only these are deleted at the end.
+# It deleted the re-fetched ids, i.e. the seed company's real 1200 / 1406
+# whenever nothing referenced them: specs 40, 58, 69, 77, 121 then found no
+# account 1200 (a local run of 146 specs; on CI bookings hold it, the delete
+# failed unseen).
+OWN_BANK_ACC="$BANK_ACC"
+OWN_RECV_ACC="$RECV_ACC"
 
 # ----- Clean up any prior run (idempotent re-runs)
 # We deliberately DO NOT delete Account rows here
@@ -218,7 +225,7 @@ docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "
   DELETE FROM \"Attachment\" WHERE \"entityType\" = 'voucher' AND \"entityId\" = '$VCH_ID';
   DELETE FROM \"VoucherLine\" WHERE \"voucherId\" = '$VCH_ID';
   DELETE FROM \"Voucher\" WHERE id = '$VCH_ID';
-  DELETE FROM \"Account\" WHERE id IN ('$BANK_ACC', '$RECV_ACC');" >/dev/null 2>&1
+  DELETE FROM \"Account\" WHERE id IN ('$OWN_BANK_ACC', '$OWN_RECV_ACC');" >/dev/null 2>&1
 note "Cleanup done"
 
 cleanup_cashbook

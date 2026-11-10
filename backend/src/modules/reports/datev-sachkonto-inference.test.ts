@@ -31,7 +31,7 @@ describe('Sachkonten inference — pure function', () => {
   test('Miete description → 4210', () => {
     const r = inferExpenseAccount('Büromiete Mai 2026')
     assert.equal(r.accountNumber, '4210')
-    assert.equal(r.accountName, 'Miete')
+    assert.equal(r.accountName, 'Miete (unbewegliche Wirtschaftsgüter)')
     // "Büromiete" matches "miete" as a substring at
     // position 1 (after "Büro"). The "bürobedarf"
     // rule is more specific but doesn't match here.
@@ -41,10 +41,10 @@ describe('Sachkonten inference — pure function', () => {
   test('Strom description → 4240', () => {
     const r = inferExpenseAccount('Strom Stadtwerke Dreieich')
     assert.equal(r.accountNumber, '4240')
-    assert.equal(r.accountName, 'Energie, Wasser, Heizung')
+    assert.equal(r.accountName, 'Gas, Strom, Wasser')
   })
 
-  test('T-Mobile → 4970 (Porto, Telefon, Internet)', () => {
+  test('T-Mobile → 4920 (Telefon)', () => {
     // "Mobilfunk" rule wins because of the "o2 / 1&1 /
     // t-mobile" keyword, which is in 4970. We don't
     // expect this to fire from "Software" rule even
@@ -57,44 +57,44 @@ describe('Sachkonten inference — pure function', () => {
     // The keyword is "t-mobile" which is 8 chars →
     // substring match. "T-Mobile" is the input →
     // substring at position 0 → score 75.
-    assert.equal(r.accountNumber, '4970')
+    assert.equal(r.accountNumber, '4920')
   })
 
-  test('DHL Rechnung → 4970 (Porto)', () => {
+  test('DHL Rechnung → 4910 (Porto)', () => {
     const r = inferExpenseAccount('DHL Paket International')
-    assert.equal(r.accountNumber, '4970')
+    assert.equal(r.accountNumber, '4910')
   })
 
-  test('Microsoft 365 → 4980 (Software/IT/Cloud)', () => {
+  test('Microsoft 365 → 4964 (Software, Cloud)', () => {
     const r = inferExpenseAccount('Microsoft 365 Business')
-    assert.equal(r.accountNumber, '4980')
-    assert.equal(r.accountName, 'Software, IT, Cloud')
+    assert.equal(r.accountNumber, '4964')
+    assert.equal(r.accountName, 'Aufwendungen für die zeitlich befristete Überlassung von Rechten (Software, Cloud)')
   })
 
-  test('AWS → 4980 (substring match, lower confidence)', () => {
+  test('AWS → 4964 (substring match, lower confidence)', () => {
     const r = inferExpenseAccount('AWS S3 Storage')
-    assert.equal(r.accountNumber, '4980')
+    assert.equal(r.accountNumber, '4964')
     // "aws" is 3 chars → word-boundary match, not
     // substring. "AWS S3" starts with "AWS" so it's
     // position 0 → score 100.
     assert.equal(r.confidence, 100)
   })
 
-  test('Google Ads → 4760 (Werbe- und Reisekosten)', () => {
+  test('Google Ads → 4600 (Werbekosten)', () => {
     const r = inferExpenseAccount('Google Ads Mai 2026')
-    assert.equal(r.accountNumber, '4760')
+    assert.equal(r.accountNumber, '4600')
   })
 
-  test('Hotel booking → 4760 (Reisekosten)', () => {
+  test('Hotel booking → 4660 (Reisekosten)', () => {
     const r = inferExpenseAccount('Hotel Adlon Berlin Übernachtung')
     // "Übernachtung" or "hotel" both match. The
     // "hotel" rule is in 4760.
-    assert.equal(r.accountNumber, '4760')
+    assert.equal(r.accountNumber, '4660')
   })
 
-  test('HUK Versicherung → 4380', () => {
+  test('HUK Versicherung → 4360', () => {
     const r = inferExpenseAccount('HUK-Coburg Kfz-Versicherung')
-    assert.equal(r.accountNumber, '4380')
+    assert.equal(r.accountNumber, '4360')
   })
 
   test('Bürobedarf (specific) wins over Software (generic)', () => {
@@ -114,9 +114,9 @@ describe('Sachkonten inference — pure function', () => {
     assert.equal(r.accountNumber, '4930')
   })
 
-  test('Allianz → 4380 (Versicherungen)', () => {
+  test('Allianz → 4360 (Versicherungen)', () => {
     const r = inferExpenseAccount('Allianz Berufshaftpflicht Q2 2026')
-    assert.equal(r.accountNumber, '4380')
+    assert.equal(r.accountNumber, '4360')
   })
 
   test('Steuerberater → 4950 (Rechts- und Beratungskosten)', () => {
@@ -166,21 +166,21 @@ describe('Sachkonten inference — pure function', () => {
     // position-N.
     const r1 = inferExpenseAccount('Hotel Adlon Berlin')
     const r2 = inferExpenseAccount('Grand Hotel Berlin')
-    assert.equal(r1.accountNumber, '4760')
-    assert.equal(r2.accountNumber, '4760')
+    assert.equal(r1.accountNumber, '4660')
+    assert.equal(r2.accountNumber, '4660')
     assert.equal(r1.confidence, 75)
     assert.equal(r2.confidence, 50)
     assert.ok(r1.confidence > r2.confidence)
   })
 
-  test('Mixed German/English: "OpenAI API" → 4980', () => {
+  test('Mixed German/English: "OpenAI API" → 4964', () => {
     const r = inferExpenseAccount('OpenAI API GPT-4o usage')
-    assert.equal(r.accountNumber, '4980')
+    assert.equal(r.accountNumber, '4964')
   })
 
-  test('Case insensitivity: "VERSICHERUNG" matches 4380', () => {
+  test('Case insensitivity: "VERSICHERUNG" matches 4360', () => {
     const r = inferExpenseAccount('VERSICHERUNG ALLIANZ Q2')
-    assert.equal(r.accountNumber, '4380')
+    assert.equal(r.accountNumber, '4360')
   })
 })
 
@@ -231,13 +231,13 @@ describe('Sachkonten inference — DB integration', () => {
         prisma, fixture.lineId, 'Adobe Creative Cloud',
       )
       assert.ok(result, 'inference result should not be null')
-      assert.equal(result!.accountNumber, '4980')
+      assert.equal(result!.accountNumber, '4964')
       const after = await prisma.voucherLine.findUnique({
         where: { id: fixture.lineId },
         include: { account: true },
       })
       assert.ok(after?.accountId, 'accountId should now be set')
-      assert.equal((after as any).account?.accountNumber, '4980')
+      assert.equal((after as any).account?.accountNumber, '4964')
     } finally {
       await cleanupVoucherFixture(prisma, fixture)
       await prisma.$disconnect()

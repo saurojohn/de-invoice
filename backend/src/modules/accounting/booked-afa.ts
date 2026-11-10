@@ -50,6 +50,39 @@ export async function bookedAfaCost(db: Db, companyId: string, year: number): Pr
 export const NOT_AFA_BOOKING = { relatedAssetId: null } as const
 
 /**
+ * Tier 830 — the computed AfA of a window inside one calendar year: each
+ * asset's AfA of that year spread over the months it is depreciated in that
+ * year (Tier 800: from the month of acquisition, until the month of sale or
+ * the end of its useful life), counted for the window's months.
+ *
+ * It was the year's AfA × the window's months / 12 (the BWA's rule since
+ * Tier 86, made shared in Tier 824): spread over all twelve months, whether
+ * the asset was there or not. Measured in the month-end drill (a laptop of
+ * 1 100 € over 36 months, bought 24.10.2026): the BWA's October carried
+ * 7,64 € of AfA — the year's 91,67 € / 12 — instead of 30,56 €, and
+ * January to September 7,64 € each for a laptop not yet bought.
+ */
+export function computedAfaInWindow(assets: Parameters<typeof computeAfaSummary>[0][], start: Date, end: Date): number {
+  if (end < start) return 0
+  const year = start.getFullYear()
+  const firstWindowMonth = start.getMonth() + 1
+  const lastWindowMonth = end.getFullYear() > year ? 12 : end.getMonth() + 1
+  let cents = 0
+  for (const a of assets) {
+    const s = computeAfaSummary(a, new Date(year, 11, 31, 23, 59, 59, 999))
+    if (s.monthsInYear <= 0 || s.annualAfA <= 0) continue
+    const from = Math.max(firstWindowMonth, s.firstMonthInYear)
+    const to = Math.min(lastWindowMonth, s.firstMonthInYear + s.monthsInYear - 1)
+    if (to < from) continue
+    // cumulative, so that the months add up to the year's AfA to the cent
+    // (91,67 over three months: 30,56 + 30,55 + 30,56, not 3 × 30,56 = 91,68)
+    const upTo = (m: number) => Math.round((s.annualAfA * Math.max(0, m - s.firstMonthInYear + 1) / s.monthsInYear) * 100)
+    cents += upTo(to) - upTo(from - 1)
+  }
+  return cents / 100
+}
+
+/**
  * Tier 824 — the AfA of a period, as a cost, by one rule for the dashboard,
  * the monthly P&L and the BWA: the year's AfA bookings that stand, when it
  * has any (an annual booking falls on 31.12., a monthly one on each month's
@@ -84,8 +117,8 @@ export async function afaOfYear(db: Db, companyId: string, year: number) {
           .reduce((s, r) => s - Math.round(Number(r.netAmount ?? 0) * 100), 0)
         return cents / 100
       }
-      const computed = assets.reduce((s, a) => s + computeAfaSummary(a, end).annualAfA * (months / 12), 0)
-      return Math.round(computed * 100) / 100
+      void months
+      return computedAfaInWindow(assets, start, end)
     },
   }
 }

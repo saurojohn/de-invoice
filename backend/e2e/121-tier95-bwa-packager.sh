@@ -49,6 +49,10 @@ cleanup() {
   if [ -n "$ORIGINAL_SETTINGS" ]; then
     docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
       "UPDATE \"Company\" SET settings='$ORIGINAL_SETTINGS'::jsonb WHERE id='$COMPANY_ID';" >/dev/null 2>&1
+  else
+    # Tier 830: the company had no settings (NULL) — back to NULL, not left with anlageV
+    docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c \
+      "UPDATE \"Company\" SET settings=NULL WHERE id='$COMPANY_ID';" >/dev/null 2>&1
   fi
   echo "  cleanup: restored SH Leder settings"
 }
@@ -133,7 +137,7 @@ echo "=== 5. With Anlage V opt-in, BWA shifts position ==="
 # Set settings.anlageV = true
 UPDATED_SETTINGS=$(echo "$ORIGINAL_SETTINGS" | python3 -c "
 import json,sys
-s = json.loads(sys.stdin.read())
+s = json.loads(sys.stdin.read().strip() or '{}')  # Tier 830: NULL settings read as {}
 s['anlageV'] = True
 print(json.dumps(s))
 ")

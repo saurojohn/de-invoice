@@ -86,6 +86,13 @@ interface InferenceRule {
  * before the generic "software" that would otherwise
  * match "bürosoftware").
  */
+// Tier 830: the SKR03 numbers checked against the Kontenrahmen, and the
+// accounts a trading or crafts business needs added (the month-end drill
+// exported every bill to 4900). Were wrong: Porto / Telefon on 4970 (that is
+// „Nebenkosten des Geldverkehrs"), Versicherungen on 4380 („Beiträge"),
+// Werbung and Reisen on 4760 („Verkaufsprovisionen"). Goods go to 3200
+// „Wareneingang", not to the automatic 3400: the export gives every row its
+// tax key, and DATEV takes no key on an automatic account.
 const RULES: InferenceRule[] = [
   {
     accountNumber: '4930',
@@ -94,32 +101,38 @@ const RULES: InferenceRule[] = [
   },
   {
     accountNumber: '4940',
-    accountName: 'Zeitschriften, Fachliteratur',
-    keywords: ['zeitschrift', 'fachliteratur', 'abo', 'ihk-', 'ihk ', 'handelsblatt', 'wirtschaftswoche', 'manager magazin', 'fachzeitschrift'],
+    accountName: 'Zeitschriften, Bücher',
+    keywords: ['zeitschrift', 'fachliteratur', 'fachbuch', 'bücher', 'buch ', 'abo', 'ihk-', 'ihk ', 'handelsblatt', 'wirtschaftswoche', 'manager magazin', 'fachzeitschrift'],
+  },
+  {
+    accountNumber: '4955',
+    accountName: 'Buchführungskosten',
+    keywords: ['buchführung', 'buchhaltung', 'lohnabrechnung', 'jahresabschluss'],
   },
   {
     accountNumber: '4950',
     accountName: 'Rechts- und Beratungskosten',
-    // Common legal/tax advisor abbreviations match
-    // here: RA = Rechtsanwalt, StB = Steuerberater,
-    // WP = Wirtschaftsprüfer. Dotted-variants
-    // (RA. Müller) are matched as substrings.
+    // RA = Rechtsanwalt, StB = Steuerberater, WP = Wirtschaftsprüfer
     keywords: ['rechtsanwalt', 'steuerberater', 'notar', 'kanzlei', 'wirtschaftsprüfer', 'ra-', 'stb-', 'wp-', 'ra.', 'stb.', 'wp.', 'steuerb.', 'rechtsberatung', 'steuerberatung', 'notariat', 'lohnsteuerhilfe'],
   },
   {
-    accountNumber: '4970',
-    accountName: 'Porto, Telefon, Internet',
-    // German carrier names + obvious keywords. We
-    // include partial matches like "tel" because
-    // "Telekomfaktur" and "T-Mobile" both contain it.
-    keywords: ['porto', 'dhl', 'hermes', 'dpd', 'gls', 'ups', 'fedex', 'telefon', 'mobilfunk', 'vodafone', 'telekom', 't-mobile', 'o2', '1&1', 'internet', 'kabel', 'glasfaser', 'dsl', 'fon', 'tel.'],
+    accountNumber: '4910',
+    accountName: 'Porto',
+    keywords: ['porto', 'briefmarke', 'deutsche post', 'dhl', 'hermes', 'dpd', 'gls', 'ups', 'fedex', 'versandkosten'],
   },
   {
-    accountNumber: '4980',
-    accountName: 'Software, IT, Cloud',
-    // SaaS providers we expect to see. Adding to this
-    // list is a one-line change; users can fork the
-    // module for their specific vendor stack.
+    accountNumber: '4920',
+    accountName: 'Telefon',
+    keywords: ['telefon', 'mobilfunk', 'vodafone', 'telekom', 't-mobile', 'o2', '1&1', 'internet', 'kabel', 'glasfaser', 'dsl', 'fon', 'tel.'],
+  },
+  {
+    accountNumber: '4970',
+    accountName: 'Nebenkosten des Geldverkehrs',
+    keywords: ['kontoführung', 'kontogebühr', 'bankgebühr', 'bankentgelt', 'kartengebühr', 'paypal-gebühr', 'stripe-gebühr', 'sumup'],
+  },
+  {
+    accountNumber: '4964',
+    accountName: 'Aufwendungen für die zeitlich befristete Überlassung von Rechten (Software, Cloud)',
     keywords: [
       'software', 'saas', 'cloud', 'hosting', 'server',
       'domain', 'ssl', 'tls',
@@ -129,54 +142,93 @@ const RULES: InferenceRule[] = [
       'notion', 'slack', 'discord', 'zoom', 'teams',
       'microsoft 365', 'office 365', 'm365', 'o365',
       'atlassian', 'jira', 'confluence', 'trello',
-      'salesforce', 'hubspot', 'zendesk', 'freshdesk',
+      'salesforce', 'zendesk', 'freshdesk',
       'github copilot', 'openai', 'anthropic', 'claude api',
     ],
   },
   {
     accountNumber: '4210',
-    accountName: 'Miete',
-    keywords: ['miete', 'raum', 'büromiete', 'ladenmiete', 'hallenmiete', 'gewerbemiet'],
+    accountName: 'Miete (unbewegliche Wirtschaftsgüter)',
+    keywords: ['miete', 'pacht', 'raumkosten', 'büromiete', 'ladenmiete', 'hallenmiete', 'gewerbemiet'],
   },
   {
     accountNumber: '4240',
-    accountName: 'Energie, Wasser, Heizung',
-    keywords: ['energie', 'strom', 'gas', 'wasser', 'heizung', 'fernwärme', 'stadtwerke', 'e.ON', 'rwe', 'vattenfall', 'lichtblick'],
+    accountName: 'Gas, Strom, Wasser',
+    keywords: ['energie', 'strom', 'gas', 'wasser', 'heizung', 'fernwärme', 'stadtwerke', 'e.on', 'rwe', 'vattenfall', 'lichtblick'],
   },
   {
-    accountNumber: '4380',
+    accountNumber: '4360',
     accountName: 'Versicherungen',
     keywords: ['versicherung', 'versich.', 'haftpflicht', 'kfz-versich', 'gewerbeversich', 'allianz', 'huk', 'axa', 'r+v', 'generali'],
   },
   {
-    accountNumber: '4500',
-    accountName: 'Fahrzeugkosten',
-    // We treat "Benzin" / "Diesel" as Fahrzeugkosten
-    // not as Wareneinsatz — these are running costs of
-    // the user's own vehicles, not goods for resale.
-    // Fuel cards (DKV, Shell, Total) match here.
-    keywords: ['tanken', 'tankstelle', 'benzin', 'diesel', 'kraftstoff', 'e-fuel', 'adac', 'dkv', 'shell', 'total energies', 'aral', 'esso', 'bp ', 'parkhaus', 'parken', 'maut', 'tüv', 'hu ', 'kfz-', 'kfz.', 'autowäsche', 'werkstatt', 'reifen', 'autobatterie'],
+    accountNumber: '4380',
+    accountName: 'Beiträge',
+    keywords: ['beitrag', 'beiträge', 'kammerbeitrag', 'ihk-beitrag', 'hwk-beitrag', 'verbandsbeitrag', 'mitgliedsbeitrag'],
   },
   {
-    accountNumber: '4760',
-    accountName: 'Werbe- und Reisekosten',
-    // German travel platforms + marketing tools.
-    // Hotel + Bahn bookings are Reisekosten. Google
-    // Ads / Meta Ads are Werbung.
-    keywords: ['werbung', 'marketing', 'google ads', 'meta ads', 'facebook ads', 'linkedin ads', 'messe', 'anzeige', 'banner', 'plakat', 'flugblatt', 'newsletter', 'mailing', 'seo', 'sea', 'hubspot', 'mailchimp', 'sendinblue', 'brevo',
-      'flug', 'hotel', 'übernachtung', 'bahn', 'db ', 'deutsche bahn', 'flixbus', 'uber', 'taxi', 'mietwagen', 'geschäftsreise', 'geschäftsessen', 'bewirtung', 'restaurants', 'restaurant', 'speisen', 'gastronomie'],
+    accountNumber: '4500',
+    accountName: 'Fahrzeugkosten',
+    // running costs of the company's own vehicles, not goods for resale
+    keywords: ['tanken', 'tankstelle', 'benzin', 'diesel', 'kraftstoff', 'e-fuel', 'adac', 'dkv', 'shell', 'total energies', 'aral', 'esso', 'bp ', 'parkhaus', 'parken', 'maut', 'tüv', 'hu ', 'kfz-', 'kfz.', 'autowäsche', 'reifen', 'autobatterie'],
+  },
+  {
+    accountNumber: '4600',
+    accountName: 'Werbekosten',
+    keywords: ['werbung', 'werbekosten', 'marketing', 'google ads', 'meta ads', 'facebook ads', 'linkedin ads', 'messe', 'anzeige', 'banner', 'plakat', 'flugblatt', 'newsletter', 'mailing', 'seo', 'sea', 'hubspot', 'mailchimp', 'sendinblue', 'brevo'],
+  },
+  {
+    accountNumber: '4650',
+    accountName: 'Bewirtungskosten',
+    keywords: ['bewirtung', 'geschäftsessen', 'restaurants', 'restaurant', 'speisen', 'gastronomie'],
+  },
+  {
+    accountNumber: '4660',
+    accountName: 'Reisekosten',
+    keywords: ['reisekosten', 'flug', 'hotel', 'übernachtung', 'bahn', 'db ', 'deutsche bahn', 'flixbus', 'uber', 'taxi', 'mietwagen', 'geschäftsreise'],
+  },
+  {
+    accountNumber: '4945',
+    accountName: 'Fortbildungskosten',
+    keywords: ['fortbildung', 'weiterbildung', 'seminar', 'schulung', 'lehrgang'],
+  },
+  {
+    accountNumber: '4805',
+    accountName: 'Reparaturen und Instandhaltung von Betriebs- und Geschäftsausstattung',
+    keywords: ['reparatur', 'instandhaltung', 'wartung', 'instandsetzung'],
+  },
+  {
+    accountNumber: '4985',
+    accountName: 'Werkzeuge und Kleingeräte',
+    keywords: ['werkzeug', 'kleingerät'],
+  },
+  {
+    accountNumber: '3200',
+    accountName: 'Wareneingang',
+    keywords: ['wareneinkauf', 'wareneingang', 'handelsware', 'waren'],
+  },
+  {
+    accountNumber: '3000',
+    accountName: 'Roh-, Hilfs- und Betriebsstoffe',
+    keywords: ['rohstoff', 'hilfsstoff', 'betriebsstoff', 'material'],
+  },
+  {
+    accountNumber: '3100',
+    accountName: 'Fremdleistungen',
+    keywords: ['fremdleistung', 'subunternehmer', 'nachunternehmer'],
   },
   {
     accountNumber: '4900',
     accountName: 'Sonstige betriebliche Aufwendungen',
-    // Catch-all for "other operating expenses". This
-    // is the only account we'd auto-book even on a
-    // weak match — if the keyword scores below our
-    // threshold, the caller still gets 4900 as the
-    // fallback so the export is always complete.
+    // the fallback when nothing above matched (inferExpenseAccount)
     keywords: ['sonstige', 'diverses', 'sachaufwand', 'betriebsausgabe', 'aufwand', 'auslagen', 'spesen'],
   },
 ]
+
+/** Tier 830: the name of an expense account the inference can choose (for lists that name the account). */
+export function inferredAccountName(accountNumber: string): string | undefined {
+  return RULES.find((r) => r.accountNumber === accountNumber)?.accountName
+}
 
 /** Compile the keyword list once at module load. The
  *  regex anchors matter: a keyword "büro" should
