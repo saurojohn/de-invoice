@@ -20,6 +20,20 @@ import { businessToday } from '../../common/business-date';
 import { peekNextInvoiceNumber, setNextInvoiceNumber } from '../invoice/invoice-number';
 import { companySettingsTransaction, updateCompanySettings } from '../../common/company-settings';
 
+/**
+ * Tier 824 — the operator's invitations to register a company (Tier 821) are
+ * kept in its company's settings: GET / PUT /companies/:id answered them to
+ * every member of that company — a viewer, the Steuerberater, a
+ * Betriebsprüfer saw the invited people's addresses. They are the operator's
+ * (GET /auth/registration/invites); the token was only ever its hash.
+ */
+function withoutCompanyInvites<T>(company: T): T {
+  const c = company as { settings?: unknown } | null
+  if (!c || !c.settings || typeof c.settings !== 'object' || Array.isArray(c.settings)) return company
+  const { companyInvites: _hidden, ...settings } = c.settings as Record<string, unknown>
+  return { ...c, settings } as T
+}
+
 // Tier 376: `:id` is the company — bind it to the authenticated one.
 @CompanyIdParam('id')
 @Controller('companies')
@@ -74,14 +88,14 @@ export class CompanyController {
   @Require('company.read')
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    return this.companyService.findById(id);
+    return withoutCompanyInvites(await this.companyService.findById(id));
   }
 
   @Auth()
   @Require('company.update')
   @Put(':id')
   async update(@Param('id') id: string, @Body() data: UpdateCompanyDto) {
-    return this.companyService.update(id, data);
+    return withoutCompanyInvites(await this.companyService.update(id, data));
   }
 
   /**

@@ -460,7 +460,11 @@ export class AuthController {
     // Tier 820: after the first company, by invitation only (registration.ts);
     // Tier 821: or with an invitation to register a company of one's own
     const { open } = await registrationState(this.prisma)
-    const invite = open ? null : await pendingCompanyInvite(this.prisma, dto.companyInvite)
+    // Tier 824: an invitation that can still be used counts with the
+    // registration open as well — it was ignored then: the company was made,
+    // and the operator's list kept the invitation „offen" and the company as
+    // registered by itself (GET /admin/companies)
+    const invite = await pendingCompanyInvite(this.prisma, dto.companyInvite)
     if (!open && !invite) {
       throw new ForbiddenException(REGISTRATION_CLOSED_MESSAGE)
     }

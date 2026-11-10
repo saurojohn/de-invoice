@@ -1,6 +1,7 @@
 import { assetDisposals } from '../assets/disposals'
 import { isAssetPurchase, isIncomeTax } from '../accounting/expense-cost'
 import { manualJournalLines } from '../accounting/manual-journal'
+import { afaOfYear } from '../accounting/booked-afa'
 import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -173,8 +174,7 @@ export class PnlService {
     // run, spec 213). Same buckets as before:
     //   mat — booked/deductible, category Material… / Waren…
     //   exp — booked/deductible, no AfA row (NOT_AFA_BOOKING)
-    //   afa — the rows "AfA buchen" created (relatedAssetId), any status;
-    //         negative, so subtracting them adds the AfA as a cost (Tier 437)
+    //   (the AfA: afaOfYear below — Tier 824)
     const expenseRows = (start: Date, end: Date) =>
       this.prisma.expense.findMany({
         where: { companyId, invoiceDate: { gte: start, lte: end } },
@@ -184,19 +184,18 @@ export class PnlService {
       expenseRows(yearStart, yearEnd),
       expenseRows(new Date(year - 1, 0, 1), new Date(year - 1, 11, 31, 23, 59, 59, 999)),
     ])
-    type Buckets = { mat: number; exp: number; afa: number; rev: number }
+    type Buckets = { mat: number; exp: number; rev: number }
     const bucketByMonth = (rows: typeof cyExpenses) => {
       const out = new Map<number, Buckets>()
       for (const e of rows) {
         const idx = e.invoiceDate.getMonth()
-        const b = out.get(idx) ?? { mat: 0, exp: 0, afa: 0, rev: 0 }
+        const b = out.get(idx) ?? { mat: 0, exp: 0, rev: 0 }
         const cents = Math.round(Number(e.netAmount ?? 0) * 100)
         const booked = e.status === 'booked' || e.status === 'deductible'
         if (booked && /^(Material|Waren)/.test(e.category ?? '')) b.mat += cents
         // Tier 815: an asset's purchase (an Anlagekonto) is no cost — its AfA is
         // Tier 817: a tax on income is not in the operating result (the GuV's 14)
         if (booked && e.relatedAssetId == null && !isAssetPurchase(e.accountNumber) && !isIncomeTax(e.category)) b.exp += cents
-        if (e.relatedAssetId != null) b.afa += cents
         out.set(idx, b)
       }
       return out
@@ -213,7 +212,7 @@ export class PnlService {
       for (const l of rows) {
         if (l.kind === 'steuer') continue
         const idx = Number(l.date.slice(5, 7)) - 1
-        const b = buckets.get(idx) ?? { mat: 0, exp: 0, afa: 0, rev: 0 }
+        const b = buckets.get(idx) ?? { mat: 0, exp: 0, rev: 0 }
         const cents = Math.round(l.amount * 100)
         if (l.kind === 'umsatz' || l.kind === 'ertrag' || l.kind === 'zinsertrag') b.rev += cents
         else {
@@ -224,6 +223,10 @@ export class PnlService {
       }
     }
     const eur = (cents: number | undefined) => (cents ?? 0) / 100
+    // Tier 824: the AfA by the rule of the BWA (booked-afa.ts afaOfYear) — the
+    // bookings that stand, else computed, a twelfth a month. Without a booking
+    // the P&L had no AfA while BWA and GuV had the computed.
+    const [afaCy, afaPy] = await Promise.all([afaOfYear(this.prisma, companyId, year), afaOfYear(this.prisma, companyId, year - 1)])
 
     const result: PnlMonth[] = months.map((m) => {
       const cy = cyBuckets.get(m.idx)
@@ -232,7 +235,7 @@ export class PnlService {
       const revenue = Math.round((own.revenue + eur(cy?.rev)) * 100) / 100
       const vat = own.vat
       const mat = eur(cy?.mat);
-      const totalExp = eur(cy?.exp) + cashOut(m.mStart, m.mEnd) - eur(cy?.afa);
+      const totalExp = eur(cy?.exp) + cashOut(m.mStart, m.mEnd) + afaCy.cost(m.mStart, m.mEnd, 1);
       const otherExp = Math.max(0, totalExp - mat);
       // Tier 607: to the cent — this was a float difference
       // (2642.8599999999997) in the API's answer.
@@ -240,7 +243,7 @@ export class PnlService {
       // Prior year
       const pRev = sumInvoices(pyInvoices, m.pStart, m.pEnd).revenue + eur(py?.rev)
       const pMat = eur(py?.mat);
-      const pTotal = eur(py?.exp) + cashOut(m.pStart, m.pEnd) - eur(py?.afa);
+      const pTotal = eur(py?.exp) + cashOut(m.pStart, m.pEnd) + afaPy.cost(m.pStart, m.pEnd, 1);
       const pOther = Math.max(0, pTotal - pMat);
       const pOp = pRev - pMat - pOther;
       // % change. Guard against div by zero.

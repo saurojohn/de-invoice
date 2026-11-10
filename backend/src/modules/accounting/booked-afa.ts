@@ -10,6 +10,7 @@
  * GuV, BWA and Anlage G said −1 200 €.
  */
 import { Prisma, PrismaClient } from '@prisma/client'
+import { computeAfaSummary } from '../assets/afa'
 
 type Db = PrismaClient | Prisma.TransactionClient
 
@@ -47,3 +48,44 @@ export async function bookedAfaCost(db: Db, companyId: string, year: number): Pr
  * got "Kreditor 70000 an 4900" — a supplier credit reducing expenses.
  */
 export const NOT_AFA_BOOKING = { relatedAssetId: null } as const
+
+/**
+ * Tier 824 — the AfA of a period, as a cost, by one rule for the dashboard,
+ * the monthly P&L and the BWA: the year's AfA bookings that stand, when it
+ * has any (an annual booking falls on 31.12., a monthly one on each month's
+ * end), else the AfA computed from the asset register, pro rata — as the
+ * BWA has done since Tier 86 and the GuV for the year.
+ *
+ * Measured before (an asset of 12 000 € over 60 months, AfA booked monthly,
+ * on 10.11.): the dashboard took every AfA row with Math.abs — after „AfA
+ * stornieren" the booking and its counter-entry (Tier 746) both counted, its
+ * „Gewinn YTD" fell from −2 000 to −4 000, and to −6 000 when booked again;
+ * the BWA's 3100 went 2 200 → 4 400 → 6 600. Without a booking the
+ * dashboard and the P&L had no AfA at all, the BWA and the GuV the computed.
+ *
+ * Loads the year once; `cost(start, end, months)` for a window inside it
+ * (`months`: its length, for the computed share).
+ */
+export async function afaOfYear(db: Db, companyId: string, year: number) {
+  const [rows, assets] = await Promise.all([
+    db.expense.findMany({
+      where: { companyId, category: 'AfA', afaYear: year, relatedAssetId: { not: null }, ...LIVE_AFA },
+      select: { netAmount: true, invoiceDate: true },
+    }),
+    db.asset.findMany({ where: { companyId } }),
+  ])
+  const booked = rows.reduce((s, r) => s + Math.round(Number(r.netAmount ?? 0) * 100), 0) !== 0
+  return {
+    booked,
+    cost(start: Date, end: Date, months: number): number {
+      if (booked) {
+        const cents = rows
+          .filter((r) => r.invoiceDate >= start && r.invoiceDate <= end)
+          .reduce((s, r) => s - Math.round(Number(r.netAmount ?? 0) * 100), 0)
+        return cents / 100
+      }
+      const computed = assets.reduce((s, a) => s + computeAfaSummary(a, end).annualAfA * (months / 12), 0)
+      return Math.round(computed * 100) / 100
+    },
+  }
+}

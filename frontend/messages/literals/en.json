@@ -135,6 +135,7 @@
  "Konfiguration konnte nicht geladen werden.": "The configuration could not be loaded.",
  "Konnte nicht abgerufen werden.": "Could not be loaded.",
  "Kopie außer Haus: {state}": "Off-site copy: {state}",
+ "Kopieren nicht möglich — bitte den Link markieren und kopieren.": "Copying is not possible — please select the link and copy it.",
  "Kunde": "Customer",
  "Kunde / Lieferant": "Customer / supplier",
  "Kunde angelegt": "Customer created",

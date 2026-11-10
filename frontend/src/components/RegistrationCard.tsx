@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { useI18n } from "@/components/useI18n"
+import { L, useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiDelete, apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
 
@@ -96,6 +96,18 @@ export default function RegistrationCard() {
     }
   }
 
+  // Tier 824: without a clipboard (a page not served over HTTPS) this threw
+  // a TypeError and nothing happened; the link stays on the card to select
+  const copyLink = async () => {
+    if (!created) return
+    try {
+      await navigator.clipboard.writeText(created.link)
+      toast.success(t("users.companyInviteCopied"))
+    } catch {
+      toast.error(L("Kopieren nicht möglich — bitte den Link markieren und kopieren."))
+    }
+  }
+
   const statusText: Record<CompanyInvite["status"], string> = {
     pending: t("users.companyInvitePending"),
     used: t("users.companyInviteUsed"),
@@ -146,7 +158,7 @@ export default function RegistrationCard() {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => navigator.clipboard?.writeText(created.link).then(() => toast.success(t("users.companyInviteCopied")))}
+                  onClick={copyLink}
                 >
                   {t("users.companyInviteCopy")}
                 </Button>

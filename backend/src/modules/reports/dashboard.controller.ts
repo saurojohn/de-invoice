@@ -1,4 +1,4 @@
-import { NOT_AFA_BOOKING } from '../accounting/booked-afa'
+import { NOT_AFA_BOOKING, afaOfYear } from '../accounting/booked-afa'
 import { expenseCost, isIncomeTax } from '../accounting/expense-cost'
 import { manualJournalLines } from '../accounting/manual-journal'
 import { cashBookings } from '../cashbook/cash-bookings'
@@ -49,7 +49,7 @@ export class DashboardController {
   /**
    * Tier 817 — what the year's result has besides the invoices written:
    * the costs of the bills booked (expenseCost: an Anlagekonto's purchase
-   * costs nothing, a Kleinunternehmer's gross), the AfA booked, the
+   * costs nothing, a Kleinunternehmer's gross), the AfA (booked, else computed — Tier 824), the
    * Kassenbuch's sales and purchases, the manual vouchers' lines (income
    * taxes left out on every side — the figure is before them).
    */
@@ -63,9 +63,16 @@ export class DashboardController {
     let cents = 0
     for (const e of rows) {
       if (isIncomeTax(e.category)) continue
-      // an AfA booking of the asset register (booked-afa.ts) is its amount
-      cents -= Math.round((e.relatedAssetId != null ? Math.abs(Number(e.grossAmount ?? 0)) : expenseCost(e, kleinunternehmer)) * 100)
+      if (e.relatedAssetId != null) continue // the AfA, below
+      cents -= Math.round(expenseCost(e, kleinunternehmer) * 100)
     }
+    // Tier 824: the AfA by the rule of the BWA (booked-afa.ts afaOfYear) —
+    // January to the end of this month, as the BWA's year column. It took
+    // each AfA row with Math.abs: after a storno the booking and its
+    // counter-entry both counted.
+    const monthEnd = new Date(end.getFullYear(), end.getMonth() + 1, 0, 23, 59, 59, 999)
+    const afa = await afaOfYear(this.prisma, companyId, start.getFullYear())
+    cents -= Math.round(afa.cost(start, monthEnd, end.getMonth() + 1) * 100)
     for (const c of await cashBookings(this.prisma, companyId, start, end)) {
       const v = Math.round((kleinunternehmer ? c.gross : c.net) * 100)
       cents += c.direction === 'in' ? v : -v

@@ -1,3 +1,4 @@
+import { LIVE_AFA } from '../accounting/booked-afa'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals } from '../assets/disposals'
 import { expenseCost } from '../accounting/expense-cost'
@@ -342,6 +343,9 @@ export class BwaService {
           category: 'AfA',
           afaYear: { in: [year, vormonatStart.getFullYear()] },
           relatedAssetId: { not: null },
+          // Tier 824: the bookings that stand — a storno's pair (Tier 746)
+          // counted twice with abs(), and kept the year „booked"
+          ...LIVE_AFA,
         },
         select: { grossAmount: true, invoiceDate: true, afaYear: true },
       }),
@@ -530,6 +534,9 @@ export class BwaService {
           category: 'AfA',
           afaYear: vorjahr,
           relatedAssetId: { not: null },
+          // Tier 824: the bookings that stand — a storno's pair (Tier 746)
+          // counted twice with abs(), and kept the year „booked"
+          ...LIVE_AFA,
         },
         select: { grossAmount: true, invoiceDate: true },
       }),
