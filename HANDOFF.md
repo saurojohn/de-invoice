@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 830b — CI green for Tier 830
+
+Run 42911406406 (Tier 830, ac80fc00): six jobs, backend **527 passed / 0 failed / 1 skipped** (528 among them), Playwright **1156 passed (30.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The day1 containers are removed, their volumes kept.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 830 — the month-end drill: October 2026, cross-checked; AfA by the asset's months, DATEV accounts from the bill
 
 The owner's choice (10.11.2026): a month of business on the production images (scratchpad `day1/month.sh`, `day1/month-check.sh`), a GmbH, Soll, monthly UStVA, HE. Eight invoices (19 % and 7 % domestic, an igL to Austria, a § 3a service to France, an export to Switzerland, one reversed by credit note, a repair), a cash sale; seven bills (goods, office supplies, a Fachbuch at 7 %, rent, an igE from Italy, Google Ads from Ireland under § 13b, a laptop on 0400 with its asset); an MT940 for October — three payments in (one a part payment named in the purpose) matched and confirmed, rent and goods paid from their lines. The figures worked out by hand first, then read:
