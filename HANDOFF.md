@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 824b — CI green for Tier 824
+
+Run 42821982194 (Tier 824, 1c143d6d): six jobs, backend **521 passed / 0 failed / 1 skipped** (522 among them), Playwright **1152 passed (35.4 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 824 — the review of Tiers 817–823: the AfA by one rule, the invitations the operator's
 
 Read through: the registration and the invitations (lock, token, address, revoke, the settings DTO — `settings.registration` / `companyInvites` cannot be written through PUT /companies, 400), the operator's routes, the DATEV preview (Soll = Haben by construction now), the dashboard / P&L / BWA changes of Tier 817, the settings page's unsaved bar, the sign-in form, the register page. Measured and fixed:
