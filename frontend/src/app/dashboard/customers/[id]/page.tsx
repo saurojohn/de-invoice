@@ -1418,7 +1418,7 @@ export default function CustomerDetailPage() {
                     </p>
                   ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[640px] text-sm" data-testid="tab-invoices-table">
+                    <table className="w-full min-w-[640px] text-sm [&_th]:pr-4 [&_td]:pr-4 [&_th]:whitespace-nowrap" data-testid="tab-invoices-table">{/* Tier 829: the headings ran together („RechnungsnummerAusstellungsdatum…") */}
                       <thead className="border-b-2">
                         <tr className="text-left text-gray-500">
                           <th className="py-2 font-medium">{t("invoice.number") || "Nr."}</th>

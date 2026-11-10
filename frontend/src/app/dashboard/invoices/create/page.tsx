@@ -1961,7 +1961,9 @@ function CreateInvoicePageInner() {
               <CardTitle>{t("template.label")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+              {/* Tier 829: one under the other on a phone — three columns of 100 px
+                  cut „vollständigen" at the box's edge */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 break-words">
                 <div
                   className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     templateType === "standard"
@@ -2068,8 +2070,9 @@ function CreateInvoicePageInner() {
                 <div></div>
               </div>
               {form.items.map((item, index) => (
-                <div key={index} className={`${ITEM_GRID} items-end`} data-testid="item-row">
+                <div key={index} className={`${ITEM_GRID} items-end max-lg:border-b max-lg:border-gray-200 max-lg:dark:border-gray-700 max-lg:pb-4`} data-testid="item-row">
                   <div className="relative">
+                    <span className="lg:hidden block text-xs text-gray-500 dark:text-gray-400 mb-1">{t("invoice.productNumber")}</span>
                     {/* Artikelnr. / SKU with a product search
                         dropdown. Typing here opens a list of
                         matching products (filtered by name or
@@ -2184,6 +2187,7 @@ function CreateInvoicePageInner() {
                     )}
                   </div>
                   <div className="relative">
+                    <span className="lg:hidden block text-xs text-gray-500 dark:text-gray-400 mb-1">{t("invoice.description")}</span>
                     <Input
                       value={item.description}
                       aria-label={t("invoice.description")}
@@ -2236,6 +2240,8 @@ function CreateInvoicePageInner() {
                       </div>
                     )}
                   </div>
+                  <div>
+                    <span className="lg:hidden block text-xs text-gray-500 dark:text-gray-400 mb-1">{t("invoice.quantity") + " / " + t("invoice.unit")}</span>
                   <div className="flex gap-1">
                     <Input
                       type="number"
@@ -2261,7 +2267,9 @@ function CreateInvoicePageInner() {
                       }}
                     />
                   </div>
+                  </div>
                   <div>
+                    <span className="lg:hidden block text-xs text-gray-500 dark:text-gray-400 mb-1">{t("invoice.unitPrice") + " (" + currencyLabel + ")"}</span>
                     <Input
                       type="number"
                       step="0.01"
@@ -2277,6 +2285,7 @@ function CreateInvoicePageInner() {
                     />
                   </div>
                   <div>
+                    <span className="lg:hidden block text-xs text-gray-500 dark:text-gray-400 mb-1">{t("invoice.vatRate")}</span>
                     <select
                       data-testid={`invoice-item-vat-${index}`}
                       aria-label={t("invoice.vatRate")}
@@ -2294,8 +2303,11 @@ function CreateInvoicePageInner() {
                     </select>
                   </div>
                   {/* Tier 730c: what the line comes to (net, before a discount of the whole invoice) */}
+                  <div>
+                    <span className="lg:hidden block text-xs text-gray-500 dark:text-gray-400 mb-1">{t("invoice.lineTotal")}</span>
                   <div className="h-10 flex items-center justify-end text-sm tabular-nums" data-testid="item-line-total">
                     {fmtCurrency(amounts().lines[index]?.net ?? 0, form.currency)}
+                  </div>
                   </div>
                   {/* Per-row "Remove" button \u2014 right of the
                       VAT rate column, 1 col wide. Variant
@@ -2312,8 +2324,9 @@ function CreateInvoicePageInner() {
                         setForm({ ...form, items })
                       }}
                       title={t("invoice.removeItem")}
+                      aria-label={t("invoice.removeItem")}
                     >
-                      ✕
+                      ✕<span className="lg:hidden ml-1">{t("invoice.removeItem")}</span>
                     </Button>
                   </div>
                   {/* Per-row "Add" button — right of the
@@ -2341,8 +2354,9 @@ function CreateInvoicePageInner() {
                         className="w-full text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:text-blue-300 hover:bg-blue-50 px-1"
                         onClick={() => addItemAt(index)}
                         title={t("invoice.addItem")}
+                        aria-label={t("invoice.addItem")}
                       >
-                        +
+                        +<span className="lg:hidden ml-1">{t("invoice.addItem")}</span>
                       </Button>
                     )}
                   </div>

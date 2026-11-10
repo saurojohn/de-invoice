@@ -14,7 +14,7 @@
  * keep the same rule, reminder/installment-hold.ts). A payment that settles
  * it makes it „bezahlt“ as before.
  */
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CronHealthService } from '../admin/cron-health.service'
@@ -23,13 +23,31 @@ import { CLAIM_TYPES } from './document-scope'
 import { invoicesHeldByPlan } from '../reminder/installment-hold'
 
 @Injectable()
-export class OverdueStatusScheduler {
+export class OverdueStatusScheduler implements OnApplicationBootstrap {
   private readonly logger = new Logger(OverdueStatusScheduler.name)
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly health: CronHealthService,
   ) {}
+
+  /**
+   * Tier 829 — once a minute after the server starts too (production only).
+   * Measured on the production images: invoices entered on the first day
+   * whose due date had passed („8 Tage überfällig" on the invoice page, 3
+   * overdue on the customer's) stood as „Versendet" until the night — the
+   * dashboard said „Überfällige Rechnungen 0 ✓". After a restart the same.
+   * Not in the test suites (they start a server on a database of earlier
+   * runs and read the statuses they set).
+   */
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV !== 'production' || process.env.DISABLE_CRON === '1') return
+    const timer = setTimeout(() => {
+      void this.health.wrap('invoice-overdue-status', async () => this.run()).catch((e) =>
+        this.logger.warn(`invoice-overdue-status at start: ${(e as Error).message}`))
+    }, 60_000)
+    timer.unref?.()
+  }
 
   @Cron('5 0 * * *', {
     name: 'invoice-overdue-status',

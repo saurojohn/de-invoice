@@ -166,6 +166,7 @@ export default function InvoiceDetailPage() {
   const [payRateAmount, setPayRateAmount] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [moreActions, setMoreActions] = useState(false) // Tier 829: the phone's „Weitere Aktionen"
   const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null)
   // Tier 569: the XRechnung check (official KoSIT validator where the
   // installation has it, the built-in rule check otherwise).
@@ -2017,6 +2018,8 @@ export default function InvoiceDetailPage() {
                 backend returns reused=true — same idem-
                 potent behaviour). Tier 496: not for a draft (no invoice
                 yet) or a cancelled one. */}
+            {/* Tier 829: behind „Weitere Aktionen" on a phone (eleven buttons stood above the invoice) */}
+            <div className={(moreActions ? "flex" : "hidden") + " md:contents w-full flex-wrap gap-2 items-center"} data-testid="invoice-more-actions">
             {!nonFiscal && !["draft", "cancelled"].includes(invoice.status) && (
               <Button
                 variant="outline"
@@ -2027,6 +2030,7 @@ export default function InvoiceDetailPage() {
                 {portalLinkGenerating ? t("invoicePage.paymentLinkCreating") : t("invoicePage.paymentLink")}
               </Button>
             )}
+            </div>
             {sendResult && (
               <span
                 className={`text-sm ${sendResult.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
@@ -2034,6 +2038,7 @@ export default function InvoiceDetailPage() {
                 {sendResult.ok ? "✓" : "✗"} {sendResult.message}
               </span>
             )}
+            <div className={(moreActions ? "flex" : "hidden") + " md:contents w-full flex-wrap gap-2 items-center"} data-testid="invoice-more-actions">
 {!nonFiscal && (<>
             <Button
               variant="outline"
@@ -2116,15 +2121,27 @@ export default function InvoiceDetailPage() {
                 {t("time.timesheetOfInvoice")}
               </Button>
             )}
+            </div>
             <Button
               onClick={downloadPDF}
               data-testid="invoice-download-pdf"
             >
               {t("invoicePage.downloadPdf")}
             </Button>
+            <Button
+              variant="outline"
+              className="md:hidden"
+              onClick={() => setMoreActions((v) => !v)}
+              aria-expanded={moreActions}
+              data-testid="invoice-more-toggle"
+            >
+              {moreActions ? L("Weniger Aktionen") : L("Weitere Aktionen")} {moreActions ? "▴" : "▾"}
+            </Button>
+            <div className={(moreActions ? "flex" : "hidden") + " md:contents w-full flex-wrap gap-2 items-center"} data-testid="invoice-more-actions">
             <Button variant="outline" onClick={printDocument} disabled={printing} data-testid="invoice-print">
               {printing ? "…" : t("invoicePage.print")}
             </Button>
+            </div>
             {/* Edit + Hard-delete are only allowed on the invoice's
                 issueDate. For past-date invoices the backend returns
                 403 — we hide the buttons and show a hint pointing
@@ -2180,6 +2197,7 @@ export default function InvoiceDetailPage() {
                 customer / discounts, but with
                 issueDate=today + status=draft +
                 new invoice number. */}
+            <div className={(moreActions ? "flex" : "hidden") + " md:contents w-full flex-wrap gap-2 items-center"} data-testid="invoice-more-actions">
             <Button
               variant="outline"
               onClick={() => router.push(`/dashboard/invoices/create?cloneFrom=${invoice.id}`)}
@@ -2189,6 +2207,7 @@ export default function InvoiceDetailPage() {
             >
               {t("invoicePage.copyAsDraft")}
             </Button>
+            </div>
             {!isToday && invoice && !(nonFiscal && invoice.status === "draft") && (
               <span
                 className="text-xs text-gray-500 dark:text-gray-400"

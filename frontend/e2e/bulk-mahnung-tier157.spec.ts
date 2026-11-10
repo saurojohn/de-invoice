@@ -266,8 +266,8 @@ test.describe('Tier 157 — Bulk Mahnung', () => {
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/dashboard/invoices')
     await page.waitForTimeout(2000)
-    const checkboxes = page.locator('input[type="checkbox"]')
-    await checkboxes.nth(1).check()
+    // Tier 829: on a phone the invoices are cards — selected on the card
+    await page.getByTestId('invoice-card').first().locator('input[type="checkbox"]').check()
     await page.getByTestId('bulk-mahnung-button').click()
     await expect(page.getByTestId('bulk-mahnung-level-picker')).toBeVisible({
       timeout: 5_000,

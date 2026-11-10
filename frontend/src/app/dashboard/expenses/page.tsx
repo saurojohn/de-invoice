@@ -626,7 +626,8 @@ export default function ExpensesPage() {
                 {t("expenses.empty")}
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="border-b">
@@ -751,6 +752,37 @@ export default function ExpensesPage() {
                   </tbody>
                 </table>
               </div>
+              {/* Tier 829: on a phone one card per bill — the table showed the date
+                  and the number, supplier, amount and status beyond the edge */}
+              <div className="md:hidden space-y-3" data-testid="expense-cards">
+                {filtered.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => setDetailExpense(e)}
+                    className="w-full text-left rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+                    data-testid="expense-card"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium break-words">{e.supplier?.name || e.description || "—"}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 break-words">
+                          {formatDate(e.invoiceDate)} · {e.invoiceNumber || "—"}{e.supplier?.name && e.description ? " · " + e.description : ""}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="font-semibold font-mono">{formatCurrency(e.grossAmount)}</div>
+                        <div className="mt-1">{stateBadge(e.paymentState)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                      <span>{t("expenses.net")} {formatCurrency(e.netAmount)} · {t("expenses.vat")} {formatCurrency(e.vatAmount)}</span>
+                      <span>📎 {receiptCounts[e.id] ?? 0}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              </>
             )}
           </CardContent>
         </Card>

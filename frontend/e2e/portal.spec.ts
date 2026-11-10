@@ -139,9 +139,12 @@ test.describe("Customer portal (Tier 33)", () => {
     )
     const body = await invResp.json()
     const items = Array.isArray(body) ? body : body.data || []
+    // Tier 829: an issued one — a draft has no payment link (Tier 496), and
+    // the newest invoice of the shared seed company can be a draft another
+    // spec left (seen in a local run of 114 specs)
     const invoice = items.find(
-      (i: any) => /^INV-\d{4}-\d+$/.test(i.invoiceNumber),
-    ) || items[0]
+      (i: any) => /^INV-\d{4}-\d+$/.test(i.invoiceNumber) && ["sent", "overdue", "paid"].includes(i.status),
+    ) || items.find((i: any) => ["sent", "overdue", "paid"].includes(i.status))
     // Tier 369: was a bare test.skip(). ci-seed.sh always seeds invoices for
     // this company; an empty list means the seed failed.
     expect(invoice, "ci-seed must provide at least one invoice").toBeTruthy()

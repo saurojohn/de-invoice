@@ -1250,7 +1250,8 @@ function InvoicesPageInner() {
           // The user can swipe the table to see the
           // Status / Action columns that don't fit on
           // a 375px phone.
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <>
+          <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[880px]">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b">
@@ -1395,6 +1396,70 @@ function InvoicesPageInner() {
             </table>
             </div>
           </div>
+          {/* Tier 829: on a phone one card per document — the table showed the
+              number and the customer, amount, due date and status lay beyond
+              the screen's edge (to be swiped to, with nothing saying so) */}
+          <div className="md:hidden space-y-3" data-testid="invoice-cards">
+            {dateFiltered.map((invoice) => (
+              <div
+                key={invoice.id}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow p-4"
+                data-testid="invoice-card"
+                data-invoice-number={invoice.invoiceNumber}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(invoice.id)}
+                    onChange={() => toggleSelect(invoice.id)}
+                    className="mt-1 w-5 h-5 cursor-pointer"
+                    aria-label={L("Auswählen") + " " + invoice.invoiceNumber}
+                  />
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 text-left"
+                    onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(invoice.type)}`}>{invoice.type}</span>
+                      <span className="font-medium">{invoice.invoiceNumber}</span>
+                      {invoice.fullyCredited ? (
+                        <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor("cancelled")}`}>{t("invoice.creditedFully")}</span>
+                      ) : (
+                        <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(invoice.status)}`}>{getStatusLabel(invoice.status)}</span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 break-words">{invoice.customer?.name || "-"}</div>
+                    <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                      <span className="font-semibold">{formatMoney(invoice.total, invoice.currency || "EUR")}</span>
+                      {invoice.openAmount != null && invoice.openAmount > 0 && invoice.openAmount !== Number(invoice.total) && (
+                        <span className="text-gray-600 dark:text-gray-300">{t("invoice.colOpen")}: {formatMoney(invoice.openAmount, invoice.currency || "EUR")}</span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {formatDateDE(invoice.issueDate)}
+                      {invoice.dueDate && invoice.type !== "CN" ? " · " + L("fällig") + " " + formatDateDE(invoice.dueDate) : ""}
+                      {invoice.dueDate && (invoice.openAmount ?? 0) > 0 && daysPast(invoice.dueDate) > 0 && (
+                        <span className="ml-1 text-red-600 dark:text-red-400">· {t("invoice.overdueSince", { days: daysPast(invoice.dueDate) })}</span>
+                      )}
+                    </div>
+                  </button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => downloadPDF(invoice.id, invoice.invoiceNumber)}>PDF</Button>
+                  <Button size="sm" variant="outline" onClick={() => sendInvoiceEmail(invoice.id)} disabled={sendingId === invoice.id}>
+                    {sendingId === invoice.id ? t("common2.sending") : t("common2.sendEmail")}
+                  </Button>
+                </div>
+                {sendStatus[invoice.id] && (
+                  <div className={`mt-1 text-xs text-right ${sendStatus[invoice.id].ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                    {sendStatus[invoice.id].ok ? "✓ " : "✗ "}{sendStatus[invoice.id].message}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          </>
         )}
 
         {totalPages > 1 && (

@@ -262,6 +262,9 @@ test.describe('Tier 160 — Invoice clone as draft', () => {
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto(`/dashboard/invoices/${SOURCE_ID}`)
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
+    // Tier 829: on a phone the button is behind „Weitere Aktionen" — opened,
+    // the row with every button may still not overflow
+    await page.getByTestId('invoice-more-toggle').click({ timeout: 10_000 })
     await expect(page.getByTestId('invoice-clone')).toBeVisible({ timeout: 10_000 })
     // Wait for the layout to settle after the
     // viewport switch + the action button row

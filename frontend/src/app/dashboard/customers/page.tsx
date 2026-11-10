@@ -957,11 +957,13 @@ export default function CustomersPage() {
                     🗑
                   </button>
                 </div>
-                <CardHeader>
+                {/* Tier 829: below the icons on a phone, and the name wraps — on a
+                    375 px screen the icons took the line and it read „Lederwar…“ */}
+                <CardHeader className="pt-12 sm:pt-6">
                   {/* Tier 706: the badges wrap below a name that needs the width — it was cut to "Kund…" */}
-                  <CardTitle className="flex flex-wrap justify-between items-start pr-6 gap-2">
+                  <CardTitle className="flex flex-wrap justify-between items-start sm:pr-6 gap-2">
                     <div className="min-w-[8rem] flex-1">
-                      <div className="truncate">
+                      <div className="break-words" data-testid="customer-card-name">
                         {/* Tier 28: render the highlighted
                             snippet from the tsvector search
                             when this row has a match.
