@@ -635,10 +635,7 @@ function InvoicesPageInner() {
       )
       return
     }
-    const confirmMsg = (
-      t("invoices.bulkSendRangeConfirm") ||
-          "Möchten Sie {count} Rechnungen aus dem Zeitraum jetzt per E-Mail versenden?"
-      ).replace("{count}", String(previewCount))
+    const confirmMsg = t("invoices.bulkSendRangeConfirm", { count: previewCount })
     if (!window.confirm(confirmMsg)) return
     setBulkSending(true)
     setBulkSendError(null)
@@ -965,7 +962,7 @@ function InvoicesPageInner() {
                 disabled={bulkMahnungSending || bulkDownloading || bulkSending}
                 data-testid="bulk-mahnung-button"
               >
-                📨 {t("invoices.bulkMahnung") || `Mahnung senden (${selected.size})`}
+                📨 {t("invoices.bulkMahnung", { count: selected.size })}
               </Button>
               <Button
                 size="sm"
@@ -1628,8 +1625,8 @@ function InvoicesPageInner() {
               {bulkMahnungLevel && !bulkMahnungSending && !bulkMahnungProgress && !bulkMahnungError && (
                 <div data-testid="bulk-mahnung-level-picker">
                   <p className="text-sm mb-3 text-gray-700 dark:text-gray-200">
-                    {t("invoices.bulkMahnungBody") ||
-                      `${selected.size} Rechnungen ausgewählt. Welche Mahnung-Stufe soll an alle versendet werden?`}
+                    {/* Tier 826: with the count — the text showed „{count} Rechnungen ausgewählt" */}
+                    {t("invoices.bulkMahnungBody", { count: selected.size })}
                   </p>
                   <div className="space-y-2">
                     {(

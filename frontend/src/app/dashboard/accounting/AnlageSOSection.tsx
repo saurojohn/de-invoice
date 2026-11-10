@@ -430,12 +430,9 @@ export function AnlageSOSection() {
             : null
         if (!companyId) return
         if (ids && ids.length === 0) {
-          toastRef.current.error(
-            tRef.current("anlageSo.v2.expenseImportDone").replace(
-              "{imported}",
-              "0",
-            ),
-          )
+          // Tier 826: nothing selected — it said „Ausgaben übernommen — 0 neu,
+          // {skipped} schon vorhanden" as an error
+          toastRef.current.error(L("Keine Ausgabe ausgewählt."))
           return
         }
         if (dirtyRef.current) await persistRef.current()

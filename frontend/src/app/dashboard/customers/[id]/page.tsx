@@ -2562,10 +2562,9 @@ export default function CustomerDetailPage() {
                       "Zahlung zugeordnet."}
                   </p>
                   <p className="text-xs mt-1 text-emerald-700 dark:text-emerald-300">
-                    {t("customerDetail.allocateSuccessCount") ||
-                      "{count} Rechnungen bezahlt, {total} € angewendet"
-                        .replace("{count}", String(allocateResult.appliedCount))
-                        .replace("{total}", fmtEur(allocateResult.appliedTotal))}
+                    {/* Tier 826: the .replace() applied to the fallback only — the page
+                        showed „{count} Rechnungen bezahlt, {total} € angewendet" */}
+                    {t("customerDetail.allocateSuccessCount", { count: allocateResult.appliedCount, total: fmtEur(allocateResult.appliedTotal) })}
                     {allocateResult.unallocatedAmount > 0 && (
                       <span className="block mt-1 text-amber-700">
                         (

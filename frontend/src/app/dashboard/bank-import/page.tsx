@@ -863,7 +863,7 @@ export default function BankImportPage() {
                               <td className={`text-right font-mono font-medium ${
                                 amt >= 0 ? "text-emerald-700" : "text-red-700 dark:text-red-300"
                               }`}>
-                                € {fmtMoney(amt)}
+                                {formatMoney(amt)}
                               </td>
                               <td className="text-right text-xs">
                                 {/* Debit txn: show "Als Aufwand
@@ -947,9 +947,7 @@ export default function BankImportPage() {
                                           .replace("{number}", ex.invoiceNumber || "")
                                           .replace("{skonto}", fmtMoney(skontoAmt))
                                         : parts
-                                          ? t("bankImport.bookPaymentParts")
-                                            .replace("{number}", ex.invoiceNumber || "")
-                                            .replace("{count}", String(parts.length))
+                                          ? t("bankImport.bookPaymentParts", { number: ex.invoiceNumber || "", count: parts.length })
                                           : t("bankImport.bookPayment").replace("{number}", ex.invoiceNumber || "")}
                                     </Button>
                                   ) : null
@@ -1097,9 +1095,9 @@ export default function BankImportPage() {
                           </div>
                           <div className="flex justify-between text-xs mt-1">
                             <span className="text-gray-500 dark:text-gray-400" data-testid="candidate-amount">
-                              {t("bankImport.tableAmount")}: € {fmtMoney(c.total)}
+                              {t("bankImport.tableAmount")}: {formatMoney(c.total)}
                               {c.openAmount !== undefined && Math.abs(c.openAmount - c.total) >= 0.005 && (
-                                <> · {t("bankImport.openAmount")}: € {fmtMoney(c.openAmount)}</>
+                                <> · {t("bankImport.openAmount")}: {formatMoney(c.openAmount)}</>
                               )}
                             </span>
                             {c.dueDate && (
@@ -1221,7 +1219,7 @@ export default function BankImportPage() {
                       <tr key={r.id} className="border-b">
                         <td className="py-2 font-mono text-xs">{r.invoice.invoiceNumber}</td>
                         <td className="text-xs">{r.invoice.customer.name}</td>
-                        <td className="text-right font-mono text-xs">€ {fmtMoney(Number(r.appliedAmount))}</td>
+                        <td className="text-right font-mono text-xs">{formatMoney(Number(r.appliedAmount))}</td>
                         <td>
                           <span
                             className={`text-xs px-1.5 py-0.5 rounded ${
@@ -1295,6 +1293,31 @@ export default function BankImportPage() {
                               view itself, not just from the
                               candidate card (which is hidden
                               once the invoice is paid). */}
+                          {/* Tier 826: a suggestion is confirmed or rejected here too —
+                              the table showed „Vorgeschlagen" with no action, and the
+                              candidate card that has them is in the transaction above */}
+                          {r.status === "suggested" && (
+                            <div className="flex justify-end gap-2" data-testid="recon-row-actions">
+                              <Button
+                                size="sm"
+                                disabled={busyRecon === r.id}
+                                onClick={() => confirmCandidate(r.id, r.invoice.invoiceNumber)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                data-testid="recon-row-confirm"
+                              >
+                                {busyRecon === r.id ? t("common.loading") : t("bankImport.confirmCandidate")}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busyRecon === r.id}
+                                onClick={() => rejectCandidate(r.id)}
+                                data-testid="recon-row-reject"
+                              >
+                                {t("bankImport.rejectCandidate")}
+                              </Button>
+                            </div>
+                          )}
                           {r.status === "confirmed" && (
                             <Button
                               size="sm"

@@ -173,7 +173,7 @@ export default function BackupsPage() {
         setVerifyResults((prev) => ({ ...prev, [id]: res }))
         if (res.valid) {
           toast.success(
-            t("backup.verifyOk").replace("{n}", String(res.tableCount)),
+            t("backup.verifyOk", { n: res.tableCount }),
           )
         } else {
           toast.error(

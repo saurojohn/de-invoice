@@ -117,11 +117,16 @@ export function useI18n() {
   // endless loop (measured: hundreds of requests in seconds, then 429 for the
   // whole page once the rate limit applies).
   const t = useCallback((key: string, vars?: Record<string, string | number>): string => {
-    const keys = key.split(".")
-    let value: any = messages[locale]
-    for (const k of keys) {
-      value = value?.[k]
+    const lookup = (path: string): any => {
+      let v: any = messages[locale]
+      for (const k of path.split(".")) v = v?.[k]
+      return v
     }
+    // Tier 826: the singular — `key_one` when the count is 1 and the language
+    // has it („1 Dokument", not „1 Dokumente"); else the key itself
+    const n = vars?.count ?? vars?.n
+    const one = n !== undefined && Number(n) === 1 ? lookup(key + "_one") : undefined
+    let value: any = typeof one === "string" ? one : lookup(key)
     if (typeof value !== "string") return value || key
     if (!vars) return value
     return Object.entries(vars).reduce(

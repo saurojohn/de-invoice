@@ -506,7 +506,7 @@ export default function InventoryPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-300">
                 <span className="text-xl">⚠️</span>
-                {t("inventory.lowStockCount").replace("{count}", String(lowStockProducts.length))}
+                {t("inventory.lowStockCount", { count: lowStockProducts.length })}
               </CardTitle>
             </CardHeader>
             <CardContent>
