@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 821d — CI green for Tiers 820–821c
+
+Run 42724638020 (Tier 821c, 32bb95f4), at 00:00–00:35 UTC on 10.11. (Berlin a day ahead for its last hour — the window of 821a / 821c): six jobs, backend **519 passed / 0 failed / 1 skipped** (513, 519, 520 among them), Playwright **1148 passed (34.7 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 821c — CI for 821b: Playwright steady, a midnight in spec 513
 
 Run 42718827048 (Tier 821b, 327c7760): six jobs; Playwright **1148 passed (38.7 m), 0 flaky, no retry** — the split `registration-closed-tier820` passed on the first attempt. Backend **518 passed / 1 failed** / 1 skipped: spec 513 (Tier 812) at 23:45 UTC = 00:45 on 10.11. in Berlin — the correction is dated now, the Abstimmung lists it on Berlin's day (10.11.), the spec read the expected day from the database as a UTC date (09.11.). The code is right; the spec reads `(date at time zone 'UTC') at time zone 'Europe/Berlin'` now, and its `TODAY` is Berlin's (`TZ=Europe/Berlin date +%F`, as specs 337 / 366 / 367 do). 517 / 518 / 520 take the Berlin day too (518's `FROM` from it). Locally at 00:57 CET (inside the window): 513 517 518 520 passed.
