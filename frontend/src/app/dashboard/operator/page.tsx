@@ -6,7 +6,8 @@
  * (two cards), the user page (the registration and the company invitations),
  * the company settings (the storage) and the error page (the notification
  * channels); each area is summarised here with its state and a link to its
- * page, and the registration card is here in full.
+ * page, and the registration card is here in full. Tier 823: and the
+ * companies on the installation (CompaniesCard).
  *
  * GET /auth/me says whether the session is the operator's; until it has, the
  * page asks for nothing else — a company that is not the operator gets the
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { L, useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 import RegistrationCard from "@/components/RegistrationCard"
+import CompaniesCard from "./CompaniesCard"
 
 type Health = "green" | "amber" | "red" | "grey"
 
@@ -243,6 +245,8 @@ export default function OperatorPage() {
       <div>
         <h2 className="text-lg font-semibold mb-3">{L("Registrierung und Firmen")}</h2>
         <RegistrationCard />
+        {/* Tier 823: the companies on the installation */}
+        <CompaniesCard />
       </div>
     </div>
   )

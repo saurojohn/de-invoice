@@ -17,6 +17,7 @@
 import { Module } from '@nestjs/common'
 import { CronHealthService } from './cron-health.service'
 import { CronHealthController } from './cron-health.controller'
+import { AdminCompaniesController } from './companies.controller' // Tier 823
 import { CronHealthScheduler } from './cron-health.scheduler'
 // Tier 202 — AdminModule needs the
 // AuditService so CronHealthController
@@ -26,7 +27,7 @@ import { AuditModule } from '../audit/audit.module'
 
 @Module({
   imports: [AuditModule],
-  controllers: [CronHealthController],
+  controllers: [CronHealthController, AdminCompaniesController],
   providers: [CronHealthService, CronHealthScheduler],
   exports: [CronHealthService],
 })

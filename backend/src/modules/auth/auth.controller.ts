@@ -190,6 +190,10 @@ export class AuthController {
         twoFactorToken: issueTwoFactorChallenge(user.id),
       } as any
     }
+    // Tier 823: the sign-in is recorded — only the 2FA route wrote lastLogin,
+    // so every account without 2FA showed „nie" on the user page. The answer
+    // still carries the sign-in before this one.
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } })
     // SECURITY: never leak passwordHash / passwordResetToken /
     // passwordResetExpires to the client. The login route is
     // public; even authenticated users should not see their own
@@ -498,6 +502,8 @@ export class AuthController {
     // Tier 401: registration auto-logs the user in (the page writes the ids and
     // redirects to /dashboard), so it has to mint a session like /auth/login.
     const session = await this.sessions.issue(res, created.user.id, req);
+    // Tier 823: a registration signs in, and is recorded as the sign-in
+    await this.prisma.user.update({ where: { id: created.user.id }, data: { lastLogin: new Date() } })
     // Tier 736: the link that confirms the address
     const verification = await this.sendEmailVerification(created.user.id, req);
     return {
