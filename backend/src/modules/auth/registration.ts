@@ -17,7 +17,7 @@
  *    sets that; anything else (development, the test suites) leaves it open.
  */
 import { PrismaService } from '../../prisma/prisma.service'
-import { createHash, randomBytes, randomUUID } from 'crypto'
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto'
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { updateCompanySettings } from '../../common/company-settings'
 
@@ -37,6 +37,28 @@ export async function registrationState(prisma: PrismaService): Promise<{
   if (s === 'open' || s === 'closed') return { open: s === 'open', source: 'setting', defaultOpen }
   return { open: defaultOpen, source: 'default', defaultOpen }
 }
+
+/**
+ * Tier 825 — the first registration of an empty installation makes its owner
+ * the operator (system-admin.guard.ts). Between `docker compose up` and the
+ * owner's registration, whoever reached the address first owned the server.
+ * With SETUP_TOKEN set (HETZNER-DEPLOY.sh writes one into .env and prints
+ * the link `/register?setup=…`), that first registration needs it; once a
+ * company exists it plays no part. Unset (development, the test suites),
+ * nothing changes.
+ */
+export function setupTokenRequired(source: 'empty' | 'setting' | 'default', env = process.env): boolean {
+  return source === 'empty' && String(env.SETUP_TOKEN || '').trim().length > 0
+}
+
+export function setupTokenMatches(given: unknown, env = process.env): boolean {
+  const want = Buffer.from(String(env.SETUP_TOKEN || '').trim())
+  const got = Buffer.from(typeof given === 'string' ? given.trim() : '')
+  return want.length > 0 && got.length === want.length && timingSafeEqual(got, want)
+}
+
+export const SETUP_TOKEN_MESSAGE =
+  'Die erste Registrierung dieser Installation braucht den Einrichtungslink (/register?setup=…), den das Deploy-Skript ausgegeben hat.'
 
 export const REGISTRATION_CLOSED_MESSAGE =
   'Die Registrierung ist geschlossen. Neue Benutzer lädt der Administrator ein (Einstellungen → Benutzerverwaltung).'

@@ -39,10 +39,19 @@ interface BackupStatus {
   offsite: { configured: boolean; remote: string | null }
   restore?: { lost: unknown[] }
 }
-interface StorageHealth { localPath: string; reachable: boolean; writable: boolean; freeBytesFormatted?: string }
+interface StorageHealth { localPath: string; reachable: boolean; writable: boolean; freeBytes?: number; freeBytesFormatted?: string }
 interface NotificationConfig {
   slack: { configured: boolean; host: string | null }
   email: { configured: boolean; recipients: string[]; smtpHost: string | null }
+}
+
+/** Tier 825: the free space with the page's decimal mark („789,61 GB"; the backend's text had a point) */
+function free(s: StorageHealth, locale: string): string {
+  if (typeof s.freeBytes !== "number") return s.freeBytesFormatted || ""
+  const gb = s.freeBytes / 1024 ** 3
+  return gb >= 1
+    ? gb.toLocaleString(locale, { maximumFractionDigits: 2 }) + " GB"
+    : (s.freeBytes / 1024 ** 2).toLocaleString(locale, { maximumFractionDigits: 1 }) + " MB"
 }
 
 /** an area's state: what it is, and the lines that say why */
@@ -67,7 +76,8 @@ function lastBackup(configured: boolean, ok: boolean, h: number | null): string 
     : h < 1 ? L("letzte Sicherung vor weniger als einer Stunde")
     : h < 48 ? F(L("letzte Sicherung vor {n} Std."), { n: Math.round(h) })
     : F(L("letzte Sicherung vor {n} Tagen"), { n: Math.round(h / 24) })
-  return ok ? when : F(L("{when} — zu alt"), { when })
+  // Tier 825: „noch keine Sicherung" is the whole story — no „zu alt" after it
+  return ok || h === null ? when : F(L("{when} — zu alt"), { when })
 }
 
 function uptime(sec: number): string {
@@ -106,7 +116,7 @@ function AreaCard({ id, title, area, href, linkText }: { id: string; title: stri
 }
 
 export default function OperatorPage() {
-  useI18n() // renders the page again once the language is known (L())
+  const { getDateLocale } = useI18n() // renders the page again once the language is known (L())
   const [operator, setOperator] = useState<boolean | null>(null)
   const [server, setServer] = useState<Area | null>(null)
   const [jobs, setJobs] = useState<Area | null>(null)
@@ -120,7 +130,7 @@ export default function OperatorPage() {
     const server = apiGet<Summary>("/api/v1/health/summary").then((s): Area => ({
       health: s.status === "ok" ? "green" : s.status === "degraded" ? "amber" : "red",
       lines: [
-        (s.status === "ok" ? L("Läuft") : s.status === "degraded" ? L("Eingeschränkt") : L("Gestört")) + (s.version ? " · " + F(L("Version {v}"), { v: s.version }) : ""),
+        (s.status === "ok" ? L("Läuft") : s.status === "degraded" ? L("Eingeschränkt") : L("Gestört")) + (s.version && s.version !== "0.0.0" ? " · " + F(L("Version {v}"), { v: s.version }) : ""),
         (s.dbOk ? L("Datenbank erreichbar") : L("Datenbank nicht erreichbar")) + " · " + (s.storageOk ? L("Ablage beschreibbar") : L("Ablage nicht beschreibbar")),
         F(L("Läuft {since} · {mb} MB Arbeitsspeicher"), { since: uptime(s.uptimeSec), mb: s.memory.rssMB }),
       ],
@@ -160,7 +170,7 @@ export default function OperatorPage() {
       health: s.reachable && s.writable ? "green" : "red",
       lines: [
         s.localPath,
-        (s.reachable && s.writable ? L("erreichbar und beschreibbar") : L("nicht erreichbar oder nicht beschreibbar")) + (s.freeBytesFormatted ? " · " + F(L("{size} frei"), { size: s.freeBytesFormatted }) : ""),
+        (s.reachable && s.writable ? L("erreichbar und beschreibbar") : L("nicht erreichbar oder nicht beschreibbar")) + (free(s, getDateLocale()) ? " · " + F(L("{size} frei"), { size: free(s, getDateLocale()) }) : ""),
       ],
     })).catch(() => failed).then(setStorage)
 
@@ -175,14 +185,14 @@ export default function OperatorPage() {
           F(L("Offene Fehlermeldungen: {n}"), { n: e.openCount }),
           F(L("Benachrichtigung per E-Mail: {state}"), { state: n.email.configured ? F(L("{n} Empfänger"), { n: n.email.recipients.length }) : L("nicht eingerichtet") }),
           F(L("Benachrichtigung per Slack: {state}"), { state: n.slack.configured ? (n.slack.host || L("eingerichtet")) : L("nicht eingerichtet") }),
-          F(L("E-Mail-Versand (SMTP): {state}"), { state: n.email.smtpHost || L("nicht eingerichtet — Einladungen und Erinnerungen gehen nicht hinaus") }),
+          F(L("E-Mail-Versand (SMTP): {state}"), { state: n.email.smtpHost || L("nicht eingerichtet — keine Rechnung, Mahnung, Einladung oder Passwort-Rücksetzung per E-Mail") }),
         ],
       }
     }).catch(() => failed).then(setErrors)
 
     await Promise.all([server, jobs, backup, storage, errors])
     setLoading(false)
-  }, [])
+  }, [getDateLocale])
 
   useEffect(() => {
     apiGet<{ operator?: boolean }>("/api/v1/auth/me")

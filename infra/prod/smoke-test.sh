@@ -2,7 +2,7 @@
 # Tier 24: de-invoice post-deploy smoke test
 #
 # Run this from your workstation AFTER deploy-prep.sh
-# + DNS + certbot + docker compose up have completed
+# + DNS + docker compose up (Caddy fetches the certificate) have completed
 # on the VPS. The script exits non-zero on the first
 # failed check; intended to be the entry point of a
 # CI/CD pipeline or a manual post-deploy ritual.
@@ -11,7 +11,7 @@
 #   1. DNS resolves to the VPS IP
 #   2. HTTPS endpoint reachable
 #   3. TLS cert valid + matches the domain
-#   4. Cert is auto-renewable (Let's Encrypt dry-run)
+#   4. Cert renewal: Caddy does it (a note, no check)
 #   5. Backend health endpoint returns ok
 #   6. Database connectivity
 #   7. Frontend SPA loads
@@ -91,9 +91,10 @@ else
   fail "could not retrieve cert"
 fi
 
-# ─── 4. Certbot dry-run (renewal works) ─────────────────
-log "4. Certbot dry-run (skipped — must run on VPS directly)"
-warn "Run 'certbot renew --dry-run' on the VPS to confirm auto-renewal works"
+# ─── 4. Certificate renewal (Caddy) ─────────────────────
+log "4. Certificate renewal (Caddy, on the VPS)"
+# Tier 825: Caddy renews its certificates itself (there is no certbot here)
+warn "Caddy renews the certificate itself — if it fails, 'docker compose logs caddy' on the VPS says why"
 
 # ─── 5. Backend health ─────────────────────────────────
 log "5. Backend health endpoint"
@@ -296,6 +297,6 @@ fi
 echo
 echo "All checks PASSED. The deployment is healthy."
 echo "Consider:"
-echo "  - Run certbot renew --dry-run on the VPS to confirm auto-renewal"
+echo "  - On the VPS: docker compose logs caddy shows the certificate's renewals"
 echo "  - Test a Stripe-style webhook end-to-end (if you have a receiver)"
 echo "  - Run the Playwright UI test suite: cd frontend && npx playwright test"

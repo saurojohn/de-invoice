@@ -225,7 +225,9 @@
     "registrationClosedTitle": "注册已关闭",
     "registrationClosedText": "本系统的新用户由管理员邀请，您会通过电子邮件收到邀请链接。",
     "companyInviteNote": "您受邀创建自己的公司。请设置密码并填写公司名称，之后就可以在系统里开具自己的发票。",
-    "companyInviteInvalid": "此邀请已失效（已被使用、已撤销或已过期），请联系对方重新邀请。"
+    "companyInviteInvalid": "此邀请已失效（已被使用、已撤销或已过期），请联系对方重新邀请。",
+    "setupRequiredTitle": "初始设置",
+    "setupRequiredText": "这是一个新的安装。请使用部署脚本在服务器上输出的设置链接（/register?setup=…）创建第一个账号。"
   },
   "bankImport": {
     "openAmount": "未付",

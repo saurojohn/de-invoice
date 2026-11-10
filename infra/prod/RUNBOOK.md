@@ -173,10 +173,11 @@ audit trail + health check).
 ### Add a new admin user
 
 Registration is open only until the first company exists (Tier 820:
-`REGISTRATION=first-only` in the compose file — the first person to open
-/register owns the installation). After that, new people come in by
-invitation only; the operator can open or close the registration under
-Einstellungen → Benutzerverwaltung. Two options:
+`REGISTRATION=first-only` in the compose file), and that first registration
+needs the setup link `/register?setup=<SETUP_TOKEN>` (Tier 825,
+HETZNER-DEPLOY.sh prints it). After that, new people come in by invitation
+only; the operator opens or closes the registration and invites companies
+on „Systembetrieb" (Dashboard → Systembetrieb). Two options:
 
 1. **Via the existing admin's UI**: Settings → Users →
    Invite. The new user gets an emailed link.

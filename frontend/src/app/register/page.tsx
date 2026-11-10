@@ -37,6 +37,8 @@ function RegisterPageInner() {
   const inviteToken = search.get("invite") || ""
   // Tier 821: an invitation to register a company of one's own
   const companyInvite = search.get("company-invite") || ""
+  // Tier 825: the setup link of a new installation (HETZNER-DEPLOY.sh)
+  const setupToken = search.get("setup") || ""
   const { t } = useI18n()
   const toast = useToast()
 
@@ -113,6 +115,7 @@ function RegisterPageInner() {
           password: form.password,
           companyName: form.companyName.trim(),
           ...(invitedEmail ? { companyInvite } : {}),
+          ...(setupToken ? { setupToken } : {}),
         }),
       })
       if (!res.ok) {
@@ -261,6 +264,21 @@ function RegisterPageInner() {
 
   // ================== Self-service registration UI ==================
   // Tier 820: after the first company by invitation only
+  // Tier 825: a new installation registers its owner through the setup link only
+  if (registration && registration.setupRequired && !setupToken) {
+    return (
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md" data-testid="registration-setup-required">
+          <CardHeader>
+            <CardTitle className="text-center text-2xl">{t("auth.setupRequiredTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-gray-600 dark:text-gray-300">{t("auth.setupRequiredText")}</p>
+          </CardContent>
+        </Card>
+      </main>
+    )
+  }
   if (registration && !registration.open && !registration.invite) {
     return (
       <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">

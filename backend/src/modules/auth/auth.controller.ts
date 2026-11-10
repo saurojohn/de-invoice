@@ -1,6 +1,6 @@
 import { publicOrigin } from '../../common/public-origin'
 import { isSystemAdmin, SystemAdminGuard } from '../../auth/system-admin.guard';
-import { registrationState, REGISTRATION_CLOSED_MESSAGE, pendingCompanyInvite, createCompanyInvite, listCompanyInvites, revokeCompanyInvite, useCompanyInvite, COMPANY_INVITE_MISMATCH, INVITE_DAYS } from './registration';
+import { registrationState, REGISTRATION_CLOSED_MESSAGE, pendingCompanyInvite, createCompanyInvite, listCompanyInvites, revokeCompanyInvite, useCompanyInvite, COMPANY_INVITE_MISMATCH, INVITE_DAYS, setupTokenRequired, setupTokenMatches, SETUP_TOKEN_MESSAGE } from './registration';
 import { withKeyLock } from '../../common/key-lock';
 import { updateCompanySettings } from '../../common/company-settings';
 import { Controller, Post, Put, Delete, Param, Query, Body, Get, HttpCode, HttpStatus, BadRequestException, ForbiddenException, Logger, Req, Res, UseGuards } from '@nestjs/common';
@@ -344,11 +344,12 @@ export class AuthController {
   @Public()
   @Get('registration')
   async registration(@Query('invite') invite?: string) {
-    const { open } = await registrationState(this.prisma)
+    const { open, source } = await registrationState(this.prisma)
     // Tier 821: an invitation to register a company of one's own — its
     // address, while it can be used (the page fills it in)
     const found = invite ? await pendingCompanyInvite(this.prisma, invite) : null
-    return { open, invite: found ? { email: found.email, expiresAt: found.expiresAt } : null }
+    // Tier 825: whether the first registration needs the setup link
+    return { open, setupRequired: setupTokenRequired(source), invite: found ? { email: found.email, expiresAt: found.expiresAt } : null }
   }
 
   /**
@@ -459,7 +460,12 @@ export class AuthController {
   private async registerLocked(dto: RegisterDto, req: any, res: Response) {
     // Tier 820: after the first company, by invitation only (registration.ts);
     // Tier 821: or with an invitation to register a company of one's own
-    const { open } = await registrationState(this.prisma)
+    const { open, source } = await registrationState(this.prisma)
+    // Tier 825: the first registration of an empty installation, with the
+    // setup link only when SETUP_TOKEN is set (registration.ts)
+    if (setupTokenRequired(source) && !setupTokenMatches(dto.setupToken)) {
+      throw new ForbiddenException(SETUP_TOKEN_MESSAGE)
+    }
     // Tier 824: an invitation that can still be used counts with the
     // registration open as well — it was ignored then: the company was made,
     // and the operator's list kept the invitation „offen" and the company as
@@ -498,7 +504,7 @@ export class AuthController {
       // Generic message — don't confirm the email exists
       throw new BadRequestException('Registrierung fehlgeschlagen. Bitte überprüfen Sie Ihre Angaben.');
     }
-    const { companyInvite: _token, ...fields } = dto
+    const { companyInvite: _token, setupToken: _setup, ...fields } = dto
     const created = await this.authService.register({ ...fields, email, companyName });
     if (invite) {
       await useCompanyInvite(this.prisma, dto.companyInvite!, created.user.companyId ?? (created as any).company?.id ?? '')

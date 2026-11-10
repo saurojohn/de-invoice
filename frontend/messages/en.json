@@ -225,7 +225,9 @@
     "registrationClosedTitle": "Registration closed",
     "registrationClosedText": "On this installation the administrator invites new users — you will then receive a link by e-mail.",
     "companyInviteNote": "You have been invited to set up your own company. Choose a password and enter your company's name — then you write your invoices there.",
-    "companyInviteInvalid": "This invitation is no longer valid — it was used, revoked or has expired. Please ask for a new one."
+    "companyInviteInvalid": "This invitation is no longer valid — it was used, revoked or has expired. Please ask for a new one.",
+    "setupRequiredTitle": "Setup",
+    "setupRequiredText": "This installation is new. Create its first account with the setup link the deploy script printed on the server (/register?setup=…)."
   },
   "bankImport": {
     "openAmount": "open",

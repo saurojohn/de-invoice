@@ -15,9 +15,9 @@
 #
 # What it does:
 #   1. Runs deploy-prep.sh (host hardening, docker, UFW, fail2ban)
-#   2. Builds the Docker images
-#   3. Starts postgres, applies Prisma schema
-#   4. Seeds the SH Leder GmbH company
+#   2. Checks .env (Tier 825: before the build; SMTP_HOST, SETUP_TOKEN)
+#   3. Builds the Docker images
+#   4. Starts postgres, applies the migrations
 #   5. Starts the full stack (incl. Caddy which auto-issues LE certs)
 #   6. Runs a 30-90s healthcheck loop until /api/v1/health returns 200
 #   7. Prints next-steps (configure .env, add SSH key, enable monitoring)
@@ -231,12 +231,11 @@ else
   bash infra/prod/deploy-prep.sh
 fi
 
-# ─── Step 2: build images ──────────────────────────────
-log "Step 2/6 — build Docker images (3-5 min on a cold cache)"
-docker compose -f infra/prod/docker-compose.yml build
-
-# ─── Step 3: configure .env (template-only on first run) ─
-log "Step 3/6 — configure .env"
+# ─── Step 2: configure .env (template-only on first run) ─
+# Tier 825: before the build — compose reads .env for every command, and
+# without it `compose build` stopped with „required variable POSTGRES_PASSWORD
+# is missing" instead of the message below.
+log "Step 2/6 — configure .env"
 if [[ ! -f infra/prod/.env ]]; then
   if [[ -f infra/prod/.env.example ]]; then
     cp infra/prod/.env.example infra/prod/.env
@@ -257,6 +256,41 @@ fi
 grep -qE '^POSTGRES_PASSWORD=[^ ]' infra/prod/.env || die "POSTGRES_PASSWORD missing in .env"
 grep -qE '^JWT_SECRET=[^ ]'           infra/prod/.env || die "JWT_SECRET missing in .env"
 grep -qE '^FRONTEND_URL=https?://'    infra/prod/.env || die "FRONTEND_URL missing or invalid in .env"
+
+# Tier 825: a mail server. Without one the production backend sends nothing
+# and says so: no invoice or reminder by e-mail, no password reset, no
+# invitation by mail. ALLOW_NO_SMTP=1 deploys anyway (set SMTP_* later and
+# run `docker compose up -d backend`).
+# The backend takes the installation's server only with host, user and
+# password (mail.service.ts resolveConfig) — all three are checked.
+SMTP_MISSING=""
+for v in SMTP_HOST SMTP_USER SMTP_PASSWORD; do
+  grep -qE "^$v=[^ ]" infra/prod/.env || SMTP_MISSING="$SMTP_MISSING $v"
+done
+if [[ -n "$SMTP_MISSING" ]]; then
+  if [[ "${ALLOW_NO_SMTP:-}" == "1" ]]; then
+    warn "  missing in .env:$SMTP_MISSING (ALLOW_NO_SMTP=1): nothing will be mailed until they are set"
+  else
+    die "missing in .env:$SMTP_MISSING — without a mail server no invoice, reminder, password reset or invitation goes out by e-mail. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL (see .env.example), or re-run with ALLOW_NO_SMTP=1"
+  fi
+fi
+if grep -qE '^SMTP_HOST=[^ ]' infra/prod/.env && ! grep -qE '^SMTP_FROM_EMAIL=[^ ]' infra/prod/.env; then
+  warn "  SMTP_FROM_EMAIL not set — the sender address falls back to SMTP_USER"
+fi
+
+# Tier 825: the setup link. The first registration makes its owner the
+# operator; with SETUP_TOKEN it needs /register?setup=<token>, so nobody who
+# reaches the address first can take the installation.
+if ! grep -qE '^SETUP_TOKEN=[^ ]' infra/prod/.env; then
+  TOKEN_NEW=$(openssl rand -hex 24 2>/dev/null || head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')
+  printf '\n# Tier 825: the first registration needs /register?setup=<this>\nSETUP_TOKEN=%s\n' "$TOKEN_NEW" >> infra/prod/.env
+  log "  SETUP_TOKEN written to .env"
+fi
+SETUP_TOKEN=$(grep -E '^SETUP_TOKEN=' infra/prod/.env | tail -1 | cut -d= -f2-)
+
+# ─── Step 3: build images ──────────────────────────────
+log "Step 3/6 — build Docker images (3-5 min on a cold cache)"
+docker compose -f infra/prod/docker-compose.yml build
 
 # Patch FRONTEND_URL if it was just templated with the wrong domain.
 if grep -qE "^FRONTEND_URL=https?://" infra/prod/.env; then
@@ -330,6 +364,27 @@ if (( HEALTH_OK == 0 )); then
   die "backend did not become healthy in ${HEALTH_TIMEOUT}s — check 'docker compose logs backend'"
 fi
 
+# Tier 825: what the first day needs, checked once the stack is up
+api() { docker compose -f infra/prod/docker-compose.yml exec -T backend wget -q -O- "http://localhost:3001/api/v1/$1" 2>/dev/null || echo ""; }
+api health/deep | grep -q '"db":{"status":"ok"' && log "  database reachable (health/deep)" || warn "  health/deep did not answer — check 'docker compose logs backend'"
+REG=$(api auth/registration)
+FIRST_DAY=0
+if echo "$REG" | grep -q '"setupRequired":true'; then
+  FIRST_DAY=1
+  log "  empty installation: the first registration needs the setup link (below)"
+elif echo "$REG" | grep -q '"open":false'; then
+  log "  registration closed (a company exists; invitations only)"
+elif echo "$REG" | grep -q '"open":true'; then
+  warn "  registration OPEN to anyone — REGISTRATION=open in .env, or opened on „Systembetrieb\""
+else
+  warn "  GET /auth/registration did not answer"
+fi
+docker compose -f infra/prod/docker-compose.yml ps --format '{{.Name}} {{.State}}' 2>/dev/null | grep -q 'de-invoice-backup running' \
+  && log "  backup container running (a dump every hour)" || warn "  the backup container is not running — 'docker compose logs backup'"
+PUBLIC=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/v1/health" 2>/dev/null || echo 000)
+[[ "$PUBLIC" == "200" ]] && log "  https://$DOMAIN answers" \
+  || warn "  https://$DOMAIN answers $PUBLIC — Caddy may still be fetching the certificate (DNS must point here); try again in a minute"
+
 # ─── Done ──────────────────────────────────────────────
 echo
 echo "============================================================"
@@ -345,14 +400,22 @@ echo "1. CONFIRM HTTPS WORKS (Caddy auto-issues LE cert on first request):"
 echo "   curl -sI https://$DOMAIN | head -3"
 echo "   # If you see HTTP/2 200 with HSTS, you're done."
 echo
-echo "2. REGISTER THE FIRST ACCOUNT — NOW:"
-echo "   Open https://$DOMAIN/register and create your account."
-echo "   Registration is open, and the admins of the FIRST company"
-echo "   are the installation's operators (backups, schedulers,"
-echo "   storage): whoever registers first owns the installation."
+echo "2. REGISTER THE FIRST ACCOUNT:"
+if (( FIRST_DAY == 1 )); then
+  echo "   Open this link (only it registers the first company — keep it to yourself):"
+  echo "     https://$DOMAIN/register?setup=$SETUP_TOKEN"
+else
+  echo "   (already done — a company exists)"
+fi
+echo "   The admins of the FIRST company are the installation's operators"
+echo "   (Systembetrieb: backups, jobs, storage, registration, companies)."
 echo "   Optionally narrow the operators with SYSTEM_ADMIN_EMAILS in .env."
-echo "   After it, registration is closed: invite everyone else under"
-echo "   Einstellungen -> Benutzerverwaltung (needs SMTP)."
+echo "   After it, registration is closed: team members are invited under"
+echo "   Einstellungen -> Benutzerverwaltung, companies of their own on"
+echo "   Systembetrieb (Dashboard -> Systembetrieb)."
+echo
+echo "2b. FROM YOUR WORKSTATION, the post-deploy smoke test:"
+echo "   DOMAIN=$DOMAIN VPS_IP=<this server's IP> bash infra/prod/smoke-test.sh"
 echo
 echo "3. ENABLE OFF-SITE BACKUPS (Hetzner Storage Box):"
 echo "   See HETZNER-DEPLOY.md step 9."

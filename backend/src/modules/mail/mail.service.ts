@@ -46,6 +46,19 @@ interface ResolvedConfig {
 }
 
 /** Tier 736: why the installation's server does not send for a company yet */
+/**
+ * Tier 825 — in production, no mail server at all: nothing is sent, and the
+ * caller is told so. send() logged „[NO-SMTP]" and answered as if the mail
+ * had gone out — measured on the production images without SMTP: a company
+ * invitation reported „mailed", a Mahnung was recorded as sent, a statement
+ * likewise. Outside production the log stays (the test suites read it).
+ */
+export const NO_MAIL_SERVER_MESSAGE =
+  'Es ist kein E-Mail-Server eingerichtet — die E-Mail wurde nicht verschickt. Bitte unter Einstellungen → E-Mail ' +
+  'einen SMTP-Server eintragen, oder der Betreiber trägt SMTP_HOST und die übrigen SMTP-Werte in die .env des Servers ein.'
+
+const noMailServerRefused = () => process.env.NODE_ENV === 'production'
+
 export const UNCONFIRMED_MAIL_MESSAGE =
   'Die E-Mail-Adresse Ihres Kontos ist noch nicht bestätigt. Bis dahin versendet de-invoice keine E-Mails ' +
   'für Ihre Firma über den Mailserver der Installation. Bitte klicken Sie auf den Link in der Bestätigungs-E-Mail ' +
@@ -160,6 +173,7 @@ export class MailService implements OnModuleInit {
    */
   async assertMaySend(companyId: string): Promise<void> {
     const cfg = await this.resolveConfig(companyId);
+    if (!cfg && noMailServerRefused()) throw new BadRequestException(NO_MAIL_SERVER_MESSAGE); // Tier 825
     if (cfg?.source === 'installation' && !(await this.installationMailAllowed(companyId))) {
       throw new BadRequestException(UNCONFIRMED_MAIL_MESSAGE);
     }
@@ -173,6 +187,10 @@ export class MailService implements OnModuleInit {
       throw new BadRequestException(UNCONFIRMED_MAIL_MESSAGE);
     }
     if (!cfg) {
+      if (noMailServerRefused()) {
+        this.logger.warn(`[NO-SMTP] not sent (production, no mail server): companyId=${companyId || '-'} | Subject: ${options.subject}`)
+        throw new BadRequestException(NO_MAIL_SERVER_MESSAGE)
+      }
       this.logger.warn(
         `[NO-SMTP] companyId=${companyId} To: ${options.to}` +
         (options.cc?.length ? ` | CC: ${options.cc.join(', ')}` : '') +

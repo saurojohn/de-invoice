@@ -244,8 +244,11 @@ services:
       # name someone outside it (registration does not verify addresses).
       SYSTEM_ADMIN_EMAILS: ${SYSTEM_ADMIN_EMAILS:-}
       # Tier 820: after the first company, new people by invitation only (the
-      # operator can open it again on the user page; „open" here opens it by default)
+      # operator can open it again on „Systembetrieb"; „open" here opens it by default)
       REGISTRATION: ${REGISTRATION:-first-only}
+      # Tier 825: the first registration of the empty installation needs the
+      # setup link /register?setup=<token> (HETZNER-DEPLOY.sh sets and prints it)
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
       # Tier 549: when set, GET /metrics needs `Authorization: Bearer <token>`.
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       # Optional — VIES mock mode for offline tests.

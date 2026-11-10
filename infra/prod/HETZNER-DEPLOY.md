@@ -285,13 +285,22 @@ de-invoice-backup          Up
 
 ### 7a. Register the first account — now
 
-Open `https://<your-domain>/register` and create your account. Registration
-is open, and the admins of the **first** company are the installation's
-operators (backups, schedulers, storage settings): whoever registers first
-owns the installation. `SYSTEM_ADMIN_EMAILS` in `.env` can narrow that
-circle further. After this first registration the page takes no more
-(Tier 820): everyone else is invited under Einstellungen →
-Benutzerverwaltung.
+Open the **setup link** `HETZNER-DEPLOY.sh` printed at its end —
+`https://<your-domain>/register?setup=<token>` — and create your account.
+The admins of the **first** company are the installation's operators
+(„Systembetrieb": backups, jobs, storage, the registration, the companies).
+Tier 825: without the link `/register` takes no first registration
+(`SETUP_TOKEN` in `.env`, written by the script), so nobody who finds the
+address before you can take the server. Keep the link to yourself; once
+your company exists it does nothing. `SYSTEM_ADMIN_EMAILS` in `.env` can
+narrow the operators further. After this first registration the page takes
+no more (Tier 820): team members are invited under Einstellungen →
+Benutzerverwaltung, companies of their own on Systembetrieb.
+
+The script stops without `SMTP_HOST` in `.env` (Tier 825): in production
+the backend sends nothing without a mail server, and says so — no invoice or
+reminder by e-mail, no password reset, no invitation by mail.
+`ALLOW_NO_SMTP=1` deploys anyway.
 
 Then open **Einstellungen** and complete that company's details — legal
 name, address, e-mail, phone, register entry, managing director, VAT ID.

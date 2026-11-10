@@ -225,7 +225,9 @@
     "registrationClosedTitle": "Registrierung geschlossen",
     "registrationClosedText": "Auf dieser Installation lädt der Administrator neue Benutzer ein — Sie erhalten dann einen Link per E-Mail.",
     "companyInviteNote": "Sie wurden eingeladen, Ihre eigene Firma anzulegen. Wählen Sie ein Passwort und geben Sie den Namen Ihrer Firma an — danach schreiben Sie dort Ihre Rechnungen.",
-    "companyInviteInvalid": "Diese Einladung ist nicht mehr gültig — sie wurde schon benutzt, widerrufen oder ist abgelaufen. Bitten Sie um eine neue."
+    "companyInviteInvalid": "Diese Einladung ist nicht mehr gültig — sie wurde schon benutzt, widerrufen oder ist abgelaufen. Bitten Sie um eine neue.",
+    "setupRequiredTitle": "Einrichtung",
+    "setupRequiredText": "Diese Installation ist neu. Ihr erstes Konto legen Sie über den Einrichtungslink an, den das Deploy-Skript auf dem Server ausgegeben hat (/register?setup=…)."
   },
   "bankImport": {
     "openAmount": "offen",

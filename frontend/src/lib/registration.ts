@@ -12,6 +12,8 @@ import { API_BASE } from "@/lib/api"
 
 export interface RegistrationState {
   open: boolean
+  /** Tier 825: the first registration needs the setup link (SETUP_TOKEN) */
+  setupRequired: boolean
   invite: { email: string; expiresAt: string } | null
 }
 
@@ -22,8 +24,8 @@ export function useRegistrationState(companyInvite?: string): RegistrationState 
     const q = companyInvite ? `?invite=${encodeURIComponent(companyInvite)}` : ""
     fetch(`${API_BASE}/api/v1/auth/registration${q}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive) setState(d ? { open: d.open === true, invite: d.invite ?? null } : { open: true, invite: null }) })
-      .catch(() => { if (alive) setState({ open: true, invite: null }) })
+      .then((d) => { if (alive) setState(d ? { open: d.open === true, setupRequired: d.setupRequired === true, invite: d.invite ?? null } : { open: true, setupRequired: false, invite: null }) })
+      .catch(() => { if (alive) setState({ open: true, setupRequired: false, invite: null }) })
     return () => { alive = false }
   }, [companyInvite])
   return state

@@ -25,4 +25,10 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   companyInvite?: string;
+
+  // Tier 825: the setup link's token — the first registration of an empty
+  // installation needs it when SETUP_TOKEN is set (registration.ts)
+  @IsOptional()
+  @IsString()
+  setupToken?: string;
 }

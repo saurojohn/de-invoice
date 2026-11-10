@@ -78,7 +78,8 @@ export default function CompaniesCard() {
       <CardContent className="space-y-3 text-sm">
         {data && (
           <p className="text-gray-600 dark:text-gray-300" data-testid="operator-companies-summary">
-            {fill(L("{companies} Firmen, davon {open} aktiv · {users} Benutzer"), data.totals)}
+            {/* Tier 825: „1 Firma" (was „1 Firmen") */}
+            {fill(data.totals.companies === 1 ? L("1 Firma, davon {open} aktiv · {users} Benutzer") : L("{companies} Firmen, davon {open} aktiv · {users} Benutzer"), data.totals)}
           </p>
         )}
         <Input
