@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 822b — CI green for Tier 822
+
+Run 42800261587 (Tier 822, e4e26cf1): six jobs, backend **519 passed / 0 failed / 1 skipped**, Playwright **1151 passed (42.4 m)** (`operator-page-tier822` among them); 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 822 — the operator's functions on one page, „Systembetrieb"
 
 The owner asked (10.11.2026) to see everything the installation's operator does on one page. It was spread over the dashboard (cards „System-Gesundheit" and „Backups"), the user page (the registration and the company invitations, Tiers 820 / 821), the company settings (the storage path and its health) and the error page (the notification channels and SMTP).
