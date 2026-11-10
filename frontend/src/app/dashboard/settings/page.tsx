@@ -1887,8 +1887,8 @@ export default function SettingsPage() {
           <CompanyCarsCard />
           <HomeOfficeCard />
 
-          {/* Storage Settings Card */}
-          <Card>
+          {/* Storage Settings Card — „Systembetrieb“ links here (Tier 822) */}
+          <Card id="storage" className="scroll-mt-4">
             <CardHeader>
               <CardTitle>{t("storage.title")}</CardTitle>
             </CardHeader>

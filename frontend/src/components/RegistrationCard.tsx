@@ -8,6 +8,7 @@
  * company, for that address, within seven days): the link is mailed and shown
  * here once, to pass on when the mail does not go out.
  */
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -172,5 +173,29 @@ export default function RegistrationCard() {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Tier 822 — on the user page, the operator finds a link to „Systembetrieb“,
+ * where the registration and the company invitations are now; nobody else
+ * sees anything.
+ */
+export function OperatorPageLink() {
+  const { t } = useI18n()
+  const [operator, setOperator] = useState(false)
+  useEffect(() => {
+    let alive = true
+    apiGet<{ operator?: boolean }>("/api/v1/auth/me")
+      .then((me) => { if (alive) setOperator(me?.operator === true) })
+      .catch(() => undefined)
+    return () => { alive = false }
+  }, [])
+  if (!operator) return null
+  return (
+    <p className="mb-6 rounded border border-gray-200 dark:border-gray-700 p-3 text-sm" data-testid="operator-page-link">
+      {t("users.operatorPageHint")}{" "}
+      <Link href="/dashboard/operator" className="text-blue-600 dark:text-blue-400 hover:underline">{t("users.operatorPageLink")} →</Link>
+    </p>
   )
 }

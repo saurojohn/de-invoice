@@ -27,6 +27,8 @@ const ROUTES = [
   "/dashboard/v2",
   // Tier 731g: the pages since Tier 564
   "/dashboard/time",
+  // Tier 822: „Systembetrieb“
+  "/dashboard/operator",
 ]
 
 // A 404 that is an answer, not a missing route.

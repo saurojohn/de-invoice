@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import RegistrationCard from "@/components/RegistrationCard"
+import { OperatorPageLink } from "@/components/RegistrationCard"
 
 interface User {
   id: string
@@ -313,8 +313,9 @@ export default function UsersPage() {
           </div>
         )}
 
-        {/* Tier 820: the operator opens or closes the public registration */}
-        <RegistrationCard />
+        {/* Tier 820/822: the operator opens or closes the public registration and
+            invites companies on „Systembetrieb“ */}
+        <OperatorPageLink />
 
         {/* Invite form */}
         {isAdmin && (

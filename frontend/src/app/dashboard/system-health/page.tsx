@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -118,7 +119,8 @@ export default function SystemHealthPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t("systemHealth.title")}</h1>
+          <Link href="/dashboard/operator" className="text-sm text-blue-600 dark:text-blue-400 hover:underline" data-testid="back-to-operator">← {t("dashboard.cardOperatorTitle")}</Link>
+          <h1 className="text-2xl font-bold mt-1">{t("systemHealth.title")}</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             {t("systemHealth.subtitle")}
           </p>

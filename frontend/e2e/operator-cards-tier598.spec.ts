@@ -37,6 +37,7 @@ test("a company that is not the operator sees no card for backups or scheduled j
   await page.waitForLoadState("networkidle")
   await expect(page.getByTestId("dashboard-card-backups")).toHaveCount(0)
   await expect(page.getByTestId("dashboard-card-system-health")).toHaveCount(0)
+  await expect(page.getByTestId("dashboard-card-operator")).toHaveCount(0) // Tier 822: the one card since
   // …and nothing on the page asked for the operator's data
   const forbidden: string[] = []
   page.on("response", (r) => { if (r.status() === 403) forbidden.push(r.url()) })

@@ -897,10 +897,6 @@
     "systemHealthRefresh": "刷新",
     "cardSystemErrorsTitle": "系统错误",
     "cardSystemErrorsDesc": "查看捕获的后端和前端错误",
-    "cardSystemHealthTitle": "系统健康",
-    "cardSystemHealthDesc": "每个后台 cron 的最近和下次运行时间",
-    "cardBackupsTitle": "备份",
-    "cardBackupsDesc": "创建、校验和恢复数据库与凭证备份",
     "cardSecurityTitle": "安全 & 2FA",
     "cardSecurityDesc": "密码、两步验证、下载您的数据、删除账户",
     "cardBankingTitle": "在线银行 (FinTS)",
@@ -935,7 +931,9 @@
     "ustvaHistoryEmpty": "该期间无增值税数据",
     "ustvaTrendTitle": "近 12 个月增值税预缴走势",
     "ustvaTrendSubtitle": "应缴 = 销项 − 进项 (正数 = 需预缴, 负数 = 退税)",
-    "kpiOverdueTitle": "逾期发票"
+    "kpiOverdueTitle": "逾期发票",
+    "cardOperatorTitle": "系统运营",
+    "cardOperatorDesc": "服务器、后台任务、数据备份、文件存储、错误通知、注册和公司邀请——都在一页上"
   },
   "email": {
     "title": "邮件中心",
@@ -2302,7 +2300,9 @@
     "companyInviteExpired": "已过期",
     "companyInviteRevoked": "已撤销",
     "companyInviteUntil": "有效至",
-    "companyInviteRevoke": "撤销"
+    "companyInviteRevoke": "撤销",
+    "operatorPageHint": "公开注册和新公司邀请：",
+    "operatorPageLink": "系统运营"
   },
   "ustva": {
     "ossNote": "按目的国税率开给其他欧盟国家消费者的销售额：净额 {net} — 已计入 Kz 45，仅作为计税基础。其税额（{vat}）不在本期申报内，通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",

@@ -899,10 +899,6 @@
     "systemHealthRefresh": "Aktualisieren",
     "cardSystemErrorsTitle": "Systemfehler",
     "cardSystemErrorsDesc": "Erfasste Fehler aus Backend und Frontend prüfen",
-    "cardSystemHealthTitle": "System-Gesundheit",
-    "cardSystemHealthDesc": "Letzte und nächste Ausführung der Hintergrund-Crons",
-    "cardBackupsTitle": "Backups",
-    "cardBackupsDesc": "Datenbank- und Beleg-Backups anlegen, prüfen und wiederherstellen",
     "cardSecurityTitle": "Sicherheit & 2FA",
     "cardSecurityDesc": "Passwort, Zwei-Faktor-Authentifizierung, Ihre Daten herunterladen, Konto löschen",
     "dashboardV2Title": "Dashboard",
@@ -935,7 +931,9 @@
     "ustvaHistoryEmpty": "Keine UStVA-Daten für diesen Zeitraum",
     "ustvaTrendTitle": "USt-Vorauszahlung 12-Monats-Verlauf",
     "ustvaTrendSubtitle": "Zahllast = USt − Vorsteuer (positiv = Vorauszahlung, negativ = Erstattung)",
-    "kpiOverdueTitle": "Überfällige Rechnungen"
+    "kpiOverdueTitle": "Überfällige Rechnungen",
+    "cardOperatorTitle": "Systembetrieb",
+    "cardOperatorDesc": "Server, Hintergrundjobs, Datensicherung, Ablage, Fehlermeldungen, Registrierung und Firmen-Einladungen — auf einer Seite"
   },
   "email": {
     "title": "E-Mail Center",
@@ -2302,7 +2300,9 @@
     "companyInviteExpired": "abgelaufen",
     "companyInviteRevoked": "widerrufen",
     "companyInviteUntil": "bis",
-    "companyInviteRevoke": "Widerrufen"
+    "companyInviteRevoke": "Widerrufen",
+    "operatorPageHint": "Öffentliche Registrierung und Einladungen für neue Firmen:",
+    "operatorPageLink": "Systembetrieb"
   },
   "ustva": {
     "ossNote": "Umsätze an Verbraucher in anderen EU-Staaten zum dortigen Steuersatz: netto {net} — in Kz 45 enthalten, nur als Bemessungsgrundlage. Ihre Steuer ({vat}) steht nicht in dieser Voranmeldung; sie wird über das OSS-Verfahren beim BZSt erklärt (§ 18j UStG), siehe Berichte → OSS.",

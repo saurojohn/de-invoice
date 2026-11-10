@@ -6,8 +6,8 @@ import { getTestEnv } from "./fixtures/test-env"
  * operator (the seed admin: the oldest company's) closes the registration;
  * the home page and the sign-in form no longer offer it, /register says how
  * one comes in, an invitation link still opens its own form, and the
- * operator opens it again on the user page. Reopened after the test, as the
- * other specs register companies.
+ * operator opens it again on „Systembetrieb“ (the user page until Tier 822).
+ * Reopened after the test, as the other specs register companies.
  */
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
@@ -59,7 +59,7 @@ test("the operator's user page: closed, and the button opens it", async ({ page,
   }, { userId, companyId })
   // the card is the operator's: wait for /auth/me, so that a failure says what it answered
   const me = page.waitForResponse((r) => r.url().includes("/api/v1/auth/me") && r.request().method() === "GET", { timeout: 90_000 })
-  await page.goto("/dashboard/settings/users")
+  await page.goto("/dashboard/operator")
   const meBody = await (await me).json()
   expect(meBody.operator, `GET /auth/me as the seed admin: ${JSON.stringify({ role: meBody.role, operator: meBody.operator, companyId: meBody.companyId })}`).toBe(true)
   const card = page.getByTestId("registration-card")
@@ -90,4 +90,5 @@ test("the admin of another company sees no such card", async ({ page, request })
   await page.goto("/dashboard/settings/users")
   await expect(page.getByText(/Benutzer einladen|Benutzerverwaltung/).first()).toBeVisible({ timeout: 90_000 })
   await expect(page.getByTestId("registration-card")).toHaveCount(0)
+  await expect(page.getByTestId("operator-page-link")).toHaveCount(0)
 })

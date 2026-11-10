@@ -1203,24 +1203,17 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
           )}
-          {operator && (<>
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/system-health")} data-testid="dashboard-card-system-health">
+          {/* Tier 822: the operator's functions are on one page, „Systembetrieb“ */}
+          {operator && (
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/operator")} data-testid="dashboard-card-operator">
             <CardHeader>
-              <CardTitle className="text-emerald-600 dark:text-emerald-400">{t("dashboard.cardSystemHealthTitle")}</CardTitle>
+              <CardTitle className="text-emerald-600 dark:text-emerald-400">{t("dashboard.cardOperatorTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardSystemHealthDesc")}</p>
+              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardOperatorDesc")}</p>
             </CardContent>
           </Card>
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/backups")} data-testid="dashboard-card-backups">
-            <CardHeader>
-              <CardTitle className="text-cyan-600 dark:text-cyan-400">{t("dashboard.cardBackupsTitle")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 dark:text-gray-300">{t("dashboard.cardBackupsDesc")}</p>
-            </CardContent>
-          </Card>
-          </>)}
+          )}
           {isAccountant && (
           <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push("/dashboard/audit")} data-testid="dashboard-card-audit">
             <CardHeader>

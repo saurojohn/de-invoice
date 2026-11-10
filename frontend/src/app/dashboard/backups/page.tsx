@@ -26,6 +26,7 @@
  * while in flight and show a spinner.
  */
 
+import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -232,7 +233,8 @@ export default function BackupsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{t("backup.title")}</h1>
+          <Link href="/dashboard/operator" className="text-sm text-blue-600 dark:text-blue-400 hover:underline" data-testid="back-to-operator">← {t("dashboard.cardOperatorTitle")}</Link>
+          <h1 className="text-2xl font-bold mt-1">{t("backup.title")}</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             {t("backup.subtitle")}
           </p>

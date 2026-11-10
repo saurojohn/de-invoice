@@ -897,10 +897,6 @@
     "systemHealthRefresh": "Refresh",
     "cardSystemErrorsTitle": "System errors",
     "cardSystemErrorsDesc": "Review captured backend and frontend errors",
-    "cardSystemHealthTitle": "System Health",
-    "cardSystemHealthDesc": "Last and next run of every background cron",
-    "cardBackupsTitle": "Backups",
-    "cardBackupsDesc": "Create, verify, and restore database + receipt backups",
     "cardSecurityTitle": "Security & 2FA",
     "cardSecurityDesc": "Password, two-factor authentication, download your data, delete the account",
     "cardBankingTitle": "Online Banking (FinTS)",
@@ -935,7 +931,9 @@
     "ustvaHistoryEmpty": "No VAT data for this period",
     "ustvaTrendTitle": "VAT prepayment — 12-month trend",
     "ustvaTrendSubtitle": "Payable = VAT − input tax (positive = payment, negative = refund)",
-    "kpiOverdueTitle": "Overdue invoices"
+    "kpiOverdueTitle": "Overdue invoices",
+    "cardOperatorTitle": "System operation",
+    "cardOperatorDesc": "Server, background jobs, backups, storage, error reports, registration and company invitations — on one page"
   },
   "email": {
     "title": "Email Center",
@@ -2302,7 +2300,9 @@
     "companyInviteExpired": "expired",
     "companyInviteRevoked": "revoked",
     "companyInviteUntil": "until",
-    "companyInviteRevoke": "Revoke"
+    "companyInviteRevoke": "Revoke",
+    "operatorPageHint": "Public registration and invitations for new companies:",
+    "operatorPageLink": "System operation"
   },
   "ustva": {
     "ossNote": "Sales to consumers in other EU states at the rate of those states: net {net} — included in Kz 45, as a base only. Their tax ({vat}) is not in this return; it is declared through the OSS scheme at the BZSt (§ 18j UStG), see Reports → OSS.",

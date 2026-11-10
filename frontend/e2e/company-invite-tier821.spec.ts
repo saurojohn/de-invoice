@@ -5,8 +5,8 @@ import { getTestEnv } from "./fixtures/test-env"
  * Tier 821 — the operator invites someone to register a company of their own
  * while the registration is closed: the card shows the link, the link opens
  * the registration with the address filled in and fixed, and the new owner
- * lands in a company of their own. Reopened after the test, as the other
- * specs register companies.
+ * lands in a company of their own. The card is on „Systembetrieb“ since
+ * Tier 822. Reopened after the test, as the other specs register companies.
  */
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
@@ -21,7 +21,7 @@ test("an invited company registers through the link, with the registration close
   expect((await request.put(`${API}/api/v1/auth/registration`, { headers: H, data: { open: false } })).status()).toBe(200)
   const email = `t821-${Date.now()}@example.test`
 
-  // the operator invites on the user page
+  // the operator invites on „Systembetrieb“
   await page.context().addCookies([
     { name: "x-user-id", value: userId, domain: "localhost", path: "/" },
     { name: "x-company-id", value: companyId, domain: "localhost", path: "/" },
@@ -33,7 +33,7 @@ test("an invited company registers through the link, with the registration close
   }, { userId, companyId })
   // the card is the operator's: wait for /auth/me, so that a failure says what it answered
   const me = page.waitForResponse((r) => r.url().includes("/api/v1/auth/me") && r.request().method() === "GET", { timeout: 90_000 })
-  await page.goto("/dashboard/settings/users")
+  await page.goto("/dashboard/operator")
   const meBody = await (await me).json()
   expect(meBody.operator, `GET /auth/me as the seed admin: ${JSON.stringify({ role: meBody.role, operator: meBody.operator, companyId: meBody.companyId })}`).toBe(true)
   await expect(page.getByTestId("registration-card")).toBeVisible({ timeout: 90_000 })
