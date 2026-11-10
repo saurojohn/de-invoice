@@ -33,6 +33,8 @@ import * as path from 'path'
 import * as os from 'os'
 import { Public } from '../../auth/public.decorator'
 import { Require } from '../../auth/roles.decorator'
+import { appVersion } from '../../common/app-version'
+import { isSystemAdmin } from '../../auth/system-admin.guard'
 
 const STARTED_AT = new Date()
 const VERSION = process.env.npm_package_version || '0.0.0'
@@ -158,7 +160,7 @@ export class HealthController {
   // monitoring uses /health, /health/deep and /metrics, which stay public.
   @Require('company.read')
   @Get('summary')
-  async summary(@Req() req: { headers: Record<string, string | string[] | undefined>; user?: { id: string } }) {
+  async summary(@Req() req: { headers: Record<string, string | string[] | undefined>; user?: { id: string; email?: string; companyId?: string; role?: string } }) {
     // HeaderAuthGuard has verified this header against UserCompany.
     const companyId = String(req.headers['x-company-id'] || '')
     const userId = req.user?.id || ''
@@ -212,9 +214,13 @@ export class HealthController {
     const status: 'ok' | 'degraded' | 'down' =
       !dbOk ? 'down' : !storageOk ? 'degraded' : 'ok'
 
+    // Tier 828: the commit and build time of the running image — the
+    // operator's (Systembetrieb), not every member's
+    const build = (await isSystemAdmin(this.prisma, req.user)) ? appVersion() : null
     return {
       status,
       version: VERSION,
+      ...(build ? { commit: build.commit, builtAt: build.builtAt } : {}),
       uptimeSec,
       dbOk,
       storageOk,

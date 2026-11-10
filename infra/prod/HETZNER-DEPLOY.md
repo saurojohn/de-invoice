@@ -211,8 +211,11 @@ signs everyone out once).
 
 ```bash
 cd /opt/de-invoice
-sudo docker compose -f infra/prod/docker-compose.yml build
+sudo bash infra/prod/build.sh
 ```
+
+(`build.sh` is `docker compose … build` with the checked-out commit and the
+build time — „Systembetrieb" shows which code the server runs, Tier 828.)
 
 This takes 3-5 minutes on a CX21 (cold cache). Subsequent builds
 are <30s because the deps layer is cached.

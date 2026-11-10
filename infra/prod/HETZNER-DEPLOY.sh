@@ -290,7 +290,8 @@ SETUP_TOKEN=$(grep -E '^SETUP_TOKEN=' infra/prod/.env | tail -1 | cut -d= -f2-)
 
 # ─── Step 3: build images ──────────────────────────────
 log "Step 3/6 — build Docker images (3-5 min on a cold cache)"
-docker compose -f infra/prod/docker-compose.yml build
+# Tier 828: with the commit and build time („Systembetrieb" shows them)
+bash infra/prod/build.sh
 
 # Patch FRONTEND_URL if it was just templated with the wrong domain.
 if grep -qE "^FRONTEND_URL=https?://" infra/prod/.env; then

@@ -190,6 +190,10 @@ services:
       # Tier 569: the official XRechnung validator's files, for the image.
       additional_contexts:
         kosit: ../kosit
+      # Tier 828: which code the image is (infra/prod/build.sh sets them)
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        BUILD_TIME: ${BUILD_TIME:-}
     image: de-invoice-backend:latest
     container_name: de-invoice-backend
     restart: unless-stopped
@@ -300,6 +304,7 @@ services:
       # changing it.
       args:
         NEXT_PUBLIC_API_URL: ${FRONTEND_URL:?FRONTEND_URL is required (public URL, e.g. https://rechnung.example.de)}
+        NEXT_PUBLIC_GIT_COMMIT: ${GIT_COMMIT:-} # Tier 828
     image: de-invoice-frontend:latest
     container_name: de-invoice-frontend
     restart: unless-stopped

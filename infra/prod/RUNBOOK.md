@@ -102,7 +102,7 @@ Logs in Loki have a 30-day retention by default.
 ssh deploy@invoice.shleder.de
 cd /opt/de-invoice
 git pull                                    # pull latest
-docker compose -f infra/prod/docker-compose.yml build backend frontend
+bash infra/prod/build.sh backend frontend    # Tier 828: with the commit (Systembetrieb shows it)
 docker compose -f infra/prod/docker-compose.yml up -d backend frontend
 # Postgres + Caddy are NOT touched by an app update.
 ```
@@ -159,7 +159,7 @@ Code-only rollback (no schema change in the new version):
 cd /opt/de-invoice
 git log --oneline -5                          # find the previous commit
 git checkout <previous-commit>
-docker compose -f infra/prod/docker-compose.yml build backend frontend
+bash infra/prod/build.sh backend frontend
 docker compose -f infra/prod/docker-compose.yml up -d backend frontend
 ```
 
@@ -534,7 +534,7 @@ docker compose -f /opt/de-invoice/infra/prod/docker-compose.yml logs backend \
 
 # If you see binding errors, rebuild the image on the VPS:
 cd /opt/de-invoice
-docker compose -f infra/prod/docker-compose.yml build --no-cache backend
+bash infra/prod/build.sh --no-cache backend
 docker compose -f infra/prod/docker-compose.yml up -d backend
 ```
 

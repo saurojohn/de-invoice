@@ -212,6 +212,13 @@ ENV NPM_CONFIG_CACHE=/tmp/.npm \
 RUN DATABASE_URL=postgresql://nobody:nobody@127.0.0.1:1/nobody \
     npx prisma generate 2>&1 | tail -2 && rm -rf /tmp/.npm
 
+# Tier 828: which code this is (infra/prod/build.sh passes them; empty for a
+# build by hand). Last, so that a new commit does not rebuild the layers above.
+ARG GIT_COMMIT=""
+ARG BUILD_TIME=""
+ENV APP_COMMIT=$GIT_COMMIT \
+    APP_BUILT_AT=$BUILD_TIME
+
 # Tier 580: the compiled program. --enable-source-maps makes a stack trace
 # name the .ts line (the maps are in dist/).
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

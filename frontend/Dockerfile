@@ -65,6 +65,10 @@ RUN if [ -z "$NEXT_PUBLIC_API_URL" ]; then \
       exit 1; \
     fi
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# Tier 828: the commit the pages are built from (infra/prod/build.sh) —
+# „Systembetrieb" compares it with the backend's
+ARG NEXT_PUBLIC_GIT_COMMIT=""
+ENV NEXT_PUBLIC_GIT_COMMIT=$NEXT_PUBLIC_GIT_COMMIT
 RUN npm run build
 
 # ─── Stage 3: runtime ──────────────────────────────────────────

@@ -51,7 +51,7 @@ note "=== 3. the deploy ==="
 D="$ROOT/infra/prod/HETZNER-DEPLOY.sh"
 bash -n "$D" && pass "HETZNER-DEPLOY.sh parses" || fail "HETZNER-DEPLOY.sh: syntax"
 ENV_STEP=$(grep -n 'log "Step 2/6 — configure .env"' "$D" | cut -d: -f1)
-BUILD=$(grep -n 'docker compose -f infra/prod/docker-compose.yml build' "$D" | head -1 | cut -d: -f1)
+BUILD=$(grep -nE 'docker compose -f infra/prod/docker-compose.yml build|bash infra/prod/build.sh' "$D" | head -1 | cut -d: -f1) # Tier 828: build.sh
 assert_eq ".env is checked before the images are built" "$( [[ -n "$ENV_STEP" && -n "$BUILD" && "$ENV_STEP" -lt "$BUILD" ]] && echo yes || echo "env=$ENV_STEP build=$BUILD")" "yes"
 grep -q 'for v in SMTP_HOST SMTP_USER SMTP_PASSWORD' "$D" && grep -q 'ALLOW_NO_SMTP' "$D" \
   && pass "it stops without SMTP host, user and password (ALLOW_NO_SMTP=1 overrides)" || fail "no SMTP check in the deploy"

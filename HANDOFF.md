@@ -2669,6 +2669,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 828 — which code the server runs
+
+„Systembetrieb" said „Version 0.0.0" (the image runs `node dist/main.js`, there is no package version) or nothing: after an update or a rollback nothing showed which commit the server ran.
+
+- `infra/prod/build.sh [compose build args]`: `docker compose … build` with `GIT_COMMIT` (`git rev-parse --short=12 HEAD`; a note when backend/ or frontend/ differ from it) and `BUILD_TIME`. Compose hands them to the backend build (`ARG GIT_COMMIT` / `BUILD_TIME` → `APP_COMMIT` / `APP_BUILT_AT`, last in the runtime stage so a new commit rebuilds no layer above) and to the frontend's (`NEXT_PUBLIC_GIT_COMMIT`). HETZNER-DEPLOY.sh, rollback.sh, RUNBOOK, README and HETZNER-DEPLOY.md build through it; `.env.example` says they are not set there.
+- `common/app-version.ts`: the commit (7–40 hex, lower-cased) and the build time (ISO), else null. `GET /health/summary` carries them for the operator only (another company's admin and the public `/health` do not get them).
+- „Systembetrieb", Server: „Code 3815486a6db6, gebaut 10.11.26, 19:24", or „Code: unbekannt (nicht mit infra/prod/build.sh gebaut)"; when the pages are of another commit than the server — amber, „Die Seiten sind von …, der Server von … — beide neu bauen: bash infra/prod/build.sh backend frontend".
+- **rollback.sh rebuilt the backend only** — after a rollback the pages stayed those of the newer code. It rebuilds both now.
+- Rehearsed on the production images (day1 stack): backend built with the commit, pages with another — the operator sees the code line and the warning, another company's admin no commit.
+
+Spec `526-tier828-welcher-code-laeuft.sh` (fails on Tier 827: 8 ✗): the summary's commit for the operator only, not in the public health; `appVersion()` with a commit, empty and garbage; both Dockerfiles, compose, build.sh, the deploy and the rollback through it, no runbook building without it, the page comparing the two commits. Guards 124 / 363: the four variables documented.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 827b — CI green for Tier 827
 
 Run 42864160692 (Tier 827, 5044b036): six jobs, backend **524 passed / 0 failed / 1 skipped** (525 among them), Playwright **1154 passed (32.7 m)** — `operator-companies-tier823` and `note-templates-page` among them; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.

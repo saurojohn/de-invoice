@@ -31,6 +31,9 @@ interface Summary {
   dbOk: boolean
   storageOk: boolean
   memory: { rssMB: number; heapMB: number }
+  /** Tier 828: the running image's commit and build time (the operator's) */
+  commit?: string | null
+  builtAt?: string | null
 }
 interface CronRow { name: string; health: Health }
 interface BackupStatus {
@@ -127,14 +130,27 @@ export default function OperatorPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const server = apiGet<Summary>("/api/v1/health/summary").then((s): Area => ({
-      health: s.status === "ok" ? "green" : s.status === "degraded" ? "amber" : "red",
-      lines: [
-        (s.status === "ok" ? L("Läuft") : s.status === "degraded" ? L("Eingeschränkt") : L("Gestört")) + (s.version && s.version !== "0.0.0" ? " · " + F(L("Version {v}"), { v: s.version }) : ""),
-        (s.dbOk ? L("Datenbank erreichbar") : L("Datenbank nicht erreichbar")) + " · " + (s.storageOk ? L("Ablage beschreibbar") : L("Ablage nicht beschreibbar")),
-        F(L("Läuft {since} · {mb} MB Arbeitsspeicher"), { since: uptime(s.uptimeSec), mb: s.memory.rssMB }),
-      ],
-    })).catch(() => failed).then(setServer)
+    const server = apiGet<Summary>("/api/v1/health/summary").then((s): Area => {
+      // Tier 828: which code runs — the backend's commit, and the pages' own
+      // (built in the same run of infra/prod/build.sh, or not)
+      const fe = (process.env.NEXT_PUBLIC_GIT_COMMIT || "").trim().toLowerCase()
+      const be = s.commit || ""
+      const mismatch = !!fe && !!be && !fe.startsWith(be.slice(0, 7)) && !be.startsWith(fe.slice(0, 7))
+      const built = s.builtAt ? new Date(s.builtAt).toLocaleString(getDateLocale(), { dateStyle: "short", timeStyle: "short" }) : ""
+      const code = be
+        ? F(L("Code {commit}, gebaut {when}"), { commit: be, when: built || "—" })
+        : L("Code: unbekannt (nicht mit infra/prod/build.sh gebaut)")
+      return {
+        health: mismatch ? "amber" : s.status === "ok" ? "green" : s.status === "degraded" ? "amber" : "red",
+        lines: [
+          (s.status === "ok" ? L("Läuft") : s.status === "degraded" ? L("Eingeschränkt") : L("Gestört")) + (s.version && s.version !== "0.0.0" ? " · " + F(L("Version {v}"), { v: s.version }) : ""),
+          code,
+          ...(mismatch ? [F(L("Die Seiten sind von {fe}, der Server von {be} — beide neu bauen: bash infra/prod/build.sh backend frontend"), { fe, be })] : []),
+          (s.dbOk ? L("Datenbank erreichbar") : L("Datenbank nicht erreichbar")) + " · " + (s.storageOk ? L("Ablage beschreibbar") : L("Ablage nicht beschreibbar")),
+          F(L("Läuft {since} · {mb} MB Arbeitsspeicher"), { since: uptime(s.uptimeSec), mb: s.memory.rssMB }),
+        ],
+      }
+    }).catch(() => failed).then(setServer)
 
     const jobs = Promise.all([
       apiGet<CronRow[]>("/api/v1/admin/cron-health"),

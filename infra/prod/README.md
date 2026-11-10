@@ -161,7 +161,7 @@ If you want to test against Let's Encrypt's STAGING endpoint
 
 ```bash
 cd /opt/de-invoice
-docker compose -f infra/prod/docker-compose.yml build
+bash infra/prod/build.sh                    # Tier 828: with the commit
 docker compose -f infra/prod/docker-compose.yml up -d
 ```
 
@@ -268,7 +268,7 @@ graph, audit-log extension, retry worker registration). This is normal.
 ```bash
 cd /opt/de-invoice
 git pull                                    # pull latest code
-docker compose -f infra/prod/docker-compose.yml build backend frontend
+bash infra/prod/build.sh backend frontend   # Tier 828: with the commit
 docker compose -f infra/prod/docker-compose.yml up -d backend frontend
 docker compose -f infra/prod/docker-compose.yml exec backend npx prisma migrate deploy
 ```
@@ -281,7 +281,7 @@ The backup container and postgres are NOT touched by an app update.
 cd /opt/de-invoice
 git log --oneline -5                        # find the previous commit
 git checkout <previous-commit>              # or git revert HEAD
-docker compose -f infra/prod/docker-compose.yml build backend frontend
+bash infra/prod/build.sh backend frontend   # Tier 828: with the commit
 docker compose -f infra/prod/docker-compose.yml up -d backend frontend
 ```
 

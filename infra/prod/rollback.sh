@@ -77,13 +77,15 @@ log "Checking out $TARGET..."
 git checkout --quiet "$TARGET"
 
 # ─── 4. Rebuild + restart ───────────────────────────────
-log "Rebuilding the backend image from local source..."
+log "Rebuilding the backend and frontend images from local source..."
 # Source installs: backend is built from the local
 # checkout (no separate registry), so `docker
 # compose build` re-creates the image with the
 # previous code.
+# Tier 828: backend AND frontend, with the commit they are of (build.sh) —
+# only the backend was rebuilt, the pages stayed those of the newer code
+bash "$INSTALL_DIR/infra/prod/build.sh" backend frontend
 cd "$INSTALL_DIR/infra/prod"
-docker compose build backend
 docker compose up -d
 
 # ─── 5. Health check ───────────────────────────────────
