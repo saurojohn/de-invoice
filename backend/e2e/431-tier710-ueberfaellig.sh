@@ -82,7 +82,8 @@ assert_eq "the dashboard counts the 5 issued invoices, not the credit note (was 
 
 note "=== 3. the job's registration ==="
 SRC="$SCRIPT_DIR/../src/modules/invoice/overdue-status.scheduler.ts"
-assert_eq "nightly at 00:05 German time, off with DISABLE_CRON, in the cron health list" \
-  "$(grep -c "@Cron('5 0 \* \* \*'" "$SRC")/$(grep -c "DISABLE_CRON === '1'" "$SRC")/$(grep -c "invoice-overdue-status" "$SCRIPT_DIR/../src/modules/admin/cron-health.service.ts")" "1/1/1"
+# (Tier 829: the run a minute after a production start honours DISABLE_CRON too — 2)
+assert_eq "nightly at 00:05 German time, off with DISABLE_CRON (the nightly run and the start run), in the cron health list" \
+  "$(grep -c "@Cron('5 0 \* \* \*'" "$SRC")/$(grep -c "DISABLE_CRON === '1'" "$SRC")/$(grep -c "invoice-overdue-status" "$SCRIPT_DIR/../src/modules/admin/cron-health.service.ts")" "1/2/1"
 
 summary

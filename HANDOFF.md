@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 829b — CI for Tier 829: a static count in spec 431
+
+Run 42889013707 (Tier 829, 921b3380): six jobs, Playwright **1156 passed (38.4 m)**, 0 flaky, no retry — `phone-tier829` and the changed specs among them. Backend **525 passed / 1 failed**: spec 431 (Tier 710) counts `DISABLE_CRON === '1'` in overdue-status.scheduler.ts — the start run honours it too, 2 now. The spec expects 2, with the reason. Not caught locally: the specs were chosen by topic, not by the files they read; now every spec reading a file changed today (167 431 457 463 504 522 525 526 527) passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 829 — the daily pages on a phone; „überfällig" after the start
 
 The owner's choice (10.11.2026, „都做"): the daily pages at a phone's width. Walked on the production build (day1 stack, 375 × 812, logged in as on a phone): dashboard, invoice list / form / page, customers / customer page, bills received, bank import, Mahnungen, reminders, UStVA, Kassenbuch, reports, settings, users, Systembetrieb, products, suppliers — no page wider than the screen (Tiers 596 / 813 hold), but:
