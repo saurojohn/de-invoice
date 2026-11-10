@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 /**
  * Tier 818 — what the first-day drill met on the bank page and in the invoice
@@ -72,6 +73,7 @@ test("the bank page speaks German: balances, counts, the suggestion's reason", a
   await expect(main).not.toContainText("476.00 €")
 
   page.once("dialog", (dlg) => dlg.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
   await page.getByRole("button", { name: "Import bestätigen" }).click()
   const statement = page.getByText("t818.sta")
   await expect(statement).toBeVisible()

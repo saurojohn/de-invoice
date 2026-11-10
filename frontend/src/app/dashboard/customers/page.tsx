@@ -14,6 +14,7 @@ import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 import { PaymentTermSelect } from "@/components/PaymentTermSelect"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface Customer {
   id: string
@@ -444,7 +445,7 @@ export default function CustomersPage() {
   }
 
   const handleDelete = async (customer: Customer) => {
-    if (!confirm(`${t("common.delete")} — ${customer.name}?`)) return
+    if (!await askConfirm(`${t("common.delete")} — ${customer.name}?`)) return
     try {
       const companyId = localStorage.getItem("companyId")
       await apiDelete(`/api/v1/customers/${customer.id}?companyId=${companyId}`)

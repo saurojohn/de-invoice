@@ -18,6 +18,7 @@ import CompanyCarsCard from "./CompanyCarsCard"
 import HomeOfficeCard from "./HomeOfficeCard"
 import { PaymentTermSelect } from "@/components/PaymentTermSelect"
 import NextInvoiceNumberField from "./NextInvoiceNumberField"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface StorageSettings {
   localPath: string
@@ -824,7 +825,7 @@ export default function SettingsPage() {
     // code just cleared local state and let the user
     // think it was deleted, but the file stayed on disk
     // and would reappear on the next GET.
-    if (!confirm(t("settings.removeLogoConfirm") || "Logo wirklich entfernen?")) {
+    if (!await askConfirm(t("settings.removeLogoConfirm") || "Logo wirklich entfernen?")) {
       return
     }
     setUploadProgress(true)
@@ -855,7 +856,7 @@ export default function SettingsPage() {
   }
 
   const deleteFile = async (f: StoredFile) => {
-    if (!confirm(t("storage.fileDeleteConfirm"))) return
+    if (!await askConfirm(t("storage.fileDeleteConfirm"))) return
     const cid = localStorage.getItem("companyId")
     if (!cid) return
     try {

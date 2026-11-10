@@ -30,6 +30,7 @@ import { useEffect, useRef, useState } from "react"
 import { useI18n } from "@/components/useI18n"
 import { apiDelete, apiGet, apiFetch } from "@/lib/api"
 import { RemovedAttachments } from "@/components/RemovedAttachments"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 export interface Attachment {
   id: string
@@ -149,7 +150,7 @@ export function ReceiptsPanel({ companyId, entityType, entityId, onChange }: Pro
   }
 
   const remove = async (id: string) => {
-    if (!confirm(t("expenses.attachmentRemoveConfirm"))) return
+    if (!await askConfirm(t("expenses.attachmentRemoveConfirm"))) return
     setRemoveError(null)
     try {
       await apiDelete(`/api/v1/attachments/${id}?companyId=${companyId}`)

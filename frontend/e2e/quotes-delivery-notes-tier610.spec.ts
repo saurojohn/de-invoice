@@ -8,6 +8,7 @@
  * belongs to an invoice (payments, e-invoice, GiroCode, payment link).
  */
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -40,6 +41,7 @@ test("a quote is written, offered and becomes an invoice and a delivery note", a
     { userId, companyId },
   )
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
 
   // the dashboard leads to the quotes
   await page.goto("/dashboard")

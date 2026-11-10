@@ -18,6 +18,7 @@ import { substitute } from "@/lib/substitute"
 import PdfSignaturePanel from "@/components/PdfSignaturePanel"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { invoiceRecipientOf } from "@/lib/invoice-recipient"
+import { askConfirm, askText } from "@/components/ConfirmDialog" // Tier 827
 
 interface InvoiceItem {
   id: string
@@ -399,7 +400,7 @@ export default function InvoiceDetailPage() {
 
   const resolveNotice = async (noticeId: string, action: "book" | "dismiss") => {
     if (!invoice) return
-    if (action === "dismiss" && !confirm(L("Zahlungsmeldung verwerfen? Die Rechnung bleibt offen."))) return
+    if (action === "dismiss" && !await askConfirm(L("Zahlungsmeldung verwerfen? Die Rechnung bleibt offen."))) return
     try {
       const companyId = localStorage.getItem("companyId")
       await apiPost(
@@ -420,7 +421,7 @@ export default function InvoiceDetailPage() {
 
   const deletePayment = async (paymentId: string) => {
     if (!invoice) return
-    if (!confirm(L("Zahlung wirklich löschen?"))) return
+    if (!await askConfirm(L("Zahlung wirklich löschen?"))) return
     try {
       const companyId = localStorage.getItem("companyId")
       await apiDelete(`/api/v1/invoices/${invoice.id}/payments/${paymentId}?companyId=${companyId}`)
@@ -473,7 +474,7 @@ export default function InvoiceDetailPage() {
   // here means someone else wrote this note.
   const deleteInternalNote = async (noteId: string) => {
     if (!invoice) return
-    if (!confirm(L("Diese interne Notiz wirklich löschen?"))) return
+    if (!await askConfirm(L("Diese interne Notiz wirklich löschen?"))) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setDeletingNoteId(noteId)
@@ -554,7 +555,7 @@ export default function InvoiceDetailPage() {
 
   const deleteInvoiceAttachment = async (attachmentId: string) => {
     if (!invoice) return
-    if (!confirm(t("expenses.attachmentRemoveConfirm"))) return
+    if (!await askConfirm(t("expenses.attachmentRemoveConfirm"))) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setDeletingAttachmentId(attachmentId)
@@ -1293,7 +1294,7 @@ export default function InvoiceDetailPage() {
   const handleSendMahnungNow = async () => {
     if (!invoice || !mahnungEmailData) return
     if (
-      !window.confirm(
+      !await askConfirm(
         t("invoice.sendMahnungConfirm") || "Mahnung jetzt versenden?",
       )
     ) {
@@ -1360,7 +1361,7 @@ export default function InvoiceDetailPage() {
   const refundAdvance = async () => {
     if (!invoice) return
     const received = payments.reduce((s, p) => s + Number(p.amount), 0)
-    const input = window.prompt(t("invoice.advanceRefundPrompt"), received.toFixed(2))
+    const input = await askText(t("invoice.advanceRefundPrompt"), received.toFixed(2).replace(".", ","))
     if (input == null) return
     const amount = Number(input.replace(",", "."))
     if (!(amount > 0)) return
@@ -1740,7 +1741,7 @@ export default function InvoiceDetailPage() {
   }
   const convertTo = async (to: "INV" | "DN" | "OC", lines?: { itemId: string; quantity: number }[]) => {
     if (!invoice) return
-    if (!lines && !confirm(to === "INV" ? t("docs.confirmInvoice") : to === "OC" ? t("docs.confirmOrderConfirmation") : t("docs.confirmDeliveryNote"))) return
+    if (!lines && !await askConfirm(to === "INV" ? t("docs.confirmInvoice") : to === "OC" ? t("docs.confirmOrderConfirmation") : t("docs.confirmDeliveryNote"))) return
     setConvertingTo(to)
     try {
       const companyId = localStorage.getItem("companyId")
@@ -1784,7 +1785,7 @@ export default function InvoiceDetailPage() {
     // full amount — the document the customer receives (§ 14c, § 17 UStG).
     // The status alone took it out of the books of its month and told nobody.
     if (newStatus === "cancelled" && invoice.status !== "draft" && (invoice.type === "INV" || invoice.type === "RCV")) {
-      if (!confirm(t("invoicePage.stornoConfirm").replace("{number}", invoice.invoiceNumber))) return
+      if (!await askConfirm(t("invoicePage.stornoConfirm").replace("{number}", invoice.invoiceNumber))) return
       setStatusChanging(true)
       try {
         const companyId = localStorage.getItem("companyId")
@@ -1816,7 +1817,7 @@ export default function InvoiceDetailPage() {
       setTimeout(() => document.querySelector('[data-testid="payment-form"]')?.scrollIntoView({ behavior: "smooth", block: "center" }), 50)
       return
     }
-    if (!confirm(`Status auf "${getStatusLabel(newStatus)}" setzen?`)) return
+    if (!await askConfirm(`Status auf "${getStatusLabel(newStatus)}" setzen?`)) return
     setStatusChanging(true)
     try {
       const companyId = localStorage.getItem("companyId")
@@ -1836,7 +1837,7 @@ export default function InvoiceDetailPage() {
   // (status = cancelled) via the status dropdown instead.
   const deleteInvoice = async () => {
     if (!invoice) return
-    if (!confirm(`Rechnung ${invoice.invoiceNumber} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden. Bezahlungen und Positionen werden ebenfalls entfernt.`)) return
+    if (!await askConfirm(`Rechnung ${invoice.invoiceNumber} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden. Bezahlungen und Positionen werden ebenfalls entfernt.`)) return
     setDeleting(true)
     try {
       const companyId = localStorage.getItem("companyId")
@@ -3121,7 +3122,7 @@ export default function InvoiceDetailPage() {
                       data-testid="installment-cancel-button"
                       onClick={async () => {
                         if (
-                          !confirm(
+                          !await askConfirm(
                             t("installmentPlan.confirmCancel") ||
                               "Ratenplan wirklich stornieren? Alle offenen Raten werden auf storniert gesetzt.",
                           )

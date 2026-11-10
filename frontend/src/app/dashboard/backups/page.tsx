@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface BackupInfo {
   id: string
@@ -142,7 +143,7 @@ export default function BackupsPage() {
   }, [load])
 
   const trigger = useCallback(async () => {
-    if (!window.confirm(t("backup.triggerConfirm"))) return
+    if (!await askConfirm(t("backup.triggerConfirm"))) return
     setRunning(true)
     try {
       const res = await apiPost<RunResult>("/api/v1/admin/backups/run", {})
@@ -191,7 +192,7 @@ export default function BackupsPage() {
 
   const remove = useCallback(
     async (id: string) => {
-      if (!window.confirm(t("backup.deleteConfirm").replace("{id}", id))) return
+      if (!await askConfirm(t("backup.deleteConfirm").replace("{id}", id))) return
       setDeleting(id)
       try {
         await apiDelete(`/api/v1/admin/backups/${id}`)

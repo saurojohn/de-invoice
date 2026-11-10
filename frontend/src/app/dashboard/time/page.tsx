@@ -24,6 +24,7 @@ import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut } from "@/lib/api"
 import { todayIso } from "@/lib/today"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface TimeEntry {
   id: string
@@ -315,7 +316,7 @@ export default function TimeTrackingPage() {
 
   const remove = async (e: TimeEntry) => {
     const companyId = localStorage.getItem("companyId")
-    if (!companyId || !confirm(t("time.confirmDelete"))) return
+    if (!companyId || !await askConfirm(t("time.confirmDelete"))) return
     try {
       await apiDelete(`/api/v1/time-entries/${e.id}?companyId=${companyId}`)
       if (editingId === e.id) {
@@ -440,7 +441,7 @@ export default function TimeTrackingPage() {
 
   const discardTimer = async () => {
     const companyId = localStorage.getItem("companyId")
-    if (!companyId || !confirm(t("time.timerConfirmDiscard"))) return
+    if (!companyId || !await askConfirm(t("time.timerConfirmDiscard"))) return
     try {
       await apiDelete(`/api/v1/time-entries/timer?companyId=${companyId}`)
       applyTimer(null)
@@ -456,7 +457,7 @@ export default function TimeTrackingPage() {
   const bill = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId || !filterCustomer || billable.length === 0) return
-    if (!confirm(t("time.confirmBill", { count: billable.length }))) return
+    if (!await askConfirm(t("time.confirmBill", { count: billable.length }))) return
     setBusy(true)
     try {
       const r = await apiPost<{ invoiceId: string }>(`/api/v1/time-entries/bill?companyId=${companyId}`, {
@@ -538,7 +539,7 @@ export default function TimeTrackingPage() {
   }
   const removeProject = async (p: Project) => {
     const companyId = localStorage.getItem("companyId")
-    if (!companyId || !confirm(t("time.projectConfirmDelete", { name: p.name }))) return
+    if (!companyId || !await askConfirm(t("time.projectConfirmDelete", { name: p.name }))) return
     try {
       await apiDelete(`/api/v1/time-projects/${p.id}?companyId=${companyId}`)
       await loadProjects()

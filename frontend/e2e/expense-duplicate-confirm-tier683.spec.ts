@@ -9,6 +9,7 @@
  * to confirm "mit „confirmDuplicate“", the name of the API's field.
  */
 import { test, expect } from "@playwright/test"
+import { answerConfirm } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -56,9 +57,8 @@ test("the same invoice number again: asked about, then entered or left", async (
 
   // asked, and answered "no": nothing is entered, the form stays as filled in
   const asked: string[] = []
-  page.once("dialog", (d) => { asked.push(d.message()); void d.dismiss() })
   await form.getByTestId("expense-edit-save").click()
-  await expect.poll(() => asked.length, { timeout: 30_000 }).toBe(1)
+  asked.push(await answerConfirm(page, false)) // Tier 827: the app's own dialog
   expect(asked[0]).toContain("bereits erfasst")
   expect(asked[0]).toContain("119,00")
   expect(asked[0]).not.toContain("confirmDuplicate") // was: „mit „confirmDuplicate“ bestätigen“
@@ -67,8 +67,8 @@ test("the same invoice number again: asked about, then entered or left", async (
   expect(await numbered()).toEqual(["Kopierpapier"])
 
   // answered "yes": the second invoice is entered (was: an error, and no way on)
-  page.once("dialog", (d) => { void d.accept() })
   await form.getByTestId("expense-edit-save").click()
+  await answerConfirm(page, true)
   await expect(page.getByTestId("expense-create-modal")).toHaveCount(0, { timeout: 30_000 })
   await expect(page.getByTestId("expense-row").filter({ hasText: "Kopierpapier, Nachlieferung" })).toBeVisible()
   expect(await numbered()).toEqual(["Kopierpapier", "Kopierpapier, Nachlieferung"])

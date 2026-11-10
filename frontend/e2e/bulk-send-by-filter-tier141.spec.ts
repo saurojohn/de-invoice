@@ -24,6 +24,7 @@
  * INV-2026-000203..000206 are seeded by the global-setup).
  */
 import { test, expect, Page } from '@playwright/test'
+import { acceptConfirms } from "./fixtures/confirm"
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
@@ -141,6 +142,7 @@ test.describe('Tier 141 — Bulk-send-by-filter', () => {
     await expect(btn).toBeVisible({ timeout: 15_000 })
     // Auto-accept the "send N invoices?" confirm.
     page.on('dialog', (d) => d.accept().catch(() => {}))
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     await btn.click()
     // The progress modal opens in one of two terminal
     // states: progress (data loaded, total/succeeded/failed

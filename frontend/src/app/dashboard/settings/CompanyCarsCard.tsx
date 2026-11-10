@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api"
+import { askConfirm, askText } from "@/components/ConfirmDialog" // Tier 827
 
 interface CompanyCar {
   id: string
@@ -96,7 +97,7 @@ export default function CompanyCarsCard() {
   }
 
   const end = async (car: CompanyCar) => {
-    const until = window.prompt(t("companyCars.endPrompt"), todayIso())
+    const until = await askText(t("companyCars.endPrompt"), todayIso())
     if (!until) return
     setError(null)
     try {
@@ -108,7 +109,7 @@ export default function CompanyCarsCard() {
   }
 
   const remove = async (car: CompanyCar) => {
-    if (!window.confirm(t("companyCars.deleteConfirm"))) return
+    if (!await askConfirm(t("companyCars.deleteConfirm"))) return
     setError(null)
     try {
       await apiDelete(`/api/v1/company-cars/${car.id}?companyId=${companyId()}`)

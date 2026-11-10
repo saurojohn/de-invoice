@@ -33,7 +33,14 @@ test("the operator finds a company on the server by its name and its admin's add
   await expect(page.getByTestId("operator-companies-summary")).toContainText(/\d+ Firmen, davon \d+ aktiv · \d+ Benutzer/, { timeout: 60_000 })
   await expect(page.getByTestId("operator-companies-row").first()).toBeVisible()
 
+  // (once, in a full local run, the list stayed at the first fifty: the search's
+  // request is waited for, so that a repeat says whether it went out and what came back)
+  const searched = page.waitForResponse((r) => r.url().includes("/api/v1/admin/companies") && r.url().includes("q="), { timeout: 30_000 })
   await page.getByTestId("operator-companies-search").fill(`${tag} Werkstatt`)
+  const answer = await searched
+  const found = await answer.json()
+  expect(answer.status(), "the search's answer").toBe(200)
+  expect(found.total, `the search for ${tag}: ${JSON.stringify(found).slice(0, 200)}`).toBe(1)
   const rows = page.getByTestId("operator-companies-row")
   await expect(rows).toHaveCount(1, { timeout: 30_000 })
   await expect(rows.first()).toContainText(`${tag} Werkstatt GmbH`)

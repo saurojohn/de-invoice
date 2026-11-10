@@ -16,6 +16,7 @@ import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut, isDuplicateExpe
 import { FormNote } from "@/lib/tax-form-text" // Tier 791: the form-year notice in the interface language
 import { useYearField } from "@/lib/year-field"
 import { useHashAnchor } from "@/lib/hash-anchor"
+import { askConfirm, askText } from "@/components/ConfirmDialog" // Tier 827
 
 interface UstvaData {
   companyId: string
@@ -406,7 +407,7 @@ function UstvaPageInner() {
           // Tier 489: the same supplier invoice number again — the backend
           // refuses it as a duplicate; a genuinely second bill is confirmed.
           if (!isDuplicateExpense(e)) throw e // Tier 683: this refusal, not any 409
-          if (!window.confirm(`${e.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) return
+          if (!await askConfirm(`${e.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) return
           await apiPost(`/api/v1/ustva/expenses?companyId=${companyId}`, { ...body, confirmDuplicate: true })
         }
       }
@@ -421,7 +422,7 @@ function UstvaPageInner() {
   }
 
   const deleteExpense = async (id: string) => {
-    if (!confirm(t("ustva.confirmDelete"))) return
+    if (!await askConfirm(t("ustva.confirmDelete"))) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     // Tier 390: was a raw fetch without the auth headers (401, nothing deleted).
@@ -455,7 +456,7 @@ function UstvaPageInner() {
         // Tier 448: the period was already submitted — only a corrected
         // return (berichtigte Voranmeldung) may replace it.
         if (!(err instanceof ApiError && err.status === 409 && status === "submitted")) throw err
-        if (!confirm(`${err.message}\n\n${t("ustva.confirmBerichtigt")}`)) return
+        if (!await askConfirm(`${err.message}\n\n${t("ustva.confirmBerichtigt")}`)) return
         await post(true)
       }
       setSavedMsg(
@@ -473,7 +474,7 @@ function UstvaPageInner() {
   // Tier 483: the payment to / refund from the Finanzamt that settled a
   // return — the EÜR counts it on that day (Zeilen 18 / 58).
   const recordPayment = async (f: UstvaFiling) => {
-    const date = window.prompt(t("ustva.recordPaymentPrompt"), todayIso())
+    const date = await askText(t("ustva.recordPaymentPrompt"), todayIso())
     if (!date) return
     const companyId = localStorage.getItem("companyId")
     try {
@@ -487,7 +488,7 @@ function UstvaPageInner() {
 
   // Tier 537: release a submitted period for corrections, or lock it again.
   const setReleased = async (f: UstvaFiling, released: boolean) => {
-    if (released && !window.confirm(t("ustva.releaseConfirm", { period: f.periodLabel }))) return
+    if (released && !await askConfirm(t("ustva.releaseConfirm", { period: f.periodLabel }))) return
     const companyId = localStorage.getItem("companyId")
     try {
       await apiPut(`/api/v1/ustva/filings/${f.id}/release?companyId=${companyId}`, { released })

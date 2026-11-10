@@ -39,6 +39,7 @@ import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiDelete, ApiError } from "@/lib/api"
+import { askConfirm, askText } from "@/components/ConfirmDialog" // Tier 827
 
 // ---- shared formatting helpers (intentionally duplicated from
 // /payments — keeping the two pages self-contained so future
@@ -306,11 +307,11 @@ export default function DirectDebitPage() {
   const handleRevokeMandate = async (mandate: Mandate) => {
     const reason =
       typeof window !== "undefined"
-        ? window.prompt(tRef.current("directDebit.mandatesCard.revokeReason"))
+        ? await askText(tRef.current("directDebit.mandatesCard.revokeReason"))
         : ""
     if (reason === null) return // user pressed cancel
     if (
-      !window.confirm(tRef.current("directDebit.mandatesCard.revokeConfirm"))
+      !await askConfirm(tRef.current("directDebit.mandatesCard.revokeConfirm"))
     ) {
       return
     }

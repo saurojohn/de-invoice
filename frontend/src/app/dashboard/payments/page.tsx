@@ -39,6 +39,7 @@ import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface UnpaidExpense {
   id: string
@@ -225,7 +226,7 @@ export default function PaymentsPage() {
   // Tier 433: the bank did not execute the file — its expenses are unpaid
   // again (they stayed "paid" whatever happened to the file).
   const handleCancelBatch = async (batchId: string) => {
-    if (!confirm(t("payments.cancelBatchConfirm") || "Batch stornieren? Die Ausgaben gelten wieder als unbezahlt.")) return
+    if (!await askConfirm(t("payments.cancelBatchConfirm") || "Batch stornieren? Die Ausgaben gelten wieder als unbezahlt.")) return
     try {
       await apiPost(`/api/v1/payments/batches/${batchId}/cancel`, {})
       await load()

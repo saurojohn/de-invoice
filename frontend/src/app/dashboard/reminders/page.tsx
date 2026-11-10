@@ -10,6 +10,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { invoiceRecipientOf } from "@/lib/invoice-recipient"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface OverdueInvoice {
   id: string
@@ -158,7 +159,7 @@ export default function RemindersPage() {
    */
   const handleBulkSend = async () => {
     if (selectedIds.size === 0) return
-    if (!confirm(`${selectedIds.size} Erinnerungen versenden?`)) return
+    if (!await askConfirm(`${selectedIds.size} Erinnerungen versenden?`)) return
     setBulkSending(true)
     setBulkResult(null)
     let ok = 0

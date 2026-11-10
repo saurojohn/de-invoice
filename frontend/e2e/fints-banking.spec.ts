@@ -45,6 +45,7 @@
  */
 
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 import { readFileSync } from "fs"
 
 const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
@@ -240,6 +241,7 @@ test.describe("FinTS banking UI", () => {
     // to auto-accept the confirm dialog or the
     // delete is a no-op.
     page.on("dialog", (d) => d.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     const deleteButton = connectionCard.locator('[data-testid^="fints-delete-"]')
     await deleteButton.click()
     await expect(connectionCard).toBeHidden({ timeout: 5000 })

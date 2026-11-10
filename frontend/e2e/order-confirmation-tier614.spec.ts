@@ -5,6 +5,7 @@
  * statuses, and becomes the invoice. Each document links to the one before.
  */
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -41,6 +42,7 @@ test("a quote becomes an order confirmation, and that the invoice", async ({ pag
     { userId, companyId },
   )
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
 
   // the dashboard has the list, still empty
   await page.goto("/dashboard")

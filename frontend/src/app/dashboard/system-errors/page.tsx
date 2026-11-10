@@ -10,6 +10,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface ErrorEvent {
   id: string
@@ -454,7 +455,7 @@ export default function SystemErrorsPage() {
   }
 
   const prune = async () => {
-    if (!confirm(t("systemErrors.pruneConfirm", { n: String(openCount) }))) return
+    if (!await askConfirm(t("systemErrors.pruneConfirm", { n: String(openCount) }))) return
     try {
       const res = await apiPost<{ deleted: number }>("/api/v1/system/errors/prune")
       toast.success(t("systemErrors.pruned", { n: String(res.deleted) }))
@@ -474,7 +475,7 @@ export default function SystemErrorsPage() {
   const resolveAll = async () => {
     if (openCount === 0) return
     if (
-      !confirm(
+      !await askConfirm(
         t("systemErrors.resolveAllConfirm", { n: String(openCount) }),
       )
     )

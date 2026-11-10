@@ -39,6 +39,7 @@ import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
 import { signOut } from "@/lib/auth"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 type Level = "first" | "second" | "final"
 
@@ -184,10 +185,10 @@ export default function MahnungTemplatesPage() {
   // When the user switches tabs: if the current
   // tab is dirty, ask "discard changes?". Saving
   // first avoids the prompt.
-  const handleTabSwitch = (next: Level) => {
+  const handleTabSwitch = async (next: Level) => {
     if (next === activeLevel) return
     if (isDirty) {
-      const ok = window.confirm(
+      const ok = await askConfirm(
         L("Ungespeicherte Änderungen verwerfen?"),
       )
       if (!ok) return
@@ -268,7 +269,7 @@ export default function MahnungTemplatesPage() {
   const handleReset = async () => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
-    if (!window.confirm(t("mahnung.templatesResetConfirm"))) return
+    if (!await askConfirm(t("mahnung.templatesResetConfirm"))) return
     setResetting(true)
     setError(null)
     setResetOk(false)

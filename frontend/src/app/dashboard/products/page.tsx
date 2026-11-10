@@ -11,6 +11,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface Product {
   id: string
@@ -205,7 +206,7 @@ export default function ProductsPage() {
   const handleDelete = async (product: Product) => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
-    if (!confirm(`${t("common.delete")} — ${product.name}?`)) return
+    if (!await askConfirm(`${t("common.delete")} — ${product.name}?`)) return
     try {
       const result = await apiDelete<{ ok?: boolean; soft?: boolean; usedInInvoices?: number }>(
         `/api/v1/products/${product.id}?companyId=${companyId}`

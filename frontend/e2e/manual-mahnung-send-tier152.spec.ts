@@ -38,6 +38,7 @@
  * both in afterAll.
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { acceptConfirms } from "./fixtures/confirm"
 import { execSync } from 'child_process'
 import { getTestEnv, PG_CONTAINER } from './fixtures/test-env'
 
@@ -201,6 +202,7 @@ test.describe('Tier 152 — Manual Mahnung send', () => {
   test('clicking Senden records a Mahnung in the history', async ({ page }) => {
     // Auto-accept the confirm() prompt
     page.on('dialog', (dialog) => dialog.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     await page.goto(`/dashboard/invoices/${OVERDUE_INVOICE_ID}`)
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     await page.getByTestId('send-mahnung-button').click()

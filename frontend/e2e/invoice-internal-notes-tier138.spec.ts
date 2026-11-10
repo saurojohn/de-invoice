@@ -21,6 +21,7 @@
  * from previous runs (idempotent baseline).
  */
 import { test, expect } from '@playwright/test'
+import { acceptConfirms } from "./fixtures/confirm"
 import { getTestEnv } from './fixtures/test-env'
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
@@ -92,6 +93,7 @@ test.describe('Tier 138 — Internal invoice notes', () => {
     await expect(page.locator('[data-testid^="invoice-internal-note-"]').first()).toBeVisible({ timeout: 5_000 })
     // Accept the confirm() dialog and click delete
     page.on('dialog', (d) => d.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     const deleteBtn = page.locator('[data-testid^="invoice-internal-note-delete-"]').first()
     await deleteBtn.click()
     // The empty state should reappear

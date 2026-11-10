@@ -39,6 +39,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface NoteTemplate {
   id: string
@@ -201,7 +202,7 @@ export default function NoteTemplatesSettingsPage() {
   }
 
   const handleDelete = async (tpl: NoteTemplate) => {
-    if (!confirm(`Vorlage "${tpl.label}" wirklich löschen?`)) return
+    if (!await askConfirm(`Vorlage "${tpl.label}" wirklich löschen?`)) return
     setError(null)
     try {
       await apiDelete(
@@ -217,7 +218,7 @@ export default function NoteTemplatesSettingsPage() {
 
   const handleResetDefaults = async () => {
     if (
-      !confirm(
+      !await askConfirm(
         L("Alle Vorlagen löschen und die 5 Standard-Vorlagen neu anlegen?"),
       )
     )

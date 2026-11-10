@@ -6,6 +6,7 @@
  * draft. A billed entry names its invoice and can no longer be changed.
  */
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -37,6 +38,7 @@ test("hours are logged, summed and billed into an invoice draft", async ({ page,
     { userId, companyId },
   )
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
 
   // the dashboard leads there
   await page.goto("/dashboard")

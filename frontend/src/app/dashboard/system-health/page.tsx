@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface CronHealthRow {
   name: string
@@ -82,7 +83,7 @@ export default function SystemHealthPage() {
   }, [load])
 
   const clean = useCallback(async () => {
-    if (!window.confirm(t("systemHealth.cleanConfirm"))) return
+    if (!await askConfirm(t("systemHealth.cleanConfirm"))) return
     setCleaning(true)
     try {
       const res = await apiPost<{ deleted: number }>(
@@ -224,6 +225,7 @@ function CronRow({ row, now, t, getDateLocale }: {
   t: (k: string, vars?: Record<string, any>) => string
   getDateLocale: () => string
 }) {
+  const toast = useToast() // Tier 827: a failed run says so in a toast (was alert())
   const dotClass = {
     green: "bg-green-500",
     amber: "bg-amber-500",
@@ -326,7 +328,7 @@ function CronRow({ row, now, t, getDateLocale }: {
                 window.location.reload()
               }, 1500)
             } catch (err: any) {
-              alert(
+              toast.error(
                 (t("systemHealth.runFailed") || "Run fehlgeschlagen: ") +
                   (err?.message || String(err)),
               )

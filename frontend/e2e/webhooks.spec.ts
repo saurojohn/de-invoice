@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 import { readFileSync } from "fs"
 
 const E2E_API = process.env.E2E_API_URL || "http://localhost:3001"
@@ -211,6 +212,7 @@ test.describe("Webhooks UI", () => {
     const deleteBtn = row.locator('[data-testid="webhook-delete"]')
     // Set up dialog handler before clicking
     page.once("dialog", (dialog) => dialog.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     await deleteBtn.click()
 
     // The row should disappear
@@ -395,6 +397,7 @@ test.describe("Webhooks UI", () => {
 
     // Set up dialog handler BEFORE clicking
     page.once("dialog", (dialog) => dialog.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
 
     // Click the Replay button on the first delivery row
     await page
@@ -418,6 +421,7 @@ test.describe("Webhooks UI", () => {
       .locator("button[aria-label='Close']")
       .click()
     page.once("dialog", (dialog) => dialog.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     await row.locator('[data-testid="webhook-delete"]').click()
 
     // Cleanup: delete the test customer

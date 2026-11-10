@@ -9,6 +9,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { API_BASE, apiGet, apiPost, apiPut, apiDelete, downloadApiFile } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 type EntryType = "einnahme" | "ausgabe" | "umbuchung" | "eroeffnung"
 
@@ -241,7 +242,7 @@ export default function CashbookPage() {
       toast.warn(t("cashbook.errClosedDay"))
       return
     }
-    if (!confirm(t("cashbook.confirmDelete"))) return
+    if (!await askConfirm(t("cashbook.confirmDelete"))) return
     try {
       await apiDelete(`/api/v1/cashbook/entries/${e.id}?companyId=${companyId}`)
       await reload()
@@ -324,7 +325,7 @@ export default function CashbookPage() {
   }
 
   const reopenDay = async (date: string) => {
-    if (!confirm(t("cashbook.reopenConfirm"))) return
+    if (!await askConfirm(t("cashbook.reopenConfirm"))) return
     const companyId = localStorage.getItem("companyId")!
     try {
       await apiPost(`/api/v1/cashbook/reopen-day?companyId=${companyId}`, { date })

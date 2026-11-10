@@ -21,6 +21,7 @@
  * baseline).
  */
 import { test, expect } from '@playwright/test'
+import { acceptConfirms } from "./fixtures/confirm"
 import { execSync } from 'child_process'
 import { writeFileSync, unlinkSync } from 'fs'
 import { tmpdir } from 'os'
@@ -117,6 +118,7 @@ test.describe('Tier 140 — Invoice attachments (Belege)', () => {
       await expect(row).toBeVisible({ timeout: 10_000 })
       // Accept the confirm() dialog
       page.on('dialog', (d) => d.accept())
+      await acceptConfirms(page) // Tier 827: the app's own dialog
       const deleteBtn = page.locator('[data-testid^="invoice-attachment-delete-"]').first()
       await deleteBtn.click()
       // The empty state should reappear

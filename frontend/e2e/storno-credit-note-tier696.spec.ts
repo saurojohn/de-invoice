@@ -11,6 +11,7 @@
  * lists it so too.
  */
 import { test, expect } from "@playwright/test"
+import { answerConfirm } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -55,9 +56,8 @@ test("Storniert: the credit note is made, opened and linked; the invoice is show
   const select = page.getByTestId("invoice-status-select")
   await expect(select).toBeVisible({ timeout: 60_000 })
   const asked: string[] = []
-  page.once("dialog", (d) => { asked.push(d.message()); void d.accept() })
   await select.selectOption("cancelled")
-  await expect.poll(() => asked.length, { timeout: 30_000 }).toBe(1)
+  asked.push(await answerConfirm(page, true)) // Tier 827: the app's own dialog
   expect(asked[0]).toContain("Stornorechnung")
   expect(asked[0]).toContain(invoice.invoiceNumber)
   await expect(page).not.toHaveURL(new RegExp(`/dashboard/invoices/${invoice.id}`), { timeout: 30_000 })

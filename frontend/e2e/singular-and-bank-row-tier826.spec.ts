@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 /**
  * Tier 826 — what the first-day drill left on the pages.
@@ -85,6 +86,7 @@ test("one invoice is „1 Dokument“, the bulk dunning counts, a suggested bank
   }).toPass({ timeout: 60_000 })
   await expect(page.getByText("€ 1.190,00")).toHaveCount(0)
   page.once("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
   await confirmInRow.click()
   await expect(page.getByTestId("recon-row-actions")).toHaveCount(0, { timeout: 30_000 })
   await expect.poll(async () => (await (await request.get(`${API}/api/v1/invoices/${inv.id}?${q}`, { headers: H })).json()).status, { timeout: 30_000 }).toBe("paid")

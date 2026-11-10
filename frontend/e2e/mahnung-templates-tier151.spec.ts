@@ -42,6 +42,7 @@
  * suites aren't affected.
  */
 import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { acceptConfirms } from "./fixtures/confirm"
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
@@ -207,6 +208,7 @@ test.describe('Tier 151 — Mahnung e-mail template editor', () => {
   test('switching tabs with unsaved changes prompts confirm()', async ({ page }) => {
     // Auto-accept the confirm dialog
     page.on('dialog', (dialog) => dialog.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     await page.goto('/dashboard/mahnungen/templates')
     await expect(page.getByTestId('mahnung-templates-body')).toBeVisible({ timeout: 30_000 })
     // Make a dirty edit on the "first" tab
@@ -226,6 +228,7 @@ test.describe('Tier 151 — Mahnung e-mail template editor', () => {
 
   test('Reset button restores the default text', async ({ page }) => {
     page.on('dialog', (dialog) => dialog.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     await page.goto('/dashboard/mahnungen/templates')
     await expect(page.getByTestId('mahnung-templates-subject')).toBeVisible({ timeout: 30_000 })
     // Edit + save so we have a known custom state

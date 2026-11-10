@@ -12,6 +12,7 @@ import { ReceiptsPanel } from "@/components/ReceiptsPanel"
 import { EInvoiceDialog } from "@/components/EInvoiceDialog"
 import { BLANK_EXPENSE, ExpenseEditForm } from "@/components/ExpenseEditForm"
 import { todayIso } from "@/lib/today"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 // Expense = Eingangsrechnung (vendor bill). The list
 // page is the Berater's overview of all incoming
@@ -1162,7 +1163,7 @@ export default function ExpensesPage() {
                             created = await apiPost(`/api/v1/expenses?companyId=${companyId}`, scanned)
                           } catch (dup) {
                             if (!isDuplicateExpense(dup)) throw dup
-                            if (!window.confirm(`${dup.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) {
+                            if (!await askConfirm(`${dup.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) {
                               setOcr(picked)
                               return
                             }

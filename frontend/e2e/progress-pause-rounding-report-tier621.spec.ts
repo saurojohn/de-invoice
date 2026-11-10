@@ -4,6 +4,7 @@
  * customer and project; the invoice e-mail offers the time sheet.
  */
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -44,6 +45,7 @@ test("progress badge, rounding, pause, report and the e-mail's time sheet", asyn
     { userId, companyId },
   )
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
 
   // 621: nothing invoiced → no badge; 4 of 10 → partly; the rest → invoiced
   await page.goto(`/dashboard/invoices/${quote.id}`)

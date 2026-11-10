@@ -13,6 +13,7 @@ import { apiGet, apiPost, ApiError } from "@/lib/api"
 import { LostInvoicesNotice } from "@/components/LostInvoicesNotice"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { printPdfBlob } from "@/lib/print-pdf"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 type InvoiceType = 'INV' | 'CN' | 'PI' | 'RCV' | 'QU' | 'DN' | 'OC'
 // Tier 610 / 614: the types that are no invoices, each with its own list
@@ -636,7 +637,7 @@ function InvoicesPageInner() {
       return
     }
     const confirmMsg = t("invoices.bulkSendRangeConfirm", { count: previewCount })
-    if (!window.confirm(confirmMsg)) return
+    if (!await askConfirm(confirmMsg)) return
     setBulkSending(true)
     setBulkSendError(null)
     setBulkSendProgress(null)

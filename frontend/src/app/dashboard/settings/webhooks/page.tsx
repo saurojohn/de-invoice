@@ -66,6 +66,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { SkeletonTable } from "@/components/ui/skeleton"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface Webhook {
   id: string
@@ -450,7 +451,7 @@ export default function WebhooksPage() {
   }
 
   const handleDelete = async (wh: Webhook) => {
-    if (!confirm(t("webhooks.deleteConfirm"))) return
+    if (!await askConfirm(t("webhooks.deleteConfirm"))) return
     try {
       await apiDelete(
         `/api/v1/webhooks/${wh.id}?companyId=${companyId}`,
@@ -522,7 +523,7 @@ export default function WebhooksPage() {
     deliveryId: string,
     webhookId: string,
   ) => {
-    if (!confirm(t("webhooks.deliveries.replayConfirm"))) return
+    if (!await askConfirm(t("webhooks.deliveries.replayConfirm"))) return
     setReplayingId(deliveryId)
     try {
       await apiPost(

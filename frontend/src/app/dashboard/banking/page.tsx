@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/useToast"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface FinTSConnection {
   id: string
@@ -328,7 +329,7 @@ export default function BankingPage() {
   }
 
   const handleDelete = async (connId: string) => {
-    if (!confirm(t("banking.confirmDelete"))) return
+    if (!await askConfirm(t("banking.confirmDelete"))) return
     try {
       await apiDelete(
         `/api/v1/fints/connections/${connId}?companyId=${companyId}`,

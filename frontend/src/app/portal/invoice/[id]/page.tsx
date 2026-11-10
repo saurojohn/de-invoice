@@ -28,6 +28,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface PortalInvoiceDetail {
   id: string
@@ -148,7 +149,7 @@ function PortalInvoiceDetailInner() {
 
   const markPaid = async () => {
     if (!token || !invoiceId || busy) return
-    if (!confirm(t("portal.markPaidConfirm") || "Zahlung für diese Rechnung melden?")) return
+    if (!await askConfirm(t("portal.markPaidConfirm") || "Zahlung für diese Rechnung melden?")) return
     setBusy(true)
     try {
       await apiPost(

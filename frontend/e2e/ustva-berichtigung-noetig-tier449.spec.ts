@@ -6,6 +6,7 @@
  * "Berichtigung nötig" until a corrected return is submitted.
  */
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 test("an expense entered after submission flags the filing until it is corrected", async ({ page, request }) => {
@@ -60,6 +61,7 @@ test("an expense entered after submission flags the filing until it is corrected
   await page.waitForTimeout(500)
 
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
   const corrected = page.waitForResponse(
     (r) => r.url().includes("/api/v1/ustva/filings") && r.request().method() === "POST" && r.status() === 201,
     { timeout: 60_000 },

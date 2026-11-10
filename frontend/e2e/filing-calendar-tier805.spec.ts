@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 import { readFileSync } from "fs"
 
 /**
@@ -47,6 +48,7 @@ test.afterAll(async ({ request }) => {
 test("a calendar link is made, shown once, replaced and withdrawn", async ({ page, request }) => {
   await injectAuth(page)
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
   await page.goto("/dashboard/accounting/ustva?period=year")
   const box = page.getByTestId("calendar-link")
   await expect(box).toBeVisible({ timeout: 90_000 })

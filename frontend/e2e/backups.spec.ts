@@ -23,6 +23,7 @@
  * with DELETE).
  */
 import { test, expect } from '@playwright/test'
+import { acceptConfirms } from "./fixtures/confirm"
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
@@ -75,6 +76,7 @@ test.describe('Tier 120 — Backup management page', () => {
   test('trigger button creates a new backup (PGDMP + DB row visible)', async ({ page }) => {
     // Auto-accept the "trigger backup?" confirm dialog
     page.on('dialog', (d) => d.accept())
+    await acceptConfirms(page) // Tier 827: the app's own dialog
     await page.goto('/dashboard/backups')
     // Wait for the page to render (table OR empty-state).
     // The page auto-refreshes every 30s, so we can't use

@@ -6,6 +6,7 @@
  * link to the quote — and to its product, which the edit form used to drop.
  */
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -53,6 +54,7 @@ test("a quote is invoiced in two parts; the edited draft keeps its links", async
     { userId, companyId },
   )
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
   const title = page.locator("h1").first()
   const dialog = page.getByTestId("convert-dialog")
 

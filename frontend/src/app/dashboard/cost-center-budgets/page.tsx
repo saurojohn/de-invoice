@@ -23,6 +23,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { apiGet, apiPost, apiDelete } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface Budget {
   id: string
@@ -114,9 +115,9 @@ function BudgetRow({
     }
   }
 
-  const remove = () => {
+  const remove = async () => {
     if (typeof window !== "undefined") {
-      const ok = window.confirm(labels.confirmDelete)
+      const ok = await askConfirm(labels.confirmDelete)
       if (!ok) return
     }
     const companyId = localStorage.getItem("companyId") || ""

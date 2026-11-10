@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiPut } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 type Level = "first" | "second" | "final"
 
@@ -124,7 +125,7 @@ export default function ReminderTemplatesPage() {
 
   const reset = async () => {
     if (!editing) return
-    if (!confirm(t("reminder.templates.confirmReset") || "Auf Standard zurücksetzen?")) return
+    if (!await askConfirm(t("reminder.templates.confirmReset") || "Auf Standard zurücksetzen?")) return
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     try {

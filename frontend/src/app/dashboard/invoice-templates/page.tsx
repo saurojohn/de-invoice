@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/useToast"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 // Tier 660: the sentence a new template prints on the (German) invoice
 const PRESET_PAYMENT_TERMS = "Zahlbar bis zum {dueDate} ohne Abzug." // i18n-ok: text of the German document
@@ -154,7 +155,7 @@ export default function InvoiceTemplatesPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t("invoiceTemplates.confirmDelete"))) return
+    if (!await askConfirm(t("invoiceTemplates.confirmDelete"))) return
     try {
       await apiDelete(
         `/api/v1/invoice-templates/${id}?companyId=${companyId}`,

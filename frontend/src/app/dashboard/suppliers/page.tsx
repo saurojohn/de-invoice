@@ -9,6 +9,7 @@ import { VatCheckPanel } from "@/components/VatCheckPanel"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface Supplier {
   id: string
@@ -149,7 +150,7 @@ export default function SuppliersPage() {
   }
 
   const remove = async (s: Supplier) => {
-    if (!confirm(t("suppliers.deleteConfirm").replace("{name}", s.name))) return
+    if (!await askConfirm(t("suppliers.deleteConfirm").replace("{name}", s.name))) return
     const companyId = localStorage.getItem("companyId") || ""
     try {
       await apiDelete(`/api/v1/suppliers/${s.id}?companyId=${companyId}`)

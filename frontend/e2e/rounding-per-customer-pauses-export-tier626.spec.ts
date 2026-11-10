@@ -4,6 +4,7 @@
  */
 import { readFileSync } from "fs"
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -39,6 +40,7 @@ test("whose rounding rule, pauses on the entry, the report as a file", async ({ 
     { userId, companyId },
   )
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
 
   // 626: the customer's own rule — 15 minutes, up
   await page.goto("/dashboard/customers")

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { ApiError, apiPost, apiPut, isDuplicateExpense } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 export interface EditableExpense {
   id: string
@@ -191,7 +192,7 @@ export function ExpenseEditForm({
           // duplicate (409). The form only showed the refusal — a second
           // invoice that really is one could not be entered here at all.
           if (!isDuplicateExpense(err)) throw err
-          if (!window.confirm(`${err.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) return
+          if (!await askConfirm(`${err.message}\n\n${t("ustva.confirmDuplicateExpense")}`)) return
           await apiPost(`/api/v1/expenses?companyId=${companyId}`, { ...payload, confirmDuplicate: true })
         }
       } else {

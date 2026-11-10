@@ -11,6 +11,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 type Interval = "monthly" | "quarterly" | "yearly" | "weekly"
 
@@ -571,7 +572,7 @@ export default function RecurringInvoicesPage() {
   }
 
   const deleteTpl = async (tpl: RecurringTemplate) => {
-    if (!confirm(`${t("recurring.confirmDelete") || "Löschen"} "${tpl.name}"? Vorhandene Rechnungen bleiben erhalten.`)) return
+    if (!await askConfirm(`${t("recurring.confirmDelete") || "Löschen"} "${tpl.name}"? Vorhandene Rechnungen bleiben erhalten.`)) return
     const companyId = localStorage.getItem("companyId")!
     try {
       await apiDelete(`/api/v1/recurring-invoices/${tpl.id}?companyId=${companyId}`)

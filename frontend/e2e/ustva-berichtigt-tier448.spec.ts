@@ -7,6 +7,7 @@
  * Voranmeldung); only then is it sent, with `berichtigt: true`.
  */
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 test("a second submission becomes a corrected return, after asking", async ({ page, request }) => {
@@ -44,10 +45,7 @@ test("a second submission becomes a corrected return, after asking", async ({ pa
   expect((await first).status(), "first submission").toBe(201)
 
   const dialogs: string[] = []
-  page.on("dialog", async (d) => {
-    dialogs.push(d.message())
-    await d.accept()
-  })
+  await acceptConfirms(page, dialogs) // Tier 827: the app's own dialog
   const refused = filingPost()
   await submit.click()
   expect((await refused).status(), "second submission is refused first").toBe(409)

@@ -9,6 +9,7 @@ import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiFetch, apiGetBlob } from "@/lib/api"
 import { ReceiptsPanel } from "@/components/ReceiptsPanel"
+import { askText } from "@/components/ConfirmDialog" // Tier 827
 
 // VoucherLine — the individual debit/credit lines that
 // make up a Voucher (Buchungsbeleg). One Voucher = one
@@ -243,7 +244,7 @@ export default function VoucherDetailPage() {
               (voucher.reversals?.length ?? 0) === 0 && (
                 <Button
                   onClick={async () => {
-                    const reason = window.prompt(
+                    const reason = await askText(
                       t("accounting.reverseReason") ||
                         "Stornogrund (optional)",
                     )

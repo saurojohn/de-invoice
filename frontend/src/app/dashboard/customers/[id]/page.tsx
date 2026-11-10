@@ -38,6 +38,7 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { apiGet, apiPost, apiFetch, ApiError } from "@/lib/api"
+import { askText } from "@/components/ConfirmDialog" // Tier 827
 
 type Tab =
   | "invoices"
@@ -557,7 +558,7 @@ export default function CustomerDetailPage() {
       // Clipboard API can be blocked (older browsers,
       // insecure contexts). Fall back to a manual
       // select-and-copy prompt.
-      window.prompt("Bitte den Link manuell kopieren:", portalLink.url)
+      await askText(L("Bitte den Link manuell kopieren:"), portalLink.url)
     }
   }
 

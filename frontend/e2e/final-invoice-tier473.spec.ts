@@ -87,8 +87,10 @@ test('a paid Proforma pays its advance back from the detail page', async ({ page
     localStorage.setItem('companyId', companyId)
   }, { userId: USER_ID, companyId: COMPANY_ID })
   await page.goto(`/dashboard/invoices/${pi.id}`)
-  page.once('dialog', (d) => d.accept('119.00'))
   await page.getByTestId('advance-refund-button').click({ timeout: 15_000 })
+  // Tier 827: the app's own dialog (was window.prompt), the amount filled in
+  await expect(page.getByTestId('confirm-dialog-input')).toHaveValue('119,00')
+  await page.getByTestId('confirm-dialog-ok').click()
   // everything paid back: the button goes away
   await expect(page.getByTestId('advance-refund-button')).toHaveCount(0, { timeout: 15_000 })
 

@@ -12,6 +12,7 @@ import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiDelete, apiFetch } from "@/lib/api"
 import { BookExpenseDialog, type BookExpenseValues } from "./BookExpenseDialog"
 import { roleCan, useRole } from "@/lib/role"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface BankStatement {
   id: string
@@ -283,7 +284,7 @@ export default function BankImportPage() {
 
   const confirmCandidate = async (reconId: string, invoiceNumber: string) => {
     if (!openId) return
-    if (!confirm(t("bankImport.confirmCandidateConfirm").replace("{invoice}", invoiceNumber))) return
+    if (!await askConfirm(t("bankImport.confirmCandidateConfirm").replace("{invoice}", invoiceNumber))) return
     const companyId = localStorage.getItem("companyId")!
     setBusyRecon(reconId)
     try {
@@ -333,7 +334,7 @@ export default function BankImportPage() {
    *  correction. */
   const reopenCandidate = async (reconId: string, invoiceNumber: string) => {
     if (!openId) return
-    if (!confirm(t("bankImport.reopenCandidateConfirm").replace("{invoice}", invoiceNumber))) return
+    if (!await askConfirm(t("bankImport.reopenCandidateConfirm").replace("{invoice}", invoiceNumber))) return
     const companyId = localStorage.getItem("companyId")!
     setBusyRecon(reconId)
     try {
@@ -616,7 +617,7 @@ export default function BankImportPage() {
   }
 
   const deleteStatement = async (s: BankStatement) => {
-    if (!confirm(t("bankImport.deleteConfirm"))) return
+    if (!await askConfirm(t("bankImport.deleteConfirm"))) return
     const companyId = localStorage.getItem("companyId")!
     try {
       await apiDelete(`/api/v1/bank-statements/${s.id}?companyId=${companyId}`)

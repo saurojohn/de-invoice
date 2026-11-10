@@ -7,6 +7,7 @@
  * back (Tier 745). (The rules: backend specs 460, 465.)
  */
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -61,7 +62,7 @@ test("the receipts panel: refused in closed books, with the reason; an open expe
   await expect(page.getByTestId(`expense-open-${closed}`)).toBeVisible({ timeout: 90_000 })
   await page.waitForLoadState("networkidle")
   const messages: string[] = []
-  page.on("dialog", (d) => { messages.push(d.message()); void d.accept() })
+  await acceptConfirms(page, messages) // Tier 827: the app's own dialog
 
   await page.getByTestId(`expense-open-${closed}`).click()
   await page.getByTestId("attachment-remove").click()

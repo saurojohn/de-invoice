@@ -10,6 +10,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { OperatorPageLink } from "@/components/RegistrationCard"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface User {
   id: string
@@ -188,7 +189,7 @@ export default function UsersPage() {
   }
 
   const cancelInvite = async (id: string) => {
-    if (!confirm(t("users.confirmCancel"))) return
+    if (!await askConfirm(t("users.confirmCancel"))) return
     const companyId = localStorage.getItem("companyId")
     const userId = localStorage.getItem("userId")
     if (!companyId || !userId) return
@@ -231,7 +232,7 @@ export default function UsersPage() {
   }
 
   const setUserStatus = async (userId: string, status: "active" | "inactive") => {
-    if (status === "inactive" && !confirm(t("users.confirmDeactivate"))) return
+    if (status === "inactive" && !await askConfirm(t("users.confirmDeactivate"))) return
     const companyId = localStorage.getItem("companyId")
     const myId = localStorage.getItem("userId")
     if (!companyId || !myId) return

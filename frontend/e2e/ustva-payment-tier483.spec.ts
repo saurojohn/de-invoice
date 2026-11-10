@@ -47,8 +47,10 @@ test("a submitted return's payment is recorded from the filings list", async ({ 
   await expect(button).toBeVisible({ timeout: 90_000 })
   await page.waitForFunction(() => document.readyState === "complete")
 
-  page.once("dialog", (d) => d.accept(`${year}-02-10`))
   await button.click()
+  // Tier 827: the app's own dialog (was window.prompt)
+  await page.getByTestId("confirm-dialog-input").fill(`${year}-02-10`)
+  await page.getByTestId("confirm-dialog-ok").click()
   const paid = page.getByTestId(`ustva-paid-${filing.id}`)
   // a Vorsteuer surplus of 19 € — refunded by the Finanzamt
   await expect(paid).toContainText("10.2.", { timeout: 30_000 })

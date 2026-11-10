@@ -10,6 +10,7 @@ import { useEffect, useState } from "react"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
 import { apiDelete, apiGet, apiPost } from "@/lib/api"
+import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
 
 interface CalendarStatus { active: boolean; createdAt: string | null; createdBy: string | null }
 
@@ -33,7 +34,7 @@ export default function CalendarLinkSection() {
   if (!status || !companyId) return null
 
   const create = async () => {
-    if (status.active && !confirm(t("deadlines.calendarReplaceConfirm"))) return
+    if (status.active && !await askConfirm(t("deadlines.calendarReplaceConfirm"))) return
     setBusy(true)
     try {
       const r = await apiPost<CalendarStatus & { url: string }>(`/api/v1/ustva/calendar?companyId=${companyId}`, {})
@@ -46,7 +47,7 @@ export default function CalendarLinkSection() {
     }
   }
   const revoke = async () => {
-    if (!confirm(t("deadlines.calendarRevokeConfirm"))) return
+    if (!await askConfirm(t("deadlines.calendarRevokeConfirm"))) return
     setBusy(true)
     try {
       setStatus(await apiDelete<CalendarStatus>(`/api/v1/ustva/calendar?companyId=${companyId}`))

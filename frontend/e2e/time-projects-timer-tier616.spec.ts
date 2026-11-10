@@ -10,6 +10,7 @@
  * billed with.
  */
 import { test, expect } from "@playwright/test"
+import { acceptConfirms } from "./fixtures/confirm"
 
 const API = process.env.E2E_API_URL || "http://localhost:3001"
 
@@ -42,6 +43,7 @@ test("default rate, project, timer and time sheet", async ({ page, request }) =>
     { userId, companyId },
   )
   page.on("dialog", (d) => d.accept())
+  await acceptConfirms(page) // Tier 827: the app's own dialog
 
   // the customer form: a default rate of 80
   await page.goto("/dashboard/customers")
