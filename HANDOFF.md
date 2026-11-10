@@ -2669,6 +2669,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 - The preview answers at once again; its `en16931` is the verdict of the last ten minutes for this file, else `null`. The dialog asks for the check beside the preview (`POST e-invoice/validate`, now through `EInvoiceImportService.runEn16931`, which keeps the verdict) and shows „wird … geprüft …" until it comes. The import uses the kept verdict, or checks itself when there is none (a file imported through the API without the dialog).
 - Spec 458 rewritten for it: the preview without a verdict, the check, the preview after it with the verdict, the import of a file nobody checked.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 827b — CI green for Tier 827
+
+Run 42864160692 (Tier 827, 5044b036): six jobs, backend **524 passed / 0 failed / 1 skipped** (525 among them), Playwright **1154 passed (32.7 m)** — `operator-companies-tier823` and `note-templates-page` among them; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 827 — the app asks with dialogs of its own
 
 58 `confirm()`, 6 `prompt()` and an `alert()` used the browser's dialogs. Chrome offers on them „Diese Seite daran hindern, weitere Dialogfelder zu erstellen": once ticked, every later `confirm()` answers false and every `prompt()` null at once — „Löschen", „Stornieren", „Bestätigen", the UStVA's „Zahlung erfassen", the advance refund did nothing, with no word why. They also named the host („localhost:3121 meldet") and ignored the page's language and dark mode (and the first-day drill's browser dismissed them).
