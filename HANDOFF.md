@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 829c — CI green for Tiers 829 / 829b
+
+Run 42896190880 (Tier 829b, 3a2716c4): six jobs, backend **526 passed / 0 failed / 1 skipped** (431 and 527 among them), Playwright **1156 passed (43.0 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The day1 containers are removed, their volumes kept.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 829b — CI for Tier 829: a static count in spec 431
 
 Run 42889013707 (Tier 829, 921b3380): six jobs, Playwright **1156 passed (38.4 m)**, 0 flaky, no retry — `phone-tier829` and the changed specs among them. Backend **525 passed / 1 failed**: spec 431 (Tier 710) counts `DISABLE_CRON === '1'` in overdue-status.scheduler.ts — the start run honours it too, 2 now. The spec expects 2, with the reason. Not caught locally: the specs were chosen by topic, not by the files they read; now every spec reading a file changed today (167 431 457 463 504 522 525 526 527) passed.
