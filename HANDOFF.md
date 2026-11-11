@@ -2673,6 +2673,25 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 834 — the year-end drill continued into 2026: the handover between the years holds; no change
+
+The owner's „继续" on the recommendation (11.11.2026). Jahr Leder GmbH of Tier 833 was carried into 2026, up to today (scratchpad `day1/y2026.sh`), as a GmbH stands now:
+- 2025's two open invoices paid in January and matched;
+- 2025's two open bills paid from their bank lines (the books of 2025 closed);
+- the Q4 2025 refund recorded on its filing;
+- the 2025 KSt/Soli (630,89) and GewSt (600,60) paid in July;
+- in 2026: rent, leather, one invoice, Q1 filed and paid.
+
+24 checks against the figures worked out by hand, all ✓:
+- **2025 unchanged.** Forderungen 1 654, the refund claim 699,50, payables 1 838,50, Steuerrückstellung 1 231,49, bank, JÜ 2 757,40, Saldoposten 25 000.
+- **GuV 2026.** Revenue 4 000 and materials 1 000: the 2025 invoices and bill paid in 2026 do not come in again. AfA computed for the assets' second year (1 200 + 366,67). Other costs only the 2026 rent: the 2025 taxes paid in July are not an expense. A loss of −966,67, no KSt/GewSt.
+- **Bilanz 31.12.2026.** Assets 3 700 / 672,22, no receivables, bank 22 418,51, no tax claim, no payables, no Rückstellung. **Bilanzidentität:** the equity apart from 2026's result is 27 757,40 = Stammeinlage + 2025's profit; Aktiva = Passiva 26 790,73.
+- **DATEV January–October 2026.** Soll = Haben.
+
+Left to the adviser by design, as the pages say:
+- The Saldoposten is not split into Gezeichnetes Kapital and Gewinnvortrag: distributions are not recorded, so a computed Gewinnvortrag could be wrong.
+- The 2026 loss is not carried into the KSt 1 of 2027 by itself. Its „Verlustabzug" line is filled from the Verlustfeststellungsbescheid.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 833b — CI green for Tier 833
 
 Run 43072079185 (Tier 833, adb42199): six jobs, backend **529 passed / 0 failed / 1 skipped** (530 among them), Playwright **1159 passed (39.3 m)**; **0 flaky**, no retry (the two flaky in 832b's run passed at the first try), no Traceback, no `REFUSED`, no ✗ / ✘. The day1 containers are still up for the drills (`day1/up.sh`), their volumes kept.
