@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 831b — CI green for Tier 831
+
+Run 43012534797 (Tier 831, 6619de61): six jobs, backend **527 passed / 0 failed / 1 skipped**, Playwright **1159 passed (38.1 m)** (`help-tier831` among them); 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 831 — „Kurzanleitung"; the UStVA's button records, it does not transmit
 
 The owner's third point (10.11.2026: a short guide, German / Chinese): `/dashboard/help`, a card on the dashboard. Eight sections, numbered steps, each with „Öffnen →" to its page — the company set up once (address and tax number before the first invoice, § 14 Abs. 4 UStG; Berater- / Mandantennummer; inviting staff, the adviser as „Buchhalter", an auditor), an invoice (igL / Reverse-Charge, an export at 0 % recognised by the customer's country, Storno instead of a change), bills received (the category decides the BWA line and the DATEV account — Tier 830; igE / § 13b; assets above 800 € net in the Anlagenverzeichnis), the bank statement (MT940 / CAMT.053, „Auto-Vorschläge generieren", „Bestätigen"), dunning, the UStVA (filed in Mein ELSTER or by the adviser by the 10th; „Zahlung erfassen"), the adviser (DATEV export with its preview, or their own access), the operator's (Systembetrieb — shown to the operator only). Texts in `messages/{de,en,zh}.json` (`help.sections.<id>.<n>`), each label quoted as the page shows it in that language (checked against the messages).
