@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 832b — CI green for Tier 832, two flaky
+
+Run 43040924391 (Tier 832, 21f96bbf). The first attempt's Playwright job never ran a test: installing its system packages failed (security.ubuntu.com unreachable, `apt` exit 100). The other five jobs were green. Re-run of the failed job: six jobs, backend **528 passed / 0 failed / 1 skipped** (529 among them), Playwright **1157 passed (47.0 m)**, **2 flaky**. Both passed on retry; both were timing on a slow runner, hardened in Tier 833:
+- `invoice-clone-as-draft-tier160` „clicking the button navigates…": `waitForURL` 5 s, the dev server compiling the create page.
+- `verfahrensdoku-tier748`: the download awaited on the page for 60 s. The link opens a new tab, which can carry the download.
+
+No Traceback, no `REFUSED`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 832 — a review of Tiers 822–831: whole words in the DATEV inference, a company's own default account, AfA per asset
 
 The review the owner chose (11.11.2026, „继续" on the recommendation). Three findings:
