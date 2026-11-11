@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 833b — CI green for Tier 833
+
+Run 43072079185 (Tier 833, adb42199): six jobs, backend **529 passed / 0 failed / 1 skipped** (530 among them), Playwright **1159 passed (39.3 m)**; **0 flaky**, no retry (the two flaky in 832b's run passed at the first try), no Traceback, no `REFUSED`, no ✗ / ✘. The day1 containers are still up for the drills (`day1/up.sh`), their volumes kept.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 833 — the year-end drill: 2025 of a GmbH, cross-checked; the KSt to the full euro, an asset on an SKR03 account on the Bilanz
 
 The next step of the recommendation (11.11.2026, „继续"). The year 2026 cannot be closed before its end: the books do not close past today. So the drill uses the year a GmbH closes this autumn, 2025. The setup:
