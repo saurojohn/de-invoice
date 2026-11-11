@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 831 — „Kurzanleitung"; the UStVA's button records, it does not transmit
+
+The owner's third point (10.11.2026: a short guide, German / Chinese): `/dashboard/help`, a card on the dashboard. Eight sections, numbered steps, each with „Öffnen →" to its page — the company set up once (address and tax number before the first invoice, § 14 Abs. 4 UStG; Berater- / Mandantennummer; inviting staff, the adviser as „Buchhalter", an auditor), an invoice (igL / Reverse-Charge, an export at 0 % recognised by the customer's country, Storno instead of a change), bills received (the category decides the BWA line and the DATEV account — Tier 830; igE / § 13b; assets above 800 € net in the Anlagenverzeichnis), the bank statement (MT940 / CAMT.053, „Auto-Vorschläge generieren", „Bestätigen"), dunning, the UStVA (filed in Mein ELSTER or by the adviser by the 10th; „Zahlung erfassen"), the adviser (DATEV export with its preview, or their own access), the operator's (Systembetrieb — shown to the operator only). Texts in `messages/{de,en,zh}.json` (`help.sections.<id>.<n>`), each label quoted as the page shows it in that language (checked against the messages).
+
+- **The UStVA's „An Finanzamt übermitteln"** saved the return as „submitted" — nothing is transmitted (Tier 681: no ELSTER upload). It is „Als übermittelt erfassen" / „Record as submitted" / „记录为已提交", and the message says the return itself is filed in Mein ELSTER or by the adviser.
+
+Playwright `help-tier831` (fails on Tier 830): from the dashboard's card to the guide, seven sections with their links and steps, no raw key, the UStVA step naming the button; another company sees no operator section; in Chinese for the operator, with its section; the UStVA's button records. `all-pages-quiet` walks the page. Locally the 125 Playwright specs of the dashboard cards, the UStVA and the page walk (one a refused connection to the dev server mid-run, passing again), guards 385 389 391 405 524.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 830b — CI green for Tier 830
 
 Run 42911406406 (Tier 830, ac80fc00): six jobs, backend **527 passed / 0 failed / 1 skipped** (528 among them), Playwright **1156 passed (30.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The day1 containers are removed, their volumes kept.

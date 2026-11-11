@@ -937,7 +937,9 @@
     "ustvaTrendSubtitle": "Payable = VAT − input tax (positive = payment, negative = refund)",
     "kpiOverdueTitle": "Overdue invoices",
     "cardOperatorTitle": "System operation",
-    "cardOperatorDesc": "Server, background jobs, backups, storage, error reports, registration and company invitations — on one page"
+    "cardOperatorDesc": "Server, background jobs, backups, storage, error reports, registration and company invitations — on one page",
+    "cardHelpTitle": "Quick guide",
+    "cardHelpDesc": "Invoice, incoming invoice, bank reconciliation, dunning, VAT return and DATEV — step by step"
   },
   "email": {
     "title": "Email Center",
@@ -2325,7 +2327,7 @@
     "q4": "Q4 (Oct–Dec)",
     "preview": "Compute preview",
     "saveDraft": "Save as draft",
-    "submit": "Submit to tax office",
+    "submit": "Record as submitted",
     "downloadPdf": "Download UStVA PDF",
     "downloadPdfMonthRequired": "UStVA PDF is available per month. Please select a single month.",
     "downloadPdfLoadError": "UStVA PDF could not be loaded (HTTP {status})",
@@ -2412,7 +2414,7 @@
     "saveExpense": "Save",
     "lockedExpense": "Locked",
     "saveSuccess": "UStVA saved",
-    "submitSuccess": "UStVA submitted successfully",
+    "submitSuccess": "Recorded as submitted — the return itself is filed in Mein ELSTER (or by your tax adviser).",
     "prevFilings": "Past filings",
     "status": "Status",
     "statusDraft": "Draft",
@@ -4651,5 +4653,57 @@
     "assetsTitle": "Purchases with no asset in the asset register",
     "assetsHint": "An expense on a fixed-asset account (0…) is the purchase of an asset: it lowers the profit through its depreciation, not by itself. Without the asset in the register there is no depreciation — the cost is missing from every report.",
     "toAssets": "to the asset register"
+  },
+  "help": {
+    "title": "Quick guide",
+    "intro": "The daily work in a few steps. Each section leads to the page it is about.",
+    "open": "Open",
+    "sections": {
+      "start": {
+        "title": "Once: set up the company",
+        "1": "Settings → Company Information: address, tax number or VAT ID, bank account and logo. Without address and tax number no invoice can be issued (§ 14 (4) UStG).",
+        "2": "Settings → DATEV Accounts: the adviser and client numbers your tax adviser gives you.",
+        "3": "Settings → User management → “Invite user”: staff and your tax adviser (role “Accountant”), for a tax audit the auditor (read only, for a limited time)."
+      },
+      "invoice": {
+        "title": "Write an invoice",
+        "1": "Dashboard → “+ Create Invoice”. Choose or add the customer, enter the items with quantity, net unit price and VAT rate.",
+        "2": "Customer in another EU country with a VAT ID: choose “Intra-Community Supply” (goods) or “Reverse Charge” (services) as the VAT treatment. A delivery to a country outside the EU is an export: VAT rate 0 % — the program sees from the customer’s country that it is an export.",
+        "3": "“Create Invoice”, then on the invoice “Send by e-mail” or “Download PDF”. An issued invoice is not changed any more: to correct it, set its status to “Cancelled” — that creates the cancellation invoice."
+      },
+      "expense": {
+        "title": "Record vendor bills",
+        "1": "Vendor bills → “+ Supplier invoice” (or “Upload scan” for a photo or PDF): supplier, invoice number, date, net amount, VAT rate.",
+        "2": "The category (e.g. Wareneinkauf, Miete, Werbung, Büromaterial) decides the line in the BWA and the account in the DATEV export.",
+        "3": "A bill without VAT from another EU country: under “Tax treatment” choose “Intra-community acquisition” (goods) or “§ 13b UStG — reverse charge” (services).",
+        "4": "Purchases above 800 € net (e.g. a laptop, a machine) also go into the Asset Register — the program works out the depreciation."
+      },
+      "bank": {
+        "title": "Reconcile the bank statement",
+        "1": "Download the statement as MT940 or CAMT.053 from online banking, then Bank Import → “Upload file”.",
+        "2": "“Generate auto-suggestions”: for each incoming payment the program looks for the open invoice (amount, invoice number in the reference). “Confirm” each suggestion — the invoice is then paid and booked.",
+        "3": "For a debit, choose the matching vendor bill or book the expense directly."
+      },
+      "dunning": {
+        "title": "Dunning",
+        "1": "Invoices → filter “Overdue”: what is still open after its due date.",
+        "2": "Select invoices → “Send reminder” → choose the level. Fees and default interest are set under Dunning → Dunning fees & interest."
+      },
+      "month": {
+        "title": "Month end: VAT return",
+        "1": "Accounting → UStVA: choose the month. The page shows the figures from invoices, incoming invoices and the cash book.",
+        "2": "You file the return in Mein ELSTER (or your tax adviser does), by the 10th of the following month. Then “Record as submitted” here and, once the tax office has collected or refunded, “Record payment”.",
+        "3": "Reports → BWA shows the result of the month and the year."
+      },
+      "adviser": {
+        "title": "For the tax adviser",
+        "1": "Reports → “DATEV export”: choose the period, check the preview (debit equals credit, no errors), then download the booking batch and give it to your tax adviser.",
+        "2": "Or your tax adviser gets an access of their own (invite user) and collects the documents under Berater Documents."
+      },
+      "operator": {
+        "title": "For the operator of the server",
+        "1": "System operation (dashboard): server, backups, background jobs, sending e-mail and the companies on the server. Companies with books of their own are invited there."
+      }
+    }
   }
 }

@@ -937,7 +937,9 @@
     "ustvaTrendSubtitle": "Zahllast = USt − Vorsteuer (positiv = Vorauszahlung, negativ = Erstattung)",
     "kpiOverdueTitle": "Überfällige Rechnungen",
     "cardOperatorTitle": "Systembetrieb",
-    "cardOperatorDesc": "Server, Hintergrundjobs, Datensicherung, Ablage, Fehlermeldungen, Registrierung und Firmen-Einladungen — auf einer Seite"
+    "cardOperatorDesc": "Server, Hintergrundjobs, Datensicherung, Ablage, Fehlermeldungen, Registrierung und Firmen-Einladungen — auf einer Seite",
+    "cardHelpTitle": "Kurzanleitung",
+    "cardHelpDesc": "Rechnung, Eingangsrechnung, Bankabgleich, Mahnung, UStVA und DATEV — Schritt für Schritt"
   },
   "email": {
     "title": "E-Mail Center",
@@ -2325,7 +2327,7 @@
     "q4": "Q4 (Okt–Dez)",
     "preview": "Vorschau berechnen",
     "saveDraft": "Als Entwurf speichern",
-    "submit": "An Finanzamt übermitteln",
+    "submit": "Als übermittelt erfassen",
     "downloadPdf": "UStVA-PDF herunterladen",
     "downloadPdfMonthRequired": "UStVA-PDF ist pro Monat verfügbar. Bitte einen einzelnen Monat wählen.",
     "downloadPdfLoadError": "UStVA-PDF konnte nicht geladen werden (HTTP {status})",
@@ -2412,7 +2414,7 @@
     "saveExpense": "Speichern",
     "lockedExpense": "Gesperrt",
     "saveSuccess": "UStVA gespeichert",
-    "submitSuccess": "UStVA erfolgreich übermittelt",
+    "submitSuccess": "Als übermittelt erfasst — die Voranmeldung selbst geben Sie in Mein ELSTER ab (oder Ihr Steuerberater).",
     "prevFilings": "Bisherige Anmeldungen",
     "status": "Status",
     "statusDraft": "Entwurf",
@@ -4651,5 +4653,57 @@
     "assetsTitle": "Anschaffungen ohne Anlage im Anlagenverzeichnis",
     "assetsHint": "Eine Ausgabe auf einem Anlagekonto (0…) ist die Anschaffung eines Wirtschaftsguts: Sie mindert den Gewinn nicht selbst, sondern über die AfA. Ohne die Anlage im Anlagenverzeichnis gibt es keine AfA — die Kosten fehlen in jeder Auswertung.",
     "toAssets": "zum Anlagenverzeichnis"
+  },
+  "help": {
+    "title": "Kurzanleitung",
+    "intro": "Die tägliche Arbeit in wenigen Schritten. Jeder Abschnitt führt zur passenden Seite.",
+    "open": "Öffnen",
+    "sections": {
+      "start": {
+        "title": "Einmalig: die Firma einrichten",
+        "1": "Einstellungen → Firmeninformationen: Anschrift, Steuernummer oder USt-IdNr., Bankverbindung und Logo. Ohne Anschrift und Steuernummer lässt sich keine Rechnung ausstellen (§ 14 Abs. 4 UStG).",
+        "2": "Einstellungen → DATEV-Konten: Berater- und Mandantennummer, die Ihnen Ihr Steuerberater nennt.",
+        "3": "Einstellungen → Benutzerverwaltung → „Benutzer einladen“: Mitarbeiter und Ihren Steuerberater (Rolle „Buchhalter“), bei einer Betriebsprüfung den Prüfer (nur lesen, befristet)."
+      },
+      "invoice": {
+        "title": "Rechnung schreiben",
+        "1": "Dashboard → „+ Rechnung erstellen“. Kunden wählen oder neu anlegen, Positionen mit Menge, Einzelpreis (netto) und Steuersatz eintragen.",
+        "2": "Kunde in einem anderen EU-Land mit USt-IdNr.: bei der USt-Behandlung „Innergemeinschaftliche Lieferung“ (Waren) bzw. „Reverse-Charge“ (Leistungen) wählen. Eine Lieferung in ein Land außerhalb der EU ist eine Ausfuhr: Steuersatz 0 % — als Ausfuhr erkennt das Programm sie am Land des Kunden.",
+        "3": "„Rechnung erstellen“, dann auf der Rechnung „Per E-Mail senden“ oder „PDF herunterladen“. Eine ausgestellte Rechnung wird nicht mehr geändert: zur Korrektur den Status auf „Storniert“ setzen — das erzeugt die Stornorechnung."
+      },
+      "expense": {
+        "title": "Eingangsrechnungen erfassen",
+        "1": "Eingangsrechnungen → „+ Eingangsrechnung“ (oder „Scan hochladen“ für ein Foto oder PDF): Lieferant, Rechnungsnummer, Datum, Nettobetrag, Steuersatz.",
+        "2": "Die Kategorie (z. B. Wareneinkauf, Miete, Werbung, Büromaterial) bestimmt die Zeile in der BWA und das Konto im DATEV-Export.",
+        "3": "Rechnung ohne Umsatzsteuer aus einem anderen EU-Land: unter „Steuerliche Behandlung“ „Innergemeinschaftlicher Erwerb“ (Waren) bzw. „§ 13b UStG — Reverse-Charge“ (Leistungen) wählen.",
+        "4": "Anschaffungen über 800 € netto (z. B. Laptop, Maschine) zusätzlich im Anlagenverzeichnis erfassen — die Abschreibung rechnet das Programm."
+      },
+      "bank": {
+        "title": "Kontoauszug abgleichen",
+        "1": "Im Online-Banking den Auszug als MT940 oder CAMT.053 herunterladen, dann Bankimport → „Datei hochladen“.",
+        "2": "„Auto-Vorschläge generieren“: zu jedem Zahlungseingang sucht das Programm die offene Rechnung (Betrag, Rechnungsnummer im Verwendungszweck). Jeden Vorschlag „Bestätigen“ — die Rechnung ist dann bezahlt und gebucht.",
+        "3": "Bei einer Abbuchung die passende Eingangsrechnung wählen oder die Ausgabe direkt buchen."
+      },
+      "dunning": {
+        "title": "Mahnen",
+        "1": "Rechnungen → Filter „Überfällig“: was nach dem Fälligkeitsdatum noch offen ist.",
+        "2": "Rechnungen auswählen → „Mahnung senden“ → Stufe wählen. Mahngebühren und Verzugszinsen stellen Sie unter Mahnungen → Mahngebühren & Zinsen ein."
+      },
+      "month": {
+        "title": "Monatsende: Umsatzsteuer-Voranmeldung",
+        "1": "Buchhaltung → UStVA: Monat wählen. Die Seite zeigt die Kennzahlen aus Rechnungen, Eingangsrechnungen und Kassenbuch.",
+        "2": "Die Voranmeldung geben Sie in Mein ELSTER ab (oder Ihr Steuerberater), bis zum 10. des Folgemonats. Danach hier „Als übermittelt erfassen“ und, sobald das Finanzamt abgebucht oder erstattet hat, „Zahlung erfassen“.",
+        "3": "Berichte → BWA zeigt das Ergebnis des Monats und des Jahres."
+      },
+      "adviser": {
+        "title": "An den Steuerberater",
+        "1": "Berichte → „DATEV-Export“: Zeitraum wählen, die Vorschau prüfen (Soll gleich Haben, keine Fehler), dann den Buchungsstapel herunterladen und dem Steuerberater geben.",
+        "2": "Oder Ihr Steuerberater erhält einen eigenen Zugang (Benutzer einladen) und holt die Unterlagen unter Berater-Dokumente selbst ab."
+      },
+      "operator": {
+        "title": "Für den Betreiber des Servers",
+        "1": "Systembetrieb (Dashboard): Server, Datensicherung, Hintergrundjobs, E-Mail-Versand und die Firmen auf dem Server. Firmen mit eigener Buchhaltung laden Sie dort ein."
+      }
+    }
   }
 }
