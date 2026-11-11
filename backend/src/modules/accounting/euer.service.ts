@@ -9,7 +9,7 @@ import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss
 import { cashBookings } from '../cashbook/cash-bookings'
 import { bewirtungNachweisFehlt, deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense-cost'
 import { manualJournalLines, type ManualKind } from './manual-journal'
-import { bookedAfaCost } from './booked-afa'
+import { afaOfYear } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 import { homeOfficeDeduction } from '../home-office/home-office'
@@ -372,7 +372,9 @@ export class EuerService {
     einnahmenBuckets.set('4190', (einnahmenBuckets.get('4190') || 0) + kurs.gewinn)
     ausgabenBuckets.set('5900', (ausgabenBuckets.get('5900') || 0) + kurs.verlust)
 
-    ausgabenBuckets.set('4600', (await bookedAfaCost(this.prisma, companyId, year)).amount)
+    // Tier 832: per asset, booked or computed (booked-afa.ts afaOfYear) — the
+    // EÜR had no AfA until „AfA buchen“ was clicked (§ 7 EStG asks no booking)
+    ausgabenBuckets.set('4600', (await afaOfYear(this.prisma, companyId, year)).cost(new Date(year, 0, 1), new Date(year, 11, 31, 23, 59, 59, 999), 12))
     ausgabenBuckets.set('4610', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
     // Tier 816: the journal's own bookings that moved money — a manual voucher
     // with a line on a cash or bank account (manual-journal.ts; § 4 Abs. 3

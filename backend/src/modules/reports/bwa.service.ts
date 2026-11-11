@@ -1,10 +1,9 @@
-import { LIVE_AFA, computedAfaInWindow } from '../accounting/booked-afa'
+import { LIVE_AFA, afaOfYear } from '../accounting/booked-afa'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals } from '../assets/disposals'
 import { expenseCost } from '../accounting/expense-cost'
 import { manualJournalLines, type ManualKind } from '../accounting/manual-journal'
 import { Injectable } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AssetsService } from '../assets/assets.service'
 import { Response } from 'express'
@@ -473,21 +472,14 @@ export class BwaService {
     // 4-decimal precision on AfA amounts.
     // Tier 817: one rule for every window — the Vormonat column of January
     // reads the prior year's AfA (booked, or computed when none was booked)
-    const bookedAfaOf = (y: number) => bookedAfaRows.filter((e) => e.afaYear === y)
-    const sumAfaRows = (rows: typeof bookedAfaRows) => rows.reduce(
-      (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
-      new Prisma.Decimal(0),
-    ).toNumber()
-    const useBookedAfA = sumAfaRows(bookedAfaOf(year)) !== 0
-    // Tier 830: computed, each asset's AfA in the months it is depreciated
-    // (computedAfaInWindow) — the year's AfA × months / 12 put a laptop bought
-    // in October into every month of the year
-    const afaIn = (start: Date, end: Date) => {
-      const rows = bookedAfaOf(start.getFullYear())
-      return sumInMonth(manualOf('afa'), start, end) + (sumAfaRows(rows) !== 0
-        ? sumAfaRows(rows.filter((e) => e.invoiceDate >= start && e.invoiceDate <= end))
-        : computedAfaInWindow(assetList, start, end))
-    }
+    // Tier 832: per asset — booked when the asset's AfA of the year is booked,
+    // else computed (booked-afa.ts afaOfYear); it was all booked or all computed
+    const bookedAfaOf = (y: number) => bookedAfaRows.filter((e) => e.afaYear === y) // the count of bookings
+    const afaCurrent = await afaOfYear(this.prisma, companyId, year)
+    const afaVormonat = vormonatStart.getFullYear() === year ? afaCurrent : await afaOfYear(this.prisma, companyId, vormonatStart.getFullYear())
+    const useBookedAfA = afaCurrent.booked
+    const afaIn = (start: Date, end: Date) =>
+      sumInMonth(manualOf('afa'), start, end) + (start.getFullYear() === year ? afaCurrent : afaVormonat).cost(start, end, 0)
     const monthAfA = afaIn(monthStart, monthEnd)
     const ytdAfA = afaIn(yearStart, monthEnd)
     const vormonatAfA = afaIn(vormonatStart, vormonatEnd)
@@ -498,7 +490,7 @@ export class BwaService {
     // year. Same for vorjahres invoicing (we
     // don't store prior-year invoices in the
     // current-year query).
-    const [vorjahresInvoices, vorjahresExpenses, vorjahresBookedAfa] = await Promise.all([
+    const [vorjahresInvoices, vorjahresExpenses] = await Promise.all([
       this.prisma.invoice.findMany({
         where: {
           companyId,
@@ -530,18 +522,6 @@ export class BwaService {
           invoiceDate: { gte: vorjahresYtdStart, lte: vorjahresYtdEnd },
         },
         select: { netAmount: true, grossAmount: true, category: true, accountNumber: true },
-      }),
-      this.prisma.expense.findMany({
-        where: {
-          companyId,
-          category: 'AfA',
-          afaYear: vorjahr,
-          relatedAssetId: { not: null },
-          // Tier 824: the bookings that stand — a storno's pair (Tier 746)
-          // counted twice with abs(), and kept the year „booked"
-          ...LIVE_AFA,
-        },
-        select: { grossAmount: true, invoiceDate: true },
       }),
     ])
 
@@ -584,17 +564,8 @@ export class BwaService {
     const vorjahresYtdSteuernEinkommen = vorjahresYtdByBucket('5000')
     const vorjahresYtdSonstigeSteuern = vorjahresYtdByBucket('5100')
 
-    // Tier 830: booked, else computed — as the current year (it had only the
-    // booked: a prior year without „AfA buchen" compared with 0)
-    const vorjahresYtdAfA = manualVorjahrSum('afa') + (vorjahresBookedAfa.length > 0
-      ? vorjahresBookedAfa
-        .filter((e) => e.invoiceDate >= vorjahresYtdStart && e.invoiceDate <= vorjahresYtdEnd)
-        // Tier 245: Decimal累加 (siehe oben)
-        .reduce(
-          (s, e) => s.plus(new Prisma.Decimal(e.grossAmount ?? 0).abs()),
-          new Prisma.Decimal(0),
-        ).toNumber()
-      : computedAfaInWindow(assetList, vorjahresYtdStart, vorjahresYtdEnd))
+    // Tier 830 / 832: per asset, booked or computed — as the current year
+    const vorjahresYtdAfA = manualVorjahrSum('afa') + (await afaOfYear(this.prisma, companyId, vorjahr)).cost(vorjahresYtdStart, vorjahresYtdEnd, 0)
 
     // Sonstige betriebliche Erträge (1300) —
     // positive customer credits in the year.

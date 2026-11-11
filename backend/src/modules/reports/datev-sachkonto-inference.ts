@@ -123,7 +123,7 @@ const RULES: InferenceRule[] = [
   {
     accountNumber: '4920',
     accountName: 'Telefon',
-    keywords: ['telefon', 'mobilfunk', 'vodafone', 'telekom', 't-mobile', 'o2', '1&1', 'internet', 'kabel', 'glasfaser', 'dsl', 'fon', 'tel.'],
+    keywords: ['telefon', 'mobilfunk', 'vodafone', 'telekom', 't-mobile', 'o2', '1&1', 'internet', 'kabelanschluss', 'glasfaser', 'dsl', 'fon', 'tel.'],
   },
   {
     accountNumber: '4970',
@@ -134,7 +134,7 @@ const RULES: InferenceRule[] = [
     accountNumber: '4964',
     accountName: 'Aufwendungen für die zeitlich befristete Überlassung von Rechten (Software, Cloud)',
     keywords: [
-      'software', 'saas', 'cloud', 'hosting', 'server',
+      'software', 'saas', 'cloud', 'hosting', 'server', 'warenwirtschaft', 'lizenz',
       'domain', 'ssl', 'tls',
       'aws', 'amazon web', 'azure', 'google cloud', 'gcp',
       'github', 'gitlab', 'bitbucket',
@@ -175,7 +175,7 @@ const RULES: InferenceRule[] = [
   {
     accountNumber: '4600',
     accountName: 'Werbekosten',
-    keywords: ['werbung', 'werbekosten', 'marketing', 'google ads', 'meta ads', 'facebook ads', 'linkedin ads', 'messe', 'anzeige', 'banner', 'plakat', 'flugblatt', 'newsletter', 'mailing', 'seo', 'sea', 'hubspot', 'mailchimp', 'sendinblue', 'brevo'],
+    keywords: ['werbung', 'werbekosten', 'werbematerial', 'werbeartikel', 'flyer', 'marketing', 'google ads', 'meta ads', 'facebook ads', 'linkedin ads', 'messestand', 'messeauftritt', 'messegebühr', 'messeteilnahme', 'anzeige', 'banner', 'plakat', 'flugblatt', 'newsletter', 'mailing', 'seo', 'sea', 'hubspot', 'mailchimp', 'sendinblue', 'brevo'],
   },
   {
     accountNumber: '4650',
@@ -206,6 +206,11 @@ const RULES: InferenceRule[] = [
     accountNumber: '3200',
     accountName: 'Wareneingang',
     keywords: ['wareneinkauf', 'wareneingang', 'handelsware', 'waren'],
+  },
+  {
+    accountNumber: '4710',
+    accountName: 'Verpackungsmaterial',
+    keywords: ['verpackung', 'versandkarton', 'karton', 'luftpolster'],
   },
   {
     accountNumber: '3000',
@@ -249,8 +254,11 @@ const COMPILED: Array<InferenceRule & { re: RegExp[] }> = RULES.map((r) => ({
   re: r.keywords.map((kw) => {
     const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     if (kw.length < 4) {
-      // word-boundary match, case-insensitive
-      return new RegExp(`\\b${escaped}`, 'i')
+      // word-boundary match, case-insensitive. Tier 832: on both sides when
+      // the keyword ends in a letter or digit — „gas" took „Gastronomie" and
+      // „Gasthaus" (a restaurant bill on 4240), „fon" „Fondue", „sea" „Seat",
+      // „ups" „Upside", „abo" „Abort".
+      return new RegExp(/[a-z0-9]$/i.test(kw) ? `\\b${escaped}\\b` : `\\b${escaped}`, 'i')
     }
     // substring match, case-insensitive
     return new RegExp(escaped, 'i')
@@ -315,7 +323,9 @@ export function inferExpenseAccount(description: string): SachkontoInference {
     if (rule.accountNumber === '4900') continue
     const { score, kw } = scoreRule(rule, descLower)
     if (score === 0) continue
-    if (!best || score > best.confidence) {
+    // Tier 832: on equal scores the longer, more specific keyword wins
+    // („Bewirtung Gasthaus": bewirtung, not a short word of another rule)
+    if (!best || score > best.confidence || (score === best.confidence && kw.length > best.matchedKeyword.length)) {
       best = {
         accountNumber: rule.accountNumber,
         accountName: rule.accountName,

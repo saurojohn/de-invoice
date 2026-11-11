@@ -103,22 +103,34 @@ export async function afaOfYear(db: Db, companyId: string, year: number) {
   const [rows, assets] = await Promise.all([
     db.expense.findMany({
       where: { companyId, category: 'AfA', afaYear: year, relatedAssetId: { not: null }, ...LIVE_AFA },
-      select: { netAmount: true, invoiceDate: true },
+      select: { netAmount: true, invoiceDate: true, relatedAssetId: true },
     }),
     db.asset.findMany({ where: { companyId } }),
   ])
-  const booked = rows.reduce((s, r) => s + Math.round(Number(r.netAmount ?? 0) * 100), 0) !== 0
+  // Tier 832: per asset — an asset with AfA booked for the year counts with
+  // its bookings, every other one with its computed AfA. It was all or
+  // nothing: one asset booked monthly in January, a laptop bought in October
+  // and not booked had no AfA in any report (GuV 7a 2 400 instead of
+  // 2 491,67), and the EÜR / Anlage S / Anlage G took no AfA at all until
+  // „AfA buchen" was clicked.
+  const centsByAsset = new Map<string, number>()
+  for (const r of rows) {
+    const id = r.relatedAssetId as string
+    centsByAsset.set(id, (centsByAsset.get(id) ?? 0) + Math.round(Number(r.netAmount ?? 0) * 100))
+  }
+  const bookedIds = new Set([...centsByAsset].filter(([, c]) => c !== 0).map(([id]) => id))
+  const unbooked = assets.filter((x) => !bookedIds.has(x.id))
   return {
-    booked,
+    /** some AfA of the year is booked */
+    booked: bookedIds.size > 0,
+    /** every asset of the year has its AfA booked (none computed) */
+    allBooked: bookedIds.size > 0 && unbooked.every((x) => computeAfaSummary(x, new Date(year, 11, 31, 23, 59, 59, 999)).annualAfA === 0),
     cost(start: Date, end: Date, months: number): number {
-      if (booked) {
-        const cents = rows
-          .filter((r) => r.invoiceDate >= start && r.invoiceDate <= end)
-          .reduce((s, r) => s - Math.round(Number(r.netAmount ?? 0) * 100), 0)
-        return cents / 100
-      }
       void months
-      return computedAfaInWindow(assets, start, end)
+      const cents = rows
+        .filter((r) => bookedIds.has(r.relatedAssetId as string) && r.invoiceDate >= start && r.invoiceDate <= end)
+        .reduce((s, r) => s - Math.round(Number(r.netAmount ?? 0) * 100), 0)
+      return Math.round(cents + computedAfaInWindow(unbooked, start, end) * 100) / 100
     },
   }
 }

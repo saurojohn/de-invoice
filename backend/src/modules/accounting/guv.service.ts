@@ -1,7 +1,7 @@
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { expenseCost, isIncomeTax } from './expense-cost'
-import { bookedAfaCost } from './booked-afa'
+import { afaOfYear, bookedAfaCost } from './booked-afa'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { manualJournalLines, sumByKind } from './manual-journal'
 import { Injectable } from '@nestjs/common'
@@ -284,9 +284,15 @@ export class GuVService {
     // 7a took it as it was — while the computed fallback and every other
     // cost line are positive — so the Betriebsergebnis came out as revenue
     // PLUS the AfA.
-    const bookedAfa = await bookedAfaCost(this.prisma, companyId, year)
-    const bookedAfASum = bookedAfa.amount
-    const useBookedAfA = bookedAfASum !== 0
+    // Tier 832: per asset — booked where the asset's AfA of the year is
+    // booked, computed for every other asset (booked-afa.ts afaOfYear); it
+    // was all booked or all computed, and an asset added after the booking
+    // had no AfA in 7a
+    const afaYear = await afaOfYear(this.prisma, companyId, year)
+    const bookedAfa = { count: (await bookedAfaCost(this.prisma, companyId, year)).count }
+    const afaOfTheYear = afaYear.cost(new Date(year, 0, 1), new Date(year, 11, 31, 23, 59, 59, 999), 12)
+    const bookedAfASum = afaOfTheYear
+    const useBookedAfA = afaYear.booked
 
     // Bucket the expenses using Anlage S / EÜR
     // category matchers. The G+V groups them
@@ -464,7 +470,9 @@ export class GuVService {
                 ? round2(manualAfa)
                 : null,
           note: useBookedAfA
-            ? 'Gebucht aus Anlagenverzeichnis ("AfA buchen").'
+            ? (afaYear.allBooked
+              ? 'Gebucht aus Anlagenverzeichnis ("AfA buchen").'
+              : 'Gebucht aus Anlagenverzeichnis ("AfA buchen"); für Anlagen ohne Buchung berechnet.')
             : hasAssets
               ? 'Berechnet aus dem Anlagenverzeichnis (lineare AfA).'
               : 'AfA wird berechnet, sobald Sachanlagen im Anlagenverzeichnis erfasst sind.',

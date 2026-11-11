@@ -767,8 +767,12 @@ export async function buildBuchungenFromDb(
   // matches. Every bill without an account went to 4900: in the month-end
   // drill goods, rent, the Fachbuch, Google Ads and an EU purchase alike —
   // the adviser had to book each one again.
+  // Tier 832: a company that set its own account for bills without one
+  // (DATEV-Konten → „Aufwand ohne eigenes Konto") keeps it — no inference.
+  const ownDefault = a.expenseDefault !== SKR03_DEFAULTS.expenseDefault
   const expenseAccount = (accountNumber: string | null | undefined, category: string | null | undefined, text: string | null | undefined) => {
     if (accountNumber) return accountNumber
+    if (ownDefault) return a.expenseDefault
     const inferred = inferExpenseAccount(`${category ?? ''} ${text ?? ''}`)
     return inferred.confidence > 0 ? inferred.accountNumber : a.expenseDefault
   }

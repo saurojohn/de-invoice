@@ -2673,6 +2673,22 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 832 — a review of Tiers 822–831: whole words in the DATEV inference, a company's own default account, AfA per asset
+
+The review the owner chose (11.11.2026, „继续" on the recommendation). Three findings:
+
+- **The Sachkonto inference (Tier 830) matched inside words.** „Gastronomie" and „Gasthaus" went to 4240 (Gas, Strom) because of „gas", „Messer" to 4600 because of „messe", „Kabelbinder" to 4920 because of „kabel", and „Fondue" and „Seat" were also misread. A tie went to the first rule, not to the longer keyword. Now a keyword shorter than four characters matches whole words only, and a tie goes to the longer keyword. Other changes:
+  - Werbematerial, Werbeartikel, Flyer, Messestand / -auftritt / -gebühr / -teilnahme → 4600.
+  - „Kabelanschluss" → 4920.
+  - Warenwirtschaft, Lizenz → 4964.
+  - A new rule 4710 Verpackungsmaterial (Verpackung, Versandkarton, Karton, Luftpolster) comes before 3000.
+- **A company's own default expense account** (DATEV settings, `expenseDefault` ≠ 4900) was overridden by the inference since Tier 830. A bill without its own account goes to the company's default again. The inference applies only to companies on SKR03's 4900.
+- **AfA, booked or computed, was decided for the whole year.** One asset with bookings made the computed AfA of every other asset vanish from GuV 7a and the BWA. A machine booked monthly (2 400) plus an unbooked laptop of 24.10.2025 (91,67) showed 2 400 instead of 2 491,67. EÜR (4600), Anlage S and Anlage G took only the booked AfA, which is 0 when nothing is booked. Now `afaOfYear` (booked-afa.ts) works per asset: booked rows for assets with bookings in the year, `computedAfaInWindow` for the rest. GuV, BWA (month, YTD, prior-year YTD), P&L, EÜR, Anlage S and Anlage G use it. The GuV note says „für Anlagen ohne Buchung berechnet" when some AfA is computed. Anlage S's `afaSource` is `computed` when nothing is booked but there is AfA (was `nicht_gebucht`). The basis is § 7 EStG, applied asset by asset: the AfA of an asset does not depend on whether another asset was booked.
+
+Spec 529 (9 checks fail on Tier 831): the inference cases and unchanged plain cases, the company default 4980 against 4930, the mixed case in GuV / BWA / P&L / EÜR 2025, and the computed-only year 2026 in EÜR / Anlage S / G.
+
+Spec 466 (Tier 746) changed: after the AfA storno the EÜR shows the asset's computed 1 200 in 4600, as the GuV (it asserted no AfA, i.e. booked-only). Locally: the 130 backend specs that read the changed files or AfA / EÜR / GuV / BWA / DATEV, with the guards; the 62 Playwright specs on the same pages.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 831b — CI green for Tier 831
 
 Run 43012534797 (Tier 831, 6619de61): six jobs, backend **527 passed / 0 failed / 1 skipped**, Playwright **1159 passed (38.1 m)** (`help-tier831` among them); 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘.

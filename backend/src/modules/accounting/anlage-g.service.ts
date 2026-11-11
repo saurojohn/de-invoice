@@ -13,7 +13,7 @@ import PDFDocument from 'pdfkit'
 import { invoiceNetRevenue, invoiceTaxBreakdown } from '../invoice/tax-breakdown'
 import { SALES_TYPES } from '../invoice/document-scope'
 import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
-import { bookedAfaCost, NOT_AFA_BOOKING } from './booked-afa'
+import { afaOfYear, NOT_AFA_BOOKING } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 import { homeOfficeDeduction } from '../home-office/home-office'
@@ -533,7 +533,8 @@ export class AnlageGService {
       if (l.kind === 'zins') finanzierung.zinsen += l.amount
       else if (n >= 4210 && n <= 4229) finanzierung.mieteImmobil += l.amount // Miete / Pacht (SKR03)
     }
-    addCost('2500', (await bookedAfaCost(this.prisma, companyId, year)).amount)
+    // Tier 832: per asset, booked or computed (booked-afa.ts afaOfYear)
+    addCost('2500', (await afaOfYear(this.prisma, companyId, year)).cost(yearStart, yearEnd, 12))
     // Tier 440: book value of assets sold or scrapped (disposals.ts).
     addCost('2890', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
     // Tier 464: cash purchases from the Kassenbuch (cash-bookings.ts).

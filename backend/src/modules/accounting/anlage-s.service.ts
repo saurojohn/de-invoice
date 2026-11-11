@@ -9,7 +9,7 @@ import PDFDocument from 'pdfkit'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
-import { bookedAfaCost } from './booked-afa'
+import { afaOfYear, bookedAfaCost } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 import { homeOfficeDeduction } from '../home-office/home-office'
@@ -88,7 +88,7 @@ export interface AnlageSResult {
   // exist for this year (4600 has a real
   // value). 'nicht_gebucht' if no booking
   // has been made (4600 stays at 0).
-  afaSource: 'booked' | 'nicht_gebucht'
+  afaSource: 'booked' | 'computed' | 'nicht_gebucht' // Tier 832: computed when no booking but assets
   generatedAt: string
   disclaimer: string
 }
@@ -277,6 +277,9 @@ export class AnlageSService {
     // Tier 436: as a cost — the rows' netAmount is negative, and the line
     // took it as it was, so the AfA raised the Gewinn (booked-afa.ts).
     const bookedAfa = await bookedAfaCost(this.prisma, companyId, year)
+    // Tier 832: per asset, booked or computed (booked-afa.ts afaOfYear) — the
+    // form had no AfA until „AfA buchen“ was clicked
+    const afaAmount = (await afaOfYear(this.prisma, companyId, year)).cost(new Date(year, 0, 1), new Date(year, 11, 31, 23, 59, 59, 999), 12)
 
     // Bucket revenues by Kennziffer. The
     // matchers are evaluated in order; the first
@@ -368,7 +371,7 @@ export class AnlageSService {
         return {
           kennziffer: d.kz,
           label: d.label,
-          amount: round2(bookedAfa.amount + manualAfa),
+          amount: round2(afaAmount + manualAfa),
         }
       }
       return {
@@ -405,7 +408,7 @@ export class AnlageSService {
       },
       // Tier 87: 4600 is "gebucht" if a booking
       // exists, else "nicht gebucht" (0).
-      afaSource: bookedAfa.count > 0 ? 'booked' : 'nicht_gebucht',
+      afaSource: bookedAfa.count > 0 ? 'booked' : afaAmount !== 0 ? 'computed' : 'nicht_gebucht',
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren Buchungen generiert. ' +

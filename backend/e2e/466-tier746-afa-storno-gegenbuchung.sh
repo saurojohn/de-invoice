@@ -52,7 +52,9 @@ assert_eq "GuV: no booking counted — it falls back to its computed AfA, and sa
   "$(P "d['afaSource']")" "computed"
 assert_eq "DATEV: the counter-entry takes it back, S/H turned (a storno row of the same sign would double it)" "$(datev)" "0.00"
 AS GET "/api/v1/accounting/euer?companyId=$C&year=2026"
-[[ "$STATUS" == "200" ]] && assert_eq "EÜR: no AfA" "$(P "str(d).count('1200')")" "0"
+# (Tier 832: the EÜR takes an asset's computed AfA when it has no booking, as the GuV)
+[[ "$STATUS" == "200" ]] && assert_eq "EÜR: no booking counted — the asset's computed 1 200 (as the GuV), not the pair" \
+  "$(P "' '.join('%.2f' % l['amount'] for l in d.get('ausgaben',[]) if l.get('kennziffer')=='4600')")" "1200.00"
 AS POST "/api/v1/assets/storno-afa?companyId=$C&year=2026"
 assert_eq "a second storno finds nothing" "$(P "d['stornoedCount']")/$(rows)" "0/2|0.00|0"
 AS GET "/api/v1/expenses?companyId=$C"
