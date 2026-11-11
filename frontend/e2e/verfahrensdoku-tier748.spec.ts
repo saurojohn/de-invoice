@@ -33,7 +33,13 @@ test("the accounting page hands out the company's Verfahrensdokumentation as a W
   await page.waitForLoadState("networkidle")
   await link.scrollIntoViewIfNeeded()
 
-  const download = page.waitForEvent("download", { timeout: 60_000 })
+  // The link opens a new tab (target=_blank): Chromium reports the download on
+  // this page or on the new one — whichever comes (Tier 833: once on CI it was
+  // the new tab, and the wait on this page ran out after 60 s).
+  const download = Promise.any([
+    page.waitForEvent("download", { timeout: 60_000 }),
+    page.waitForEvent("popup", { timeout: 60_000 }).then((p) => p.waitForEvent("download", { timeout: 60_000 })),
+  ])
   await link.click()
   const file = await download
   expect(decodeURIComponent(file.suggestedFilename())).toMatch(new RegExp(`^Verfahrensdokumentation-${tag}_GmbH-\\d{4}-\\d{2}-\\d{2}\\.docx$`))

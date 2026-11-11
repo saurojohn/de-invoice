@@ -313,10 +313,13 @@ export class KSt1Service {
     // KSt: 15% × max(0, ZvE). For ZvE <= 0 (loss),
     // KSt is 0 and the Verlustvortrag (Kz 50) carries
     // forward.
-    const kst = round2(Math.max(0, zve) * 0.15)
-    // Soli: 5.5% × KSt. Note: Soli is on the KSt
-    // (not the ZvE directly), per § 3 SolzG.
-    const soli = round2(kst * 0.055)
+    // Tier 833: the KSt is rounded to full euros in the taxpayer's favour
+    // (§ 31 Abs. 1 S. 2 KStG) — 15 % of 3 988,89 is 598, not 598,33. In cents,
+    // so that no float puts 150,00 at 149,99.
+    const kst = Math.floor((Math.round(Math.max(0, zve) * 100) * 15) / 10000)
+    // Soli: 5.5% × the KSt as set (§ 3 Abs. 1 Nr. 1 SolZG; no Freigrenze for a
+    // corporation), fractions of a cent dropped (§ 4 S. 3 SolZG).
+    const soli = Math.floor((kst * 55) / 10) / 100
 
     // Gewerbesteuer:
     //   Steuermessbetrag = max(0, ZvE) rounded down to 100 € × 3.5%

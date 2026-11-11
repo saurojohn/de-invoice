@@ -75,6 +75,8 @@ import { GuVService } from './guv.service'
  *     separate tier (probably a week+ of work).
  */
 
+const BILANZ_POSITIONS = ['0100', '0200', '0300', '0400', '0500']
+
 export interface BilanzLine {
   position: string       // e.g. "1500"
   label: string          // e.g. "Forderungen aus Lieferungen und Leistungen"
@@ -196,6 +198,15 @@ export class BilanzService {
     // DEFAULT_BILANZ_KONTO map, with the
     // user-overridden `bilanzKonto` winning if
     // set).
+    // Tier 833: `bilanzKonto` is one of the positions 0100–0500. Anything
+    // else — an SKR03 account such as 0210 Maschinen, through the API — took
+    // the asset off the Bilanz altogether (its Buchwert landed in a pool no
+    // line reads, and the Saldoposten absorbed it); it now counts under the
+    // position of the asset's type.
+    const positionOf = (asset: { bilanzKonto: string | null; type: string }): string =>
+      asset.bilanzKonto && BILANZ_POSITIONS.includes(asset.bilanzKonto)
+        ? asset.bilanzKonto
+        : DEFAULT_BILANZ_KONTO[asset.type as keyof typeof DEFAULT_BILANZ_KONTO] || '0400'
     const poolByPosition: Record<string, number> = {
       '0100': 0,
       '0200': 0,
@@ -205,8 +216,7 @@ export class BilanzService {
     }
     const hasAssets = afaSummaries.length > 0
     for (const summary of afaSummaries) {
-      const asset = allAssets.find((a) => a.id === summary.assetId)!
-      const pos = asset.bilanzKonto || DEFAULT_BILANZ_KONTO[asset.type as keyof typeof DEFAULT_BILANZ_KONTO] || '0400'
+      const pos = positionOf(allAssets.find((a) => a.id === summary.assetId)!)
       poolByPosition[pos] = (poolByPosition[pos] || 0) + summary.buchwert
     }
 
@@ -389,13 +399,7 @@ export class BilanzService {
     // a 0-value position still renders as
     // "0.00" instead of being hidden.
     const hasAnyAssetAt = (pos: string) =>
-      afaSummaries.some(
-        (s) => {
-          const asset = allAssets.find((a) => a.id === s.assetId)!
-          const mapped = asset.bilanzKonto || DEFAULT_BILANZ_KONTO[asset.type as keyof typeof DEFAULT_BILANZ_KONTO] || '0400'
-          return mapped === pos
-        },
-      )
+      afaSummaries.some((s) => positionOf(allAssets.find((a) => a.id === s.assetId)!) === pos)
 
     const aktivaAV: BilanzSection = {
       title: 'A. Anlagevermögen',

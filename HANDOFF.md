@@ -2673,6 +2673,39 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 833 — the year-end drill: 2025 of a GmbH, cross-checked; the KSt to the full euro, an asset on an SKR03 account on the Bilanz
+
+The next step of the recommendation (11.11.2026, „继续"). The year 2026 cannot be closed before its end: the books do not close past today. So the drill uses the year a GmbH closes this autumn, 2025. The setup:
+
+- A second company on the day1 server (scratchpad `day1/year.sh`, `day1/year-check.sh`), invited by the operator: a GmbH founded 02.01.2025 with a Stammeinlage of 25 000 €, Soll, quarterly UStVA, HE, Hebesatz 440.
+- Eight invoices: domestic 19 % and 7 %, an igL to Austria, a § 3a service to France, an export to Switzerland. Two of them are open at the year end.
+- Twelve bills: quarterly rent, goods, an igE from Italy, Google Ads under § 13b, the adviser, a book at 7 %. Two of them are open.
+- A machine of 6 000 € on 0210, its AfA booked monthly, and a laptop on 0400, its AfA not booked: Tier 832's per-asset AfA.
+- One bank statement for the year. The six payments in were matched and confirmed, and ten bills paid from their lines.
+- The four UStVA filed, three paid or refunded.
+
+Every figure was worked out by hand first, then read. All of these agreed:
+- the quarters' Kz 83 (−1 558 / −456 / 494 / −699,50) and the Q3/Q4 Kennzahlen;
+- the ZM;
+- the USt-Jahreserklärung (−2 219,50 = the four quarters);
+- the GuV (revenue 21 400, materials 5 800, AfA 1 100 booked + 61,11 computed, other costs 10 450);
+- the GewSt (3 900 → 136,50 → 600,60);
+- receivables, bank, the Q4 refund as a claim, payables;
+- DATEV (Soll = Haben);
+- the E-Bilanz XML and the Anhang;
+- the books closed through 31.12.2025, after which a bill dated 2025 is refused.
+
+The control figure: the Saldoposten (the equity apart from the year's result) must be the Stammeinlage, 25 000. Two things did not agree:
+
+- **KSt to the cent.** KSt 1 took 15 % of the zvE to the cent: 3 988,89 → 598,33, and Soli 32,91. The KSt amounts are rounded to full euros in the taxpayer's favour (§ 31 Abs. 1 S. 2 KStG), so the KSt is 598. The Soli is 5,5 % of the KSt as set (§ 3 Abs. 1 Nr. 1 SolZG; no Freigrenze for a corporation), with fractions of a cent dropped (§ 4 S. 3 SolZG): 32,89. The zvE itself is not rounded: § 31 has no rule for it, and § 32a EStG is the income-tax tariff, not § 23 KStG. The calculation works in cents. The GuV's taxes, the Jahresüberschuss (2 757,40, was 2 757,05) and the Steuerrückstellung (1 231,49) follow.
+- **An asset on an SKR03 account was off the Bilanz.** `Asset.bilanzKonto` holds the Bilanz position (0100–0500); the API accepted any text. The machine with 0210 (SKR03 Maschinen) had its Buchwert of 4 900 in a pool no line reads, and the Saldoposten took it: 20 100 instead of 25 000. A value that is not a position now counts under the position of the asset's type (`positionOf`). The asset form does not send the field, so only the API or an import could set it.
+
+Also seen, not changed:
+- Invoices entered now for 2025 are numbered INV-2026-…: the number's year is the year of entry. That is § 14 Abs. 4 Nr. 4 UStG-conform (unique, sequential), and only matters for an after-the-fact entry like this drill.
+- A request with the Bearer token alone, without `x-company-id`, is answered 401 „keine gültige Sitzung". The app always sends the header.
+
+Spec 530 (5 checks fail on Tier 832): KSt 598 / Soli 32,89 / GewSt, the Jahresüberschuss and the Steuerrückstellung that follow, and a machine on 0210 under 0300 with the Anlagevermögen's subtotal. Specs 128 and 228 follow the rounding (228: 15 007,50 → 15 007, Soli 825,41 → 825,38). Locally: the 96 backend specs that read KSt / GuV / Bilanz / GewSt / E-Bilanz / Anhang, with the guards; the 15 Playwright specs on those pages (57 tests); the two specs flaky in 832b's run, hardened.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 832b — CI green for Tier 832, two flaky
 
 Run 43040924391 (Tier 832, 21f96bbf). The first attempt's Playwright job never ran a test: installing its system packages failed (security.ubuntu.com unreachable, `apt` exit 100). The other five jobs were green. Re-run of the failed job: six jobs, backend **528 passed / 0 failed / 1 skipped** (529 among them), Playwright **1157 passed (47.0 m)**, **2 flaky**. Both passed on retry; both were timing on a slow runner, hardened in Tier 833:

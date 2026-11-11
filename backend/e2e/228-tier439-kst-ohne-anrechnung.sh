@@ -37,12 +37,12 @@ AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"sent"}'
 AS GET "/api/v1/accounting/kst1?companyId=$C&year=$Y"
 T() { py "print(d['totals'].get('$1'))"; }
 assert_eq "ZvE = Jahresüberschuss" "$(T zve)" "100050"
-assert_eq "KSt 15 %" "$(T kst)" "15007.5"
-assert_eq "Soli 5,5 % of the KSt" "$(T soli)" "825.41"
+assert_eq "KSt 15 %, rounded down to the euro (§ 31 Abs. 1 S. 2 KStG, Tier 833; was 15007.5)" "$(T kst)" "15007"
+assert_eq "Soli 5,5 % of the KSt, cent fractions dropped (§ 4 S. 3 SolZG; was 825.41)" "$(T soli)" "825.38"
 assert_eq "GewSt-Messbetrag: 100 000 (rounded down to 100) × 3,5 % (was 3501.75)" "$(T gewstMessbetrag)" "3500"
 assert_eq "GewSt × 400 %" "$(T gewst)" "14000"
 assert_eq "no KSt-Anrechnung (was 13306.65)" "$(T kstAnrechnung)" "None"
-assert_eq "zu zahlen = KSt + Soli + GewSt (was 16533.26)" "$(T zuZahlen)" "29832.91"
+assert_eq "zu zahlen = KSt + Soli + GewSt (was 16533.26)" "$(T zuZahlen)" "29832.38"
 curl -sS -o /tmp/t439.pdf -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/accounting/kst1.pdf?companyId=$C&year=$Y"
 assert_eq "PDF still renders" "$(head -c 4 /tmp/t439.pdf)" "%PDF"
 

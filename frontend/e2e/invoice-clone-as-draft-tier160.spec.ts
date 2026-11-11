@@ -196,7 +196,8 @@ test.describe('Tier 160 — Invoice clone as draft', () => {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     await page.getByTestId('invoice-clone').click()
     // URL should be /invoices/create with ?cloneFrom=...
-    await page.waitForURL(/\/dashboard\/invoices\/create\?cloneFrom=/, { timeout: 5_000 })
+    // (30 s: the dev server compiles the create page on its first visit — 5 s was flaky on CI, Tier 833)
+    await page.waitForURL(/\/dashboard\/invoices\/create\?cloneFrom=/, { timeout: 30_000 })
   })
 
   test('create page pre-fills customer + items + notes + discounts from source', async ({

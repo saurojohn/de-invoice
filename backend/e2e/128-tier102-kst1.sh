@@ -85,8 +85,8 @@ soli = d['totals']['soli']
 gewst = d['totals']['gewst']
 messbetrag = d['totals']['gewstMessbetrag']
 hebesatz = d['totals']['hebesatz']
-expected_kst = round(max(0, zve) * 0.15, 2)
-expected_soli = round(expected_kst * 0.055, 2)
+expected_kst = (round(max(0, zve) * 100) * 15) // 10000  # Tier 833: full euros in the taxpayer's favour, § 31 Abs. 1 S. 2 KStG
+expected_soli = (expected_kst * 55 // 10) / 100            # 5,5 % of the KSt as set, cent fractions dropped (§ 4 S. 3 SolZG)
 expected_messbetrag = round(max(0, zve // 100 * 100) * 0.035, 2)  # Tier 439: § 11 GewStG, rounded down to 100
 expected_gewst = round(expected_messbetrag * hebesatz / 100, 2)
 print(f'{abs(kst - expected_kst) < 0.01}|{abs(soli - expected_soli) < 0.01}|{abs(messbetrag - expected_messbetrag) < 0.01}|{abs(gewst - expected_gewst) < 0.01}|{kst}|{soli}|{messbetrag}|{gewst}|{expected_kst}|{expected_soli}|{expected_messbetrag}|{expected_gewst}')
