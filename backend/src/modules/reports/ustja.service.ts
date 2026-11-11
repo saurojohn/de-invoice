@@ -301,9 +301,9 @@ export class UstjaService {
 
     doc.fontSize(9).font('Helvetica-Bold')
     doc.text('Monat', colMonth, tableTop)
-    doc.text('USt (Kz 66)', colUSt, tableTop, { width: 110, align: 'right' })
-    doc.text('Vorsteuer (Kz 67)', colVSt, tableTop, { width: 110, align: 'right' })
-    doc.text('Zahllast (Kz 68)', colZahl, tableTop, { width: 95, align: 'right' })
+    doc.text('Umsatzsteuer', colUSt, tableTop, { width: 110, align: 'right' })
+    doc.text('Vorsteuer', colVSt, tableTop, { width: 110, align: 'right' })
+    doc.text('Zahllast / Überschuss', colZahl, tableTop, { width: 95, align: 'right' })
     doc.moveDown(0.3)
     doc
       .moveTo(colMonth, doc.y)

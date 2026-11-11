@@ -24,7 +24,7 @@ async function signIn(page: import("@playwright/test").Page, userId: string, com
   }, { userId, companyId, locale })
 }
 
-test("the guide: from the dashboard, seven sections with their pages; the operator's for the operator", async ({ page, request }) => {
+test("the guide: from the dashboard, eight sections with their pages; the operator's for the operator", async ({ page, request }) => {
   test.setTimeout(180_000)
   const tag = `t831-${Date.now()}`
   const reg = await (await request.post(`${API}/api/v1/auth/register`, {
@@ -38,13 +38,15 @@ test("the guide: from the dashboard, seven sections with their pages; the operat
   for (const [id, href] of [
     ["start", "/dashboard/settings"], ["invoice", "/dashboard/invoices/create"], ["expense", "/dashboard/expenses"],
     ["bank", "/dashboard/bank-import"], ["dunning", "/dashboard/invoices?status=overdue"],
-    ["month", "/dashboard/accounting/ustva"], ["adviser", "/dashboard/reports"],
+    ["month", "/dashboard/accounting/ustva"], ["year", "/dashboard/accounting"], ["adviser", "/dashboard/reports"],
   ]) {
     await expect(page.getByTestId(`help-link-${id}`)).toHaveAttribute("href", href)
     expect(await page.getByTestId(`help-${id}`).locator("li").count(), `steps of ${id}`).toBeGreaterThan(0)
   }
   await expect(page.locator("body")).not.toContainText("help.sections")
   await expect(page.getByTestId("help-month")).toContainText("Als übermittelt erfassen")
+  // Tier 833: the year end — its last step names the closing as the page shows it
+  await expect(page.getByTestId("help-year")).toContainText("Bücher abschließen (Festschreibung)")
   // not the operator: no operator section
   await page.waitForLoadState("networkidle")
   await expect(page.getByTestId("help-operator")).toHaveCount(0)

@@ -19,6 +19,7 @@ const SECTIONS: { id: string; href: string; operatorOnly?: boolean }[] = [
   { id: "bank", href: "/dashboard/bank-import" },
   { id: "dunning", href: "/dashboard/invoices?status=overdue" },
   { id: "month", href: "/dashboard/accounting/ustva" },
+  { id: "year", href: "/dashboard/accounting" },
   { id: "adviser", href: "/dashboard/reports" },
   { id: "operator", href: "/dashboard/operator", operatorOnly: true },
 ]
