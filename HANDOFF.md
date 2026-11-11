@@ -2673,6 +2673,24 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 835 — the year end through the owner's eyes: the UStJA's columns, the KSt prepayments' hint, the Bilanz's sources; „Jahresende" in the Kurzanleitung
+
+The second step of the recommendation (11.11.2026). The production build of the day1 server was walked through in the browser, signed in as Jahr Leder GmbH's owner. The page is the accounting page with the year 2025 selected, as after the 31.12. What a non-accountant reads there:
+
+- **UStJA.** The monthly table's columns were „Umsatzsteuer (Kz 66)", „Vorsteuer (Kz 67)", „Zahllast (Kz 68)". In the Voranmeldung and in USt 2 A, Kz 66 is input tax and Kz 67 is § 13b input tax, and the balance is Kz 83. Now „Umsatzsteuer", „Vorsteuer", „Zahllast / Überschuss" (en/zh alike), on the page and in its PDF. The texts spoke of „12 monatlichen UStVAs" for a company that files quarterly; now „die Voranmeldungen des Jahres (monatlich oder vierteljährlich)". The table itself stays by month.
+- **KSt 1.** The hint said „KSt-Vorauszahlungen (Kz 60) sind hier NICHT berücksichtigt", directly under the prepayment fields whose sum the „Verbleibend (Steuerrückstellung)" subtracts (Tier 507). Now: enter the prepayments of the notice here; they reduce the Steuerrückstellung; the assessment sets what is finally due.
+- **Bilanz.** The subtitle named open items, cash and customer credit as its sources. Now: the asset register, open invoices and bills, cash book and bank statements, the year's taxes.
+- **Kurzanleitung.** A section „Jahresende: das Geschäftsjahr abschließen" (de/en/zh, each label as its page shows it), between the month end and the adviser:
+  1. everything of the year entered and matched, the last return filed;
+  2. „AfA buchen";
+  3. the forms of the year, checking Aktiva = Passiva and the bank;
+  4. the Berater-Paket and the DATEV export; the adviser files; a GmbH's accounts are published within twelve months (§ 325 HGB);
+  5. „Bücher abschließen (Festschreibung)".
+
+Also seen, not changed: **the in-app Belegliste is a journal of bank movements.** A bill's payment is booked gross to its own expense account or the company default (4900), the asset bill too (0210 is not an expense account, so 4900). The bill itself is not journalised, and the voucher text carries the `[expense:<id>]` link that several services read. DATEV and the Buchungsliste are built from the documents (3200 / 4210 / Kreditor, the machine on its asset account) and are what the adviser gets. The reports read only hand-made vouchers. Bringing the journal to Soll bookkeeping (the bill on entry, its payment against Verbindlichkeiten) is a larger change — for the owner to decide whether it is wanted.
+
+Playwright `help-tier831` checks the eighth section and its last step. No spec quoted the changed texts. The service's own disclaimer („aus den 12 monatlichen UStVA-Daten“) stays: the computation does add up twelve monthly values, and guard 389's dictionaries translate it by its wording. Locally: the 82 backend specs reading UStJA / KSt 1 / Bilanz / i18n with the guards; the Playwright specs of the help, accounting, UStJA, KSt and Bilanz pages and the page walks (102 tests).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 834 — the year-end drill continued into 2026: the handover between the years holds; no change
 
 The owner's „继续" on the recommendation (11.11.2026). Jahr Leder GmbH of Tier 833 was carried into 2026, up to today (scratchpad `day1/y2026.sh`), as a GmbH stands now:
