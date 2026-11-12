@@ -258,3 +258,23 @@ export class GewstSettingsDto extends YearDto {
   @Max(1000, { message: 'hebesatz ist zu groß' })
   hebesatz?: number
 }
+
+/**
+ * Tier 837 — the loss carried into `year` as the Verlustfeststellungsbescheid
+ * of 31.12. of the year before states it (§ 10d Abs. 4 EStG, § 10a S. 6
+ * GewStG), per tax. null (or left out) clears the entry: the app then carries
+ * its own years' losses.
+ */
+function AmountOrNull(): PropertyDecorator {
+  return (target, key) => {
+    ValidateIf((_o, v) => v !== undefined && v !== null)(target, key)
+    IsNumber({ allowNaN: false, allowInfinity: false }, { message: `${String(key)} muss eine Zahl sein` })(target, key)
+    Min(0, { message: `${String(key)} darf nicht negativ sein` })(target, key)
+    Max(AMOUNT_MAX, { message: `${String(key)} ist zu groß` })(target, key)
+  }
+}
+
+export class VerlustvortragDto extends YearDto {
+  @AmountOrNull() kst?: number | null
+  @AmountOrNull() gewst?: number | null
+}

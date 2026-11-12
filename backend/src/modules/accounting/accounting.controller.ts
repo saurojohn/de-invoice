@@ -12,7 +12,7 @@ import {
   AnlageKindSettingsDto,
   AnlageSoSettingsDto,
   AnlageAusSettingsDto,
-  GewstSettingsDto, ZusammenveranlagungDto,
+  GewstSettingsDto, VerlustvortragDto, ZusammenveranlagungDto,
 } from './dto/tax-settings.dto';
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
@@ -1584,6 +1584,39 @@ export class AccountingController {
         data: { settings: { ...settings, kstVorauszahlungen: all } } as any,
       })
       return { ok: true, year: body.year, vorauszahlungen: all[body.year] }
+    })
+  }
+
+  // Tier 837: the loss carried into the year as the Verlustfeststellungsbescheid
+  // states it — KSt (§ 10d Abs. 4 EStG) and GewSt (§ 10a S. 6 GewStG). Body:
+  // { year, kst, gewst } (null clears: the app carries its own years' losses).
+  // It changes the year's taxes, so not in a year whose books are closed.
+  @Require('accounting.update')
+  @Put('kst1/verlustvortrag')
+  @UseGuards(HeaderAuthGuard)
+  async updateVerlustvortrag(
+    @Query('companyId') companyId: string,
+    @Body() body: VerlustvortragDto,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return companySettingsTransaction(this.prisma, companyId, async (tx) => {
+      const company = await tx.company.findUnique({ where: { id: companyId } })
+      if (!company) throw new BadRequestException('Firma nicht gefunden')
+      const settings = ((company as any).settings ?? {}) as Record<string, any>
+      const all = { ...((settings.verlustvortrag as any) || {}) }
+      const norm = (v: unknown) => (v === undefined || v === null ? null : Math.round(Number(v) * 100) / 100)
+      const next = { kst: norm(body.kst), gewst: norm(body.gewst) }
+      const before = all[body.year] || {}
+      if ((before.kst ?? null) !== next.kst || (before.gewst ?? null) !== next.gewst) {
+        await assertBooksOpen(tx as any, companyId, [`${body.year}-12-31T12:00:00Z`], `das Ändern des Verlustvortrags ${body.year}`)
+      }
+      if (next.kst === null && next.gewst === null) delete all[body.year]
+      else all[body.year] = next
+      await tx.company.update({
+        where: { id: companyId },
+        data: { settings: { ...settings, verlustvortrag: all } } as any,
+      })
+      return { ok: true, year: body.year, verlustvortrag: all[body.year] ?? { kst: null, gewst: null } }
     })
   }
 

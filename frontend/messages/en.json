@@ -3104,7 +3104,7 @@
   },
   "kst1": {
     "title": "KSt 1 (preview)",
-    "subtitle": "Corporate tax return (§ 1 Abs. 1 KStG) — the main tax return of a corporation (GmbH, AG, KGaA). Anlage G does not apply — KSt 1 takes its place. Takes the annual result of the profit and loss account and computes KSt 15% + Soli 5.5% + GewSt (no allowance for a GmbH; Hebesatz 400% while none is entered under Gewerbesteuer) — without a trade-tax credit against the corporate tax (§ 35 EStG applies to natural persons only). KSt corrections (hidden profit distributions, donations, loss carryforward) are placeholders — the tax advisor adds them. Have your tax advisor review before filing.",
+    "subtitle": "Corporate tax return (§ 1 Abs. 1 KStG) — the main tax return of a corporation (GmbH, AG, KGaA). Anlage G does not apply — KSt 1 takes its place. Takes the annual result of the profit and loss account and computes KSt 15% + Soli 5.5% + GewSt (no allowance for a GmbH; Hebesatz 400% while none is entered under Gewerbesteuer) — without a trade-tax credit against the corporate tax (§ 35 EStG applies to natural persons only). KSt corrections (hidden profit distributions, donations) are placeholders — the tax advisor adds them; the loss deduction is computed by the app from the losses of the years before. Have your tax advisor review before filing.",
     "year": "Fiscal year",
     "recompute": "Compute",
     "downloadPdf": "Download PDF",
@@ -3119,14 +3119,28 @@
     "keineAnrechnung": "No credit of the trade tax against the corporate tax: the § 35 EStG relief applies to natural persons (sole traders, partners) only, not to a corporation.",
     "zuZahlen": "Payable (KSt + Soli + GewSt)",
     "kstHint": "Enter the prepayments from the prepayment notice here — they reduce the tax provision in the balance sheet. What is finally due or refunded is set by the tax assessment.",
-    "korrekturenHint": "These corrections (hidden profit distributions, donations, loss carryforward, § 8b KStG) are placeholders — the tax advisor adds them from contracts, donation receipts and loss carryforward notices. They cannot be entered in the app.",
+    "korrekturenHint": "The corrections marked ⚠ (hidden profit distributions, donations, § 8b KStG) are placeholders — the tax advisor adds them from contracts and donation receipts; they cannot be entered in the app. The loss deduction (Kz 50) is computed by the app from the losses of the years before — or from the loss assessment notice, below under \"Loss carryforward\".",
     "rechtsform": "Legal form",
     "generatedAt": "Generated",
     "vorauszahlungenTitle": "Corporate tax prepayments (incl. Soli) per assessment",
     "vorauszahlungenSave": "Save",
     "vorauszahlungenSaved": "Prepayments saved",
     "vorauszahlungenTotal": "Prepayments KSt + GewSt",
-    "verbleibend": "Remaining (tax provision)"
+    "verbleibend": "Remaining (tax provision)",
+    "verlustTitle": "Loss carryforward (§ 10d EStG, § 10a GewStG)",
+    "verlustKst": "Corporate tax",
+    "verlustGewst": "Trade tax (Fehlbetrag)",
+    "verlustAnfang": "Carried forward at 31.12.{year}",
+    "verlustAbzug": "Deducted in {year}",
+    "verlustZugang": "Loss of {year}",
+    "verlustEnde": "Carried forward at 31.12.{year}",
+    "verlustQuelleBerechnet": "from the years before in the app",
+    "verlustQuelleBescheid": "per loss assessment notice",
+    "verlustQuelleKeiner": "none",
+    "verlustBescheid": "Per loss assessment notice at 31.12.{year} (empty = from the years before in the app)",
+    "verlustSave": "Save",
+    "verlustSaved": "Loss carryforward saved",
+    "verlustHint": "A loss carryforward is deducted in full up to €1,000,000; beyond that 70% (2024–2027, otherwise 60%) for corporate tax and 60% for trade tax. A carry-back to the year before is not taken into account. Once the notice has arrived, enter its figure — it takes precedence."
   },
   "anlageR": {
     "title": "Anlage R (preview)",
@@ -3497,7 +3511,8 @@
     "generatedAt": "Generated",
     "hebesatzLabel": "Hebesatz of the municipality",
     "hebesatzHint": "It is stated in the trade tax assessment. While nothing is entered, 400 % is used. The Hebesatz holds for every year and for Anlage G and KSt 1 as well.",
-    "hebesatzInvalid": "The Hebesatz is a whole number between 200 and 1000."
+    "hebesatzInvalid": "The Hebesatz is a whole number between 200 and 1000.",
+    "fehlbetrag": "Trade income {ertrag} € — less the Fehlbetrag of the years before (§ 10a GewStG): {abzug} € of {anfang} € ({quelle}); carried forward at 31.12.{year}: {ende} €."
   },
   "payments": {
     "title": "SEPA batch payment (pain.001)",

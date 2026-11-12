@@ -2673,6 +2673,51 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 837 — the loss carried forward: a loss year's loss is deducted the year after (KSt § 10d EStG, GewSt § 10a GewStG); the Bescheid's figures can be entered
+
+Recommendation 3, the loss-year drill (12.11.2026), on the day1 production images: a third company, Anlauf Leder GmbH (invited by the operator, `creds.anlauf` in the scratchpad), founded 2025.
+
+- **2025.** Stammeinlage 25 000, a shareholder loan of 15 000, revenue 10 000, costs 41 000 (rent, a launch campaign of 20 000, goods, adviser): **a loss of 31 000**.
+- **2026.** Revenue 60 000, costs 20 000, KSt and GewSt prepayments (500 + 400) booked from the bank: **a profit of 40 000 before taxes**.
+
+The script is `$S/day1/anlauf.sh` (`setup` once, then the checks).
+
+What was right:
+- the four UStVA of each year (Kz 83 −2 090 / −4 370 / 1 330 / −760, then 1 710 / 3 230 / 3 230);
+- the loss year: no taxes, the Bilanz balanced, the Q4 refund as a claim, the adviser's bill as a payable;
+- the prepayments recognised from the bank texts and subtracted;
+- DATEV with Soll = Haben.
+
+What was wrong: **the 2025 loss was not deducted in 2026.** KSt 1 taxed the full 40 000 €: KSt 6 000, Soli 330, GewSt 5 600, together 11 930. With the loss deducted it is zvE 9 000: KSt 1 350, Soli 74,25, GewSt 1 260, together 2 684,25. The GuV's taxes, the Jahresüberschuss (28 070 instead of 37 315,75) and the Bilanz's Steuerrückstellung (11 030 instead of 1 784,25) were 9 245,75 € off. Kz 50 (Verlustabzug) was a placeholder that could not be filled in anywhere. A GmbH with losses in its first years is the common case.
+
+**Accounting decision (mine, as delegated):**
+- **KSt:** § 8 Abs. 1 KStG with § 10d Abs. 2 EStG. Up to 1 000 000 € in full; beyond that 70 % of the rest in 2024–2027 (§ 52 Abs. 18b EStG), 60 % otherwise (`verlustProzent`, Tier 678).
+- **GewSt:** § 10a S. 1–2 GewStG. The same 1 000 000 €; beyond that **60 % in every year**. The Wachstumschancengesetz raised only § 10d EStG; the change of § 10a GewStG was dropped from the final law (checked 12.11.2026, several sources). Deducted before the rounding and the Freibetrag of § 11.
+- **What the app carries:** the loss of its own years, back to the first year with an invoice or bill (`verlustvortrag.ts`). Only for a Kapitalgesellschaft in KSt 1; the GewSt form for everyone.
+- **Not modelled:** the carry-back into the year before (§ 10d Abs. 1 EStG, KSt only; on by law unless waived). The note on Kz 50 says so.
+- **The Bescheid wins:** the figures of the Verlustfeststellungsbescheid (§ 10d Abs. 4 EStG, § 10a S. 6 GewStG) are binding. Entered per year and tax, they replace the app's own, and the following years go on from them. That is also how a loss from before the app gets in.
+
+The change:
+- **KSt 1** (`kst1.service.ts`): Kz 50 is computed from the loss carried in. It is still a placeholder when nothing is carried in, with a note saying where to enter one. The result carries `verlustvortrag: { kst, gewst }` (anfang, quelle berechnet | bescheid | keiner, abzug, zugang, ende). The GewSt line deducts the Fehlbetrag. The GuV, the Bilanz, the Anhang and the E-Bilanz follow through KSt 1.
+- **The GewSt form** (`gewst.service.ts`): deducts its own Fehlbetrag account, taken from Anlage G's Gewerbeertrag. Without § 8/9 corrections it is the same figure as KSt 1's. The result carries `fehlbetrag`, and the PDF has a line for it.
+- **Entry:** `PUT /accounting/kst1/verlustvortrag` `{ year, kst, gewst }`. The figures are as at 31.12. of the year before; `null` clears; negative or text values are refused. It is refused in a year whose books are closed. On the page it sits in the KSt 1 section as a block „Verlustvortrag": the table of the two accounts, two fields for the Bescheid's figures, and a hint on the 1 Mio / 70 % / 60 % and the carry-back. The GewSt section has one line on the Fehlbetrag (de/en/zh). The texts that called the Verlustabzug a placeholder „nicht eintragbar" are updated (messages and the form dictionaries, guard 389).
+
+Spec `531-tier837-verlustvortrag.sh` (27 checks; 19 fail on the old code):
+- 2025 loss / 2026 profit: KSt 1, GuV, Bilanz and the GewSt form;
+- the Bescheid's figures and clearing them;
+- the minimum taxation beyond 1 Mio (a 2 Mio loss, then 1,5 Mio profit: KSt deducts 1 350 000, GewSt 1 300 000);
+- validation, and the closed year.
+
+Playwright `verlustvortrag-tier837.spec.ts`. Locally:
+- the 59 backend specs on KSt 1 / GewSt / GuV / Bilanz / Anhang / E-Bilanz and the guards, 75 in all, are green;
+- the Playwright specs of the accounting page are green.
+
+Also seen, not changed (for the adviser or the owner):
+- **The shareholder loan is in the Saldoposten.** The 15 000 count as equity (EKV 40 000 at 31.12.2025), as v1 has no loan position (4100 / sonstige Verbindlichkeiten). It hides that the loss has used up the Stammkapital: the real equity is −6 000, a nicht durch Eigenkapital gedeckter Fehlbetrag (§ 268 Abs. 3 HGB).
+- **Losing half the Stammkapital** obliges the managing director to call a shareholders' meeting at once (§ 49 Abs. 3 GmbHG). The app records no Stammkapital and so cannot warn.
+
+Both are business decisions to put to the owner: a loan register, and the Stammkapital in the company data with a warning.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 836b — CI green for Tier 836, no flaky
 
 Run 43186581561 (Tier 836, 8e9f4d06): six jobs, backend **529 passed / 0 failed / 1 skipped**, Playwright **1159 passed (36.7 m)**, **0 flaky**, no retry, no Traceback, no `REFUSED`. `verfahrensdoku-tier748` passed on the first try; its popup logger printed `about:blank` (the download's own tab, not the accounting page), so the link pointed at the document from the first click.

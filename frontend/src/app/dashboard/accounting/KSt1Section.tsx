@@ -17,6 +17,14 @@ interface KSt1Line {
   note?: string
 }
 
+interface VerlustKonto {
+  anfang: number
+  quelle: "berechnet" | "bescheid" | "keiner"
+  abzug: number
+  zugang: number
+  ende: number
+}
+
 interface KSt1Result {
   year: number
   companyId: string
@@ -38,6 +46,8 @@ interface KSt1Result {
     verbleibend: number
   }
   kstVorauszahlungen: { q1: number; q2: number; q3: number; q4: number }
+  // Tier 837: the loss accounts of the year
+  verlustvortrag?: { kst: VerlustKonto; gewst: VerlustKonto }
   counts: {
     invoices: number
     expenses: number
@@ -77,6 +87,9 @@ export function KSt1Section() {
   // Tier 507: the KSt (+ Soli) prepayments of the four quarters
   const [vz, setVz] = useState({ q1: "", q2: "", q3: "", q4: "" })
   const [savingVz, setSavingVz] = useState(false)
+  // Tier 837: the loss carried in as the Bescheid states it ("" = the app's own years)
+  const [vv, setVv] = useState({ kst: "", gewst: "" })
+  const [savingVv, setSavingVv] = useState(false)
 
   // Tier 804: only the answer for the year selected last is shown — a year
   // set from the link (below) must not be overwritten by the first load's answer
@@ -97,6 +110,11 @@ export function KSt1Section() {
       setData(result)
       const q = result.kstVorauszahlungen || { q1: 0, q2: 0, q3: 0, q4: 0 }
       setVz({ q1: q.q1 ? String(q.q1) : "", q2: q.q2 ? String(q.q2) : "", q3: q.q3 ? String(q.q3) : "", q4: q.q4 ? String(q.q4) : "" })
+      const v = result.verlustvortrag
+      setVv({
+        kst: v?.kst.quelle === "bescheid" ? String(v.kst.anfang) : "",
+        gewst: v?.gewst.quelle === "bescheid" ? String(v.gewst.anfang) : "",
+      })
     } catch (e: any) {
       if (seq !== loadSeq.current) return
       const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
@@ -132,6 +150,25 @@ export function KSt1Section() {
       toastRef.current.error(msg)
     } finally {
       setSavingVz(false)
+    }
+  }
+
+  const saveVv = async () => {
+    setSavingVv(true)
+    try {
+      const companyId = typeof window !== "undefined" ? localStorage.getItem("companyId") : null
+      if (!companyId) return
+      const toNum = (s: string) => (s.trim() === "" ? null : Number(s.replace(",", ".")))
+      await apiPut(`/api/v1/accounting/kst1/verlustvortrag?companyId=${companyId}`, {
+        year, kst: toNum(vv.kst), gewst: toNum(vv.gewst),
+      })
+      toastRef.current.success(tRef.current("kst1.verlustSaved"))
+      await load(year)
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.message : tRef.current("common.loadError")
+      toastRef.current.error(msg)
+    } finally {
+      setSavingVv(false)
     }
   }
 
@@ -401,6 +438,76 @@ export function KSt1Section() {
               <p className="mt-1 text-[10px] text-gray-500" data-testid="kst1-kst-hint">
                 ⚠ {tRef.current("kst1.kstHint")}
               </p>
+
+              {/* Tier 837: the loss carried forward — KSt and GewSt */}
+              {data.isKapitalgesellschaft && data.verlustvortrag && (
+                <div className="mt-3 p-3 border rounded" data-testid="kst1-verlustvortrag">
+                  <div className="text-sm font-medium mb-2">{tRef.current("kst1.verlustTitle")}</div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs text-gray-500 border-b">
+                        <th className="text-left py-1"></th>
+                        <th className="text-right py-1">{tRef.current("kst1.verlustAnfang", { year: data.year - 1 })}</th>
+                        <th className="text-right py-1">{tRef.current("kst1.verlustAbzug", { year: data.year })}</th>
+                        <th className="text-right py-1">{tRef.current("kst1.verlustZugang", { year: data.year })}</th>
+                        <th className="text-right py-1">{tRef.current("kst1.verlustEnde", { year: data.year })}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(["kst", "gewst"] as const).map((tax) => {
+                        const k = data.verlustvortrag![tax]
+                        const quelle = k.quelle === "bescheid" ? "verlustQuelleBescheid" : k.quelle === "berechnet" ? "verlustQuelleBerechnet" : "verlustQuelleKeiner"
+                        return (
+                          <tr key={tax} className="border-b" data-testid={`kst1-verlust-${tax}`}>
+                            <td className="py-1 text-xs">
+                              {tRef.current(tax === "kst" ? "kst1.verlustKst" : "kst1.verlustGewst")}
+                              <span className="block text-[10px] text-gray-500" data-testid={`kst1-verlust-${tax}-quelle`}>
+                                {tRef.current(`kst1.${quelle}`)}
+                              </span>
+                            </td>
+                            <td className="py-1 text-right font-mono">{fmt(k.anfang)}</td>
+                            <td className="py-1 text-right font-mono" data-testid={`kst1-verlust-${tax}-abzug`}>{fmt(-k.abzug)}</td>
+                            <td className="py-1 text-right font-mono">{fmt(k.zugang)}</td>
+                            <td className="py-1 text-right font-mono font-bold" data-testid={`kst1-verlust-${tax}-ende`}>{fmt(k.ende)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="mt-3 text-xs text-gray-600 dark:text-gray-300">
+                    {tRef.current("kst1.verlustBescheid", { year: data.year - 1 })}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-end gap-2">
+                    {(["kst", "gewst"] as const).map((tax) => (
+                      <label key={tax} className="text-xs">
+                        <span className="block text-gray-600 dark:text-gray-300">
+                          {tRef.current(tax === "kst" ? "kst1.verlustKst" : "kst1.verlustGewst")}
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="border rounded px-2 py-1 w-36 text-sm bg-white dark:bg-gray-800"
+                          value={vv[tax]}
+                          onChange={(e) => setVv({ ...vv, [tax]: e.target.value })}
+                          data-testid={`kst1-vv-${tax}`}
+                        />
+                      </label>
+                    ))}
+                    <button
+                      className="px-3 py-1 text-sm border rounded"
+                      onClick={saveVv}
+                      disabled={savingVv}
+                      data-testid="kst1-vv-save"
+                    >
+                      💾 {tRef.current("kst1.verlustSave")}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[10px] text-gray-500" data-testid="kst1-verlust-hint">
+                    {tRef.current("kst1.verlustHint")}
+                  </p>
+                </div>
+              )}
 
               <div
                 className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs text-amber-800 dark:text-amber-200"

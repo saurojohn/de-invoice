@@ -3,6 +3,7 @@ import { resolveRechtsform, isKapitalgesellschaft as isKapitalgesellschaftFn } f
 import { expenseCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { nonDeductibleGifts } from './gifts'
 import { prepaymentsOfYear } from './prepayments-of-year'
+import { eingetragenerVortrag, ersterBuchjahr, eur, gewstVerlustProzent, verlustKonto, type VerlustKonto, type VerlustQuelle } from './verlustvortrag'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { GuVService } from './guv.service'
@@ -61,7 +62,7 @@ import PDFDocument from 'pdfkit'
  *   - Hebesatz der Gemeinde (Company.settings.hebesatz, default 400)
  *   - Verdeckte Gewinnausschüttungen (§ 8 Abs. 3 KStG) — placeholder
  *   - Spendenabzug (§ 9 Abs. 1 Nr. 2 KStG) — placeholder
- *   - Verlustabzug (§ 8 Abs. 1 KStG) — placeholder
+ *   - Verlustabzug (§ 8 Abs. 1 KStG) — Tier 837: from the app's years before / the Bescheid
  *   - KSt-Vorauszahlungen / GewSt-Vorauszahlungen — placeholder
  *
  * v2 work: separate KSt + GewSt Korrekturen
@@ -93,6 +94,8 @@ export interface KSt1Result {
   // Bottom-line
   /** Tier 507: the KSt (+ Soli) prepayments recorded per quarter */
   kstVorauszahlungen: { q1: number; q2: number; q3: number; q4: number }
+  /** Tier 837: the loss accounts of the year — KSt (§ 10d EStG) and GewSt (§ 10a GewStG) */
+  verlustvortrag: { kst: VerlustKonto; gewst: VerlustKonto }
   totals: {
     jahresueberschuss: number
     zve: number // Zu versteuerndes Einkommen
@@ -153,7 +156,7 @@ const KORREKTUREN_LINES: Array<{
     kz: '50',
     label: 'Verlustabzug (§ 8 Abs. 1 KStG) — Kürzung',
     // the percentage of the year is put in by compute() — VERLUST_PROZENT
-    note: 'Vorgetragene Verluste sind bis 1.000.000 EUR unbeschränkt und darüber bis zu {prozent} % des übersteigenden Gesamtbetrags der Einkünfte abziehbar (Mindestbesteuerung, § 10d Abs. 2 EStG). Vom Berater aus dem Verlustfeststellungsbescheid zu ergänzen.',
+    note: 'Vorgetragene Verluste sind bis 1.000.000 EUR unbeschränkt und darüber bis zu {prozent} % des übersteigenden Gesamtbetrags der Einkünfte abziehbar (Mindestbesteuerung, § 10d Abs. 2 EStG). Aus den Vorjahren in der App ergibt sich keiner; einen Verlustvortrag aus der Zeit vor der App trägt der Berater unter „Verlustvortrag“ aus dem Feststellungsbescheid ein.',
   },
   {
     kz: '60',
@@ -308,7 +311,24 @@ export class KSt1Service {
     // ZvE = Jahresüberschuss + Σ Korrekturen (Tier 485: Kz 80 computed, the
     // others placeholders for the Berater).
     const korrekturenTotal = corrections.reduce((s, l) => s + l.amount, 0)
-    const zve = round2(jahresueberschuss + korrekturenTotal)
+    // Tier 837: the result before the Verlustabzug, and the loss carried in —
+    // the Bescheid's figure if entered, else the app's own year before (see
+    // verlustvortrag.ts). Was: Kz 50 a placeholder, the full profit taxed.
+    const vorVerlust = round2(jahresueberschuss + korrekturenTotal)
+    const vortrag = await this.vortragIn(companyId, year, settings, isKapitalgesellschaft)
+    const verlustKst = verlustKonto(vortrag.kst.betrag, vortrag.kst.quelle, vorVerlust, verlustProzent(year))
+    // § 7 GewStG: the Gewerbeertrag starts from the same result (no § 8/9 corrections here)
+    const verlustGewst = verlustKonto(vortrag.gewst.betrag, vortrag.gewst.quelle, vorVerlust, gewstVerlustProzent(year))
+    const kz50 = corrections.find((l) => l.kennziffer === '50')
+    if (kz50 && (verlustKst.anfang > 0 || verlustKst.quelle === 'bescheid')) {
+      kz50.amount = -verlustKst.abzug
+      kz50.source = 'computed'
+      // one wording per source (the interface translates it by its text, numbers masked)
+      kz50.note = verlustKst.quelle === 'bescheid'
+        ? `Verbleibender Verlustvortrag zum 31.12.${year - 1} laut Feststellungsbescheid (eingetragen): ${eur(verlustKst.anfang)} €; abgezogen ${eur(verlustKst.abzug)} € (bis 1.000.000 € voll, darüber ${verlustProzent(year)} %, § 10d Abs. 2 EStG); verbleibend zum 31.12.${year}: ${eur(verlustKst.ende)} €.`
+        : `Verbleibender Verlustvortrag zum 31.12.${year - 1} aus den Vorjahren in der App: ${eur(verlustKst.anfang)} €; abgezogen ${eur(verlustKst.abzug)} € (bis 1.000.000 € voll, darüber ${verlustProzent(year)} %, § 10d Abs. 2 EStG); verbleibend zum 31.12.${year}: ${eur(verlustKst.ende)} €. Ein Verlustrücktrag (§ 10d Abs. 1 EStG) ist nicht berücksichtigt — der Feststellungsbescheid geht vor.`
+    }
+    const zve = round2(vorVerlust - verlustKst.abzug)
 
     // KSt: 15% × max(0, ZvE). For ZvE <= 0 (loss),
     // KSt is 0 and the Verlustvortrag (Kz 50) carries
@@ -327,7 +347,8 @@ export class KSt1Service {
     // For GmbH: NO 24 500 € Freibetrag (Freibetrag gilt
     // nur für Einzelunternehmen / Personengesell-
     // schaften per § 11 Abs. 1 GewStG).
-    const gewstMessbetrag = round2(Math.max(0, Math.floor(zve / 100) * 100) * 0.035)
+    // Tier 837: less the Fehlbetrag carried in (§ 10a GewStG), before the rounding of § 11
+    const gewstMessbetrag = round2(Math.max(0, Math.floor((vorVerlust - verlustGewst.abzug) / 100) * 100) * 0.035)
     const gewst = round2(gewstMessbetrag * hebesatz / 100)
 
     // Zu zahlen = KSt + Soli + GewSt. Tier 439: no credit of the GewSt
@@ -360,6 +381,7 @@ export class KSt1Service {
         q3: Number(settings.kstVorauszahlungen?.[year]?.q3) || 0,
         q4: Number(settings.kstVorauszahlungen?.[year]?.q4) || 0,
       },
+      verlustvortrag: { kst: verlustKst, gewst: verlustGewst },
       totals: {
         jahresueberschuss: round2(jahresueberschuss),
         zve,
@@ -384,10 +406,40 @@ export class KSt1Service {
         '§ 1 Abs. 1 KStG. KSt 15% + Soli 5.5% (auf KSt) + GewSt (Hebesatz 400 %, solange unter ' +
         'Gewerbesteuer kein anderer eingetragen ist). Die Gewerbesteuer wird NICHT auf die KSt angerechnet (die ' +
         'Steuerermäßigung des § 35 EStG gilt nur für natürliche Personen). Im Gegensatz zur Einkommensteuer KEIN Freibetrag für GmbH/AG. Die KSt-Korrekturen ' +
-        '(vGAs, Spendenabzug, Verlustabzug, ausländische Steuern, § 8b KStG) sind als Platzhalter ' +
+        '(vGAs, Spendenabzug, ausländische Steuern, § 8b KStG) sind als Platzhalter ' +
         'markiert — der Steuerberater ergänzt sie aus dem Anlagenverzeichnis, den Verträgen und ' +
-        'den Steuerbescheiden.',
+        'den Steuerbescheiden. Der Verlustabzug (Kz 50) und der Gewerbeverlust (§ 10a GewStG) ' +
+        'werden aus den Verlusten der Vorjahre in der App berechnet; der eingetragene ' +
+        'Feststellungsbescheid geht vor.',
     }
+  }
+
+  /**
+   * Tier 837 — the loss carried into `year`, per tax: the Bescheid's figure
+   * entered for the year, else what the app's year before carried on (its own
+   * KSt 1, which goes back the same way to the first year with books), else 0.
+   * Only for a Kapitalgesellschaft — for anyone else KSt 1 is no return.
+   */
+  private async vortragIn(
+    companyId: string,
+    year: number,
+    settings: Record<string, any>,
+    kapitalgesellschaft: boolean,
+  ): Promise<Record<'kst' | 'gewst', { betrag: number; quelle: VerlustQuelle }>> {
+    const kstE = eingetragenerVortrag(settings, year, 'kst')
+    const gewstE = eingetragenerVortrag(settings, year, 'gewst')
+    let prev: KSt1Result | null = null
+    if (kapitalgesellschaft && (kstE === null || gewstE === null)) {
+      const first = await ersterBuchjahr(this.prisma, companyId)
+      if (first !== null && year - 1 >= first && year - 1 >= 2000) prev = await this.compute(companyId, year - 1)
+    }
+    const one = (entered: number | null, tax: 'kst' | 'gewst') =>
+      entered !== null
+        ? { betrag: entered, quelle: 'bescheid' as const }
+        : prev && prev.verlustvortrag[tax].ende > 0
+          ? { betrag: prev.verlustvortrag[tax].ende, quelle: 'berechnet' as const }
+          : { betrag: 0, quelle: 'keiner' as const }
+    return { kst: one(kstE, 'kst'), gewst: one(gewstE, 'gewst') }
   }
 
   /**

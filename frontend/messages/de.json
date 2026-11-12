@@ -3104,7 +3104,7 @@
   },
   "kst1": {
     "title": "KSt 1 (Vorschau)",
-    "subtitle": "Körperschaftsteuererklärung (§ 1 Abs. 1 KStG) — die PRIMÄRE Steuererklärung für Kapitalgesellschaften (GmbH, AG, KGaA). Anlage G ist hier NICHT zutreffend — KSt 1 ersetzt es. Liest den G+V Jahresüberschuss + berechnet KSt 15 % + Soli 5,5 % + GewSt (kein Freibetrag für GmbH, default Hebesatz 400 %) — ohne Anrechnung der GewSt auf die KSt (§ 35 EStG gilt nur für natürliche Personen). KSt-Korrekturen (verdeckte Gewinnausschüttungen, Spenden, Verlustabzug) sind Platzhalter — der Steuerberater ergänzt sie. Vor der Einreichung durch den Steuerberater prüfen lassen.",
+    "subtitle": "Körperschaftsteuererklärung (§ 1 Abs. 1 KStG) — die PRIMÄRE Steuererklärung für Kapitalgesellschaften (GmbH, AG, KGaA). Anlage G ist hier NICHT zutreffend — KSt 1 ersetzt es. Liest den G+V Jahresüberschuss + berechnet KSt 15 % + Soli 5,5 % + GewSt (kein Freibetrag für GmbH, default Hebesatz 400 %) — ohne Anrechnung der GewSt auf die KSt (§ 35 EStG gilt nur für natürliche Personen). KSt-Korrekturen (verdeckte Gewinnausschüttungen, Spenden) sind Platzhalter — der Steuerberater ergänzt sie; den Verlustabzug rechnet die App aus den Verlusten der Vorjahre. Vor der Einreichung durch den Steuerberater prüfen lassen.",
     "year": "Geschäftsjahr",
     "recompute": "Berechnen",
     "downloadPdf": "PDF herunterladen",
@@ -3119,14 +3119,28 @@
     "keineAnrechnung": "Keine Anrechnung der Gewerbesteuer auf die Körperschaftsteuer: die Steuerermäßigung des § 35 EStG gilt nur für natürliche Personen (Einzelunternehmer, Mitunternehmer), nicht für eine Kapitalgesellschaft.",
     "zuZahlen": "Zu zahlen (KSt + Soli + GewSt)",
     "kstHint": "Die Vorauszahlungen laut Vorauszahlungsbescheid hier eintragen — sie mindern die Steuerrückstellung in der Bilanz. Was am Ende zu zahlen ist oder erstattet wird, setzt der Steuerbescheid fest.",
-    "korrekturenHint": "Diese Korrekturen (vGAs, Spenden, Verlustabzug, § 8b KStG) sind als Platzhalter markiert — der Steuerberater ergänzt sie aus den Verträgen, Spendenbescheinigungen und Verlustvortragsbescheiden. In der App lassen sie sich nicht eintragen.",
+    "korrekturenHint": "Die mit ⚠ markierten Korrekturen (vGAs, Spenden, § 8b KStG) sind Platzhalter — der Steuerberater ergänzt sie aus den Verträgen und Spendenbescheinigungen; in der App lassen sie sich nicht eintragen. Den Verlustabzug (Kz 50) rechnet die App aus den Verlusten der Vorjahre — oder aus dem Feststellungsbescheid, unten unter „Verlustvortrag“.",
     "rechtsform": "Rechtsform",
     "generatedAt": "Erstellt",
     "vorauszahlungenTitle": "KSt-Vorauszahlungen (inkl. Soli) laut Bescheid",
     "vorauszahlungenSave": "Speichern",
     "vorauszahlungenSaved": "Vorauszahlungen gespeichert",
     "vorauszahlungenTotal": "Vorauszahlungen KSt + GewSt",
-    "verbleibend": "Verbleibend (Steuerrückstellung)"
+    "verbleibend": "Verbleibend (Steuerrückstellung)",
+    "verlustTitle": "Verlustvortrag (§ 10d EStG, § 10a GewStG)",
+    "verlustKst": "Körperschaftsteuer",
+    "verlustGewst": "Gewerbesteuer (Fehlbetrag)",
+    "verlustAnfang": "Vortrag zum 31.12.{year}",
+    "verlustAbzug": "abgezogen {year}",
+    "verlustZugang": "Verlust {year}",
+    "verlustEnde": "Vortrag zum 31.12.{year}",
+    "verlustQuelleBerechnet": "aus den Vorjahren in der App",
+    "verlustQuelleBescheid": "laut Feststellungsbescheid",
+    "verlustQuelleKeiner": "kein Vortrag",
+    "verlustBescheid": "Laut Feststellungsbescheid zum 31.12.{year} (leer = aus den Vorjahren in der App)",
+    "verlustSave": "Speichern",
+    "verlustSaved": "Verlustvortrag gespeichert",
+    "verlustHint": "Bis 1.000.000 € wird ein Verlustvortrag voll abgezogen, darüber bei der Körperschaftsteuer 70 % (2024–2027, sonst 60 %), bei der Gewerbesteuer 60 % des übersteigenden Betrags. Der Verlustrücktrag in das Vorjahr ist nicht berücksichtigt. Sobald der Bescheid vorliegt, dessen Betrag eintragen — er geht vor."
   },
   "anlageR": {
     "title": "Anlage R (Vorschau)",
@@ -3497,7 +3511,8 @@
     "generatedAt": "Erstellt",
     "hebesatzLabel": "Hebesatz der Gemeinde",
     "hebesatzHint": "Er steht im Gewerbesteuerbescheid. Solange nichts eingetragen ist, wird mit 400 % gerechnet. Der Hebesatz gilt für alle Jahre und auch für Anlage G und KSt 1.",
-    "hebesatzInvalid": "Der Hebesatz ist eine ganze Zahl zwischen 200 und 1000."
+    "hebesatzInvalid": "Der Hebesatz ist eine ganze Zahl zwischen 200 und 1000.",
+    "fehlbetrag": "Gewerbeertrag {ertrag} € — davon abgezogen der Fehlbetrag aus den Vorjahren (§ 10a GewStG): {abzug} € von {anfang} € ({quelle}); vorzutragen zum 31.12.{year}: {ende} €."
   },
   "payments": {
     "title": "SEPA-Sammelüberweisung (pain.001)",

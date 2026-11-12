@@ -3104,7 +3104,7 @@
   },
   "kst1": {
     "title": "KSt 1 公司所得税申报（预览）",
-    "subtitle": "Körperschaftsteuererklärung（§ 1 Abs. 1 KStG）— 资合公司（GmbH、AG、KGaA）的核心报税表。Anlage G 不适用 — KSt 1 替代。读取 G+V 年度利润 + 计算 KSt 15% + Soli 5.5% + 工商税（GmbH 无免税额，默认 Hebesatz 400%）— 工商税不抵扣 KSt（§ 35 EStG 只适用于自然人）。KSt 修正（隐性利润分配、捐赠、亏损结转）为占位 — 税务师补充。提交前请税务师审核。",
+    "subtitle": "Körperschaftsteuererklärung（§ 1 Abs. 1 KStG）— 资合公司（GmbH、AG、KGaA）的核心报税表。Anlage G 不适用 — KSt 1 替代。读取 G+V 年度利润 + 计算 KSt 15% + Soli 5.5% + 工商税（GmbH 无免税额，默认 Hebesatz 400%）— 工商税不抵扣 KSt（§ 35 EStG 只适用于自然人）。KSt 修正（隐性利润分配、捐赠）为占位 — 税务师补充；亏损扣除由程序根据以前年度的亏损计算。提交前请税务师审核。",
     "year": "财年",
     "recompute": "计算",
     "downloadPdf": "下载 PDF",
@@ -3119,14 +3119,28 @@
     "keineAnrechnung": "工商税不抵扣企业所得税：§ 35 EStG 的减免只适用于自然人（个体户、合伙人），不适用于资合公司。",
     "zuZahlen": "应缴（KSt + Soli + 工商税）",
     "kstHint": "请在此填入预缴通知书上的预缴税款 — 它们会减少资产负债表中的税务准备金。最终应缴或应退多少，以税务核定通知书为准。",
-    "korrekturenHint": "这些修正（隐性利润分配、捐赠、亏损结转、§ 8b KStG）为占位 — 税务师根据合同、捐赠收据、亏损结转通知补充。程序中无法填写。",
+    "korrekturenHint": "标有 ⚠ 的修正（隐性利润分配、捐赠、§ 8b KStG）为占位 — 税务师根据合同和捐赠收据补充，程序中无法填写。亏损扣除（Kz 50）由程序根据以前年度的亏损计算 — 或按下方“亏损结转”中填写的亏损确认通知书。",
     "rechtsform": "法律形式",
     "generatedAt": "生成时间",
     "vorauszahlungenTitle": "企业所得税预缴（含 Soli，按税单）",
     "vorauszahlungenSave": "保存",
     "vorauszahlungenSaved": "预缴已保存",
     "vorauszahlungenTotal": "KSt + GewSt 预缴合计",
-    "verbleibend": "剩余应缴（税金准备）"
+    "verbleibend": "剩余应缴（税金准备）",
+    "verlustTitle": "亏损结转（§ 10d EStG，§ 10a GewStG）",
+    "verlustKst": "企业所得税",
+    "verlustGewst": "营业税（Fehlbetrag）",
+    "verlustAnfang": "截至 {year} 年 12 月 31 日的结转额",
+    "verlustAbzug": "{year} 年扣除",
+    "verlustZugang": "{year} 年亏损",
+    "verlustEnde": "截至 {year} 年 12 月 31 日的结转额",
+    "verlustQuelleBerechnet": "根据程序中以前年度计算",
+    "verlustQuelleBescheid": "按亏损确认通知书",
+    "verlustQuelleKeiner": "无结转",
+    "verlustBescheid": "按截至 {year} 年 12 月 31 日的亏损确认通知书（留空 = 根据程序中以前年度计算）",
+    "verlustSave": "保存",
+    "verlustSaved": "亏损结转已保存",
+    "verlustHint": "亏损结转在 1,000,000 欧元以内全额扣除；超出部分，企业所得税可扣 70%（2024–2027 年，其他年份 60%），营业税可扣 60%。未考虑向上一年度的亏损追溯（Verlustrücktrag）。收到通知书后请填入其金额 — 以通知书为准。"
   },
   "anlageR": {
     "title": "Anlage R 附件（预览）",
@@ -3497,7 +3511,8 @@
     "generatedAt": "生成于",
     "hebesatzLabel": "所在市镇的 Hebesatz（营业税征收率）",
     "hebesatzHint": "见营业税核定通知书。未填写时按 400 % 计算。该数值对所有年度有效，也用于 Anlage G 和 KSt 1。",
-    "hebesatzInvalid": "Hebesatz 须为 200 到 1000 之间的整数。"
+    "hebesatzInvalid": "Hebesatz 须为 200 到 1000 之间的整数。",
+    "fehlbetrag": "营业收益 {ertrag} 欧元 — 扣除以前年度的亏损（Fehlbetrag，§ 10a GewStG）：{anfang} 欧元中的 {abzug} 欧元（{quelle}）；截至 {year} 年 12 月 31 日结转：{ende} 欧元。"
   },
   "payments": {
     "title": "SEPA 批量付款 (pain.001)",

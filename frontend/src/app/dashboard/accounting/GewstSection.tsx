@@ -26,6 +26,8 @@ interface GewstResult {
   freibetrag: number
   gewerbeertrag: number
   gewerbeertragNachFreibetrag: number
+  // Tier 837: the Gewerbeverlust carried in, deducted, carried on (§ 10a GewStG)
+  fehlbetrag?: { anfang: number; quelle: "berechnet" | "bescheid" | "keiner"; abzug: number; zugang: number; ende: number }
   lines: GewstLine[]
   vorauszahlungen: {
     q1: number
@@ -361,6 +363,20 @@ export function GewstSection() {
               <p className="mt-1 text-[10px] text-gray-500" data-testid="gewst-fields-hint">
                 ⚠ {tRef.current("gewst.fieldsHint")}
               </p>
+              {data.fehlbetrag && (data.fehlbetrag.anfang > 0 || data.fehlbetrag.zugang > 0) && (
+                <p className="mt-2 text-xs text-gray-700 dark:text-gray-200" data-testid="gewst-fehlbetrag">
+                  {tRef.current("gewst.fehlbetrag", {
+                    ertrag: fmt(data.gewerbeertrag).replace(/\s*€$/, ""),
+                    abzug: fmt(data.fehlbetrag.abzug).replace(/\s*€$/, ""),
+                    anfang: fmt(data.fehlbetrag.anfang).replace(/\s*€$/, ""),
+                    quelle: tRef.current(
+                      data.fehlbetrag.quelle === "bescheid" ? "kst1.verlustQuelleBescheid" : data.fehlbetrag.quelle === "berechnet" ? "kst1.verlustQuelleBerechnet" : "kst1.verlustQuelleKeiner",
+                    ),
+                    year: data.year,
+                    ende: fmt(data.fehlbetrag.ende).replace(/\s*€$/, ""),
+                  })}
+                </p>
+              )}
 
               {/* Summary block — 3 pills */}
               <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="gewst-summary">

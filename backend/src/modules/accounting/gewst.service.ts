@@ -3,6 +3,7 @@ import { prepaymentsOfYear } from './prepayments-of-year'
 import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AnlageGService } from './anlage-g.service'
+import { eingetragenerVortrag, ersterBuchjahr, gewstVerlustProzent, verlustKonto, type VerlustKonto } from './verlustvortrag'
 import PDFDocument from 'pdfkit'
 
 /**
@@ -59,6 +60,8 @@ export interface GewstResult {
   freibetrag: number
   gewerbeertrag: number
   gewerbeertragNachFreibetrag: number
+  /** Tier 837: the Gewerbeverlust carried in, deducted, carried on (§ 10a GewStG) */
+  fehlbetrag: VerlustKonto
   lines: GewstLine[]
   vorauszahlungen: {
     q1: number
@@ -137,7 +140,18 @@ export class GewstService {
     // ── BMF Vordruck GewSt 1A lines ──────────────
     const messzahl = 0.035
     const hebesatz = anlageG.totals.hebesatz // default 400 from AnlageG
-    const gewerbeertragNachFreibetrag = anlageG.totals.gewerbeertragNachFreibetrag
+    // Tier 837: less the Fehlbetrag of the years before (§ 10a GewStG) — before the
+    // rounding and the Freibetrag of § 11 Abs. 1. Was: the Gewerbeertrag of the
+    // year alone, a loss year's Fehlbetrag forgotten the year after.
+    const fehlbetrag = verlustKonto(
+      ...(await this.fehlbetragIn(companyId, year, settings)),
+      anlageG.totals.gewerbeertrag,
+      gewstVerlustProzent(year),
+    )
+    const gewerbeertragNachFreibetrag = Math.max(
+      0,
+      Math.floor((anlageG.totals.gewerbeertrag - fehlbetrag.abzug) / 100) * 100 - anlageG.totals.freibetrag,
+    )
     const steuermessbetrag = round2(gewerbeertragNachFreibetrag * messzahl)
     const festzusetzendeGewSt = round2(steuermessbetrag * (hebesatz / 100))
     const differenz = round2(festzusetzendeGewSt - vorauszahlungenTotal)
@@ -190,6 +204,7 @@ export class GewstService {
       freibetrag: anlageG.totals.freibetrag,
       gewerbeertrag: anlageG.totals.gewerbeertrag,
       gewerbeertragNachFreibetrag,
+      fehlbetrag,
       lines,
       vorauszahlungen: {
         q1: vq1,
@@ -236,6 +251,20 @@ export class GewstService {
     }
   }
 
+  /**
+   * Tier 837 — the Fehlbetrag carried into `year`: the Bescheid's figure
+   * entered (settings.verlustvortrag[year].gewst), else what the form of the
+   * year before carried on, back to the first year with books, else 0.
+   */
+  private async fehlbetragIn(companyId: string, year: number, settings: Record<string, any>): Promise<[number, VerlustKonto['quelle']]> {
+    const entered = eingetragenerVortrag(settings, year, 'gewst')
+    if (entered !== null) return [entered, 'bescheid']
+    const first = await ersterBuchjahr(this.prisma, companyId)
+    if (first === null || year - 1 < first || year - 1 < 2000) return [0, 'keiner']
+    const ende = (await this.compute(companyId, year - 1)).fehlbetrag.ende
+    return ende > 0 ? [ende, 'berechnet'] : [0, 'keiner']
+  }
+
   async renderPdf(companyId: string, year: number, res: any): Promise<void> {
     const data = await this.compute(companyId, year)
     const company = await this.prisma.company.findUnique({
@@ -277,6 +306,17 @@ export class GewstService {
     doc.moveDown(0.3)
     this.renderLinesTable(doc, data.lines)
     doc.moveDown(0.8)
+
+    // Tier 837: the Gewerbeverlust of the years before (§ 10a GewStG)
+    const fb = data.fehlbetrag
+    if (fb.anfang > 0 || fb.zugang > 0) {
+      doc.fontSize(10).font('Helvetica').text(
+        `Gewerbeertrag ${this.fmtEur(data.gewerbeertrag)} € — Fehlbetrag aus Vorjahren (§ 10a GewStG) ` +
+          `${this.fmtEur(fb.anfang)} €${fb.quelle === 'bescheid' ? ' (laut Bescheid)' : ''}, abgezogen ${this.fmtEur(fb.abzug)} €, ` +
+          `vorzutragen zum 31.12.${data.year}: ${this.fmtEur(fb.ende)} €`,
+      )
+      doc.moveDown(0.8)
+    }
 
     // Summary
     doc.fontSize(13).font('Helvetica-Bold')
