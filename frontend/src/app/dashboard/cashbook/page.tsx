@@ -101,6 +101,7 @@ export default function CashbookPage() {
   const [balance, setBalance] = useState<LiveBalance | null>(null)
   const [today, setToday] = useState<DayBalance | null>(null)
   const [todayClose, setTodayClose] = useState<DayClose | null>(null)
+  const [exportYear, setExportYear] = useState(() => new Date().getFullYear())
   const [recentCloses, setRecentCloses] = useState<DayClose[]>([])
   const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -374,7 +375,9 @@ export default function CashbookPage() {
 
   const exportCsv = () => {
     const companyId = localStorage.getItem("companyId")!
-    const year = new Date().getFullYear()
+    // Tier 840: the year is chosen — it was always the current one, so in
+    // January last year's Kassenbuch (for the Jahresabschluss) was out of reach
+    const year = exportYear
     const url = `/api/v1/cashbook/export?companyId=${companyId}&from=${year}-01-01&to=${year}-12-31`
     // Tier 389: a window.open cannot send the auth headers (401).
     downloadApiFile(url).catch((e: any) => toast.error(e?.message || "Export fehlgeschlagen"))
@@ -405,7 +408,19 @@ export default function CashbookPage() {
             <Button variant="outline" onClick={() => router.push("/dashboard")}>
               {t("common.back")}
             </Button>
-            <Button variant="outline" onClick={exportCsv}>
+            <select
+              data-testid="cashbook-export-year"
+              value={exportYear}
+              onChange={(e) => setExportYear(Number(e.target.value))}
+              aria-label={t("cashbook.exportYear")}
+              className="px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+            >
+              {Array.from({ length: 11 }, (_, i) => {
+                const y = new Date().getFullYear() - i
+                return <option key={y} value={y}>{y}</option>
+              })}
+            </select>
+            <Button variant="outline" onClick={exportCsv} data-testid="cashbook-export">
               {t("cashbook.exportCsv")}
             </Button>
           </div>

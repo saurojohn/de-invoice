@@ -215,6 +215,14 @@ export class CashBookController {
       ['Datum', 'Typ', 'Beschreibung', 'Gegenkonto', 'Beleg-Nr', 'Betrag EUR', 'MwSt %', 'Bemerkung', 'Z-Bericht', 'Bestand EUR'],
     ];
     let bestand = Math.round(book.anfang * 100);
+    // Tier 840: a period after the book's first entry begins with the cash
+    // carried in — it was only inside the first row's Bestand, and a period
+    // without entries of its own was the header alone.
+    if (book.carried) {
+      const first = requiredQueryDate(fromStr, 'from').toISOString().slice(0, 10)
+      const [y, m, d] = first.split('-')
+      rows.push([first, 'Übertrag', `Kassenbestand vor dem ${d}.${m}.${y}`, '', '', '', '', '', '', csvNumber(bestand / 100)]);
+    }
     for (const e of book.entries) {
       bestand += book.cashSign(e.type) * Math.round(Number(e.amount) * 100);
       const dateStr = e.businessDate.toISOString().split('T')[0];

@@ -476,6 +476,7 @@
     "amended": "后续修改过",
     "monthSummary": "月度汇总",
     "exportCsv": "导出 CSV",
+    "exportYear": "现金账年份",
     "empty": "尚无分录 — 请先录入期初余额。",
     "noCloses": "尚无日结。",
     "lastCloses": "最近日结",

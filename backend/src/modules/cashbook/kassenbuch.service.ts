@@ -331,7 +331,9 @@ export class KassenbuchService {
       where: { companyId, businessDate: { gte: from, lte: to } },
       orderBy: [{ businessDate: 'asc' }, { createdAt: 'asc' }],
     })
-    return { anfang, entries, cashSign }
+    // Tier 840: whether the book began before the period — then the export's
+    // first row is the Übertrag
+    return { anfang, carried: before.length > 0, entries, cashSign }
   }
 
   /**

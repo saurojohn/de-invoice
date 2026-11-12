@@ -476,6 +476,7 @@
     "amended": "amended",
     "monthSummary": "Monthly summary",
     "exportCsv": "Export CSV",
+    "exportYear": "Cash book year",
     "empty": "No entries yet — create the opening balance to start.",
     "noCloses": "No daily closes yet.",
     "lastCloses": "Recent daily closes",

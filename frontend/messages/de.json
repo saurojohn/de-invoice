@@ -476,6 +476,7 @@
     "amended": "nachträglich geändert",
     "monthSummary": "Monatszusammenfassung",
     "exportCsv": "CSV exportieren",
+    "exportYear": "Jahr des Kassenbuchs",
     "empty": "Noch keine Buchungen — legen Sie den Anfangsbestand an, um zu beginnen.",
     "noCloses": "Noch keine Tagesabschlüsse.",
     "lastCloses": "Letzte Tagesabschlüsse",

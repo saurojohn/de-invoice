@@ -2673,6 +2673,20 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 840 — the Kassenbuch of a chosen year, beginning with the Übertrag
+
+Looking at the cash book at the change of the year (12.11.2026), as the follow-up to the drill.
+
+**Last year's Kassenbuch could not be exported from the page.** The export button always took the current calendar year (`new Date().getFullYear()`). In January the Jahresabschluss needs the previous year's book, and the page had no way to it. Only the API took other dates. Now a year is chosen next to the button: the current year and the ten before it, the GoBD retention, as on the audit page's archive.
+
+**A period after the book's first entry hid the cash carried in.** Since Tier 838 the export is the whole book in order, with the running Bestand. The October book began "02.10. Einnahme 238 — Bestand 857"; the 619 € carried in were only inside that Bestand. A period with no entry of its own was the header alone. Now the first row is the **Übertrag**, dated on the period's first day: "Übertrag — Kassenbestand vor dem 01.10.2026 — 619,00". It is there whenever the book began before the period. From the Eröffnung on, there is no Übertrag row.
+
+Specs:
+- Backend spec 534 (2 checks fail on Tier 839): October with the Übertrag, September from the Eröffnung, a period without entries.
+- Playwright `kassenbuch-export-year-tier840`: last year's book chosen and downloaded; this year's begins with the Übertrag.
+
+Locally: the export specs (532, 534, 383, 317, 533) and the guards; the six Playwright specs that open the cash-book page (59 tests).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 839 — a counted difference is not booked, nor taken back, before a closed day
 
 The two items "seen, not changed" in Tier 838, looked at again (12.11.2026).
