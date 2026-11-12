@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 838b — CI green for Tier 838, no flaky
+
+Run 43301542656 (Tier 838, e2bb7fa4): six jobs, backend **531 passed / 0 failed / 1 skipped** (the new 532 included), Playwright **1161 passed (44.1 m)** (the new `kassendifferenz-tier838` included), **0 flaky**, no retry, no Traceback, no `REFUSED`. The production images of the day1 stack carry Tier 838: `migrate deploy` added `CashBookEntry.kind`; the cash-book drill (Kasse Leder, `$S/day1/kasse.sh`) 7/7 after reopening and re-closing 02.10. — the 2,50 € Fehlbetrag is a line of the book, the Kassenbestand is the counted 1 549, UStVA 10/2026 unchanged (330 / 28,50 / 301,50), EÜR Gewinn 1 949, DATEV Kasse 1 049 with Soll = Haben, the export oldest first with the last Bestand 1 549.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 838 — the cash-book drill: a counted difference is booked with the Tagesabschluss; the Kassenbuch export is the whole book in order, with the balance
 
 Recommendation 3, the cash-book drill (12.11.2026), on the day1 production images: a fourth company, Kasse Leder (an Einzelunternehmen, Ist-Versteuerung, monthly UStVA, EÜR; `creds.kasse` in the scratchpad). Its October 2026 in the Kassenbuch:
