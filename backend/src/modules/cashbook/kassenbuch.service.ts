@@ -169,6 +169,29 @@ export class KassenbuchService {
   }
 
   /**
+   * Tier 839 — the counted difference is a booking on its day (Tier 838):
+   * closing a day with one books it, reopening that day takes it back. Neither
+   * before a closed day, as no other entry (Tier 524, § 146 Abs. 1 AO): the
+   * later close's signed Anfangs- and Endbestand would no longer be the book's.
+   * Measured: 02.10. closed with 857 €, then 01.10. closed with a Fehlbetrag of
+   * 2 € — the book said 855 € at the end of 02.10.
+   */
+  private async assertNoLaterClose(companyId: string, bd: Date, what: string) {
+    const later = await this.prisma.cashBookDailyClose.findFirst({
+      where: { companyId, businessDate: { gt: bd } },
+      orderBy: { businessDate: 'desc' },
+      select: { businessDate: true },
+    })
+    if (later) {
+      const [y, m, d] = later.businessDate.toISOString().slice(0, 10).split('-')
+      throw new BadRequestException(
+        `Der ${d}.${m}.${y} ist bereits abgeschlossen — davor ${what}. ` +
+        'Öffnen Sie zuerst die späteren Tagesabschlüsse wieder, den letzten zuerst.',
+      )
+    }
+  }
+
+  /**
    * Sanity-check: only one opening entry ("eroeffnung")
    * per cash book lifetime. The DB doesn't enforce this
    * (a 2nd one is technically just a row), but the
@@ -811,6 +834,7 @@ export class KassenbuchService {
       : null
     if (differenzEntry) {
       await assertBooksOpen(this.prisma, companyId, [bd], 'eine Kassendifferenz im Kassenbuch')
+      await this.assertNoLaterClose(companyId, bd, 'kann keine Kassendifferenz mehr gebucht werden')
       if (differenz < 0) day.ausgaben = Math.round((day.ausgaben - differenz) * 100) / 100
       else day.einnahmen = Math.round((day.einnahmen + differenz) * 100) / 100
       day.ende = physicalCount
@@ -1066,6 +1090,7 @@ export class KassenbuchService {
     const differenzWhere = { companyId, businessDate: bd, kind: KASSENDIFFERENZ }
     if (await this.prisma.cashBookEntry.count({ where: differenzWhere })) {
       await assertBooksOpen(this.prisma, companyId, [bd], 'das Wiederöffnen eines Tages mit Kassendifferenz')
+      await this.assertNoLaterClose(companyId, bd, 'kann die Kassendifferenz dieses Tages nicht mehr zurückgenommen werden')
     }
     await this.prisma.$transaction([
       this.prisma.cashBookEntry.deleteMany({ where: differenzWhere }),

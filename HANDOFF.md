@@ -2673,6 +2673,20 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 839 — a counted difference is not booked, nor taken back, before a closed day
+
+The two items "seen, not changed" in Tier 838, looked at again (12.11.2026).
+
+**Closing days out of order: a hole that Tier 838 opened.** Tier 838 books the counted difference with the close and takes it back on reopening. Both are bookings on that day, and they did not go through Tier 524's rule (no entry before a closed day; the Kassenbuch is kept in order of time, § 146 Abs. 1 AO). Measured on Tier 838:
+- 02.10. was closed first with an Endbestand of 857 €. Then 01.10. was closed with a Fehlbetrag of 2 €. The 2 € were booked on 01.10. The book then said 855 € at the end of 02.10., while its signed close still said 857 €.
+- With 06.10. closed, reopening 05.10. took that day's Fehlbetrag back the same way.
+
+Now both are refused with "Der 02.10.2026 ist bereits abgeschlossen — davor kann keine Kassendifferenz mehr gebucht werden" (or "… die Kassendifferenz dieses Tages nicht mehr zurückgenommen werden") and the hint to reopen the later closes first, the latest first. A close or a reopening that books nothing (counted exactly, no difference on the day) stays allowed in any order; it moves no balance. The new helper is `assertNoLaterClose` in `kassenbuch.service.ts`.
+
+**The P&L page counts an Überschuss with the revenue. Not changed, by decision.** The page has a single revenue line and no line for other income. A manual voucher's sonstiger Ertrag and Zinsertrag go into the same line since Tier 817. The Überschuss is handled the same way, and the profit is right. The dashboard's figure is the profit only. GuV, BWA, EÜR and DATEV show the Überschuss as sonstiger Ertrag (Tier 838).
+
+Spec 533 (9 checks fail on Tier 838): an earlier day closed with a difference after a later one; an exact close in any order; reopening a day with a difference while a later day is closed; the closes reopened from the latest back and re-closed, with each signed Endbestand equal to the book's. Locally: the 102 backend specs that use the cash book, together with the guards.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 838b — CI green for Tier 838, no flaky
 
 Run 43301542656 (Tier 838, e2bb7fa4): six jobs, backend **531 passed / 0 failed / 1 skipped** (the new 532 included), Playwright **1161 passed (44.1 m)** (the new `kassendifferenz-tier838` included), **0 flaky**, no retry, no Traceback, no `REFUSED`. The production images of the day1 stack carry Tier 838: `migrate deploy` added `CashBookEntry.kind`; the cash-book drill (Kasse Leder, `$S/day1/kasse.sh`) 7/7 after reopening and re-closing 02.10. — the 2,50 € Fehlbetrag is a line of the book, the Kassenbestand is the counted 1 549, UStVA 10/2026 unchanged (330 / 28,50 / 301,50), EÜR Gewinn 1 949, DATEV Kasse 1 049 with Soll = Haben, the export oldest first with the last Bestand 1 549.
