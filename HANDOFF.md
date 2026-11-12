@@ -2673,6 +2673,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 840b — CI green for Tiers 839 and 840, no flaky
+
+- Run 43319026593 (Tier 839, 30dcf982): six jobs, backend **532 passed / 0 failed / 1 skipped** (the new 533 included), Playwright **1161 passed (38.2 m)**, **0 flaky**.
+- Run 43325202889 (Tier 840, b02975b3): six jobs, backend **533 passed / 0 failed / 1 skipped** (534 included), Playwright **1162 passed (45.0 m)** (`kassenbuch-export-year-tier840` included), **0 flaky**.
+- Neither run had a retry, a Traceback or a `REFUSED`.
+
+The day1 production images were rebuilt on Tier 840. The cash-book drill (`$S/day1/kasse.sh`) gives **9/9**: the seven checks of Tier 838, plus two new ones:
+- reopening 02.10. (which has a Fehlbetrag) is refused while 05.10. is closed;
+- the export from 02.10. begins with the Übertrag of 1 797 and ends at 1 549.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 840 — the Kassenbuch of a chosen year, beginning with the Übertrag
 
 Looking at the cash book at the change of the year (12.11.2026), as the follow-up to the drill.
