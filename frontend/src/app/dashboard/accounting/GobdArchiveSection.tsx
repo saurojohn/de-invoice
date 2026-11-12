@@ -51,6 +51,10 @@ export function GobdArchiveSection() {
   const [summary, setSummary] = useState<GobdSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [zipUrl, setZipUrl] = useState<string>("#")
+  // Tier 836: the Verfahrensdokumentation's own URL, known after mount. It was
+  // derived from zipUrl ("#" until the effect ran), so a click before that
+  // opened the page itself in a new tab instead of the Word file.
+  const [docUrl, setDocUrl] = useState<string | null>(null)
   // Tier 789: the archive and the Verfahrensdokumentation hold the audit log
   // (`audit.read`, Tier 779) — a viewer was shown both links and got a 403 on
   // the click. The role is the one in the company now open.
@@ -89,6 +93,7 @@ export function GobdArchiveSection() {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) {
       setZipUrl("#")
+      setDocUrl(null)
       return
     }
     const apiBase =
@@ -96,6 +101,7 @@ export function GobdArchiveSection() {
     setZipUrl(
       `${apiBase}/api/v1/accounting/gobd-archive?companyId=${companyId}&year=${year}`,
     )
+    setDocUrl(`${apiBase}/api/v1/accounting/verfahrensdokumentation?companyId=${encodeURIComponent(companyId)}`)
   }, [year])
 
   useEffect(() => {
@@ -159,8 +165,8 @@ export function GobdArchiveSection() {
                   </Button>
                 </a>
                 {/* Tier 748: the company's Verfahrensdokumentation, to complete in Word */}
-                <a
-                  href={zipUrl.replace(/\/gobd-archive\?.*$/, `/verfahrensdokumentation?companyId=${typeof window !== "undefined" ? localStorage.getItem("companyId") || "" : ""}`)}
+                {docUrl && <a
+                  href={docUrl}
                   target="_blank"
                   rel="noreferrer"
                   title={tRef.current("gobd.verfahrensdokuHint")}
@@ -169,7 +175,7 @@ export function GobdArchiveSection() {
                   <Button type="button" variant="outline">
                     📝 {tRef.current("gobd.verfahrensdoku")}
                   </Button>
-                </a>
+                </a>}
               </>
             )}
           </div>

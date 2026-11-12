@@ -2673,6 +2673,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 836 — the Verfahrensdokumentation's link has its own URL; it was „#“ until an effect ran
+
+Tier 835's run had `verfahrensdoku-tier748` flaky once more, after Tier 833 let the download come on the page or on the new tab. This time a new tab opened, and in 60 s neither it nor the page received the file; the retry passed in 3.7 s. The cause is in the page: the link's address was derived from the GoBD archive's URL by text replacement, and that URL is „#“ until an effect sets it after mount. A click before then opened the accounting page itself in a new tab, with no file. The link now has its own URL (`docUrl`), set in the same effect, and appears only once the URL is known.
+
+The spec checks the link's address before it clicks, and logs what a new tab shows, should one show a page again. Locally: the 11 Playwright specs of the GoBD section, the downloads and the page walks (51 tests).
+
+### Read-only mode refuses every write; a re-verification is one company's (Tier 835b — CI green for Tier 835, one flaky
+
+Run 43108632303 (Tier 835, d7bd618a): six jobs, backend **529 passed / 0 failed / 1 skipped**, Playwright **1158 passed (44.2 m)**, **1 flaky**: `verfahrensdoku-tier748` (download not within 60 s, passed on retry) — Tier 836. No Traceback, no `REFUSED`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 835 — the year end through the owner's eyes: the UStJA's columns, the KSt prepayments' hint, the Bilanz's sources; „Jahresende" in the Kurzanleitung
 
 The second step of the recommendation (11.11.2026). The production build of the day1 server was walked through in the browser, signed in as Jahr Leder GmbH's owner. The page is the accounting page with the year 2025 selected, as after the 31.12. What a non-accountant reads there:

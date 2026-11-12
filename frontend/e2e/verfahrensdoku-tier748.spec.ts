@@ -30,6 +30,9 @@ test("the accounting page hands out the company's Verfahrensdokumentation as a W
   await page.goto("/dashboard/accounting")
   const link = page.getByTestId("gobd-verfahrensdoku-link")
   await expect(link).toBeVisible({ timeout: 120_000 })
+  // Tier 836: the link names the Word file's endpoint before it is clicked (it was "#"
+  // until an effect ran — a click then opened the page itself in a new tab)
+  await expect(link).toHaveAttribute("href", new RegExp(`/api/v1/accounting/verfahrensdokumentation\\?companyId=${companyId}$`))
   await page.waitForLoadState("networkidle")
   await link.scrollIntoViewIfNeeded()
 
@@ -40,6 +43,8 @@ test("the accounting page hands out the company's Verfahrensdokumentation as a W
     page.waitForEvent("download", { timeout: 60_000 }),
     page.waitForEvent("popup", { timeout: 60_000 }).then((p) => p.waitForEvent("download", { timeout: 60_000 })),
   ])
+  // (a tab that shows a page instead of handing out the file names it here)
+  page.on("popup", (p) => { p.waitForLoadState().then(() => console.log(`verfahrensdoku: the new tab shows ${p.url()}`), () => {}) })
   await link.click()
   const file = await download
   expect(decodeURIComponent(file.suggestedFilename())).toMatch(new RegExp(`^Verfahrensdokumentation-${tag}_GmbH-\\d{4}-\\d{2}-\\d{2}\\.docx$`))
