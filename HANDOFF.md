@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 837b — CI green for Tier 837, no flaky
+
+Run 43284285330 (Tier 837, 8168c135): six jobs, backend **530 passed / 0 failed / 1 skipped** (the new 531 included), Playwright **1160 passed (44.9 m)**, **0 flaky**, no retry, no Traceback, no `REFUSED`. The Playwright job took 8 minutes longer than Tier 836's (36.7 m) with one test more; the runner, not the new spec (it is one page load). The production images of the day1 stack carry Tier 837: the loss-year drill (Anlauf Leder GmbH) 18/18, the 2026 drill (Jahr Leder GmbH) 16/16.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 837 — the loss carried forward: a loss year's loss is deducted the year after (KSt § 10d EStG, GewSt § 10a GewStG); the Bescheid's figures can be entered
 
 Recommendation 3, the loss-year drill (12.11.2026), on the day1 production images: a third company, Anlauf Leder GmbH (invited by the operator, `creds.anlauf` in the scratchpad), founded 2025.
