@@ -2673,6 +2673,56 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 838 — the cash-book drill: a counted difference is booked with the Tagesabschluss; the Kassenbuch export is the whole book in order, with the balance
+
+Recommendation 3, the cash-book drill (12.11.2026), on the day1 production images: a fourth company, Kasse Leder (an Einzelunternehmen, Ist-Versteuerung, monthly UStVA, EÜR; `creds.kasse` in the scratchpad). Its October 2026 in the Kassenbuch:
+- an opening balance of 500;
+- takings at 19 % and 7 %;
+- a cash purchase;
+- a Privatentnahme of 200 and a Privateinlage of 300;
+- a Geldtransit of 1 000 to the bank;
+- an invoice paid in cash, and a supplier invoice paid in cash;
+- a Storno of a sale entered twice;
+- three Tagesabschlüsse, one with a count 2,50 € short.
+
+The script is `$S/day1/kasse.sh` (`setup` once, then the checks).
+
+What was right:
+- the UStVA 10/2026 (USt 330, Vorsteuer 28,50, Kz 83 301,50);
+- the EÜR's sales, Privat moves left out, and the invoice marked paid;
+- DATEV: Kasse 1000, Geldtransit 1360, Privat 1800 / 1890, Bürobedarf 4930, and Soll = Haben;
+- the Storno netting out.
+
+What was wrong:
+- **The counted difference was only noted.** The close of 02.10. stored „Differenz −2,50" with its note, but the Kassenbuch kept the book's 1 132,50 €. The 05.10. began with 1 132,50 instead of the 1 130 € in the till. The exact count of that evening (1 549 €) was refused: „Bei einer Differenz ist eine Begründung erforderlich … Differenz: −2,5". The same would happen on every later day; the owner had to note the same 2,50 € again each evening. The Fehlbetrag was in no report: EÜR profit 1 951,50 instead of 1 949, and DATEV's Kasse 2,50 above the till.
+- **The Kassenbuch export** read the list endpoint. So it was newest first, without a balance column, and cut at 200 entries: the list caps its page size, and the export's `pageSize=100000` was silently 200. A year of daily takings, handed to a Betriebsprüfer, was missing most of the year without a word.
+
+**Accounting decision (mine, as delegated):**
+- The Kassenbuch must show the cash that is there (§ 146 Abs. 1 AO, Kassensturzfähigkeit). The difference is booked on the day of the count, with the close.
+- **A Fehlbetrag** is an Ausgabe: sonstiger betrieblicher Aufwand without Vorsteuer. That is EÜR Kz 5900 (sonstige Betriebsausgaben), GuV sonstige betriebliche Aufwendungen, DATEV 4900.
+- **An Überschuss** is an Einnahme: sonstiger Ertrag without USt. That is EÜR 4190, Anlage G 2190, Anlage S 4190, GuV / BWA sonstige Erträge, DATEV 2700 (new account key `otherIncome`, settable like the others).
+- Neither is in the UStVA. There is no supply behind them that the app knows of. If an Überschuss was an unrecorded sale, it is a sale with USt; the close dialog says to book the sale instead. That is the Berater's call, as is any Hinzuschätzung.
+
+The change:
+- `CashBookEntry.kind`, a new nullable column. Migration `20261112000001_cashbook_kassendifferenz` adds it with no default, so existing rows stay null.
+- **Close (`kassenbuch.service.ts`):** with a difference, the close and the entry „Kassenfehlbetrag / Kassenüberschuss lt. Kassensturz" are written in one transaction. The entry is an Ausgabe or Einnahme without a rate, with `kind 'kassendifferenz'` and the note. The close's sums include it, and its Endbestand is the counted cash. The difference itself stays on the close.
+- **Reopen** removes the entry with the close; the next count books anew. The entry is not edited, deleted or reversed on its own (400). In closed books neither booking nor reopening such a day is allowed.
+- **`cash-bookings.ts`** carries the entry as `kassendifferenz: true` (rate 0). UStVA, EÜR, Anlage G / S, GuV, BWA and DATEV route it as above. DATEV's Privat bookings leave it out.
+- **The export** (`bookOf`) is every entry of the period, oldest first. A last column „Bestand EUR" carries the running balance from the one before the period.
+- **The page** has one line in the close dialog on how the difference is booked (de/en/zh), and no Storno button on that line.
+
+Spec `532-tier838-kassendifferenz.sh` (29 checks; at least 12 fail on the old code):
+- a Fehlbetrag and an Überschuss on the close, the next day and the balance;
+- UStVA / EÜR / DATEV;
+- Storno, delete and reopen;
+- the export of 215 entries.
+
+Playwright `kassendifferenz-tier838.spec.ts`.
+
+Seen, not changed:
+- the P&L page (`pnl.service.ts`) and the dashboard count an Überschuss with the revenue. They have no line for other income, and the profit is the same.
+- Closing days out of order (an earlier day after a later one) moves the later closes' Anfangsbestand, as a Storno does; it was so before.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 837b — CI green for Tier 837, no flaky
 
 Run 43284285330 (Tier 837, 8168c135): six jobs, backend **530 passed / 0 failed / 1 skipped** (the new 531 included), Playwright **1160 passed (44.9 m)**, **0 flaky**, no retry, no Traceback, no `REFUSED`. The Playwright job took 8 minutes longer than Tier 836's (36.7 m) with one test more; the runner, not the new spec (it is one page load). The production images of the day1 stack carry Tier 837: the loss-year drill (Anlauf Leder GmbH) 18/18, the 2026 drill (Jahr Leder GmbH) 16/16.

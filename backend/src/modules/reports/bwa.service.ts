@@ -375,7 +375,7 @@ export class BwaService {
     const revenueItems = [
       ...manualOf('umsatz'),
       ...invoices.map((i) => ({ date: i.issueDate, amount: eurSubtotal(i) })),
-      ...cash.filter((c) => c.direction === 'in').map((c) => ({ date: c.date, amount: cashCost(c) })),
+      ...cash.filter((c) => c.direction === 'in' && !c.kassendifferenz).map((c) => ({ date: c.date, amount: cashCost(c) })),
     ]
     const invoiceMonat = sumInMonth(revenueItems, monthStart, monthEnd)
     const invoiceVormonat = sumInMonth(revenueItems, vormonatStart, vormonatEnd)
@@ -529,9 +529,11 @@ export class BwaService {
     const cashVorjahr = await cashBookings(this.prisma, companyId, vorjahresYtdStart, vorjahresYtdEnd)
     const manualVorjahr = await manualJournalLines(this.prisma, companyId, vorjahresYtdStart, vorjahresYtdEnd)
     const manualVorjahrSum = (kind: string) => manualVorjahr.filter((l) => l.kind === kind).reduce((s, l) => s + l.amount, 0)
+    // Tier 838: a counted Kassenüberschuss is a sonstiger Erlös (cash-bookings.ts)
     const sonstigeErloeseVorjahresYtd = manualVorjahrSum('ertrag')
+      + cashVorjahr.filter((c) => c.direction === 'in' && c.kassendifferenz).reduce((s, c) => s + cashCost(c), 0)
     const vorjahresYtdInvoice = vorjahresInvoices.reduce((s, i) => s + invoiceNetRevenue(i), 0)
-      + cashVorjahr.filter((c) => c.direction === 'in').reduce((s, c) => s + cashCost(c), 0)
+      + cashVorjahr.filter((c) => c.direction === 'in' && !c.kassendifferenz).reduce((s, c) => s + cashCost(c), 0)
       + manualVorjahrSum('umsatz')
     // Tier 93: bucket the prior-year expenses the
     // same way as the current year (one filter
@@ -583,6 +585,7 @@ export class BwaService {
     const creditItems = [
       ...credits.map((c) => ({ date: c.createdAt, amount: Number(c.amount) > 0 ? Number(c.amount) : 0 })),
       ...manualOf('ertrag'),
+      ...cash.filter((c) => c.direction === 'in' && c.kassendifferenz).map((c) => ({ date: c.date, amount: cashCost(c) })),
     ]
     const sonstigeErloeseMonat = sumInMonth(creditItems, monthStart, monthEnd)
     const sonstigeErloeseVormonat = sumInMonth(creditItems, vormonatStart, vormonatEnd)

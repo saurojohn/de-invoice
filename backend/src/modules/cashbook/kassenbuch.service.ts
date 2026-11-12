@@ -3,6 +3,7 @@ import { withKeyLock } from '../../common/key-lock';
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PaymentService } from '../invoice/payment.service';
 import { assertNotFuture } from '../../common/business-date';
 
@@ -91,6 +92,22 @@ function computeSignatureHash(c: {
 export type CashBookEntryType = 'einnahme' | 'ausgabe' | 'umbuchung' | 'eroeffnung';
 
 const VALID_TYPES: CashBookEntryType[] = ['einnahme', 'ausgabe', 'umbuchung', 'eroeffnung'];
+
+/**
+ * Tier 838: the entry a Tagesabschluss books for a counted difference
+ * (cash-bookings.ts). It belongs to the close: reopening the day removes it,
+ * and it is neither edited, deleted nor reversed on its own.
+ */
+export const KASSENDIFFERENZ = 'kassendifferenz'
+
+function assertNotKassendifferenz(entry: { kind: string | null }) {
+  if (entry.kind === KASSENDIFFERENZ) {
+    throw new BadRequestException(
+      'Die Kassendifferenz gehört zum Tagesabschluss — sie wird nicht einzeln geändert oder storniert. ' +
+      'Öffnen Sie den Tag wieder und zählen Sie die Kasse neu.',
+    )
+  }
+}
 
 /** Cash effect of an entry type: into the till (+1) or out of it (−1). */
 const cashSign = (type: string) => (type === 'ausgabe' || type === 'umbuchung' ? -1 : 1);
@@ -271,6 +288,27 @@ export class KassenbuchService {
       page,
       pageSize,
     }
+  }
+
+  /**
+   * Tier 838 — the Kassenbuch of a period as it is printed or handed over:
+   * every entry in the order it happened, with the balance before the period
+   * (the export read the list endpoint — newest first, and at most 200
+   * entries, as the list caps its page size: a year of daily takings was
+   * cut off without a word).
+   */
+  async bookOf(companyId: string, from: Date, to: Date) {
+    const before = await this.prisma.cashBookEntry.groupBy({
+      by: ['type'],
+      where: { companyId, businessDate: { lt: from } },
+      _sum: { amount: true },
+    })
+    const anfang = before.reduce((s, r) => s + cashSign(r.type) * Math.round(Number(r._sum.amount ?? 0) * 100), 0) / 100
+    const entries = await this.prisma.cashBookEntry.findMany({
+      where: { companyId, businessDate: { gte: from, lte: to } },
+      orderBy: [{ businessDate: 'asc' }, { createdAt: 'asc' }],
+    })
+    return { anfang, entries, cashSign }
   }
 
   /**
@@ -573,6 +611,7 @@ export class KassenbuchService {
       await assertPeriodOpen(this.prisma, companyId, [existing.businessDate], 'das Ändern einer Kassenbuchung mit Umsatzsteuer') // Tier 537
     }
     if (!existing) throw new NotFoundException('Entry not found')
+    assertNotKassendifferenz(existing)
     await this.assertDaysOpen(companyId, [existing.businessDate])
     if (existing.paymentId && patch.amount !== undefined && patch.amount !== Number(existing.amount)) {
       throw new BadRequestException(
@@ -607,6 +646,7 @@ export class KassenbuchService {
       await assertPeriodOpen(this.prisma, companyId, [existing.businessDate], 'das Ändern einer Kassenbuchung mit Umsatzsteuer') // Tier 537
     }
     if (!existing) throw new NotFoundException('Entry not found')
+    assertNotKassendifferenz(existing)
     await this.assertDaysOpen(companyId, [existing.businessDate])
     await this.assertCashNotNegative(companyId, existing.businessDate, -cashSign(existing.type) * Number(existing.amount))
     await this.unlink(companyId, existing)
@@ -637,6 +677,7 @@ export class KassenbuchService {
       await assertPeriodOpen(this.prisma, companyId, [original.businessDate], 'das Ändern einer Kassenbuchung mit Umsatzsteuer') // Tier 537
     }
     if (!original) throw new NotFoundException('Entry not found')
+    assertNotKassendifferenz(original)
     // Tier 742: the Storno is dated on the entry's day, so it stands in the
     // closed period too. A closed day is corrected this way, closed books are not.
     await assertBooksOpen(this.prisma, companyId, [original.businessDate], 'eine Storno-Buchung im Kassenbuch')
@@ -747,8 +788,35 @@ export class KassenbuchService {
         `Differenz: ${differenz} EUR. Bitte DifferenzNote angeben.`
       )
     }
-    const snapshot = {
-      entries: day.entries.map((e: any) => ({
+    // Tier 838: the counted difference is booked on the day — a Fehlbestand
+    // as an Ausgabe (sonstiger betrieblicher Aufwand), an Überschuss as an
+    // Einnahme (sonstiger Ertrag), neither with Umsatzsteuer — so the book shows
+    // what is in the till (§ 146 Abs. 1 AO: Kassensoll = Kassenist). Before,
+    // the difference was only noted here: the next day began with the book's
+    // figure, not the counted one, and every later count showed the same
+    // difference again; the EÜR / GuV / DATEV never saw it. The close then
+    // carries the entry in its sums, and its Endbestand is the counted cash.
+    const differenzEntry = Math.abs(differenz) > 0.001
+      ? {
+          companyId,
+          businessDate: bd,
+          type: differenz < 0 ? 'ausgabe' : 'einnahme',
+          description: differenz < 0 ? 'Kassenfehlbetrag lt. Kassensturz' : 'Kassenüberschuss lt. Kassensturz',
+          amount: Math.abs(differenz).toFixed(4),
+          vatRate: null,
+          notes: differenzNote?.trim() || null,
+          kind: KASSENDIFFERENZ,
+          createdById: closedById ?? null,
+        }
+      : null
+    if (differenzEntry) {
+      await assertBooksOpen(this.prisma, companyId, [bd], 'eine Kassendifferenz im Kassenbuch')
+      if (differenz < 0) day.ausgaben = Math.round((day.ausgaben - differenz) * 100) / 100
+      else day.einnahmen = Math.round((day.einnahmen + differenz) * 100) / 100
+      day.ende = physicalCount
+    }
+    const snapshotOf = (entries: any[]) => ({
+      entries: entries.map((e: any) => ({
         id: e.id,
         type: e.type,
         description: e.description,
@@ -757,9 +825,9 @@ export class KassenbuchService {
         counterparty: e.counterparty,
         belegNumber: e.belegNumber,
       })),
-      totalCount: day.entries.length,
+      totalCount: entries.length,
       generatedAt: new Date().toISOString(),
-    }
+    })
     // Tier 194 — compute the integrity hash BEFORE
     // the create so the row is born signed. If the
     // create fails (unique violation, FK error), the
@@ -793,7 +861,7 @@ export class KassenbuchService {
       closedAt: createdAtRounded,
     }
     const signatureHash = computeSignatureHash(hashInputs)
-    return this.prisma.cashBookDailyClose.create({
+    const createClose = (tx: Prisma.TransactionClient, snapshot: ReturnType<typeof snapshotOf>) => tx.cashBookDailyClose.create({
       data: {
         companyId,
         businessDate: bd,
@@ -818,6 +886,11 @@ export class KassenbuchService {
         signatureAlgorithm: SIGNATURE_ALGORITHM,
         signatureTimestamp: createdAtRounded,
       },
+    })
+    if (!differenzEntry) return createClose(this.prisma, snapshotOf(day.entries))
+    return this.prisma.$transaction(async (tx) => {
+      const entry = await tx.cashBookEntry.create({ data: differenzEntry })
+      return createClose(tx, snapshotOf([...day.entries, entry]))
     })
   }
 
@@ -988,7 +1061,16 @@ export class KassenbuchService {
     if (!existing) {
       throw new NotFoundException('Tag ist nicht abgeschlossen')
     }
-    await this.prisma.cashBookDailyClose.delete({ where: { id: existing.id } })
+    // Tier 838: the counted difference was booked with the close — it goes
+    // with it; the next count books the difference anew.
+    const differenzWhere = { companyId, businessDate: bd, kind: KASSENDIFFERENZ }
+    if (await this.prisma.cashBookEntry.count({ where: differenzWhere })) {
+      await assertBooksOpen(this.prisma, companyId, [bd], 'das Wiederöffnen eines Tages mit Kassendifferenz')
+    }
+    await this.prisma.$transaction([
+      this.prisma.cashBookEntry.deleteMany({ where: differenzWhere }),
+      this.prisma.cashBookDailyClose.delete({ where: { id: existing.id } }),
+    ])
     this.logger.warn(`Day ${bd.toISOString().split('T')[0]} re-opened by user request (GoBD audit note)`)
     return { ok: true, reopened: true }
   }

@@ -83,6 +83,8 @@ export interface DatevAccountMap {
   /** Tier 540: exchange differences on payments of foreign-currency invoices */
   kursgewinn: string
   kursverlust: string
+  /** Tier 838: a counted Kassenüberschuss (sonstige Erträge) */
+  otherIncome: string
   receivable: string
   payable: string
   revenue19: string
@@ -130,7 +132,8 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   privateUseNoVat: '8924',      // Verwendung von Gegenständen, ohne USt
   homeOffice: '4288',           // Aufwendungen für ein häusliches Arbeitszimmer
   kursgewinn: '2660',           // Erträge aus der Währungsumrechnung
-  kursverlust: '2150',          // Aufwendungen aus der Währungsumrechnung
+  kursverlust: '2150',
+  otherIncome: '2700',          // Sonstige Erträge (Tier 838: Kassenüberschuss)          // Aufwendungen aus der Währungsumrechnung
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)
@@ -888,7 +891,10 @@ export async function buildBuchungenFromDb(
     const inbound = c.direction === 'in'
     let gegenkonto: string
     let key = ''
-    if (inbound) {
+    if (c.kassendifferenz) {
+      // Tier 838: the counted difference of a Tagesabschluss, without USt
+      gegenkonto = inbound ? a.otherIncome : a.expenseDefault
+    } else if (inbound) {
       gegenkonto = kleinunternehmer ? a.revenueKleinunternehmer
         : c.rate === 0 ? a.revenueExempt
         : same(c.rate, 0.07) ? a.revenue7 : a.revenue19
@@ -941,6 +947,7 @@ export async function buildBuchungenFromDb(
       businessDate: { gte: startDate, lte: endDate },
       type: { in: ['einnahme', 'ausgabe'] },
       vatRate: null,
+      kind: null, // Tier 838: a counted difference is no private money (above)
       invoiceId: null,
       expenseId: null,
     },

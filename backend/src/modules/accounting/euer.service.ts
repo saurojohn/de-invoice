@@ -346,7 +346,8 @@ export class EuerService {
     for (const c of cash) {
       const amount = revenueCtx.kleinunternehmer ? c.gross : c.net
       if (c.direction === 'in') {
-        const kz = revenueCtx.kleinunternehmer ? '4120' : c.rate > 0 ? '4100' : '4170'
+        // Tier 838: a Kassenüberschuss is a sonstige Betriebseinnahme
+        const kz = c.kassendifferenz ? '4190' : revenueCtx.kleinunternehmer ? '4120' : c.rate > 0 ? '4100' : '4170'
         einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + amount)
       } else {
         ausgabenBuckets.set('5900', (ausgabenBuckets.get('5900') || 0) + amount)

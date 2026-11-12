@@ -203,11 +203,8 @@ export class CashBookController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     if (!fromStr || !toStr) throw new BadRequestException('from and to are required');
-    const list = await this.svc.listEntries(companyId, {
-      from: requiredQueryDate(fromStr, 'from'),
-      to: requiredQueryDate(toStr, 'to'),
-      pageSize: 100000,
-    });
+    // Tier 838: every entry, oldest first, with the running Kassenbestand
+    const book = await this.svc.bookOf(companyId, requiredQueryDate(fromStr, 'from'), requiredQueryDate(toStr, 'to'));
     const closes = await this.svc.listCloses(companyId, {
       from: requiredQueryDate(fromStr, 'from'),
       to: requiredQueryDate(toStr, 'to'),
@@ -215,9 +212,11 @@ export class CashBookController {
     const closeByDate = new Map(closes.map((c: any) => [c.businessDate.toISOString().split('T')[0], c]));
 
     const rows: string[][] = [
-      ['Datum', 'Typ', 'Beschreibung', 'Gegenkonto', 'Beleg-Nr', 'Betrag EUR', 'MwSt %', 'Bemerkung', 'Z-Bericht'],
+      ['Datum', 'Typ', 'Beschreibung', 'Gegenkonto', 'Beleg-Nr', 'Betrag EUR', 'MwSt %', 'Bemerkung', 'Z-Bericht', 'Bestand EUR'],
     ];
-    for (const e of list.data) {
+    let bestand = Math.round(book.anfang * 100);
+    for (const e of book.entries) {
+      bestand += book.cashSign(e.type) * Math.round(Number(e.amount) * 100);
       const dateStr = e.businessDate.toISOString().split('T')[0];
       const close = closeByDate.get(dateStr);
       // Tier 648: as every other export — a comma, no thousands separator
@@ -233,6 +232,7 @@ export class CashBookController {
         e.vatRate ? `${(Number(e.vatRate) * 100).toFixed(0)}%` : '',
         e.notes || '',
         close ? `${csvNumber(Number(close.endbestand))} EUR (Differenz: ${csvNumber(Number(close.differenz))} EUR)` : 'offen',
+        csvNumber(bestand / 100),
       ]);
     }
     const csv = '\uFEFF' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n');

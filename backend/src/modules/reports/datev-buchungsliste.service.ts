@@ -655,6 +655,7 @@ const ACCOUNT_USAGE: [string, string][] = [
   ['homeOffice', 'Häusliches Arbeitszimmer / Homeoffice'],
   ['kursgewinn', 'Erträge aus der Währungsumrechnung'],
   ['kursverlust', 'Aufwendungen aus der Währungsumrechnung'],
+  ['otherIncome', 'Sonstige Erträge'],
   ['receivable', 'Forderungen (Sammelkonto)'],
   ['payable', 'Verbindlichkeiten (Sammelkonto)'],
   ['revenue19', 'Erlöse 19 %'],

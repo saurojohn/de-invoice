@@ -489,7 +489,8 @@ export class AnlageGService {
     // Kleinunternehmer); paid on the day, so the same for both methods.
     const cash = await cashBookings(this.prisma, companyId, yearStart, yearEnd)
     for (const c of cash.filter((x) => x.direction === 'in')) {
-      addTo(rateKz(c.rate), kleinunternehmer ? c.gross : c.net)
+      // Tier 838: a Kassenüberschuss is a sonstiger Erlös, not a sale
+      addTo(c.kassendifferenz ? '2190' : rateKz(c.rate), kleinunternehmer ? c.gross : c.net)
     }
 
     // Bucket expenses. The Sonstige 2890 is the

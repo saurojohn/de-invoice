@@ -338,9 +338,13 @@ export class GuVService {
       new Prisma.Decimal(0),
     ).toNumber()
     // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts).
+    // Tier 838: a counted Kassenüberschuss is a sonstiger betrieblicher Ertrag
+    // (after the credits below), a Fehlbetrag a sonstiger Aufwand.
+    let kassenueberschuss = 0
     for (const c of await cashBookings(this.prisma, companyId, yearStart, yearEnd)) {
       const amount = kleinunternehmer ? c.gross : c.net
-      if (c.direction === 'in') umsatzerloese += amount
+      if (c.direction === 'in' && c.kassendifferenz) kassenueberschuss += amount
+      else if (c.direction === 'in') umsatzerloese += amount
       else sonstigeAufwendungen += amount
     }
     // Tier 440: the book value of assets sold or scrapped in the year
@@ -396,6 +400,7 @@ export class GuVService {
     const manual = sumByKind(await manualJournalLines(this.prisma, companyId, yearStart, yearEnd))
     umsatzerloese += manual.umsatz
     sonstigeErtrage += manual.ertrag
+    sonstigeErtrage += kassenueberschuss
     materialaufwand += manual.material
     personalaufwand += manual.personal
     sonstigeAufwendungen += manual.raum + manual.sonstige

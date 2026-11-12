@@ -10,7 +10,12 @@
  *   - on its own with a VAT rate (0 included): a cash sale or a cash
  *     purchase — counted here, in the UStVA, EÜR, GuV, BWA and DATEV
  * An entry without a VAT rate is money moving without being income or
- * expense (Privateinlage / -entnahme, Geldtransit) and is not counted.
+ * expense (Privateinlage / -entnahme, Geldtransit) and is not counted —
+ * except the counted difference a Tagesabschluss booked (Tier 838,
+ * `kassendifferenz`): a Fehlbetrag is a sonstiger betrieblicher Aufwand, an
+ * Überschuss a sonstiger Ertrag, both without Umsatzsteuer (no supply behind
+ * them that the app knows of — whether an Überschuss was an unrecorded sale is
+ * the Berater's call). Every report books it so; the UStVA leaves it out.
  *
  * Measured before: a 119 € cash sale at 19 % and a 59,50 € cash purchase
  * appeared in no report — 19 € output tax undeclared, 9,50 € input tax not
@@ -31,6 +36,8 @@ export interface CashBooking {
   vat: number
   description: string
   belegNumber: string | null
+  /** Tier 838: a counted difference of a Tagesabschluss, not a sale or purchase */
+  kassendifferenz: boolean
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -46,7 +53,7 @@ export async function cashBookings(
       companyId,
       businessDate: { gte: start, lte: end },
       type: { in: ['einnahme', 'ausgabe'] },
-      vatRate: { not: null },
+      OR: [{ vatRate: { not: null } }, { kind: 'kassendifferenz' }],
       invoiceId: null,
       expenseId: null,
     },
@@ -54,7 +61,7 @@ export async function cashBookings(
   })
   return rows.map((e) => {
     const gross = Number(e.amount)
-    const rate = Number(e.vatRate)
+    const rate = Number(e.vatRate ?? 0)
     const net = r2(gross / (1 + rate))
     return {
       id: e.id,
@@ -66,6 +73,7 @@ export async function cashBookings(
       vat: r2(gross - net),
       description: e.description,
       belegNumber: e.belegNumber,
+      kassendifferenz: e.kind === 'kassendifferenz',
     }
   })
 }

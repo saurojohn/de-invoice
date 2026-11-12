@@ -2397,6 +2397,10 @@ model CashBookEntry {
   // Free-form notes (1-2 lines), e.g. reason for
   // a correction, receipt scan reference, etc.
   notes        String?
+  // Tier 838: "kassendifferenz" when the Tagesabschluss booked the counted
+  // difference (Fehlbestand an Ausgabe, Überschuss an Einnahme), so the book
+  // shows what is in the till. null for an entry somebody made.
+  kind         String?
   createdById  String?
   createdBy    User?          @relation("CashBookEntryCreator", fields: [createdById], references: [id])
   createdAt    DateTime       @default(now())

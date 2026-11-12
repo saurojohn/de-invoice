@@ -435,7 +435,8 @@ export class UstvaService {
     // Tier 425: cash sales and purchases from the Kassenbuch (cash-bookings.ts).
     // They were in no return: a 119 € cash sale's 19 € went undeclared.
     const cash = await cashBookings(this.prisma, companyId, start, end);
-    for (const c of cash.filter((x) => x.direction === 'in')) {
+    // Tier 838: a counted Kassenüberschuss is no supply (cash-bookings.ts).
+    for (const c of cash.filter((x) => x.direction === 'in' && !x.kassendifferenz)) {
       if (c.rate > 0) addToRate(c.rate, c.net, c.vat);
       else addZeroRated({}, '', '', c.net);
       invoiceCount++;

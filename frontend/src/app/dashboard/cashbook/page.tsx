@@ -25,6 +25,8 @@ interface CashEntry {
   notes: string | null
   reversesId: string | null
   reversedById: string | null
+  /** Tier 838: "kassendifferenz" — booked by the Tagesabschluss */
+  kind?: string | null
   dayClosed: boolean
   createdAt: string
 }
@@ -479,7 +481,7 @@ export default function CashbookPage() {
                       {t("cashbook.reopen")}
                     </Button>
                   ) : (
-                    <Button size="sm" onClick={() => openZ(todayISO())}>
+                    <Button size="sm" onClick={() => openZ(todayISO())} data-testid="cashbook-zbericht-open">
                       {t("cashbook.zbericht")}
                     </Button>
                   )}
@@ -631,7 +633,7 @@ export default function CashbookPage() {
                       const isStorno = !!e.reversesId
                       const amt = Number(e.amount)
                       return (
-                        <tr key={e.id} className={`border-b hover:bg-gray-50 dark:bg-gray-900 ${
+                        <tr key={e.id} data-testid="cashbook-row" data-kind={e.kind || undefined} className={`border-b hover:bg-gray-50 dark:bg-gray-900 ${
                           e.dayClosed ? "bg-gray-50 dark:bg-gray-900" : ""
                         } ${isStorno ? "italic text-gray-500 dark:text-gray-400" : ""}`}>
                           <td className="py-2 font-mono text-xs">
@@ -673,7 +675,9 @@ export default function CashbookPage() {
                                   <Button size="sm" variant="ghost" onClick={() => remove(e)} title={t("cashbook.delete")}>🗑</Button>
                                 </>
                               )}
-                              <Button size="sm" variant="ghost" onClick={() => { setStornoId(e.id); setStornoReason("") }} title={t("cashbook.storno")}>↺</Button>
+                              {e.kind !== "kassendifferenz" && (
+                                <Button size="sm" variant="ghost" onClick={() => { setStornoId(e.id); setStornoReason("") }} title={t("cashbook.storno")} data-testid="cashbook-storno">↺</Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -871,6 +875,7 @@ export default function CashbookPage() {
                     min="0"
                     value={zCount}
                     onChange={(e) => setZCount(e.target.value)}
+                    data-testid="zbericht-count"
                     className="w-full border rounded px-3 py-2 text-sm font-mono"
                   />
                 </div>
@@ -884,6 +889,9 @@ export default function CashbookPage() {
                       € {fmtMoney(parseFloat(zCount) - zPreview.ende)} (
                       {parseFloat(zCount) > zPreview.ende ? t("cashbook.zberichtOver") : t("cashbook.zberichtUnder")})
                     </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300" data-testid="zbericht-differenz-booked">
+                      {parseFloat(zCount) > zPreview.ende ? t("cashbook.zberichtBookedOver") : t("cashbook.zberichtBookedUnder")}
+                    </p>
                     <div>
                       <label className="block text-sm font-medium mb-1">
                         {t("cashbook.zberichtNote")} *
@@ -891,6 +899,7 @@ export default function CashbookPage() {
                       <textarea
                         value={zNote}
                         onChange={(e) => setZNote(e.target.value)}
+                        data-testid="zbericht-note"
                         rows={2}
                         placeholder="z.B. Bon 17 verloren"
                         className="w-full border rounded px-3 py-2 text-sm"
@@ -906,7 +915,7 @@ export default function CashbookPage() {
                 )}
 
                 <div className="flex gap-2 pt-4 border-t">
-                  <Button onClick={saveZ} disabled={zSaving}>
+                  <Button onClick={saveZ} disabled={zSaving} data-testid="zbericht-save">
                     {zSaving ? "..." : t("cashbook.zberichtSave")}
                   </Button>
                   <Button variant="outline" onClick={() => setShowZ(false)}>
