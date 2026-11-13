@@ -2673,6 +2673,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 845b — CI green for Tiers 844 and 845, no flaky
+
+- **Run 43441972294 (Tier 844, 961dfb4f):** six jobs. Backend **537 passed / 0 failed / 1 skipped** (538 included). Playwright **1165 passed (44.5 m)**. **0 flaky**.
+- **Run 43449680411 (Tier 845, bf027fce):** six jobs. Backend **538 passed / 0 failed / 1 skipped** (539 included). Playwright **1166 passed (39.9 m)** (`kleinunternehmer-ohne-ust-tier845` included). **0 flaky**.
+- Neither run had a retry, a Traceback or a `REFUSED`.
+- No migration in either tier, so the day1 production images were not rebuilt.
+
+**Open after this bug hunt:**
+- The tax of an invoice listed by Tier 845 is in no report until the invoice is corrected (the owner's go-ahead is asked for: it changes figures in every report).
+- A restore from a kept copy that fails at issuing leaves the draft it created under the lost number.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 845 — invoices issued without USt on a day the Kleinunternehmerregelung no longer covers are listed
 
 **Measured** on Tier 844 (probe, then backend spec 539: 8 ✗ on Tier 844).
