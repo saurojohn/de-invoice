@@ -2673,6 +2673,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 842b — CI green for Tiers 841 and 842, no flaky
+
+- **Run 43400892164 (Tier 841, cf57e1d3):** six jobs. Backend **534 passed / 0 failed / 1 skipped** (535 included). Playwright **1163 passed (38.1 m)** (`kleinunternehmer-grenzen-tier841` included). **0 flaky**.
+- **Run 43409915622 (Tier 842, 6b3b59d9):** six jobs. Backend **535 passed / 0 failed / 1 skipped** (536 included). Playwright **1164 passed (39.1 m)** (`kleinunternehmer-wechsel-tier842` included). **0 flaky**.
+- Neither run had a retry, a Traceback or a `REFUSED`.
+
+**The day1 production images, rebuilt on Tier 842.**
+- `migrate deploy` applied `20261113000001_kleinunternehmer_period`.
+- The three drills held: cash book 9/9, the year 2026 16/16 (`y2026.sh check`), the loss year 18/18.
+- Note: `y2026.sh` without `check` is its setup. Run that way by mistake on 13.11., it imported one more statement into the day1 drill database (6 ✗ for its setup steps). The checks themselves are unaffected.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 842 — the Kleinunternehmerregelung by date: switching the mode no longer turns the history over
 
 **Measured** on Tier 841. Every report and the invoice itself read `Company.defaultVatMode` as it is today, for every period.
