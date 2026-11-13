@@ -4747,6 +4747,8 @@
     "naechstesJahr": "Total turnover {jahr}: {umsatz}, more than {grenzeVorjahr}. In {naechstes} the small business regulation no longer applies.",
     "gruendungsjahr": "No turnover is recorded for {vorjahr}. If the business was founded in {jahr}, {grenzeVorjahr} was already this year's limit: regular taxation applies from the sale that crossed it.",
     "action": "Counted: the payments received (net) as in the EÜR. Please check with your tax adviser and change the VAT treatment:",
-    "settings": "Settings"
+    "settings": "Settings",
+    "ohneUmsatzsteuer": "{anzahl} invoice(s) totalling {summe} were issued without VAT on a day the small-business rule (§ 19 UStG) does not cover. These sales are taxable: the VAT is contained in the invoice amount and is owed. The VAT return and the EÜR still show them as tax-free. Correct each one with a cancellation credit note and a new invoice with VAT, or settle the taxation with your tax adviser:",
+    "ohneWeitere": "and {anzahl} more"
   }
 }

@@ -4747,6 +4747,8 @@
     "naechstesJahr": "{jahr} 年总营业额 {umsatz}，超过 {grenzeVorjahr}。{naechstes} 年起不再适用小规模经营者规定。",
     "gruendungsjahr": "{vorjahr} 年没有记录营业额。如果企业是 {jahr} 年成立的，{grenzeVorjahr} 就已是本年度的限额：从超过它的那笔交易起适用一般纳税。",
     "action": "计算口径：EÜR 中的实收金额（不含税）。请与税务顾问确认，并调整增值税处理方式：",
-    "settings": "设置"
+    "settings": "设置",
+    "ohneUmsatzsteuer": "有 {anzahl} 张发票（合计 {summe}）开出时没有增值税，而开票当天小规模经营者规定（§ 19 UStG）并不适用。这些营业额应税：增值税包含在发票金额里，需要缴纳。增值税预申报和 EÜR 目前仍把它们列为免税。请逐张用红字发票冲销并重开带增值税的发票，或与税务顾问确认如何纳税：",
+    "ohneWeitere": "另有 {anzahl} 张"
   }
 }

@@ -19,6 +19,7 @@ import HomeOfficeCard from "./HomeOfficeCard"
 import { PaymentTermSelect } from "@/components/PaymentTermSelect"
 import NextInvoiceNumberField from "./NextInvoiceNumberField"
 import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
+import { KleinunternehmerNotice } from "@/components/KleinunternehmerNotice" // Tier 845
 
 interface StorageSettings {
   localPath: string
@@ -1456,6 +1457,10 @@ export default function SettingsPage() {
                       {kuPeriod.ab && t("settings.kuAb", { date: fmtDay(kuPeriod.ab) })}
                     </p>
                   )}
+                  {/* Tier 845: invoices without USt that the saved period leaves on a taxed day */}
+                  <div className="mt-3">
+                    <KleinunternehmerNotice refresh={`${storedVatMode ?? ""}|${kuPeriod.ab ?? ""}|${kuPeriod.bis ?? ""}`} />
+                  </div>
                   {kuSwitch && (
                     <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-3">
                       <label className="block text-sm font-medium mb-1" htmlFor="settings-ku-date">

@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { businessDayIso, businessToday } from '../../common/business-date'
-import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
+import { KU_SELECT, KuCompany, kuOn } from '../../common/kleinunternehmer-period'
+import { EXEMPTION_HINT } from '../invoice/mandatory-details'
+import { zeroRatedGround } from '../invoice/zero-rated'
 import { EuerService } from './euer.service'
 
 /**
@@ -45,6 +47,19 @@ export type KuHinweis =
   | 'naechstesJahr'
   /** …and no revenue last year: if the business began this year, 25 000 € was this year's limit */
   | 'gruendungsjahr'
+  /** Tier 845: invoices issued without USt on a day § 19 does not cover */
+  | 'ohneUmsatzsteuer'
+
+/** Tier 845: at most this many of them are listed */
+export const KU_OHNE_UST_LISTE = 20
+
+export interface KuOhneUmsatzsteuer {
+  anzahl: number
+  /** their gross amounts, EUR */
+  summe: number
+  /** the oldest first, at most KU_OHNE_UST_LISTE */
+  rechnungen: Array<{ id: string; invoiceNumber: string; issueDate: string; total: number }>
+}
 
 export interface KuStatus {
   kleinunternehmer: boolean
@@ -54,6 +69,7 @@ export interface KuStatus {
   grenzeVorjahr: number
   grenzeLaufend: number
   hinweise: KuHinweis[]
+  ohneUmsatzsteuer: KuOhneUmsatzsteuer
 }
 
 const GESAMTUMSATZ_KZ = new Set(['4100', '4120', '4170'])
@@ -77,7 +93,7 @@ export class KleinunternehmerService {
   }
 
   async status(companyId: string): Promise<KuStatus> {
-    const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
+    const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: KU_SELECT })
     const kleinunternehmer = co?.defaultVatMode === 'kleinunternehmer'
     const jahr = businessToday().y
     const out: KuStatus = {
@@ -88,7 +104,11 @@ export class KleinunternehmerService {
       grenzeVorjahr: KU_GRENZE_VORJAHR,
       grenzeLaufend: KU_GRENZE_LAUFEND,
       hinweise: [],
+      ohneUmsatzsteuer: { anzahl: 0, summe: 0, rechnungen: [] },
     }
+    // Tier 845: also for a company that is no Kleinunternehmer any more
+    out.ohneUmsatzsteuer = await this.ohneUmsatzsteuer(companyId, co)
+    if (out.ohneUmsatzsteuer.anzahl > 0) out.hinweise.push('ohneUmsatzsteuer')
     if (!kleinunternehmer) return out
     const [vorjahr, laufend] = await Promise.all([this.gesamtumsatz(companyId, jahr - 1), this.gesamtumsatz(companyId, jahr)])
     out.vorjahr = { jahr: jahr - 1, umsatz: vorjahr, leer: vorjahr === 0 }
@@ -101,6 +121,82 @@ export class KleinunternehmerService {
       if (vorjahr === 0) out.hinweise.push('gruendungsjahr')
     }
     return out
+  }
+
+  /**
+   * Tier 845 — invoices issued without USt on a day the Kleinunternehmer-
+   * regelung does not cover. They come about when its end is set back over
+   * invoices already issued — as Tier 843's own advice has it: „Umsatzsteuer
+   * ab dem 01.01.“ once last year turns out to be over 25 000 €. Measured: a
+   * § 19 invoice of August with the end set to 30.06. stood in the UStVA as
+   * „sonstige steuerfreie Umsätze“ and in the EÜR on 4170, and nothing said
+   * a word. It is a taxed supply: the tax is in its price and owed (§ 10
+   * Abs. 1 UStG), and the customer holds an invoice that states none.
+   *
+   * Listed: issued invoices and receipts with no USt at all, on a day § 19
+   * does not apply, that are no igL / § 13b / export and name no exemption
+   * (what Tier 690 would refuse to issue today), and that no credit note has
+   * taken back in full. A company that never had a § 19 period has none.
+   */
+  private async ohneUmsatzsteuer(companyId: string, co: KuCompany): Promise<KuOhneUmsatzsteuer> {
+    const none: KuOhneUmsatzsteuer = { anzahl: 0, summe: 0, rechnungen: [] }
+    const on = kuOn(co)
+    const mode = co?.defaultVatMode === 'kleinunternehmer'
+    const day = (d: Date) => businessDayIso(d)
+    const ab = co?.kleinunternehmerAb ? day(co.kleinunternehmerAb) : null
+    const bis = co?.kleinunternehmerBis ? day(co.kleinunternehmerBis) : null
+    // the days § 19 does not cover that lie beside a § 19 period
+    const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
+    const ranges: Array<{ gt?: Date; lt?: Date }> = []
+    if (mode) {
+      if (!ab) return none // a Kleinunternehmer since always
+      ranges.push({ lt: utc(ab), ...(bis ? { gt: utc(bis) } : {}) })
+    } else {
+      if (!bis) return none // never one
+      ranges.push({ gt: utc(bis) })
+      if (ab) ranges.push({ lt: utc(ab) })
+    }
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        type: { in: ['INV', 'RCV'] },
+        status: { in: ['sent', 'paid', 'overdue'] },
+        reverseCharge: false,
+        euTransaction: false,
+        totalVat: 0,
+        subtotal: { gt: 0 },
+        OR: ranges.map((r) => ({ issueDate: r })),
+      },
+      select: {
+        id: true, invoiceNumber: true, issueDate: true, total: true, eurTotal: true, notes: true,
+        reverseCharge: true, euTransaction: true,
+        customer: { select: { address: true, vatId: true } },
+      },
+      orderBy: [{ issueDate: 'asc' }, { invoiceNumber: 'asc' }],
+    })
+    const open = rows.filter(
+      (r) =>
+        !on(r.issueDate) &&
+        zeroRatedGround(r, (r.customer?.address as { country?: string } | null)?.country, r.customer?.vatId) === 'exempt' &&
+        // remarks that name § 19 name no exemption
+        !EXEMPTION_HINT.test((r.notes ?? '').replace(/§\s*19(?!\d)/g, '')),
+    )
+    if (!open.length) return none
+    const credited = await this.prisma.invoice.groupBy({
+      by: ['referenceInvoiceId'],
+      where: { companyId, type: 'CN', status: { notIn: ['draft', 'cancelled'] }, referenceInvoiceId: { in: open.map((r) => r.id) } },
+      _sum: { total: true },
+    })
+    const takenBack = new Map(credited.map((c) => [c.referenceInvoiceId, Math.abs(Number(c._sum.total ?? 0))]))
+    const left = open.filter((r) => (takenBack.get(r.id) ?? 0) < Number(r.total) - 0.005)
+    const cents = left.reduce((s, r) => s + Math.round(Number(r.eurTotal ?? r.total) * 100), 0)
+    return {
+      anzahl: left.length,
+      summe: cents / 100,
+      rechnungen: left.slice(0, KU_OHNE_UST_LISTE).map((r) => ({
+        id: r.id, invoiceNumber: r.invoiceNumber, issueDate: day(r.issueDate), total: Number(r.total),
+      })),
+    }
   }
 
   /**

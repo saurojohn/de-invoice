@@ -2673,6 +2673,30 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 845 — invoices issued without USt on a day the Kleinunternehmerregelung no longer covers are listed
+
+**Measured** on Tier 844 (probe, then backend spec 539: 8 ✗ on Tier 844).
+- A § 19 invoice of August; then the end of the regulation is set back to 30.06. That is what Tier 843's own advice leads to: „Umsatzsteuer ab dem 01.01.“ once last year turns out to be over 25 000 €, with this year's invoices already out.
+- The invoice then stood in the UStVA as „sonstige steuerfreie Umsätze“ and in the EÜR on 4170. No page said a word.
+- It is a taxed supply. The tax is in its price and owed (§ 10 Abs. 1 UStG), and the customer holds an invoice that states none.
+
+**Change** (this tier makes them visible; it does not change any report's figures).
+- `GET /accounting/kleinunternehmer-status` returns `ohneUmsatzsteuer` (`anzahl`, `summe`, the first 20 `rechnungen`) and the notice `ohneUmsatzsteuer`. It answers for a company that is no Kleinunternehmer any more as well.
+- Listed are issued invoices and receipts that:
+  - carry no USt at all;
+  - are dated on a day § 19 does not apply, beside a § 19 period;
+  - are no igL, § 13b or export, and name no exemption in their remarks (what Tier 690 would refuse to issue today; remarks that name § 19 name none);
+  - no credit note has taken back in full.
+- A company that never had a § 19 period has none, and the query is not run for it.
+- `KleinunternehmerNotice` shows them in red with links to the invoices: on the dashboard, on the invoice form, and now in the settings below the VAT mode, asked again as soon as the period is saved.
+- The text says what to do: correct each with a Storno and a new invoice with USt, or settle the taxation with the Steuerberater.
+
+**Open, for the owner's go-ahead** (it changes figures in every report): until such an invoice is corrected, the UStVA and the EÜR still show it as tax-free. The correct declaration takes the tax out of the price (19/119, or 7/107 for a reduced-rate product) in the month of the supply. That touches the UStVA, EÜR, Anlagen, GuV, BWA and DATEV.
+
+**Specs.**
+- Backend spec 539 (new; 8 ✗ on Tier 844): the end set back over two of three § 19 invoices; a taxed invoice and one naming its exemption are not listed; a Storno takes one off the list; a regular company has none; a Kleinunternehmer since a later day gets the invoice before it listed.
+- Playwright `kleinunternehmer-ohne-ust-tier845`: the switch in the settings with „Umsatzsteuer ab 01.07.“ shows the invoice of August at once, not the one of March; the dashboard links to it.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 844 — a credit note follows the invoice it corrects: its revenue line, its § 19; a restored invoice is not held to the § 19 limits
 
 A bug hunt around the day the Kleinunternehmerregelung ends (probes on the test backend, then backend spec 538: 12 ✗ on Tier 843).

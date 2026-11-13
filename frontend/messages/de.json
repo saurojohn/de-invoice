@@ -4747,6 +4747,8 @@
     "naechstesJahr": "Gesamtumsatz {jahr}: {umsatz}, mehr als {grenzeVorjahr}. {naechstes} gilt die Kleinunternehmerregelung nicht mehr.",
     "gruendungsjahr": "Für {vorjahr} ist kein Umsatz erfasst. Wurde das Unternehmen {jahr} gegründet, war {grenzeVorjahr} schon die Grenze dieses Jahres: seit dem Umsatz, der sie überschritten hat, gilt die Regelbesteuerung.",
     "action": "Gezählt sind die vereinnahmten Entgelte (netto) laut EÜR. Bitte mit dem Steuerberater klären und die Umsatzsteuer-Behandlung anpassen:",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "ohneUmsatzsteuer": "{anzahl} Rechnung(en) über zusammen {summe} sind ohne Umsatzsteuer ausgestellt, an einem Tag, für den die Kleinunternehmerregelung nicht gilt. Diese Umsätze sind steuerpflichtig: Die Umsatzsteuer steckt im Rechnungsbetrag und ist geschuldet. In der Umsatzsteuer-Voranmeldung und der EÜR stehen sie noch als steuerfrei. Berichtigen Sie jede mit einer Stornorechnung und einer neuen Rechnung mit Umsatzsteuer, oder klären Sie die Versteuerung mit dem Steuerberater:",
+    "ohneWeitere": "und {anzahl} weitere"
   }
 }
