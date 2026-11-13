@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 843b — CI green for Tier 843, no flaky
+
+Run 43426919083 (Tier 843, 30d2f7dd): six jobs. Backend **536 passed / 0 failed / 1 skipped** (537 included). Playwright **1165 passed (36.8 m)** (`kleinunternehmer-ausstellen-tier843` included). **0 flaky**, no retry, no Traceback, no `REFUSED`. No migration in this tier, so the day1 production images were not rebuilt for it.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 843 — no invoice under § 19 past the Kleinunternehmer's limits: issuing it is refused
 
 **Measured** on Tier 842 (backend spec 537 against the old code: 14 ✗):
