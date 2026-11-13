@@ -1587,9 +1587,11 @@ export class InvoiceService {
     return deleted;
   }
 
-  async updateStatus(id: string, companyId: string, status: string) {
+  // Tier 844: `restored` — an invoice a restore lost, entered again from its
+  // kept copy (RestoreFromCopyService); never from a request
+  async updateStatus(id: string, companyId: string, status: string, opts?: { restored?: boolean }) {
     // Tier 534: one at a time per invoice
-    const result = await withKeyLock(`invoice:${id}`, () => this.updateStatusLocked(id, companyId, status));
+    const result = await withKeyLock(`invoice:${id}`, () => this.updateStatusLocked(id, companyId, status, opts));
     await this.keepCopy(id, companyId);
     return result;
   }
@@ -1789,7 +1791,7 @@ export class InvoiceService {
     return this.findOne((created as { id: string }).id, companyId);
   }
 
-  private async updateStatusLocked(id: string, companyId: string, status: string) {
+  private async updateStatusLocked(id: string, companyId: string, status: string, opts?: { restored?: boolean }) {
     // Tier 378: companyId was accepted and ignored — tenant B's
     // PUT /invoices/<A's id>/status changed A's invoice, and the audit row
     // landed under B's company (measured).
@@ -1913,8 +1915,11 @@ export class InvoiceService {
         this.prisma.invoiceItem.findMany({ where: { invoiceId: before.id }, select: { vatRate: true } }), // Tier 690
       ]);
       assertInvoiceDetails({ ...before, items }, company ?? {}, customer);
-      // Tier 843: not under § 19 past its limits — a Proforma carries no tax of its own
-      if (before.type !== 'PI') {
+      // Tier 843: not under § 19 past its limits — a Proforma carries no tax of its own.
+      // Tier 844: nor an invoice entered again from its kept copy — it was
+      // issued then, the customer holds it, and the revenue received since
+      // is no reason to keep it out of the books.
+      if (before.type !== 'PI' && !opts?.restored) {
         const refusal = await this.kleinunternehmer.refusalForIssue(
           companyId, before.issueDate, Number(before.eurSubtotal ?? before.subtotal),
         );

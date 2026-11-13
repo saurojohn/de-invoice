@@ -136,7 +136,7 @@ export class RestoreFromCopyService {
       undefined,
       { restoredNumber: invoiceNumber },
     )
-    await this.invoices.updateStatus(invoice.id, companyId, 'sent')
+    await this.invoices.updateStatus(invoice.id, companyId, 'sent', { restored: true }) // Tier 844: not the § 19 limits
     await this.keepTheCopy(invoice.id, row.pdfPath)
     await this.resolve(companyId, invoiceNumber)
     return { id: invoice.id, invoiceNumber, customerCreated: created }

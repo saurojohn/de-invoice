@@ -17,6 +17,7 @@
 // the e-invoice is for, got the one copy without the XML.
 //
 // Every outlet calls renderInvoiceDocument now.
+import { kuDayOf } from '../../common/kleinunternehmer-period'
 import { BadRequestException, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { issuerContext } from './issuer-context'
@@ -37,14 +38,19 @@ export { issuerContext } from './issuer-context'
 /** The texts, colour and density of the invoice's template (Tier 7.5), or the company's default. */
 export async function templateConfigFor(
   prisma: PrismaService,
-  invoice: { companyId: string; templateType?: string | null; templateId?: string | null; issueDate?: Date | string | null },
+  invoice: {
+    companyId: string; templateType?: string | null; templateId?: string | null; issueDate?: Date | string | null
+    type?: string | null; referenceInvoice?: { issueDate?: Date | string | null } | null
+  },
 ): Promise<InvoiceRenderConfig | undefined> {
   try {
     const r = await new InvoiceTemplateService(prisma).resolveConfig(
       invoice.companyId,
       invoice.templateType || 'standard',
       invoice.templateId,
-      invoice.issueDate, // Tier 842: the § 19 note as on the invoice's date
+      // Tier 842: the § 19 note as on the invoice's date; Tier 844: a credit
+      // note's as on the date of the invoice it corrects
+      kuDayOf(invoice),
     )
     return r.config as InvoiceRenderConfig
   } catch {

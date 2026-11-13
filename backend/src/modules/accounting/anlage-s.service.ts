@@ -7,7 +7,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
-import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
+import { euerExpenses, euerInflows, euerVat, finanzamtVat, revenueKz } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { deductibleCost, nichtAbziehbareBewirtung } from './expense-cost'
 import { afaOfYear, bookedAfaCost } from './booked-afa'
@@ -291,17 +291,9 @@ export class AnlageSService {
     for (const def of REVENUE_LINES) einnahmenBuckets.set(def.kz, 0)
     for (const { invoice: inv, amount: subtotal } of inflows) {
       // Tier 455: the payment's net share (Tier 411: after the discount, in EUR).
-      if (subtotal < 0 || inv.type === 'CN') {
-        // Gutschrift (CN) — same convention as
-        // tier 76 EÜR: offset Kz 4100 directly.
-        // The BMF Anlage S is symmetric to EÜR
-        // here — the original revenue line is
-        // reduced, not a "sonstige" entry.
-        einnahmenBuckets.set('4100', (einnahmenBuckets.get('4100') || 0) + subtotal)
-        continue
-      }
-      const matched = REVENUE_LINES.find((d) => d.matcher(inv, revenueCtx))
-      const kz = matched?.kz || '4190'
+      // Tier 844: a credit note on the line of its invoice, as in the EÜR
+      // (it was Kz 4100 whatever the invoice was)
+      const kz = revenueKz(inv, subtotal, REVENUE_LINES, revenueCtx)
       einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + subtotal)
     }
 

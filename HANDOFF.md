@@ -2673,6 +2673,41 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 844 — a credit note follows the invoice it corrects: its revenue line, its § 19; a restored invoice is not held to the § 19 limits
+
+A bug hunt around the day the Kleinunternehmerregelung ends (probes on the test backend, then backend spec 538: 12 ✗ on Tier 843).
+
+**Measured.**
+- **Every refund reduced the taxed line.** A Kleinunternehmer's paid 1 000 € invoice, cancelled with a Storno: the EÜR and Anlage S kept 4120 (§ 19) at 1 400 € and showed 4100 at −1 000 €; Anlage G 2130 at 1 400 € and 2110 at −1 000 €. He received 400 €. The same for a regular company's tax-free invoice (4170 stayed, 4100 went down). This is older than the § 19 work: the code said "the original invoice was almost certainly USt-pflichtig".
+- **A credit note was judged on its own date** (since Tier 842). A § 19 invoice of March, credited in November after the regulation had ended on 30.06.:
+  - UStVA 11: −1 000 € of „sonstige steuerfreie Umsätze“, although the invoice had been in no line;
+  - DATEV: the credit note on 8100, its invoice on 8195;
+  - its e-invoice: „Steuerbefreite Leistung“ instead of the § 19 reason.
+- **The other way round** (a 19 % invoice, credited by a company that has become a Kleinunternehmer): the UStVA took the 190 € back, correctly, but the EÜR left the refunded 190 € USt out of its USt line.
+- **Tier 843 regression:** an invoice a restore lost, entered again from its kept copy (Tier 733b), is issued through `updateStatus`. A Kleinunternehmer at 99 500 € received could not get his lost 1 000 € invoice back into the books („übersteigt der Gesamtumsatz“).
+
+**Decision** (an accounting decision; § 17 UStG). A correction follows what it corrects. A credit note is § 19 turnover taken back when its invoice was § 19, and tax taken back when its invoice was taxed, whatever the company is on the credit note's day. Its refund reduces the revenue line its invoice is on.
+
+**Change.**
+- `kuDayOf(doc)` (`common/kleinunternehmer-period.ts`): the day that decides § 19 for a document. It is the issue date, and for a credit note the issue date of its invoice.
+- `revenueKz` (`euer-zufluss.ts`): the Kennziffer of an inflow. A credit note is asked through its invoice; without one it stays on 4100. A refund on an invoice itself (a negative payment) goes on that invoice's line. EÜR and Anlage S use it.
+  - The matchers ask for positive amounts. A document with negative ones (old data: an invoice entered as a Gutschrift, spec 106's fixture) is shown to them without its sign; a refund no line takes stays on 4100, as before. The first version sent such a document to 4190, and spec 106 caught it.
+- Anlage G: a credit note takes its invoice's flags (2150) and § 19 day (2130 / 2190); the rates are its own, which are its invoice's.
+- `euerVat`, the UStVA's zero-rated credit notes, DATEV, the e-invoice (`kleinunternehmer` of XRechnung / ZUGFeRD) and the PDF's § 19 note use `kuDayOf`.
+- `InvoiceService.updateStatus(…, { restored: true })`, passed only by `RestoreFromCopyService`: the Tier 843 check is skipped. The invoice was issued then and the customer holds it.
+
+**Not changed, found on the way** (for the next tier, see the report to the owner):
+- An invoice issued under § 19 on a day a later, retroactive end of the regulation no longer covers (Tier 843's own advice: „Umsatzsteuer ab 01.01.“ when last year was over 25 000 €). It then counts as tax-free: UStVA „sonstige steuerfreie Umsätze“, EÜR 4170. It is a taxed supply, and the tax is owed out of its price.
+- A restore that fails at issuing (missing mandatory details, a filed period) leaves the draft it created under the lost number.
+
+**Specs.**
+- Spec 86 (aging): its expected net total is compared in cents. It compared two printed floats (`172914.34999999998` against `172914.35`), which failed once the shared local database held enough open invoices. Not related to this tier.
+- Backend spec 538 (new; 12 ✗ on Tier 843): the five cases above — the Kleinunternehmer's Storno in EÜR / Anlage S / Anlage G; the § 19 invoice credited after the end (UStVA, EÜR, DATEV account, e-invoice reason); the taxed invoice credited by a Kleinunternehmer (UStVA −190, EÜR with its USt); a regular company's tax-free invoice cancelled; the restore at 99 500 € received, while a new invoice is still refused.
+
+Locally:
+- the 311 backend specs on the EÜR, Anlage S / G, UStVA, DATEV, credit notes, e-invoices, the restore from a copy and the Kleinunternehmer mode, with the guards: all pass;
+- the 28 Playwright specs on the same: 95 passed, 2 failed in the 7-minute run (`recurring-convert` „navigates … with prefill“: `waitForURL` 10 s; `ustva-history-tier161` „pre-fills year + month from URL“). Both are page timing on the local dev server, not checks of this tier: the two files alone pass 15/15.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 843b — CI green for Tier 843, no flaky
 
 Run 43426919083 (Tier 843, 30d2f7dd): six jobs. Backend **536 passed / 0 failed / 1 skipped** (537 included). Playwright **1165 passed (36.8 m)** (`kleinunternehmer-ausstellen-tier843` included). **0 flaky**, no retry, no Traceback, no `REFUSED`. No migration in this tier, so the day1 production images were not rebuilt for it.

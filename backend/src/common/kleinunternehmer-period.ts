@@ -79,3 +79,21 @@ export function kuThroughout(ku: Ku, from: Date | string, to: Date | string): bo
   const t = dayOf(to)
   return [f, t, ...(ku.bounds ?? []).filter((b) => b > f && b < t)].every((d) => ku(d))
 }
+
+/**
+ * Tier 844 — the day that decides § 19 for a document: its issue date, and
+ * for a credit note the date of the invoice it corrects. A correction follows
+ * what it corrects (§ 17 UStG): the Storno of a § 19 invoice is § 19 turnover
+ * taken back, also when the regulation has ended since; the credit note of a
+ * taxed invoice takes back tax, also from a company that has become a
+ * Kleinunternehmer. Measured: a § 19 invoice of March credited in November,
+ * after the regulation had ended on 30.06., stood in the UStVA as −1 000 €
+ * of „sonstige steuerfreie Umsätze“.
+ */
+export function kuDayOf(doc: {
+  type?: string | null
+  issueDate?: Date | string | null
+  referenceInvoice?: { issueDate?: Date | string | null } | null
+}): Date | string | null | undefined {
+  return doc.type === 'CN' && doc.referenceInvoice?.issueDate ? doc.referenceInvoice.issueDate : doc.issueDate
+}

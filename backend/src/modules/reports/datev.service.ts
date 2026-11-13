@@ -38,7 +38,7 @@
  * applies to — the layout of DATEV's sample.
  */
 
-import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
+import { KU_SELECT, kuDayOf, kuOn } from '../../common/kleinunternehmer-period';
 import { inferExpenseAccount } from './datev-sachkonto-inference'
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 26.3: SKR03 Sachkonten auto-inference from the line description, for
@@ -450,7 +450,7 @@ export async function buildBuchungenFromDb(
     include: {
       items: { select: { quantity: true, unitPrice: true, vatRate: true } },
       customer: { select: { id: true, address: true, vatId: true } },
-      referenceInvoice: { select: { invoiceNumber: true, euTransaction: true, reverseCharge: true } },
+      referenceInvoice: { select: { invoiceNumber: true, euTransaction: true, reverseCharge: true, issueDate: true } },
     },
     orderBy: [{ issueDate: 'asc' }, { invoiceNumber: 'asc' }],
   })
@@ -505,7 +505,7 @@ export async function buildBuchungenFromDb(
     const text = isCN
       ? `Gutschrift ${doc.invoiceNumber}${doc.referenceInvoice ? ` zu ${doc.referenceInvoice.invoiceNumber}` : ''}`
       : `Rechnung ${doc.invoiceNumber}`
-    const kleinunternehmer = kuOnDay(doc.issueDate)
+    const kleinunternehmer = kuOnDay(kuDayOf(doc)) // Tier 844: a credit note as its invoice
     for (const bucket of invoiceTaxBreakdown(doc).byRate) {
       // A credit note's buckets are negative: H on the Debitor.
       const gross = r2((bucket.net + bucket.vat) * f)

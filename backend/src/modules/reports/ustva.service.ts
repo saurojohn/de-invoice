@@ -252,7 +252,7 @@ export class UstvaService {
         status: { in: ['paid', 'sent', 'overdue'] },
         type: 'CN',
       },
-      select: { ...USTVA_DOC_SELECT, referenceInvoice: { select: { euTransaction: true, reverseCharge: true } } },
+      select: { ...USTVA_DOC_SELECT, referenceInvoice: { select: { euTransaction: true, reverseCharge: true, issueDate: true } } },
     });
 
     // Sales by rate — output VAT
@@ -396,9 +396,12 @@ export class UstvaService {
         if (rate > 0) {
           if (art === 'soll') addTaxed(cn, rate, net, vat); // CN is already negative
         } else {
-          // Tier 842: a Kleinunternehmer's credit note (§ 19) is in no line
+          // Tier 842: a Kleinunternehmer's credit note (§ 19) is in no line.
+          // Tier 844: § 19 as on the day of the invoice it corrects — the
+          // Storno of a § 19 invoice after the regulation ended stood here
+          // as negative „sonstige steuerfreie Umsätze“.
           const ref = (cn as any).referenceInvoice;
-          if (kuOnDay(cn.issueDate) && !ref?.euTransaction && !ref?.reverseCharge) continue;
+          if (kuOnDay(ref?.issueDate ?? cn.issueDate) && !ref?.euTransaction && !ref?.reverseCharge) continue;
           addZeroRated(
             (cn as any).referenceInvoice ?? {},
             normaliseCountry((cn.customer as any)?.address?.country) || '',

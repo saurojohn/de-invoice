@@ -396,6 +396,8 @@ export class AnlageGService {
       id: string; type: string; subtotal: unknown; totalVat: unknown; total: unknown
       eurTotal: unknown; eurTotalVat: unknown; reverseCharge: boolean; euTransaction: boolean
       issueDate?: Date | null
+      // Tier 844: the invoice a credit note corrects
+      referenceInvoice?: { issueDate?: Date | null; reverseCharge?: boolean | null; euTransaction?: boolean | null } | null
     }
     let revenueRows: Array<{ invoice: RevenueInvoice; amount: number }>
     let invoiceCount: number
@@ -416,6 +418,7 @@ export class AnlageGService {
         select: {
           id: true, type: true, subtotal: true, totalVat: true, total: true,
           eurTotal: true, eurTotalVat: true, reverseCharge: true, euTransaction: true, issueDate: true,
+          referenceInvoice: { select: { issueDate: true, reverseCharge: true, euTransaction: true } }, // Tier 844
         },
       })
       // Tier 411: revenue after the discount and in EUR (was subtotal).
@@ -467,12 +470,17 @@ export class AnlageGService {
       : Math.abs(rate - 0.07) < 0.001 ? '2120'
       : '2110'
     for (const { invoice: inv, amount } of revenueRows) {
-      if (amount < 0 || inv.type === 'CN') {
-        // Gutschrift (CN) — reduce Kz 2110 directly
+      // Tier 844: a Gutschrift (CN) on the lines of the invoice it corrects —
+      // its flags, its § 19 day; the rates are the credit note's own, which
+      // are its invoice's. It reduced Kz 2110 whatever the invoice was
+      // (measured: a Kleinunternehmer's cancelled 1 000 € left 2130 at
+      // 1 400 € and 2110 at −1 000 €). Without its invoice: 2110, as before.
+      const of = inv.type === 'CN' ? inv.referenceInvoice : inv
+      if (!of) {
         addTo('2110', amount)
         continue
       }
-      if (inv.reverseCharge === true || inv.euTransaction === true) {
+      if (of.reverseCharge === true || of.euTransaction === true) {
         addTo('2150', amount)
         continue
       }
@@ -485,7 +493,7 @@ export class AnlageGService {
         addTo('2110', amount)
         continue
       }
-      for (const b of buckets) addTo(rateKz(b.rate, inv.issueDate), amount * (b.net / totalNet))
+      for (const b of buckets) addTo(rateKz(b.rate, of.issueDate), amount * (b.net / totalNet))
     }
     // Tier 464: cash sales from the Kassenbuch (cash-bookings.ts) — in the
     // EÜR, GuV, BWA since Tier 425, never in Anlage G. Net (gross for a

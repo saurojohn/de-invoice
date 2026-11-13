@@ -6,7 +6,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Response } from 'express';
 import PDFDocument from 'pdfkit';
-import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
+import { euerExpenses, euerInflows, euerVat, finanzamtVat, revenueKz } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
 import { bewirtungNachweisFehlt, deductibleCost, isBewirtung, nichtAbziehbareBewirtung } from './expense-cost'
 import { manualJournalLines, type ManualKind } from './manual-journal'
@@ -300,30 +300,19 @@ export class EuerService {
     // (matcher always returns false), so anything
     // not matched lands there.
     //
-    // Credit notes (Gutschriften — subtotal < 0)
-    // always reduce Kz 4100, because the BMF
-    // Anlage EÜR convention is to show them on
-    // the same line as the original Umsatzerlöse,
-    // not as a separate "sonstige" entry. The
-    // original invoice was almost certainly
-    // USt-pflichtig (this is the default for B2B
-    // sales in de-invoice), so subtracting from
-    // 4100 is the conservative choice. If the
-    // original was actually Kz 4120/4170 the
-    // net is still correct on a Steuerberater
-    // review.
+    // Credit notes (Gutschriften — subtotal < 0) reduce the line of the
+    // Umsatzerlöse they correct, not a separate "sonstige" entry (the BMF
+    // Anlage EÜR convention) — see revenueKz (Tier 844).
     const einnahmenBuckets = new Map<string, number>()
     for (const def of REVENUE_LINES) einnahmenBuckets.set(def.kz, 0)
     for (const { invoice: inv, amount: subtotal } of inflows) {
       // Tier 454: the income is the payment's net share, not the invoice's net;
       // its sign still marks a credit note.
-      if (subtotal < 0 || inv.type === 'CN') {
-        // Gutschrift — offset Kz 4100 (negative)
-        einnahmenBuckets.set('4100', (einnahmenBuckets.get('4100') || 0) + subtotal)
-        continue
-      }
-      const matched = REVENUE_LINES.find((d) => d.matcher(inv, revenueCtx))
-      const kz = matched?.kz || '4190'
+      // Tier 844: a credit note's refund on the line of the invoice it
+      // corrects, a refund on the invoice's own. Both reduced Kz 4100 whatever
+      // the invoice was: measured, a Kleinunternehmer's cancelled 1 000 € left
+      // 4120 at 1 400 € and 4100 at −1 000 € (he received 400 € on 4120).
+      const kz = revenueKz(inv, subtotal, REVENUE_LINES, revenueCtx)
       einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + subtotal)
     }
 

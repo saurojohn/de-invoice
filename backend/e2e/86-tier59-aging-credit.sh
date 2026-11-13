@@ -204,8 +204,11 @@ AFTER_NET=$(python3 -c "import json,sys;print(json.load(sys.stdin)['grandNetTota
 EXPECTED_CREDIT=$(python3 -c "print($BASE_CREDIT + 150)")
 assert_eq "totalCreditBalance === base + 150" "$AFTER_CREDIT" "$EXPECTED_CREDIT"
 # grandNetTotal === max(0, grandTotal - totalCreditBalance)
-EXPECTED_NET=$(python3 -c "print(max(0, $BASE_GRAND - ($BASE_CREDIT + 150)))")
-assert_eq "grandNetTotal === max(0, grandTotal - (base + 150))" "$AFTER_NET" "$EXPECTED_NET"
+# Tier 844: compared in cents — the difference of two floats printed as
+# 172914.34999999998 against the report's 172914.35 once the shared database
+# held enough open invoices.
+EXPECTED_NET=$(python3 -c "print(round(max(0, $BASE_GRAND - ($BASE_CREDIT + 150)) * 100))")
+assert_eq "grandNetTotal === max(0, grandTotal - (base + 150))" "$(python3 -c "print(round($AFTER_NET * 100))")" "$EXPECTED_NET"
 
 # Find this customer's row
 AFTER_ROW=$(python3 -c "

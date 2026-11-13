@@ -25,7 +25,7 @@
  * Expenses count at `paidAt` — set by the bank import, the SEPA run, the cash
  * book, or entered by hand (Tier 454).
  */
-import { Ku, kuAt } from '../../common/kleinunternehmer-period'
+import { Ku, kuAt, kuDayOf } from '../../common/kleinunternehmer-period'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CLAIM_TYPES, ISSUED_STATUSES } from '../invoice/document-scope'
@@ -58,6 +58,10 @@ const INVOICE_FIELDS = {
   eurTotal: true,
   reverseCharge: true,
   euTransaction: true,
+  // Tier 844: a credit note follows the invoice it corrects (its line, its § 19)
+  referenceInvoice: {
+    select: { issueDate: true, subtotal: true, totalVat: true, reverseCharge: true, euTransaction: true },
+  },
 } as const
 
 const CENT = 0.005
@@ -271,7 +275,13 @@ export async function finanzamtVat(prisma: PrismaService, companyId: string, sta
  * Anlage G (EÜR) take the same figures.
  */
 export function euerVat(
-  inflows: Array<{ invoice: { eurTotalVat?: unknown; totalVat?: unknown; issueDate?: Date | null }; fraction: number }>,
+  inflows: Array<{
+    invoice: {
+      eurTotalVat?: unknown; totalVat?: unknown; issueDate?: Date | null
+      type?: string | null; referenceInvoice?: { issueDate?: Date | null } | null
+    }
+    fraction: number
+  }>,
   expenses: Array<{ vatAmount?: unknown; category?: string | null; invoiceDate?: Date | null }>,
   cash: Array<{ direction: string; vat: number; date?: Date }>,
   kleinunternehmer: Ku,
@@ -281,7 +291,7 @@ export function euerVat(
   let received = 0
   let vorsteuer = 0
   for (const f of inflows) {
-    if (kuAt(kleinunternehmer, f.invoice.issueDate)) continue
+    if (kuAt(kleinunternehmer, kuDayOf(f.invoice))) continue // Tier 844: a credit note as its invoice
     received += f.fraction * Number(f.invoice.eurTotalVat ?? f.invoice.totalVat ?? 0)
   }
   for (const e of expenses) {
@@ -295,4 +305,27 @@ export function euerVat(
     else vorsteuer += c.vat
   }
   return { received, vorsteuer }
+}
+
+/**
+ * Tier 844 — the Kennziffer of an inflow: the first line whose matcher takes
+ * the invoice, else „sonstige“ (4190). A credit note's refund goes on the
+ * line of the invoice it corrects (the matchers are asked about that
+ * invoice). A refund that no line takes stays on the taxed line (4100), where
+ * every refund went before.
+ *
+ * The matchers ask for positive amounts; a document with negative ones (an
+ * invoice of old data entered as a Gutschrift) is shown to them without its
+ * sign, so that it reduces the line an invoice of its kind is on.
+ */
+export function revenueKz<C>(
+  inv: { type?: string | null; referenceInvoice?: unknown },
+  amount: number,
+  lines: Array<{ kz: string; matcher: (inv: any, ctx: C) => boolean }>,
+  ctx: C,
+): string {
+  const of = (inv.type === 'CN' ? inv.referenceInvoice : inv) as { subtotal?: unknown; totalVat?: unknown } | null | undefined
+  const unsigned = of && { ...of, subtotal: Math.abs(Number(of.subtotal ?? 0)), totalVat: Math.abs(Number(of.totalVat ?? 0)) }
+  const kz = unsigned ? lines.find((d) => d.matcher(unsigned, ctx))?.kz : undefined
+  return kz ?? (amount < 0 || inv.type === 'CN' ? '4100' : '4190')
 }
