@@ -1,3 +1,5 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
+import { businessTodayIso } from '../../common/business-date'
 import { IGL_NOTE, IGL_NOTE_BEFORE_688 } from '../invoice/zero-rated'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Injectable, BadRequestException } from '@nestjs/common'
@@ -224,6 +226,8 @@ export class InvoiceTemplateService {
     companyId: string,
     templateType: string,
     templateId?: string | null,
+    /** Tier 842: the invoice's date — whether § 19 applied on it (today if not given) */
+    onDate?: Date | string | null,
   ): Promise<{ config: Required<TemplateConfig>; templateId: string | null; isBuiltin: boolean }> {
     // Tier 480: the § 19 UStG note belongs on a Kleinunternehmer's
     // invoices only — every template carries its text.
@@ -232,8 +236,8 @@ export class InvoiceTemplateService {
     if (resolved.config.euTransactionNote === IGL_NOTE_BEFORE_688) {
       resolved.config = { ...resolved.config, euTransactionNote: IGL_NOTE }
     }
-    const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
-    if (co?.defaultVatMode !== 'kleinunternehmer') {
+    const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: KU_SELECT })
+    if (!kuOn(co)(onDate ?? businessTodayIso())) {
       resolved.config = { ...resolved.config, kleineUnternehmerNote: '' }
     }
     return resolved
@@ -362,7 +366,7 @@ export class InvoiceTemplateService {
     // renderer has taken them since Tier 7.5).
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
     const rendered = { ...config }
-    if ((company as any)?.defaultVatMode !== 'kleinunternehmer') rendered.kleineUnternehmerNote = '' // as resolveConfig (Tier 480)
+    if (!kuOn(company)(businessTodayIso())) rendered.kleineUnternehmerNote = '' // as resolveConfig (Tier 480 / 842)
     return generateInvoicePDF(sampleInvoice as any, issuerContext(company, rendered as any), 'standard', rendered as any)
   }
 

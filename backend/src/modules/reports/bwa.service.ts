@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { LIVE_AFA, afaOfYear } from '../accounting/booked-afa'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals } from '../assets/disposals'
@@ -264,9 +265,8 @@ export class BwaService {
   async compute(companyId: string, year: number, month: number): Promise<BwaResult> {
     // Tier 419: expenses at their net cost unless the company is a
     // Kleinunternehmer (expense-cost.ts).
-    const kleinunternehmer =
-      (await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } }))
-        ?.defaultVatMode === 'kleinunternehmer'
+    // Tier 842: § 19 by the date of each document (kleinunternehmer-period.ts)
+    const kleinunternehmer = kuOn(await this.prisma.company.findUnique({ where: { id: companyId }, select: KU_SELECT }))
     const company = await this.prisma.company.findUnique({ where: { id: companyId } })
     if (!company) throw new Error('Company nicht gefunden')
 
@@ -363,7 +363,7 @@ export class BwaService {
     const eurSubtotal = (i: Parameters<typeof invoiceNetRevenue>[0]) => invoiceNetRevenue(i)
     // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts),
     // net (gross for a Kleinunternehmer) — in no report before.
-    const cashCost = (c: CashBooking) => (kleinunternehmer ? c.gross : c.net)
+    const cashCost = (c: CashBooking) => (kleinunternehmer(c.date) ? c.gross : c.net)
     const cash = await cashBookings(
       this.prisma, companyId, vormonatStart < yearStart ? vormonatStart : yearStart, monthEnd,
     )
@@ -521,7 +521,7 @@ export class BwaService {
           OR: [{ category: null }, { category: { not: 'AfA' } }],
           invoiceDate: { gte: vorjahresYtdStart, lte: vorjahresYtdEnd },
         },
-        select: { netAmount: true, grossAmount: true, category: true, accountNumber: true },
+        select: { netAmount: true, grossAmount: true, category: true, accountNumber: true, invoiceDate: true },
       }),
     ])
 

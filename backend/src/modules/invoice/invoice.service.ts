@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
 import { assertPeriodOpen } from '../reports/filed-period';
 import { storedPaymentMethod } from './payment-method'
 import { withKeyLock } from '../../common/key-lock';
@@ -1153,18 +1154,22 @@ export class InvoiceService {
   // out at 1 190 € with "USt 19 %: 190,00" (owed under § 14c), and the UStVA
   // declared 380 € for the two.
   private async withoutVatWhereNoneIsCharged<
-    T extends { items?: Array<{ vatRate?: number | null }>; reverseCharge?: boolean; euTransaction?: boolean },
+    T extends { items?: Array<{ vatRate?: number | null }>; reverseCharge?: boolean; euTransaction?: boolean; issueDate?: string | Date },
   >(
     companyId: string,
     dto: T,
-    existing?: { reverseCharge: boolean | null; euTransaction: boolean | null },
+    existing?: { reverseCharge: boolean | null; euTransaction: boolean | null; issueDate?: Date | null },
   ): Promise<T> {
     if (!dto.items?.length) return dto
-    const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
+    const co = await this.prisma.company.findUnique({ where: { id: companyId }, select: KU_SELECT })
     const mode = co?.defaultVatMode
     const rc = dto.reverseCharge ?? (existing ? !!existing.reverseCharge : mode === 'reverseCharge')
     const igl = dto.euTransaction ?? (existing ? !!existing.euTransaction : mode === 'igL')
-    if (mode !== 'kleinunternehmer' && !rc && !igl) return dto
+    // Tier 842: § 19 on the invoice's date (kleinunternehmer-period.ts) — an
+    // invoice of the Kleinunternehmer period entered after the change, or one
+    // of the time before it, as it was then
+    const ku = kuOn(co)(dto.issueDate ?? existing?.issueDate ?? businessTodayIso())
+    if (!ku && !rc && !igl) return dto
     return { ...dto, items: dto.items.map((i) => ({ ...i, vatRate: 0 })) }
   }
 

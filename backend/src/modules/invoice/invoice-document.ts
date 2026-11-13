@@ -37,13 +37,14 @@ export { issuerContext } from './issuer-context'
 /** The texts, colour and density of the invoice's template (Tier 7.5), or the company's default. */
 export async function templateConfigFor(
   prisma: PrismaService,
-  invoice: { companyId: string; templateType?: string | null; templateId?: string | null },
+  invoice: { companyId: string; templateType?: string | null; templateId?: string | null; issueDate?: Date | string | null },
 ): Promise<InvoiceRenderConfig | undefined> {
   try {
     const r = await new InvoiceTemplateService(prisma).resolveConfig(
       invoice.companyId,
       invoice.templateType || 'standard',
       invoice.templateId,
+      invoice.issueDate, // Tier 842: the § 19 note as on the invoice's date
     )
     return r.config as InvoiceRenderConfig
   } catch {

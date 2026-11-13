@@ -33,6 +33,7 @@
  *   - zugferd.service.ts (Factur-X reuses the data transform)
  */
 
+import { kuOn } from '../common/kleinunternehmer-period';
 import { zeroRatedGround } from '../modules/invoice/zero-rated'
 import { invoiceTaxBreakdown } from '../modules/invoice/tax-breakdown'
 import { invoiceRecipientOf } from '../modules/customer/invoice-recipient'
@@ -1142,6 +1143,9 @@ export function transformToXRechnungData(
     name: string
     /** Tier 482: 'kleinunternehmer' → § 19 as the exemption reason */
     defaultVatMode?: string | null
+    /** Tier 842: § 19 by date (kleinunternehmer-period.ts) */
+    kleinunternehmerAb?: Date | null
+    kleinunternehmerBis?: Date | null
     vatId?: string | null
     taxId?: string | null
     legalName?: string | null
@@ -1301,7 +1305,7 @@ export function transformToXRechnungData(
             : {}),
         }
       : {}),
-    kleinunternehmer: company.defaultVatMode === 'kleinunternehmer',
+    kleinunternehmer: kuOn(company)(invoice.issueDate), // Tier 842: on the invoice's date
     // Tier 473: the advance a final invoice deducted (Tier 472)
     prepaid: isCreditNote ? undefined : round2((invoice.payments ?? [])
       .filter((p) => p.paymentMethod === 'Anzahlung')

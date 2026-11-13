@@ -11,6 +11,8 @@
  * A Kleinunternehmer (§ 19 UStG, `Company.defaultVatMode`) cannot deduct input
  * tax: for them the gross amount is the cost.
  */
+import { Ku, kuAt } from '../../common/kleinunternehmer-period'
+
 type Num = { toString(): string } | number | null | undefined
 
 export interface CostExpense {
@@ -19,6 +21,8 @@ export interface CostExpense {
   category?: string | null
   /** Tier 815: the Sachkonto — an Anlagekonto makes it the purchase of an asset */
   accountNumber?: string | null
+  /** Tier 842: the bill's date — whether § 19 applied then (kleinunternehmer-period.ts) */
+  invoiceDate?: Date | string | null
 }
 
 /**
@@ -96,13 +100,15 @@ export function notAnExpense(category: string | null | undefined): string | null
 }
 
 /** What the expense's amount is, whatever it is for. */
-export function rawExpenseCost(e: CostExpense, kleinunternehmer: boolean): number {
-  const v = kleinunternehmer ? e.grossAmount : e.netAmount ?? e.grossAmount
+// Tier 842: `kleinunternehmer` may be the company's § 19 by date (kuOn), then
+// it is asked for the bill's date
+export function rawExpenseCost(e: CostExpense, kleinunternehmer: Ku): number {
+  const v = kuAt(kleinunternehmer, e.invoiceDate) ? e.grossAmount : e.netAmount ?? e.grossAmount
   const n = Number(v ?? 0)
   return Number.isFinite(n) ? n : 0
 }
 
-export function expenseCost(e: CostExpense, kleinunternehmer: boolean): number {
+export function expenseCost(e: CostExpense, kleinunternehmer: Ku): number {
   if (isAssetPurchase(e.accountNumber)) return 0 // Tier 815: its AfA is the cost
   return notAnExpense(e.category) ? 0 : rawExpenseCost(e, kleinunternehmer)
 }
@@ -138,7 +144,7 @@ export function bewirtungNachweisFehlt(e: {
 }
 
 /** The cost that counts for the tax profit: 70 % of an entertainment expense. */
-export function deductibleCost(e: CostExpense & { category?: string | null }, kleinunternehmer: boolean): number {
+export function deductibleCost(e: CostExpense & { category?: string | null }, kleinunternehmer: Ku): number {
   // Tier 682: a tax on income is no Betriebsausgabe
   if (isIncomeTax(e.category)) return 0
   const cost = expenseCost(e, kleinunternehmer)
@@ -148,7 +154,7 @@ export function deductibleCost(e: CostExpense & { category?: string | null }, kl
 /** The non-deductible 30 % of the entertainment expenses. */
 export function nichtAbziehbareBewirtung(
   expenses: Array<CostExpense & { category?: string | null }>,
-  kleinunternehmer: boolean,
+  kleinunternehmer: Ku,
 ): number {
   const sum = expenses.reduce((s, e) => s + (isBewirtung(e) ? expenseCost(e, kleinunternehmer) - deductibleCost(e, kleinunternehmer) : 0), 0)
   return Math.round(sum * 100) / 100

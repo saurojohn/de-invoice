@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { kursdifferenzen } from './kursdifferenzen'
 import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
@@ -379,9 +380,10 @@ export class AnlageGService {
 
     const companyRow = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { defaultVatMode: true, gewinnermittlung: true, rechtsform: true, settings: true, legalName: true, name: true },
+      select: { ...KU_SELECT, gewinnermittlung: true, rechtsform: true, settings: true, legalName: true, name: true },
     })
-    const kleinunternehmer = companyRow?.defaultVatMode === 'kleinunternehmer'
+    // Tier 842: § 19 by the date of each document (kleinunternehmer-period.ts)
+    const kleinunternehmer = kuOn(companyRow)
     // Tier 464: an EÜR company counts income and expenses when paid (§ 11
     // EStG, as its EÜR — euer-zufluss.ts); a balance-sheet company by
     // document date. Anlage G used the document date for both.
@@ -393,6 +395,7 @@ export class AnlageGService {
     type RevenueInvoice = {
       id: string; type: string; subtotal: unknown; totalVat: unknown; total: unknown
       eurTotal: unknown; eurTotalVat: unknown; reverseCharge: boolean; euTransaction: boolean
+      issueDate?: Date | null
     }
     let revenueRows: Array<{ invoice: RevenueInvoice; amount: number }>
     let invoiceCount: number
@@ -412,7 +415,7 @@ export class AnlageGService {
         },
         select: {
           id: true, type: true, subtotal: true, totalVat: true, total: true,
-          eurTotal: true, eurTotalVat: true, reverseCharge: true, euTransaction: true,
+          eurTotal: true, eurTotalVat: true, reverseCharge: true, euTransaction: true, issueDate: true,
         },
       })
       // Tier 411: revenue after the discount and in EUR (was subtotal).
@@ -444,7 +447,7 @@ export class AnlageGService {
           status: { in: ['booked', 'deductible'] },
           ...NOT_AFA_BOOKING, // Tier 438: the booked AfA is line 2500, below
         },
-        select: { id: true, netAmount: true, grossAmount: true, category: true, accountNumber: true },
+        select: { id: true, netAmount: true, grossAmount: true, category: true, accountNumber: true, invoiceDate: true },
       })
     // Tier 503: gifts above the 50 € limit are no Betriebsausgabe — neither
     // their cost nor their input tax (accounting/gifts.ts).
@@ -459,8 +462,8 @@ export class AnlageGService {
     for (const def of EINNAHMEN_LINES) einnahmenBuckets.set(def.kz, 0)
     const addTo = (kz: string, amount: number) =>
       einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + amount)
-    const rateKz = (rate: number) =>
-      rate === 0 ? (kleinunternehmer ? '2130' : '2190')
+    const rateKz = (rate: number, day?: Date | null) =>
+      rate === 0 ? (kleinunternehmer(day) ? '2130' : '2190')
       : Math.abs(rate - 0.07) < 0.001 ? '2120'
       : '2110'
     for (const { invoice: inv, amount } of revenueRows) {
@@ -482,7 +485,7 @@ export class AnlageGService {
         addTo('2110', amount)
         continue
       }
-      for (const b of buckets) addTo(rateKz(b.rate), amount * (b.net / totalNet))
+      for (const b of buckets) addTo(rateKz(b.rate, inv.issueDate), amount * (b.net / totalNet))
     }
     // Tier 464: cash sales from the Kassenbuch (cash-bookings.ts) — in the
     // EÜR, GuV, BWA since Tier 425, never in Anlage G. Net (gross for a
@@ -490,7 +493,7 @@ export class AnlageGService {
     const cash = await cashBookings(this.prisma, companyId, yearStart, yearEnd)
     for (const c of cash.filter((x) => x.direction === 'in')) {
       // Tier 838: a Kassenüberschuss is a sonstiger Erlös, not a sale
-      addTo(c.kassendifferenz ? '2190' : rateKz(c.rate), kleinunternehmer ? c.gross : c.net)
+      addTo(c.kassendifferenz ? '2190' : rateKz(c.rate, c.date), kleinunternehmer(c.date) ? c.gross : c.net)
     }
 
     // Bucket expenses. The Sonstige 2890 is the
@@ -539,7 +542,7 @@ export class AnlageGService {
     // Tier 440: book value of assets sold or scrapped (disposals.ts).
     addCost('2890', sumRestbuchwert(await assetDisposals(this.prisma, companyId, yearStart, yearEnd)))
     // Tier 464: cash purchases from the Kassenbuch (cash-bookings.ts).
-    for (const c of cash.filter((x) => x.direction === 'out')) addCost('2890', kleinunternehmer ? c.gross : c.net)
+    for (const c of cash.filter((x) => x.direction === 'out')) addCost('2890', kleinunternehmer(c.date) ? c.gross : c.net)
 
     // Tier 483: the VAT in the cash flows of an EÜR — the same figures as the
     // EÜR's Zeilen 17 / 18 / 57 / 58 (euer-zufluss.ts).

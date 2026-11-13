@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { NOT_AFA_BOOKING, afaOfYear } from '../accounting/booked-afa'
 import { expenseCost, isIncomeTax } from '../accounting/expense-cost'
 import { manualJournalLines } from '../accounting/manual-journal'
@@ -54,11 +55,12 @@ export class DashboardController {
    * taxes left out on every side — the figure is before them).
    */
   private async ytdResultParts(companyId: string, start: Date, end: Date): Promise<{ net: number }> {
-    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
-    const kleinunternehmer = company?.defaultVatMode === 'kleinunternehmer'
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: KU_SELECT })
+    // Tier 842: § 19 by the date of each document (kleinunternehmer-period.ts)
+    const kleinunternehmer = kuOn(company)
     const rows = await this.prisma.expense.findMany({
       where: { companyId, invoiceDate: { gte: start, lte: end }, status: { in: ['booked', 'deductible'] } },
-      select: { netAmount: true, grossAmount: true, category: true, accountNumber: true, relatedAssetId: true },
+      select: { netAmount: true, grossAmount: true, category: true, accountNumber: true, relatedAssetId: true, invoiceDate: true },
     })
     let cents = 0
     for (const e of rows) {
@@ -74,7 +76,7 @@ export class DashboardController {
     const afa = await afaOfYear(this.prisma, companyId, start.getFullYear())
     cents -= Math.round(afa.cost(start, monthEnd, end.getMonth() + 1) * 100)
     for (const c of await cashBookings(this.prisma, companyId, start, end)) {
-      const v = Math.round((kleinunternehmer ? c.gross : c.net) * 100)
+      const v = Math.round((kleinunternehmer(c.date) ? c.gross : c.net) * 100)
       cents += c.direction === 'in' ? v : -v
     }
     for (const l of await manualJournalLines(this.prisma, companyId, start, end)) {

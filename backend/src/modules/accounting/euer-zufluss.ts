@@ -25,6 +25,7 @@
  * Expenses count at `paidAt` — set by the bank import, the SEPA run, the cash
  * book, or entered by hand (Tier 454).
  */
+import { Ku, kuAt } from '../../common/kleinunternehmer-period'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CLAIM_TYPES, ISSUED_STATUSES } from '../invoice/document-scope'
@@ -180,7 +181,8 @@ export async function euerExpenses(prisma: PrismaService, companyId: string, sta
       // Tier 483: the input tax paid is its own EÜR line (gezahlte Vorsteuer)
       // Tier 503: id for the gift limit (accounting/gifts.ts)
       // Tier 539: the Bewirtung record, for the hint
-      select: { id: true, netAmount: true, grossAmount: true, vatAmount: true, category: true, accountNumber: true, bewirtungAnlass: true, bewirtungTeilnehmer: true },
+      // Tier 842: the date — whether § 19 applied to the bill (kleinunternehmer-period.ts)
+      select: { id: true, netAmount: true, grossAmount: true, vatAmount: true, category: true, accountNumber: true, bewirtungAnlass: true, bewirtungTeilnehmer: true, invoiceDate: true },
     }),
     prisma.expense.count({
       where: { ...scope, paidAt: null, invoiceDate: { gte: start, lte: end } },
@@ -269,20 +271,26 @@ export async function finanzamtVat(prisma: PrismaService, companyId: string, sta
  * Anlage G (EÜR) take the same figures.
  */
 export function euerVat(
-  inflows: Array<{ invoice: { eurTotalVat?: unknown; totalVat?: unknown }; fraction: number }>,
-  expenses: Array<{ vatAmount?: unknown; category?: string | null }>,
-  cash: Array<{ direction: string; vat: number }>,
-  kleinunternehmer: boolean,
+  inflows: Array<{ invoice: { eurTotalVat?: unknown; totalVat?: unknown; issueDate?: Date | null }; fraction: number }>,
+  expenses: Array<{ vatAmount?: unknown; category?: string | null; invoiceDate?: Date | null }>,
+  cash: Array<{ direction: string; vat: number; date?: Date }>,
+  kleinunternehmer: Ku,
 ) {
-  if (kleinunternehmer) return { received: 0, vorsteuer: 0 }
+  // Tier 842: by the date of each document — a year with the change of
+  // regime has both (kleinunternehmer-period.ts)
   let received = 0
   let vorsteuer = 0
-  for (const f of inflows) received += f.fraction * Number(f.invoice.eurTotalVat ?? f.invoice.totalVat ?? 0)
+  for (const f of inflows) {
+    if (kuAt(kleinunternehmer, f.invoice.issueDate)) continue
+    received += f.fraction * Number(f.invoice.eurTotalVat ?? f.invoice.totalVat ?? 0)
+  }
   for (const e of expenses) {
     if (/^AfA/i.test(e.category || '')) continue
+    if (kuAt(kleinunternehmer, e.invoiceDate)) continue
     vorsteuer += Number(e.vatAmount ?? 0)
   }
   for (const c of cash) {
+    if (kuAt(kleinunternehmer, c.date)) continue
     if (c.direction === 'in') received += c.vat
     else vorsteuer += c.vat
   }

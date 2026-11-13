@@ -1,3 +1,5 @@
+import { KuCompany, kuOn } from '../../common/kleinunternehmer-period'
+import { businessTodayIso } from '../../common/business-date'
 import { zeroRatedGround } from './zero-rated'
 import { BadRequestException } from '@nestjs/common'
 
@@ -41,8 +43,10 @@ export function missingInvoiceDetails(
     total?: unknown; eurTotal?: unknown; euTransaction?: boolean | null; reverseCharge?: boolean | null
     /** Tier 690: the rates of the lines, and the remarks that would name an exemption */
     items?: { vatRate?: unknown }[]; notes?: string | null
+    /** Tier 842: whether § 19 applied on it (kleinunternehmer-period.ts); today if not given */
+    issueDate?: Date | string | null
   },
-  company: { name?: string | null; legalName?: string | null; address?: unknown; taxId?: string | null; vatId?: string | null; defaultVatMode?: string | null },
+  company: { name?: string | null; legalName?: string | null; address?: unknown; taxId?: string | null; vatId?: string | null } & KuCompany,
   customer: { name?: string | null; address?: unknown; vatId?: string | null } | null | undefined,
 ): string[] {
   const missing: string[] = []
@@ -59,7 +63,7 @@ export function missingInvoiceDetails(
   const zeroRatedLine = (invoice.items ?? []).some((it) => Math.abs(Number(it.vatRate ?? 0)) < 0.00005)
   if (
     zeroRatedLine &&
-    company.defaultVatMode !== 'kleinunternehmer' &&
+    !kuOn(company)(invoice.issueDate ?? businessTodayIso()) &&
     zeroRatedGround(invoice, (customer?.address as Address)?.country, customer?.vatId) === 'exempt' &&
     !EXEMPTION_HINT.test(invoice.notes ?? '')
   ) {

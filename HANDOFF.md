@@ -2673,6 +2673,53 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 842 — the Kleinunternehmerregelung by date: switching the mode no longer turns the history over
+
+**Measured** on Tier 841. Every report and the invoice itself read `Company.defaultVatMode` as it is today, for every period.
+- A Kleinunternehmer's 105 000 € moved from EÜR 4120 (§ 19) to 4170 (steuerfrei) when the mode was set to `standard`.
+- The other way, a company that became a Kleinunternehmer lost the input tax of its regular years in every UStVA: Tier 481 zeroed it for the period by today's mode.
+- An invoice of the Kleinunternehmer period entered after the switch got 19 %.
+- One more thing turned up, older: a Kleinunternehmer's own sales stood in the UStVA's „sonstige steuerfreie Umsätze“ (Zeile 44). A § 19 turnover belongs in no line of the Voranmeldung.
+
+**Decision** (an accounting decision; § 19 Abs. 1 UStG, BMF 18.03.2025). The regulation is a period, and each document is judged on its own date: an invoice's issue date, a bill's invoice date, a cash entry's day, a month for the private car use.
+
+The defaults when the mode is switched without a date:
+- **Kleinunternehmer → another mode:** § 19 applied up to yesterday. The past is kept, and nothing is retroactive unless a day is given. The settings ask "Umsatzsteuer ab". After crossing the 100 000 € that is the day of the invoice that crossed it; after a previous year over 25 000 € it is 1 January.
+- **Another chosen mode → Kleinunternehmer:** from 1 January of this year, because § 19 is decided per calendar year. If this year's Kleinunternehmer period ended only now (a switch undone), it is the day after that end, with no gap.
+- **From no mode at all** (a new company): since always, as before.
+
+**What is refused.** A change that alters a day in closed books or in a filed period is refused, with „…das Ändern der Kleinunternehmerregelung“. So is a current period that begins before an earlier one ended.
+
+**Change.**
+- `Company.kleinunternehmerAb` / `kleinunternehmerBis` (migration `20261113000001_kleinunternehmer_period`).
+- `common/kleinunternehmer-period.ts`: `kuOn(company)` is the § 19 predicate by day, with `KU_SELECT`, `kuAt`, `kuWithin` and `kuThroughout`. Without a date it answers with today's mode, which is the old behaviour.
+- `expenseCost` / `deductibleCost` / `nichtAbziehbareBewirtung` / the gift rules take the predicate and ask it for the bill's date. `euerVat` asks it per document.
+- Changed to judge per document:
+  - reports: EÜR, Anlage S / G / V, GuV, KSt 1, BWA, DATEV, UStVA, the dashboard's result, the private car use;
+  - invoices: creation (0 % on a § 19 day), the mandatory details' exemption hint, recurring runs (today), the PDF's § 19 note, XRechnung / ZUGFeRD.
+- `CompanyService.withKleinunternehmerPeriod` sets the defaults and the refusals.
+- Settings: switching to or from Kleinunternehmer shows a date field; the stored period is shown under the select.
+- Left with today's mode, on purpose:
+  - the filing rhythm and the annual-return note (what is due now);
+  - the Verfahrensdokumentation's line;
+  - the USt-Behandlung detector's suggestion;
+  - the Tier 841 limit status (about the current year);
+  - the invoice form's default rate (the backend decides the invoice).
+
+**Specs.**
+- Backend spec 536: 12 checks fail on Tier 841.
+  - A Kleinunternehmer until 30.06. of last year: the invoices before (one entered later) without VAT, the one after with it.
+  - The EÜR with 2 000 on 4120 and 1 000 on 4100, USt 190 and Vorsteuer 38 only of August.
+  - UStVA 03 / 05 / 07 / 08.
+  - The switch without a date (up to yesterday, the year's § 19 revenue kept); back again (from today, no gap).
+  - The refusals.
+- Playwright `kleinunternehmer-wechsel-tier842`: the switch in the settings with „Umsatzsteuer ab 01.07.“ stores „bis 30.06.“ and shows it.
+- Checked that no spec switches a shared company (the seed company, mode null) in or out of § 19. The backend specs each register their own.
+
+Locally:
+- the 223 backend specs that read the mode, the EÜR, UStVA, DATEV, BWA, GuV, Anlagen, KSt, the car use, recurring runs or the e-invoices, with the guards: all pass;
+- the 140 Playwright specs on the settings, invoices and reports: 511 passed, 1 failed. `payment-method-tier729`'s `page.goto` hit the 30-s load timeout of the local dev server in the 34-minute run (not a check); alone it passes 3/3.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 841 — the Kleinunternehmer's limits: last year's 25 000 € and this year's 100 000 € are watched and shown
 
 **The rules** (§ 19 UStG as of 01.01.2025, Jahressteuergesetz 2024; BMF-Schreiben vom 18.03.2025, III C 3 – S 7360/00027/044/105). An accounting decision, mine to make per the user's standing instruction. Sources read: IHK Berlin's Merkblatt on the Kleinunternehmerregelung and a summary of the BMF letter. The letter itself was not read.

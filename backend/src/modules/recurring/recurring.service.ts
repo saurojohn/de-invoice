@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { businessToday, businessTodayDate, businessTodayIso } from '../../common/business-date'
 import { computeInvoiceAmounts } from '../invoice/invoice-amounts';
@@ -206,7 +207,7 @@ export class RecurringService {
    * USt-IdNr. — checked when `customerId` is given, as Tier 486 does).
    */
   private async vatTreatment(db: any, companyId: string, customerId: string | null) {
-    const company = await db.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
+    const company = await db.company.findUnique({ where: { id: companyId }, select: KU_SELECT })
     const mode = company?.defaultVatMode
     const reverseCharge = mode === 'reverseCharge'
     const euTransaction = mode === 'igL'
@@ -215,7 +216,8 @@ export class RecurringService {
       const problem = igLVatIdProblem(customer?.vatId)
       if (problem) throw new BadRequestException(`Innergemeinschaftliche Lieferung nicht möglich: ${problem}`)
     }
-    const noVat = mode === 'kleinunternehmer' || reverseCharge || euTransaction
+    // Tier 842: § 19 today — the run's invoice is dated today (kleinunternehmer-period.ts)
+    const noVat = kuOn(company)(businessTodayIso()) || reverseCharge || euTransaction
     return { reverseCharge, euTransaction, rate: (r: unknown) => (noVat ? 0 : Number(r ?? 0)) }
   }
 

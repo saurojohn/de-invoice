@@ -1,3 +1,4 @@
+import { KU_SELECT, KuOn, kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { manualJournalLines, type ManualKind } from './manual-journal'
 import { kursdifferenzen } from './kursdifferenzen'
@@ -97,7 +98,8 @@ export interface AnlageSResult {
 // lines are the typical freelance deductible
 // categories; the 4100-range mirrors the EÜR
 // revenue structure.
-type RevenueCtx = { kleinunternehmer: boolean }
+// Tier 842: § 19 by the invoice's date (kleinunternehmer-period.ts)
+type RevenueCtx = { kleinunternehmer: KuOn }
 const isTaxFreeSupply = (inv: any) => inv.reverseCharge === true || inv.euTransaction === true
 
 const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx: RevenueCtx) => boolean }> = [
@@ -115,7 +117,7 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
     // ever saw invoices that had VAT on them (before Tier 410 a 0 % line
     // was billed at 19 %, so nobody noticed).
     matcher: (inv, ctx) =>
-      ctx.kleinunternehmer && !isTaxFreeSupply(inv) &&
+      ctx.kleinunternehmer(inv.issueDate) && !isTaxFreeSupply(inv) &&
       Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0,
   },
   {
@@ -125,7 +127,7 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
     // revenue of a company that is not a Kleinunternehmer (§4 exempt).
     matcher: (inv, ctx) =>
       isTaxFreeSupply(inv) ||
-      (!ctx.kleinunternehmer && Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0),
+      (!ctx.kleinunternehmer(inv.issueDate) && Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0),
   },
   {
     kz: '4170',
@@ -256,10 +258,10 @@ export class AnlageSService {
     // company, not on the invoice.
     const vatModeRow = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { defaultVatMode: true },
+      select: KU_SELECT,
     })
     const revenueCtx: RevenueCtx = {
-      kleinunternehmer: vatModeRow?.defaultVatMode === 'kleinunternehmer',
+      kleinunternehmer: kuOn(vatModeRow),
     }
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
@@ -315,10 +317,11 @@ export class AnlageSService {
     // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts).
     const cash = await cashBookings(this.prisma, companyId, yearStart, yearEnd)
     for (const c of cash) {
-      const amount = revenueCtx.kleinunternehmer ? c.gross : c.net
+      const ku = revenueCtx.kleinunternehmer(c.date)
+      const amount = ku ? c.gross : c.net
       if (c.direction === 'in') {
         // Tier 838: a Kassenüberschuss is a sonstige Betriebseinnahme
-        const kz = c.kassendifferenz ? '4190' : revenueCtx.kleinunternehmer ? '4120' : c.rate > 0 ? '4100' : '4170'
+        const kz = c.kassendifferenz ? '4190' : ku ? '4120' : c.rate > 0 ? '4100' : '4170'
         einnahmenBuckets.set(kz, (einnahmenBuckets.get(kz) || 0) + amount)
       } else {
         ausgabenBuckets.set('4720', (ausgabenBuckets.get('4720') || 0) + amount)

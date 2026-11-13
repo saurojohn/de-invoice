@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assertPeriodOpen } from './filed-period';
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
@@ -347,6 +348,11 @@ export class UstvaService {
       return isFinite(f) && f > 0 ? f : 1
     }
 
+    // Tier 842: § 19 by the date of each document (kleinunternehmer-period.ts).
+    // A Kleinunternehmer's own sales are in no UStVA line, his purchases give
+    // no input tax; in the month the regulation ends, both kinds are there.
+    const kuOnDay = kuOn(await this.prisma.company.findUnique({ where: { id: companyId }, select: KU_SELECT }));
+
     for (const inv of salesInvoices) {
       // Tier 410: Customer has no `country` column — the country lives in the
       // address JSON — so this was always '', and every zero-rated sale fell
@@ -372,6 +378,8 @@ export class UstvaService {
         } else {
           // Zero-rated — the invoice's own igL / § 13b flags are the user's
           // explicit statement and win over any inference.
+          // Tier 842: a Kleinunternehmer's sale (§ 19) is in no line
+          if (kuOnDay(inv.issueDate) && !inv.euTransaction && !inv.reverseCharge) continue;
           addZeroRated(inv as any, customerCountry, customerVatId, net);
         }
       }
@@ -388,6 +396,9 @@ export class UstvaService {
         if (rate > 0) {
           if (art === 'soll') addTaxed(cn, rate, net, vat); // CN is already negative
         } else {
+          // Tier 842: a Kleinunternehmer's credit note (§ 19) is in no line
+          const ref = (cn as any).referenceInvoice;
+          if (kuOnDay(cn.issueDate) && !ref?.euTransaction && !ref?.reverseCharge) continue;
           addZeroRated(
             (cn as any).referenceInvoice ?? {},
             normaliseCountry((cn.customer as any)?.address?.country) || '',
@@ -438,7 +449,7 @@ export class UstvaService {
     // Tier 838: a counted Kassenüberschuss is no supply (cash-bookings.ts).
     for (const c of cash.filter((x) => x.direction === 'in' && !x.kassendifferenz)) {
       if (c.rate > 0) addToRate(c.rate, c.net, c.vat);
-      else addZeroRated({}, '', '', c.net);
+      else if (!kuOnDay(c.date)) addZeroRated({}, '', '', c.net); // Tier 842: § 19 in no line
       invoiceCount++;
     }
 
@@ -453,7 +464,7 @@ export class UstvaService {
       // Tier 788: the columns used.
       select: {
         id: true, category: true, vatRate: true, netAmount: true, vatAmount: true,
-        isReverseCharge: true, isIntraEU: true,
+        isReverseCharge: true, isIntraEU: true, invoiceDate: true,
         supplier: { select: { address: true } },
         taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true } },
       },
@@ -478,6 +489,9 @@ export class UstvaService {
       if (badGifts.has(exp.id)) continue;
       const rate = Number(exp.vatRate);
       const net = Number(exp.netAmount);
+      // Tier 481 / 842: no input tax on a purchase under § 19 (Abs. 1 Satz 4)
+      // — the tax owed on a § 13b / igE purchase stays owed
+      const deducts = !kuOnDay(exp.invoiceDate);
 
       if (exp.isReverseCharge || exp.isIntraEU) {
         // igE / § 13b — this company owes the tax and, with the right to
@@ -497,7 +511,7 @@ export class UstvaService {
         if (exp.isIntraEU) {
           igE.net += net;
           igE.vat += owed;
-          vorsteuerIgE += owed;
+          if (deducts) vorsteuerIgE += owed;
           const b = igEByRate.get(r) ?? { net: 0, vat: 0 };
           b.net += net;
           b.vat += owed;
@@ -507,12 +521,13 @@ export class UstvaService {
           const bucket = supplierCountry && supplierCountry !== 'DE' && this.isEUCountry(supplierCountry) ? rcEu : rcOther;
           bucket.net += net;
           bucket.vat += owed;
-          vorsteuerReverseCharge += owed;
+          if (deducts) vorsteuerReverseCharge += owed;
         }
       } else {
         // Tier 581: each VAT line by its own rate (an expense without lines
         // is its one line).
         for (const l of expenseTaxLines(exp)) {
+          if (!deducts) break;
           if (l.rate === 0.19) {
             vorsteuer19 += l.vat; // Tier 442: signed (a credit note reduces it)
           } else if (l.rate === 0.07) {
@@ -529,24 +544,18 @@ export class UstvaService {
     }
 
     for (const c of cash.filter((x) => x.direction === 'out')) {
+      expenseCount++;
+      if (kuOnDay(c.date)) continue; // Tier 842: § 19 — no input tax
       if (Math.abs(c.rate - 0.19) < 1e-6) vorsteuer19 += c.vat;
       else if (Math.abs(c.rate - 0.07) < 1e-6) vorsteuer7 += c.vat;
       else if (c.rate > 0) vorsteuerOther += c.vat;
-      expenseCount++;
     }
 
     // Tier 481: a Kleinunternehmer deducts no input tax (§ 19 Abs. 1 Satz 4
     // UStG) — the tax he owes on § 13b / igE purchases stays owed. Measured:
     // a 1 190 € purchase gave "Vorsteuer 190, Differenz -190" — a refund
-    // claimed that the company is not entitled to.
-    const vatMode = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } });
-    if (vatMode?.defaultVatMode === 'kleinunternehmer') {
-      vorsteuer19 = 0;
-      vorsteuer7 = 0;
-      vorsteuerOther = 0;
-      vorsteuerIgE = 0;
-      vorsteuerReverseCharge = 0;
-    }
+    // claimed that the company is not entitled to. Tier 842: by each
+    // purchase's date, above (it was the whole period by today's mode).
     const vorsteuerTotal = vorsteuer19 + vorsteuer7 + vorsteuerOther + vorsteuerIgE + vorsteuerReverseCharge;
 
     // Tier 502: the private use of a company car is an unentgeltliche

@@ -5,6 +5,9 @@ import { euerNotAllowedFor } from './gewinnermittlung';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertIban } from '../../common/iban';
 import { PrismaService } from '../../prisma/prisma.service';
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
+import { businessTodayIso } from '../../common/business-date';
+import { assertPeriodOpen } from '../reports/filed-period';
 import { companySettingsTransaction } from '../../common/company-settings';
 
 @Injectable()
@@ -95,6 +98,9 @@ export class CompanyService {
     // page does not send. Read and merged under the company's row lock, so a
     // writer of another key at the same time is not undone
     // (common/company-settings.ts).
+    if ('defaultVatMode' in data || 'kleinunternehmerAb' in data || 'kleinunternehmerBis' in data) {
+      data = await this.withKleinunternehmerPeriod(id, data);
+    }
     const plain = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
     const merges = plain(data.settings) || plain(data.bankInfo)
     if (!merges) return this.prisma.company.update({ where: { id }, data: withCheckedVatId(data) });
@@ -105,5 +111,71 @@ export class CompanyService {
       if (plain(data.bankInfo)) next = { ...next, bankInfo: { ...(plain(own?.bankInfo) ? own.bankInfo : {}), ...data.bankInfo } }
       return tx.company.update({ where: { id }, data: withCheckedVatId(next) })
     });
+  }
+
+  /**
+   * Tier 842 — the Kleinunternehmerregelung by date (common/kleinunternehmer-period.ts).
+   * Switching the mode used to turn the whole history over: every report read
+   * today's mode for every period. Now the switch keeps the past as it was:
+   *  - from Kleinunternehmer to another mode: § 19 applied up to yesterday
+   *    (`kleinunternehmerBis`), unless a day is given — the day before the
+   *    supply that crossed the 100 000 €, say;
+   *  - to Kleinunternehmer from a mode that was chosen: § 19 from 1 January
+   *    of this year (`kleinunternehmerAb`) — it is decided per calendar year —
+   *    or from the day after an end in this year (a switch undone), unless a
+   *    day is given; from no mode at all (a new company): since always.
+   * What changes the past is refused in closed books or a filed period.
+   */
+  private async withKleinunternehmerPeriod(id: string, data: any) {
+    const day = (v: unknown, name: string): Date | null => {
+      if (v === null || v === '') return null
+      if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(new Date(v + 'T00:00:00Z').getTime())) {
+        throw new BadRequestException(`${name} muss ein Datum (JJJJ-MM-TT) sein.`)
+      }
+      return new Date(v + 'T00:00:00Z')
+    }
+    const stored = await this.prisma.company.findUnique({ where: { id }, select: KU_SELECT })
+    const out = { ...data }
+    if ('kleinunternehmerAb' in data) out.kleinunternehmerAb = day(data.kleinunternehmerAb, 'Kleinunternehmer ab')
+    if ('kleinunternehmerBis' in data) out.kleinunternehmerBis = day(data.kleinunternehmerBis, 'Kleinunternehmer bis')
+    const wasKu = stored?.defaultVatMode === 'kleinunternehmer'
+    const mode = 'defaultVatMode' in data ? data.defaultVatMode : stored?.defaultVatMode
+    const willKu = mode === 'kleinunternehmer'
+    const today = businessTodayIso()
+    if (wasKu && !willKu && !('kleinunternehmerBis' in data)) {
+      const y = new Date(today + 'T00:00:00Z')
+      y.setUTCDate(y.getUTCDate() - 1)
+      out.kleinunternehmerBis = y
+    }
+    if (!wasKu && willKu && stored?.defaultVatMode && !('kleinunternehmerAb' in data)) {
+      // 1 January — or, when this year's period ended only now (a switch
+      // undone), the day after it: no gap
+      const jan1 = new Date(today.slice(0, 4) + '-01-01T00:00:00Z')
+      const bis = 'kleinunternehmerBis' in out ? out.kleinunternehmerBis : stored?.kleinunternehmerBis
+      const after = bis ? new Date(bis.getTime() + 24 * 3600 * 1000) : null
+      out.kleinunternehmerAb = after && after > jan1 ? after : jan1
+    }
+    const next = {
+      defaultVatMode: mode,
+      kleinunternehmerAb: 'kleinunternehmerAb' in out ? out.kleinunternehmerAb : stored?.kleinunternehmerAb ?? null,
+      kleinunternehmerBis: 'kleinunternehmerBis' in out ? out.kleinunternehmerBis : stored?.kleinunternehmerBis ?? null,
+    }
+    const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null)
+    const ab = iso(next.kleinunternehmerAb)
+    const bis = iso(next.kleinunternehmerBis)
+    if (ab && bis && (willKu ? bis >= ab : bis < ab)) {
+      throw new BadRequestException(willKu
+        ? `„Kleinunternehmer bis“ (${bis}) gehört zu einem früheren Zeitraum und muss vor „Kleinunternehmer ab“ (${ab}) liegen.`
+        : `„Kleinunternehmer bis“ (${bis}) liegt vor „Kleinunternehmer ab“ (${ab}).`)
+    }
+    // the first day the answer differs between before and after
+    const before = kuOn(stored)
+    const after = kuOn(next)
+    const days = ['0001-01-01', ...(before.bounds ?? []), ...(after.bounds ?? [])].sort()
+    const first = days.find((d) => before(d) !== after(d))
+    if (first) {
+      await assertPeriodOpen(this.prisma, id, [first === '0001-01-01' ? '1900-01-01' : first], 'das Ändern der Kleinunternehmerregelung')
+    }
+    return out
   }
 }

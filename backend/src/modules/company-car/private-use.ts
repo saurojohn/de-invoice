@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { businessDayIso, businessToday, dayEnd, dayStart } from '../../common/business-date'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 
@@ -118,12 +119,14 @@ export async function privateCarUse(prisma: any, companyId: string, from: Date, 
   const empty = { income: 0, vatBase: 0, vat: 0, commute: 0, months: [] as PrivateUseMonth[] }
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { name: true, legalName: true, rechtsform: true, settings: true, defaultVatMode: true },
+    select: { name: true, legalName: true, rechtsform: true, settings: true, ...KU_SELECT },
   })
   if (!company || isKapitalgesellschaft(resolveRechtsform(company).rechtsform)) return empty
   const cars: CarLike[] = await prisma.companyCar.findMany({ where: { companyId } })
   if (cars.length === 0) return empty
-  const kleinunternehmer = company.defaultVatMode === 'kleinunternehmer'
+  // Tier 842: § 19 by the month (kleinunternehmer-period.ts) — the private use
+  // is a supply of the month, taxed if § 19 did not apply at its end
+  const kleinunternehmer = kuOn(company)
 
   const months: PrivateUseMonth[] = []
   // The period's calendar months in Germany (callers pass local or UTC midnights).
@@ -149,7 +152,7 @@ export async function privateCarUse(prisma: any, companyId: string, from: Date, 
     }
     for (const car of cars) {
       if (!inMonth(car, y, m)) continue
-      const use = monthlyPrivateUse(car, kleinunternehmer)
+      const use = monthlyPrivateUse(car, kleinunternehmer(new Date(mEnd)))
       const { commute } = monthlyCommute(car)
       // The trips home – business are added to the profit with the private use.
       months.push({ year: y, month: m, carId: car.id, carName: car.name, ...use, income: r2(use.income + commute), commute })

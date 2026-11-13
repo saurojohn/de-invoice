@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
@@ -233,8 +234,9 @@ export class AnlageVService {
     // (§ 11 EStG; euer-zufluss.ts) — was issue date / invoice date.
     // v1: no per-customer filtering — every payment is Mieteinnahme.
     const { inflows, unpaidInvoices } = await euerInflows(this.prisma, companyId, yearStart, yearEnd)
-    const vatMode = await this.prisma.company.findUnique({ where: { id: companyId }, select: { defaultVatMode: true } })
-    const kleinunternehmer = vatMode?.defaultVatMode === 'kleinunternehmer'
+    const vatMode = await this.prisma.company.findUnique({ where: { id: companyId }, select: KU_SELECT })
+    // Tier 842: § 19 by the date of each document (kleinunternehmer-period.ts)
+    const kleinunternehmer = kuOn(vatMode)
     const { expenses, unpaidExpenses } = await euerExpenses(this.prisma, companyId, yearStart, yearEnd)
 
     // Booked AfA for 8600. Pulled separately

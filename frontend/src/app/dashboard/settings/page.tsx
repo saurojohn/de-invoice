@@ -318,6 +318,17 @@ export default function SettingsPage() {
     setSavedSnapshot(JSON.stringify(f))
   }
   const unsaved = savedSnapshot !== null && JSON.stringify(form) !== savedSnapshot
+  // Tier 842: the Kleinunternehmerregelung by date. The stored period, and the
+  // day a switch of the mode takes effect (empty: the backend's default —
+  // today when it ends, 1 January when it begins).
+  const [kuPeriod, setKuPeriod] = useState<{ ab: string | null; bis: string | null }>({ ab: null, bis: null })
+  const [kuDate, setKuDate] = useState("")
+  const fmtDay = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`
+  const storedVatMode = savedSnapshot ? (JSON.parse(savedSnapshot) as CompanySettings).defaultVatMode : null
+  const kuSwitch: "end" | "start" | null =
+    storedVatMode === "kleinunternehmer" && form.defaultVatMode !== "kleinunternehmer" ? "end"
+    : storedVatMode && storedVatMode !== "kleinunternehmer" && form.defaultVatMode === "kleinunternehmer" ? "start"
+    : null
   useEffect(() => {
     if (!unsaved) return
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = "" }
@@ -377,6 +388,7 @@ export default function SettingsPage() {
             const bankInfo = data.bankInfo || {}
             const settings = data.settings || {}
 
+            setKuPeriod({ ab: data.kleinunternehmerAb ? String(data.kleinunternehmerAb).slice(0, 10) : null, bis: data.kleinunternehmerBis ? String(data.kleinunternehmerBis).slice(0, 10) : null })
             applyStored({
               name: data.name || "",
               legalName: data.legalName || "",
@@ -633,7 +645,17 @@ export default function SettingsPage() {
     setSaving(true)
     try {
       const { apiPut } = await import("@/lib/api")
-      await apiPut(`/api/v1/companies/${companyId}`, form)
+      // Tier 842: the day the switch takes effect — the first day with
+      // Umsatzsteuer is the day after the regulation's last
+      const payload: Record<string, unknown> = { ...form }
+      if (kuDate && kuSwitch === "end") {
+        const d = new Date(kuDate + "T00:00:00Z")
+        d.setUTCDate(d.getUTCDate() - 1)
+        payload.kleinunternehmerBis = d.toISOString().slice(0, 10)
+      }
+      if (kuDate && kuSwitch === "start") payload.kleinunternehmerAb = kuDate
+      await apiPut(`/api/v1/companies/${companyId}`, payload)
+      setKuDate("")
       setNumberRefresh((n) => n + 1)
       // Refetch so the form reflects the canonical stored value —
       // without this, a user who just changed defaultPaymentDays from
@@ -646,6 +668,7 @@ export default function SettingsPage() {
         const address = fresh.address || {}
         const bankInfo = fresh.bankInfo || {}
         const settings = fresh.settings || {}
+        setKuPeriod({ ab: fresh.kleinunternehmerAb ? String(fresh.kleinunternehmerAb).slice(0, 10) : null, bis: fresh.kleinunternehmerBis ? String(fresh.kleinunternehmerBis).slice(0, 10) : null })
         applyStored({
           name: fresh.name ?? "",
           legalName: fresh.legalName ?? "",
@@ -1425,6 +1448,32 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-600 mt-1">
                     {t("settings.defaultVatModeHelp")}
                   </p>
+                  {/* Tier 842: the regulation's period, and the day a switch takes effect */}
+                  {(kuPeriod.ab || kuPeriod.bis) && (
+                    <p className="text-xs text-gray-600 mt-1" data-testid="settings-ku-period">
+                      {kuPeriod.bis && t("settings.kuBis", { date: fmtDay(kuPeriod.bis) })}
+                      {kuPeriod.bis && kuPeriod.ab && " · "}
+                      {kuPeriod.ab && t("settings.kuAb", { date: fmtDay(kuPeriod.ab) })}
+                    </p>
+                  )}
+                  {kuSwitch && (
+                    <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-3">
+                      <label className="block text-sm font-medium mb-1" htmlFor="settings-ku-date">
+                        {t(kuSwitch === "end" ? "settings.kuEndDate" : "settings.kuStartDate")}
+                      </label>
+                      <input
+                        id="settings-ku-date"
+                        type="date"
+                        className="h-10 border rounded-md px-3 bg-white dark:bg-gray-800"
+                        value={kuDate}
+                        onChange={(e) => setKuDate(e.target.value)}
+                        data-testid="settings-ku-date"
+                      />
+                      <p className="text-xs text-gray-700 dark:text-gray-300 mt-1">
+                        {t(kuSwitch === "end" ? "settings.kuEndHelp" : "settings.kuStartHelp")}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">

@@ -215,6 +215,19 @@ export class UpdateCompanyDto {
   @IsOptional()
   defaultVatMode?: string;
 
+  // Tier 842: the Kleinunternehmerregelung by date (common/kleinunternehmer-period.ts)
+  // — the first day of the current period, the last day of an ended one;
+  // "YYYY-MM-DD" or null. Checked in CompanyService.withKleinunternehmerPeriod.
+  @ValidateIf((_, v) => v !== null)
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'kleinunternehmerAb muss ein Datum (JJJJ-MM-TT) sein' })
+  kleinunternehmerAb?: string | null;
+
+  @ValidateIf((_, v) => v !== null)
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'kleinunternehmerBis muss ein Datum (JJJJ-MM-TT) sein' })
+  kleinunternehmerBis?: string | null;
+
   // Tier 441: the legal form (company/rechtsform.ts); null clears it.
   @IsString()
   @IsIn(RECHTSFORMEN as unknown as string[], { message: `rechtsform muss eine von ${RECHTSFORMEN.join(', ')} sein` })

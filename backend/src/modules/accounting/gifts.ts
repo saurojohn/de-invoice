@@ -16,6 +16,7 @@
  * them out (and show them).
  */
 import { expenseCost } from './expense-cost'
+import { Ku } from '../../common/kleinunternehmer-period'
 
 export const GIFT_LIMIT = 50
 /** § 4 Abs. 5 Satz 1 Nr. 1 EStG: 50 € from 2024, 35 € before. */
@@ -37,7 +38,7 @@ type GiftRow = {
 }
 
 /** The non-deductible ones among a year's gifts (pure; for one company). */
-export function nonDeductibleGifts(gifts: GiftRow[], kleinunternehmer: boolean): Set<string> {
+export function nonDeductibleGifts(gifts: GiftRow[], kleinunternehmer: Ku): Set<string> {
   const out = new Set<string>()
   const byRecipient = new Map<string, GiftRow[]>()
   for (const g of gifts) {
@@ -66,7 +67,7 @@ export async function nonDeductibleGiftIds(
   prisma: any,
   companyId: string,
   expenses: Array<{ id?: string; category?: string | null }>,
-  kleinunternehmer: boolean,
+  kleinunternehmer: Ku,
 ): Promise<Set<string>> {
   const ids = expenses.filter((e) => e.id && isGeschenk(e)).map((e) => e.id as string)
   if (ids.length === 0) return new Set()

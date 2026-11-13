@@ -1,3 +1,4 @@
+import { kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { resolveRechtsform, isKapitalgesellschaft as isKapitalgesellschaftFn } from '../company/rechtsform'
 import { expenseCost, nichtAbziehbareBewirtung } from './expense-cost'
@@ -269,9 +270,10 @@ export class KSt1Service {
         status: { in: ['booked', 'deductible'] },
         category: { startsWith: 'Bewirtung', mode: 'insensitive' },
       },
-      select: { netAmount: true, grossAmount: true, category: true },
+      select: { netAmount: true, grossAmount: true, category: true, invoiceDate: true },
     })
-    const ku = company.defaultVatMode === 'kleinunternehmer'
+    // Tier 842: § 19 by the bill's date (kleinunternehmer-period.ts)
+    const ku = kuOn(company)
     const bewirtungHinzu = nichtAbziehbareBewirtung(bewirtung, ku)
     // Tier 503: gifts above the 50 € limit — in the Jahresüberschuss at
     // their (net) cost, added back too (§ 4 Abs. 5 Nr. 1 EStG).

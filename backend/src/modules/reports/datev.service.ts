@@ -38,6 +38,7 @@
  * applies to — the layout of DATEV's sample.
  */
 
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
 import { inferExpenseAccount } from './datev-sachkonto-inference'
 import { PrismaService } from '../../prisma/prisma.service';
 // Tier 26.3: SKR03 Sachkonten auto-inference from the line description, for
@@ -426,13 +427,14 @@ export async function buildBuchungenFromDb(
   }
   const company = await prisma.company.findUnique({
     where: { id: companyId },
-    select: { settings: true, defaultVatMode: true },
+    select: { settings: true, ...KU_SELECT },
   })
   const settings = (company?.settings && typeof company.settings === 'object')
     ? (company.settings as any)
     : {}
   const a = resolveDatevAccounts(settings.datev)
-  const kleinunternehmer = company?.defaultVatMode === 'kleinunternehmer'
+  // Tier 842: § 19 by the date of each document (kleinunternehmer-period.ts)
+  const kuOnDay = kuOn(company)
 
   const out: BuchungsSatz[] = []
 
@@ -503,6 +505,7 @@ export async function buildBuchungenFromDb(
     const text = isCN
       ? `Gutschrift ${doc.invoiceNumber}${doc.referenceInvoice ? ` zu ${doc.referenceInvoice.invoiceNumber}` : ''}`
       : `Rechnung ${doc.invoiceNumber}`
+    const kleinunternehmer = kuOnDay(doc.issueDate)
     for (const bucket of invoiceTaxBreakdown(doc).byRate) {
       // A credit note's buckets are negative: H on the Debitor.
       const gross = r2((bucket.net + bucket.vat) * f)
@@ -803,6 +806,7 @@ export async function buildBuchungenFromDb(
     const vat = Number(exp.vatAmount)
     const gross = Number(exp.grossAmount)
     const rate = Number(exp.vatRate)
+    const kleinunternehmer = kuOnDay(exp.invoiceDate)
     const belegfeld1 = exp.invoiceNumber || `EXP-${exp.id.substring(0, 8)}`
     const base = {
       belegdatum: exp.invoiceDate,
@@ -889,6 +893,7 @@ export async function buildBuchungenFromDb(
   // before — and the cash payment of a recorded expense (Kreditor an Kasse).
   for (const c of await cashBookings(prisma, companyId, startDate, endDate)) {
     const inbound = c.direction === 'in'
+    const kleinunternehmer = kuOnDay(c.date)
     let gegenkonto: string
     let key = ''
     if (c.kassendifferenz) {

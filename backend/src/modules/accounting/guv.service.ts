@@ -1,3 +1,4 @@
+import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { expenseCost, isIncomeTax } from './expense-cost'
@@ -253,9 +254,10 @@ export class GuVService {
     // Kleinunternehmer (expense-cost.ts). This summed gross amounts.
     const vatMode = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { defaultVatMode: true },
+      select: KU_SELECT,
     })
-    const kleinunternehmer = vatMode?.defaultVatMode === 'kleinunternehmer'
+    // Tier 842: § 19 by the date of each document (kleinunternehmer-period.ts)
+    const kleinunternehmer = kuOn(vatMode)
     const expenses = await this.prisma.expense.findMany({
       where: {
         companyId,
@@ -272,6 +274,7 @@ export class GuVService {
         grossAmount: true,
         category: true,
         accountNumber: true, // Tier 815: an asset's purchase is no cost (expense-cost.ts)
+        invoiceDate: true, // Tier 842: § 19 on the bill's date
       },
     })
 
@@ -342,7 +345,7 @@ export class GuVService {
     // (after the credits below), a Fehlbetrag a sonstiger Aufwand.
     let kassenueberschuss = 0
     for (const c of await cashBookings(this.prisma, companyId, yearStart, yearEnd)) {
-      const amount = kleinunternehmer ? c.gross : c.net
+      const amount = kleinunternehmer(c.date) ? c.gross : c.net
       if (c.direction === 'in' && c.kassendifferenz) kassenueberschuss += amount
       else if (c.direction === 'in') umsatzerloese += amount
       else sonstigeAufwendungen += amount
