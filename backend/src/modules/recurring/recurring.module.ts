@@ -16,12 +16,13 @@ import { AdminModule } from '../admin/admin.module';
 // MailService, StorageService, InvoiceTemplateService)
 // are already wired in InvoiceModule.
 import { InvoiceModule } from '../invoice/invoice.module';
+import { AccountingModule } from '../accounting/accounting.module';
 // Tier 362: generated invoices get their EUR equivalents from the same
 // ExchangeRateService snapshot as InvoiceService.create.
 import { ExchangeRateModule } from '../exchange-rate/exchange-rate.module';
 
 @Module({
-  imports: [AdminModule, InvoiceModule, ExchangeRateModule],
+  imports: [AdminModule, InvoiceModule, ExchangeRateModule, AccountingModule], // Tier 843
   controllers: [RecurringController],
   providers: [RecurringService, RecurringScheduler],
   exports: [RecurringService],

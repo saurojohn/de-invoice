@@ -1,4 +1,5 @@
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
+import { KleinunternehmerService } from '../accounting/kleinunternehmer.service';
 import { assertPeriodOpen } from '../reports/filed-period';
 import { storedPaymentMethod } from './payment-method'
 import { withKeyLock } from '../../common/key-lock';
@@ -90,6 +91,8 @@ export class InvoiceService {
     // Tier 472: PaymentService books the advance a final invoice deducts
     // (resolved lazily — PaymentService imports this service).
     private moduleRef: ModuleRef,
+    // Tier 843: § 19 refused where its limits are crossed
+    private kleinunternehmer: KleinunternehmerService,
   ) {}
 
   /**
@@ -1910,6 +1913,13 @@ export class InvoiceService {
         this.prisma.invoiceItem.findMany({ where: { invoiceId: before.id }, select: { vatRate: true } }), // Tier 690
       ]);
       assertInvoiceDetails({ ...before, items }, company ?? {}, customer);
+      // Tier 843: not under § 19 past its limits — a Proforma carries no tax of its own
+      if (before.type !== 'PI') {
+        const refusal = await this.kleinunternehmer.refusalForIssue(
+          companyId, before.issueDate, Number(before.eurSubtotal ?? before.subtotal),
+        );
+        if (refusal) throw new BadRequestException(refusal);
+      }
     }
     const advance = issuing ? await this.advanceToSettle(before, companyId) : null
 

@@ -2673,6 +2673,46 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 843 — no invoice under § 19 past the Kleinunternehmer's limits: issuing it is refused
+
+**Measured** on Tier 842 (backend spec 537 against the old code: 14 ✗):
+- A Kleinunternehmer with 30 000 € received last year issued an invoice of this year without USt and with the § 19 note.
+- So did one with 99 000 € received this year issuing 1 500 € more, and one already at 105 000 €.
+- A recurring template that issues its invoices (`invoiceStatus: 'sent'`) did the same.
+- Only the dashboard's notice (Tier 841) said anything. The USt is owed all the same, out of the price, since the invoice shows none.
+
+**Decision** (an accounting decision; § 19 Abs. 1 UStG, BMF 18.03.2025). Issuing an invoice (INV, RCV) is refused when § 19 applies on its issue date (Tier 842's `kuOn`) and either of these holds:
+- **Last year's Gesamtumsatz is over 25 000 €.** The regulation does not apply this year at all. The message points to „Umsatzsteuer ab 01.01.“.
+- **This year's Gesamtumsatz received so far, plus this invoice's net, is over 100 000 €.** The supply that crosses the limit is already taxed, and so is every later one. The message names the invoice's date as the day the USt applies from. If the limit was already behind, it names the day of the supply that crossed it.
+
+The Gesamtumsatz is Tier 841's: the EÜR's net receipts, 4100 + 4120 + 4170.
+
+Not refused:
+- A year with no recorded revenue before it. It may be the founding year, where 25 000 € is that year's limit, but the app does not know the founding day; Tier 841's `gruendungsjahr` notice says so.
+- Drafts, credit notes, a Proforma (it carries no tax of its own), quotes and delivery notes.
+
+Known limits:
+- Issued but unpaid invoices of the year do not count toward the 100 000 €, as received revenue is the measure.
+- A Proforma's advance already received counts once more with its final invoice. Both err on the side of refusing early.
+
+**The way out**, which the message states:
+1. In the settings, set Standard-Umsatzsteuer from that day (Tier 842 stores `kleinunternehmerBis`).
+2. Then issue with USt: change the rate in a draft of today. A draft of an earlier day can no longer be edited (Tier 477 / 697), so make that invoice anew.
+
+**Change.**
+- `KleinunternehmerService.issueCheck` / `refusalForIssue`. The service is exported from `AccountingModule`, which `InvoiceModule` and `RecurringModule` now import (no cycle).
+- `InvoiceService.updateStatusLocked`: the check sits beside the mandatory details when a draft is issued. This also covers sending a draft by e-mail, which issues through `updateStatus`.
+- `RecurringService.runOne`: the revenue is read before the run's transaction, for a template that issues; the check runs beside its mandatory details. A refused run fails with the reason and gives its number back (Tier 600).
+
+**Specs.**
+- Backend spec 537 (new; 14 ✗ on Tier 842): last year's 30 000 € refused with its text; the way out (Umsatzsteuer from 01.01., the invoice made anew, 190 € USt); 99 000 + 500 issued; 99 000 + 1 500 refused, with the figures and the day; a recurring run of 2 000 € refused, with no invoice made; 105 000 € received refuses a 100 € invoice.
+- Spec 535: its fixtures issued invoices this tier refuses. Its invoices are now issued while § 19 still covers them, and paid afterwards. The same figures are asserted.
+- Playwright `kleinunternehmer-ausstellen-tier843`: setting a draft to „Gesendet“ shows „Die Kleinunternehmerregelung gilt … nicht“, and the draft stays a draft. It fails on the old backend.
+
+Locally, all passed:
+- the 17 backend specs that use the Kleinunternehmer mode, the 6 with a template that issues, and the guards;
+- the 5 Playwright specs on the mode and the new one (15 passed).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 842b — CI green for Tiers 841 and 842, no flaky
 
 - **Run 43400892164 (Tier 841, cf57e1d3):** six jobs. Backend **534 passed / 0 failed / 1 skipped** (535 included). Playwright **1163 passed (38.1 m)** (`kleinunternehmer-grenzen-tier841` included). **0 flaky**.

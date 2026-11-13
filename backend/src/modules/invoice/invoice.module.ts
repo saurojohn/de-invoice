@@ -12,6 +12,7 @@ import { PaymentService } from './payment.service';
 // manual button + the cron share the same code path.
 import { InvoiceEmailService } from './invoice-email.service';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { AccountingModule } from '../accounting/accounting.module';
 import { StorageModule } from '../storage/storage.module';
 import { InvoiceTemplateModule } from '../invoice-template/invoice-template.module';
 import { WebhookModule } from '../webhook/webhook.module';
@@ -59,6 +60,8 @@ import { SigningModule } from '../signing/signing.module';
     ExchangeRateModule,
     // Tier 710: the overdue job reports to the cron health table
     AdminModule,
+    // Tier 843: the Kleinunternehmer's limits, checked when an invoice is issued
+    AccountingModule,
   ],
   exports: [InvoiceService, PaymentService, InvoiceEmailService],
 })

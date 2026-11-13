@@ -1,4 +1,5 @@
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
+import { KleinunternehmerService } from '../accounting/kleinunternehmer.service'
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { businessToday, businessTodayDate, businessTodayIso } from '../../common/business-date'
 import { computeInvoiceAmounts } from '../invoice/invoice-amounts';
@@ -136,6 +137,8 @@ export class RecurringService {
     private prisma: PrismaService,
     private invoiceEmailService: InvoiceEmailService,
     private exchangeRates: ExchangeRateService,
+    // Tier 843: a run that issues is refused past the § 19 limits, as a manual issue
+    private kleinunternehmer: KleinunternehmerService,
   ) {}
 
   /**
@@ -903,8 +906,12 @@ export class RecurringService {
     // 1 : 1.
     const tplCurrency = await this.prisma.recurringInvoice.findFirst({
       where: { id: templateId, companyId },
-      select: { currency: true },
+      select: { currency: true, invoiceStatus: true },
     })
+    // Tier 843: the § 19 limits of a run that issues — the revenue read here, not in the transaction
+    const kuCheck = (tplCurrency?.invoiceStatus || 'draft') !== 'draft'
+      ? await this.kleinunternehmer.issueCheck(companyId, businessTodayIso(now))
+      : null
     const fx = await this.exchangeRates.rateForInvoice(
       companyId,
       String(tplCurrency?.currency || 'EUR'),
@@ -1143,6 +1150,8 @@ export class RecurringService {
           reverseCharge: vat.reverseCharge, euTransaction: vat.euTransaction,
           items: items.map((it) => ({ vatRate: vat.rate(it.vatRate) })), notes: tpl.notes,
         }, co ?? {}, cu)
+        const refusal = kuCheck?.(Number(toEur4(subtotal4)))
+        if (refusal) throw new BadRequestException(refusal)
       }
 
       const invoice = await tx.invoice.create({

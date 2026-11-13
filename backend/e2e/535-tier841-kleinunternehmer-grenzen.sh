@@ -28,13 +28,17 @@ setup() { # mode
   AS POST "/api/v1/customers?companyId=$C" '{"name":"Kunde","type":"business","address":{"street":"Teststr. 9","postalCode":"10115","city":"Berlin","country":"DE"}}'
   K=$(json_field "$BODY" id)
 }
-paid() { # date net
+issued() { # date net → I (Tier 843: issued while § 19 still covers it)
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"$1\",\"items\":[{\"description\":\"Leistung\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$2,\"vatRate\":0}]}"
-  local I; I=$(json_field "$BODY" id)
+  I=$(json_field "$BODY" id)
   AS PUT "/api/v1/invoices/$I/status?companyId=$C" '{"status":"sent"}'
-  AS POST "/api/v1/invoices/$I/payments?companyId=$C" "{\"amount\":$2,\"paymentDate\":\"$1\",\"paymentMethod\":\"bank_transfer\"}"
-  assert_status 201 "fixture: $2 € received on $1"
+  assert_status 200 "fixture: $2 € issued on $1"
 }
+pay() { # id date amount
+  AS POST "/api/v1/invoices/$1/payments?companyId=$C" "{\"amount\":$3,\"paymentDate\":\"$2\",\"paymentMethod\":\"bank_transfer\"}"
+  assert_status 201 "fixture: $3 € received on $2"
+}
+paid() { issued "$1" "$2"; pay "$I" "$1" "$2"; }
 status() {
   AS GET "/api/v1/accounting/kleinunternehmer-status?companyId=$C"
   echo "$BODY" | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['kleinunternehmer'], '%.2f' % d['vorjahr']['umsatz'], '%.2f' % d['laufend']['umsatz'], ' '.join(d['hinweise']) or '-')"
@@ -42,13 +46,17 @@ status() {
 
 note "=== 1. last year over 25 000, this year over 100 000 ==="
 read -r U C < <(company over); setup kleinunternehmer
-paid "$P-06-02" 30000
+# Tier 843: issued before last year's 30 000 € are in, and before this
+# year's receipts pass 100 000 € — afterwards § 19 no longer issues them
 paid "$Y-01-01" 60000
+issued "$Y-01-01" 35000; I35=$I
+issued "$Y-01-01" 10000; I10=$I
+paid "$P-06-02" 30000
 assert_eq "last year's 30 000: not a Kleinunternehmer this year; this year's 60 000: nor the next (was: no endpoint, no word)" \
   "$(status)" "True 30000.00 60000.00 vorjahrUeberschritten naechstesJahr"
-paid "$Y-01-01" 35000
+pay "$I35" "$Y-01-01" 35000
 assert_eq "at 95 000: near the 100 000" "$(status)" "True 30000.00 95000.00 vorjahrUeberschritten laufendNahe naechstesJahr"
-paid "$Y-01-01" 10000
+pay "$I10" "$Y-01-01" 10000
 assert_eq "at 105 000: over it — regular taxation since the crossing supply" \
   "$(status)" "True 30000.00 105000.00 vorjahrUeberschritten laufendUeberschritten naechstesJahr"
 
