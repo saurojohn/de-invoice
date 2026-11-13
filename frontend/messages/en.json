@@ -4732,5 +4732,15 @@
         "1": "System operation (dashboard): server, backups, background jobs, sending e-mail and the companies on the server. Companies with books of their own are invited there."
       }
     }
+  },
+  "kleinunternehmer": {
+    "title": "Small business regulation (§ 19 UStG)",
+    "vorjahrUeberschritten": "Total turnover {vorjahr}: {umsatzVorjahr}, more than {grenzeVorjahr}. The small business regulation does not apply in {jahr}: invoices must show VAT, and VAT returns are due.",
+    "laufendUeberschritten": "Total turnover {jahr}: {umsatz}, more than {grenzeLaufend}. Regular taxation applies from the sale that crossed the limit: that sale and every later one are taxable, the earlier ones stay exempt.",
+    "laufendNahe": "Total turnover {jahr}: {umsatz}. Above {grenzeLaufend} the small business regulation ends at once, with the very sale that crosses the limit.",
+    "naechstesJahr": "Total turnover {jahr}: {umsatz}, more than {grenzeVorjahr}. In {naechstes} the small business regulation no longer applies.",
+    "gruendungsjahr": "No turnover is recorded for {vorjahr}. If the business was founded in {jahr}, {grenzeVorjahr} was already this year's limit: regular taxation applies from the sale that crossed it.",
+    "action": "Counted: the payments received (net) as in the EÜR. Please check with your tax adviser and change the VAT treatment:",
+    "settings": "Settings"
   }
 }

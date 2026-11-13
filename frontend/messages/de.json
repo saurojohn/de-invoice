@@ -4732,5 +4732,15 @@
         "1": "Systembetrieb (Dashboard): Server, Datensicherung, Hintergrundjobs, E-Mail-Versand und die Firmen auf dem Server. Firmen mit eigener Buchhaltung laden Sie dort ein."
       }
     }
+  },
+  "kleinunternehmer": {
+    "title": "Kleinunternehmerregelung (§ 19 UStG)",
+    "vorjahrUeberschritten": "Gesamtumsatz {vorjahr}: {umsatzVorjahr}, mehr als {grenzeVorjahr}. Die Kleinunternehmerregelung gilt {jahr} nicht: Rechnungen sind mit Umsatzsteuer zu stellen, Umsatzsteuer-Voranmeldungen abzugeben.",
+    "laufendUeberschritten": "Gesamtumsatz {jahr}: {umsatz}, mehr als {grenzeLaufend}. Seit dem Umsatz, mit dem die Grenze überschritten wurde, gilt die Regelbesteuerung: dieser und jeder weitere Umsatz ist steuerpflichtig, die Umsätze davor bleiben steuerfrei.",
+    "laufendNahe": "Gesamtumsatz {jahr}: {umsatz}. Über {grenzeLaufend} endet die Kleinunternehmerregelung sofort, schon mit dem Umsatz, der die Grenze überschreitet.",
+    "naechstesJahr": "Gesamtumsatz {jahr}: {umsatz}, mehr als {grenzeVorjahr}. {naechstes} gilt die Kleinunternehmerregelung nicht mehr.",
+    "gruendungsjahr": "Für {vorjahr} ist kein Umsatz erfasst. Wurde das Unternehmen {jahr} gegründet, war {grenzeVorjahr} schon die Grenze dieses Jahres: seit dem Umsatz, der sie überschritten hat, gilt die Regelbesteuerung.",
+    "action": "Gezählt sind die vereinnahmten Entgelte (netto) laut EÜR. Bitte mit dem Steuerberater klären und die Umsatzsteuer-Behandlung anpassen:",
+    "settings": "Einstellungen"
   }
 }

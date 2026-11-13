@@ -4732,5 +4732,15 @@
         "1": "系统运营（仪表盘）：服务器、数据备份、后台任务、邮件发送和服务器上的公司。邀请新公司也在那里。"
       }
     }
+  },
+  "kleinunternehmer": {
+    "title": "小规模经营者规定（§ 19 UStG）",
+    "vorjahrUeberschritten": "{vorjahr} 年总营业额 {umsatzVorjahr}，超过 {grenzeVorjahr}。{jahr} 年不适用小规模经营者规定：发票须开增值税，并须提交增值税预申报。",
+    "laufendUeberschritten": "{jahr} 年总营业额 {umsatz}，超过 {grenzeLaufend}。从使营业额超过限额的那笔交易起适用一般纳税：该笔及之后每笔交易都须缴税，之前的交易仍免税。",
+    "laufendNahe": "{jahr} 年总营业额 {umsatz}。一旦超过 {grenzeLaufend}，小规模经营者规定立即终止，从超过限额的那笔交易起生效。",
+    "naechstesJahr": "{jahr} 年总营业额 {umsatz}，超过 {grenzeVorjahr}。{naechstes} 年起不再适用小规模经营者规定。",
+    "gruendungsjahr": "{vorjahr} 年没有记录营业额。如果企业是 {jahr} 年成立的，{grenzeVorjahr} 就已是本年度的限额：从超过它的那笔交易起适用一般纳税。",
+    "action": "计算口径：EÜR 中的实收金额（不含税）。请与税务顾问确认，并调整增值税处理方式：",
+    "settings": "设置"
   }
 }

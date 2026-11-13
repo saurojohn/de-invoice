@@ -13,6 +13,7 @@ import { ReadOnlyToggle, ReadOnlyBanner } from "@/components/ReadOnlyBanner"
 import { RevenueChart } from "@/components/RevenueChart"
 import { UstvaZahllastChart } from "@/components/UstvaZahllastChart"
 import { FilingDeadlinesCard } from "@/components/FilingDeadlinesCard"
+import { KleinunternehmerNotice } from "@/components/KleinunternehmerNotice"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n, L } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
@@ -795,6 +796,9 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Tier 841: a Kleinunternehmer over (or near) the § 19 limits */}
+        <KleinunternehmerNotice />
 
         {/* Tier 801: the UStVA, ZM and OSS returns due next */}
         {isAccountant && (

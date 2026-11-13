@@ -9,6 +9,7 @@ import { VoucherTemplateController } from './voucher-template.controller';
 import { JournalService } from './journal.service';
 import { JournalController } from './journal.controller';
 import { EuerService } from './euer.service';
+import { KleinunternehmerService } from './kleinunternehmer.service';
 import { AnlageSService } from './anlage-s.service';
 // Tier 92: Anlage V (Vermietung und Verpachtung,
 // § 21 EStG). Mirrors the AnlageSService pattern.
@@ -106,7 +107,7 @@ import { AuditModule } from '../audit/audit.module';
 @Module({
   imports: [PrismaModule, StorageModule, WebhookModule, AssetsModule, ReportsModule, InvoiceTemplateModule, AuditModule],
   controllers: [AccountingController, VoucherTemplateController, JournalController, AnlageSOV2Controller, BooksClosingController, JournalReconciliationController],
-  providers: [VerfahrensdokuService, AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
+  providers: [VerfahrensdokuService, AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, KleinunternehmerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
   exports: [AccountService, VoucherService, VoucherTemplateService, JournalService, EuerService, AnlageSService, AnlageVService, AnlageKAPService, AnlageGService, AnlageNService, KSt1Service, AnlageRService, AnlageKindService, AnlageSOService, AnlageSOV2Service, AnlageAUSService, GewstService, BilanzService, GuVService, AnhangService, BeraterPackagerService, EBilanzService, GobdArchiveService],
 })
 export class AccountingModule {}

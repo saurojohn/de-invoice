@@ -17,6 +17,7 @@ import {
 import { VoucherService } from './voucher.service';
 import { generateVoucherPDF } from '../../accounting/voucher-pdf.service';
 import { EuerService } from './euer.service';
+import { KleinunternehmerService } from './kleinunternehmer.service';
 import { AnlageSService } from './anlage-s.service';
 // Tier 92: Anlage V (Vermietung und Verpachtung).
 import { AnlageVService } from './anlage-v.service';
@@ -108,6 +109,7 @@ export class AccountingController {
     private accountService: AccountService,
     private voucherService: VoucherService,
     private euer: EuerService,
+    private kleinunternehmer: KleinunternehmerService, // Tier 841
     private anlageS: AnlageSService,
     private anlageV: AnlageVService,
     // Tier 98: Anlage KAP (Kapitalerträge,
@@ -562,6 +564,19 @@ export class AccountingController {
       throw new BadRequestException('year ist ungültig')
     }
     return this.euer.compute(companyId, year)
+  }
+
+  /**
+   * Tier 841 — the Kleinunternehmer's limits (§ 19 UStG): last year's and this
+   * year's Gesamtumsatz against 25 000 / 100 000 €, and what follows from them
+   * (kleinunternehmer.service.ts).
+   */
+  @Require('accounting.read')
+  @Get('kleinunternehmer-status')
+  @UseGuards(HeaderAuthGuard)
+  async getKleinunternehmerStatus(@Query('companyId') companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    return this.kleinunternehmer.status(companyId)
   }
 
   /**

@@ -2673,6 +2673,36 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 841 — the Kleinunternehmer's limits: last year's 25 000 € and this year's 100 000 € are watched and shown
+
+**The rules** (§ 19 UStG as of 01.01.2025, Jahressteuergesetz 2024; BMF-Schreiben vom 18.03.2025, III C 3 – S 7360/00027/044/105). An accounting decision, mine to make per the user's standing instruction. Sources read: IHK Berlin's Merkblatt on the Kleinunternehmerregelung and a summary of the BMF letter. The letter itself was not read.
+- A Kleinunternehmer's Gesamtumsatz must be no more than 25 000 € in the previous calendar year and no more than 100 000 € in the current one.
+- Both are net amounts of the Entgelte received (vereinnahmte Entgelte).
+- **Over 25 000 € last year:** the regulation does not apply this year at all.
+- **Over 100 000 € this year:** it ends at once. The supply that crosses the limit is already taxed, and so is every one after it. The supplies before it stay exempt.
+- **In the year the business starts,** 25 000 € is that year's limit.
+
+**Measured** with a probe on the test backend:
+- A Kleinunternehmer received 30 000 € in 2025 and 60 000 + 45 000 € in 2026. Every invoice went out without USt, the 2025 limit notwithstanding. Nothing said a word: no field in the dashboard, the invoice answer, the UStVA, the EÜR or the deadlines.
+- Switching the company to `standard` afterwards turned the whole year's 105 000 € in the EÜR from 4120 (§ 19) into 4170 (steuerfrei), because the mode is read for the company and not by date. That is for Tier 842: the end of the regulation needs a date.
+
+**Change.**
+- `accounting/kleinunternehmer.service.ts` and `GET /accounting/kleinunternehmer-status` (`accounting.read`) return last year's and this year's Gesamtumsatz and the notices that follow from them:
+  - `vorjahrUeberschritten` (last year over 25 000 €);
+  - `laufendUeberschritten` (this year over 100 000 €);
+  - `laufendNahe` (this year over 90 000 €);
+  - `naechstesJahr` (this year over 25 000 €: not next year);
+  - `gruendungsjahr` (no revenue recorded last year: if the business began this year, 25 000 € was already this year's limit).
+- The Gesamtumsatz is the EÜR's revenue received: Kz 4100 + 4120 + 4170. It counts on the safe side. The tax-free supplies § 19 Abs. 2 leaves out (§ 4 Nr. 8 i, 9 b, 11 – 28, e.g. a rent under Nr. 12) and an invoiced asset sale are in it, as the app cannot tell them apart. What the app does not hold, such as receipts from before the company used it, is not in it.
+- `KleinunternehmerNotice` shows the notices on the dashboard and on the invoice form, red when the regulation has ended and amber otherwise, with a link to the settings. A company that is not a Kleinunternehmer, or one within the limits, sees nothing.
+- Nothing is refused yet. The switch has to be right first (Tier 842).
+
+Specs:
+- Backend spec 535 (6 checks fail on Tier 840): the over-limit company step by step (60 000 / 95 000 / 105 000), a first year with 26 000, a company within the limits, a company with Regelbesteuerung.
+- Playwright `kleinunternehmer-grenzen-tier841`: 30 000 € last year; the notice on the dashboard and the invoice form.
+
+Locally: the 64 backend specs that read the Kleinunternehmer mode or the EÜR, with the guards; the 54 Playwright specs that open the dashboard or the invoice form, with `ui-walk-tier590` — 221 passed, 4 failed: `invoice-duplicate-check-tier150`'s four tests that pick the seed customer „BWA Test Kunde“ and its four 119-€ seed invoices. The local tmp-ci-pg no longer has them (only „BWA Test Kunde GmbH (duplicate)“, no invoices); with the Tier 841 frontend stashed the same four fail. Harness drift, not this tier; CI seeds afresh.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 840b — CI green for Tiers 839 and 840, no flaky
 
 - Run 43319026593 (Tier 839, 30dcf982): six jobs, backend **532 passed / 0 failed / 1 skipped** (the new 533 included), Playwright **1161 passed (38.2 m)**, **0 flaky**.

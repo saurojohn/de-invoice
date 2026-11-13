@@ -1,5 +1,6 @@
 "use client"
 
+import { KleinunternehmerNotice } from "@/components/KleinunternehmerNotice"
 import { printPdfBlob } from "@/lib/print-pdf"
 import { todayIso } from "@/lib/today"
 import { Suspense } from "react"
@@ -1298,6 +1299,8 @@ function CreateInvoicePageInner() {
       </header>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
+        {/* Tier 841: a Kleinunternehmer over the § 19 limits writes with USt */}
+        <KleinunternehmerNotice />
         {/* Load error (e.g. opening an old invoice for edit). The
             form is still rendered below so the user can read
             what's there and back out via "Abbrechen". */}
