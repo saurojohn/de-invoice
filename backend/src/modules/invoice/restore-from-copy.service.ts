@@ -15,7 +15,7 @@
  * goes the way of every credit note, against its invoice (BT-25), which has
  * to be in the books first.
  */
-import { BadRequestException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CustomerService } from '../customer/customer.service'
 import { StorageService } from '../storage/storage.service'
@@ -110,6 +110,14 @@ export class RestoreFromCopyService {
       throw new UnprocessableEntityException(`${invoiceNumber}: nur Rechnungen und Gutschriften lassen sich aus der Kopie wiederherstellen.`)
     }
 
+    // Tier 847: what an attempt before this one may have left (see below) —
+    // and an invoice with this number that is issued is in the books already.
+    await this.removeUnissuedDraft(companyId, invoiceNumber)
+    if (await this.prisma.invoice.count({ where: { companyId, invoiceNumber } })) {
+      await this.resolve(companyId, invoiceNumber)
+      throw new ConflictException(`${invoiceNumber} ist bereits wieder in den Büchern.`)
+    }
+
     const { id: customerId, created } = await this.customerOf(companyId, e)
     const categories = new Set(e.taxGroups.map((g) => g.category))
     const invoice = await this.invoices.create(
@@ -136,10 +144,40 @@ export class RestoreFromCopyService {
       undefined,
       { restoredNumber: invoiceNumber },
     )
-    await this.invoices.updateStatus(invoice.id, companyId, 'sent', { restored: true }) // Tier 844: not the § 19 limits
+    // Tier 847: issuing can refuse (missing mandatory details of the company,
+    // a filed period, closed books). The draft made above then stayed, under
+    // the lost number: measured, the next attempt answered 500 (the number
+    // exists) and the invoice could not be restored from the page any more.
+    // The draft goes again, the number stays blocked, and the refusal is passed on.
+    try {
+      await this.invoices.updateStatus(invoice.id, companyId, 'sent', { restored: true }) // Tier 844: not the § 19 limits
+    } catch (e) {
+      await this.removeUnissuedDraft(companyId, invoiceNumber)
+      throw e
+    }
     await this.keepTheCopy(invoice.id, row.pdfPath)
     await this.resolve(companyId, invoiceNumber)
     return { id: invoice.id, invoiceNumber, customerCreated: created }
+  }
+
+  /**
+   * Tier 847: the draft a restore made under the lost number and could not
+   * issue. Only a draft, and only under a number that is blocked for
+   * everything but a restore — no invoice the user made can carry it. The
+   * number is not given back to the series: it stays retired until the
+   * invoice is in the books.
+   */
+  private async removeUnissuedDraft(companyId: string, invoiceNumber: string): Promise<void> {
+    const drafts = await this.prisma.invoice.findMany({
+      where: { companyId, invoiceNumber, status: 'draft' },
+      select: { id: true },
+    })
+    for (const d of drafts) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: d.id } })
+        await tx.invoice.deleteMany({ where: { id: d.id, companyId, status: 'draft' } })
+      })
+    }
   }
 
   private async retired(companyId: string, invoiceNumber: string) {

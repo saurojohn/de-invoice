@@ -48,6 +48,11 @@ if ! curl -sS -o /dev/null -w "%{http_code}" http://localhost:3001/api/v1/health
 fi
 # Tier 357: honour PG_CONTAINER like backend/e2e/run-all.sh (Tier 355) and
 # the Playwright specs (Tier 353). This was the last hardcoded pre-flight.
+# Tier 847: the default is CI's alone — here it is the development database (see e2e/_lib.sh).
+if [[ -z "${PG_CONTAINER:-}" && -z "${CI:-}" ]]; then
+  echo "REFUSED: PG_CONTAINER is not set — its default is the development database here. Name the throwaway container: PG_CONTAINER=tmp-ci-pg" >&2
+  exit 2
+fi
 PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 export PG_CONTAINER
 if ! docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -c "SELECT 1" >/dev/null 2>&1; then

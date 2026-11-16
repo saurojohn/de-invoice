@@ -21,7 +21,16 @@ EMAIL="${TEST_EMAIL:-info@shleder.de}"
 PASSWORD="${TEST_PASSWORD:-Test1234!}"
 # Tier 355: honour PG_CONTAINER so the suite can run against a
 # throwaway database, matching ci-seed.sh and (since Tier 353) the
-# Playwright specs. Default unchanged.
+# Playwright specs.
+# Tier 847: on the developer's machine `de-invoice-postgres` is the development
+# database, and the specs write to their container with psql. The default is
+# CI's alone (its throwaway container has that name); here the container is
+# named, or the spec does not start. On 16.11.2026 a Playwright run without it
+# deleted two rows of the development database.
+if [[ -z "${PG_CONTAINER:-}" && -z "${CI:-}" ]]; then
+  echo "REFUSED: PG_CONTAINER is not set — its default is the development database here. Run through local-ci-stack.sh, or name the throwaway container: PG_CONTAINER=tmp-ci-pg" >&2
+  exit 2
+fi
 PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 
 # ---- Colour helpers (skip if NO_COLOR is set or not a tty) ----

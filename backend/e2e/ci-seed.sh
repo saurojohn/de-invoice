@@ -42,6 +42,11 @@
 set -euo pipefail
 
 API="${API:-http://localhost:3001}"
+# Tier 847: the default is CI's alone — here it is the development database (see e2e/_lib.sh).
+if [[ -z "${PG_CONTAINER:-}" && -z "${CI:-}" ]]; then
+  echo "REFUSED: PG_CONTAINER is not set — its default is the development database here. Name the throwaway container: PG_CONTAINER=tmp-ci-pg" >&2
+  exit 2
+fi
 PG_CONTAINER="${PG_CONTAINER:-de-invoice-postgres}"
 PG_USER="${PG_USER:-de_invoice}"
 PG_DB="${PG_DB:-de_invoice}"

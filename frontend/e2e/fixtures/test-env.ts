@@ -60,10 +60,23 @@ const AUTH_CACHE = "/tmp/cashbook-e2e-auth.env"
  * blocked local verification three separate times in Tiers 350-352.
  *
  * `ci-seed.sh` already took PG_CONTAINER from the environment; this makes
- * the Playwright side agree with it. Default is unchanged, so CI and any
- * existing local setup behave exactly as before.
+ * the Playwright side agree with it.
+ *
+ * Tier 847: the default is CI's alone. On the developer's machine
+ * `de-invoice-postgres` is the development database, and the specs write to
+ * their container with psql (fixed ids among them). On 16.11.2026 a local
+ * run without PG_CONTAINER deleted two rows there. Outside CI the container
+ * is named, or the spec does not load.
  */
-export const PG_CONTAINER = process.env.PG_CONTAINER || 'de-invoice-postgres'
+function pgContainer(): string {
+  if (process.env.PG_CONTAINER) return process.env.PG_CONTAINER
+  if (process.env.CI) return 'de-invoice-postgres'
+  throw new Error(
+    'REFUSED: PG_CONTAINER is not set — its default is the development database here. ' +
+      'Name the throwaway container: PG_CONTAINER=tmp-ci-pg',
+  )
+}
+export const PG_CONTAINER = pgContainer()
 
 export interface TestEnv {
   userId: string

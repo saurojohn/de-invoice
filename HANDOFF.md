@@ -2673,6 +2673,28 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 847 — a restore that cannot issue leaves nothing behind; no spec starts against a database nobody named
+
+Two items left open by Tier 846, both the owner's „继续“. Backend spec 541: 11 ✗ on Tier 846.
+
+**1. A restore from the kept copy that cannot issue left a draft under the lost number.**
+- Measured: an invoice a restore lost (Tier 733b), entered again while the company had neither Steuernummer nor USt-IdNr. The restore answered 400 (mandatory details), but the draft it had made stayed, under the lost number. With the USt-IdNr. back, the next attempt answered **500**: the number existed. The invoice could not be restored from the page any more. A filed period or closed books refuse the same way.
+- Change (`RestoreFromCopyService`):
+  - when issuing refuses, the draft is removed again and the refusal is passed on. The number is not given back to the series: it stays blocked until the invoice is in the books;
+  - before a restore, a draft under that number is cleared first (what an attempt of the old code left). No invoice the user made can carry a blocked number;
+  - an issued invoice under that number means it is in the books already: 409, and the number is marked resolved.
+
+**2. `PG_CONTAINER` defaulted to the development database on the developer's machine** (the cause of Tier 846's incident).
+- CI's throwaway container is named `de-invoice-postgres`, and CI relies on the default. Locally that name is the owner's development database, and the specs write to their container with psql, some by fixed id.
+- Change: outside CI (`CI` not set) the container is named, or nothing starts. With `CI` set the default stays.
+  - `backend/e2e/_lib.sh`, which every backend spec sources first; `backend/e2e/ci-seed.sh`; `backend/e2e/run-all.sh`; `frontend/scripts/run-all.sh`;
+  - `frontend/e2e/fixtures/test-env.ts`: importing it throws, so the spec does not load.
+- `local-ci-stack.sh` already names `tmp-ci-pg`. `scripts/backup.sh` and `scripts/restore.sh` are for the real database and keep their default.
+
+**Specs.**
+- Backend spec 541 (new; 11 ✗ on Tier 846): the refused restore leaves no draft and the number blocked; the next attempt restores it; a leftover draft is cleared; a second restore answers 404. `_lib.sh` and `test-env.ts` without the variable, with it, and in CI; the three runner scripts carry the check; no spec names the dev container itself.
+- Locally: specs 44, 45, 47, 144, 262, 276, 451, 452, 538, 540, 541 and the guards pass; four Playwright files that use psql pass (25 tests); a Playwright run without the variable refuses to load. The dev database's row counts were the same afterwards.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 846b — CI green for Tier 846, no flaky; the dev database restored
 
 - **Run 43939944868 (Tier 846, d54ac5cf):** six jobs. Backend **539 passed / 0 failed / 1 skipped** (540 included). Playwright **1166 passed (44.3 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`.
