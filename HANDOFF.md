@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 846b — CI green for Tier 846, no flaky; the dev database restored
+
+- **Run 43939944868 (Tier 846, d54ac5cf):** six jobs. Backend **539 passed / 0 failed / 1 skipped** (540 included). Playwright **1166 passed (44.3 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`.
+- No migration, so the day1 production images were not rebuilt.
+- The two rows of the owner's dev database that the mis-aimed local run deleted are back (see Tier 846, „Incident“).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 846 — a bug hunt across the project: the dunning letter's date, the Land's holidays, 32 requests that answered 500
 
 The owner asked for a hunt across the whole project (16.11.2026). Four sweeps: hard-coded years, shortcuts the code admits to in its comments, credit notes in the remaining reports, and a probe of odd values on the write endpoints. Backend spec 540: 27 ✗ on Tier 845.
@@ -2719,7 +2725,7 @@ The owner asked for a hunt across the whole project (16.11.2026). Four sweeps: h
   - deleted: `RecurringInvoice` `tier136-tpl-001` („Tier 136 Wartungsvertrag“) and `RecurringInvoiceItem` `tier136-item-001`, by `recurring-generated-invoices-tier147`'s fixed-id DELETE. Old test fixtures the owner had decided on 09.11. to leave as they are;
   - `Supplier` `tier137-supp-001` rewritten with the values it already had;
   - otherwise as in the dump: 318 invoices, 220 customers, 18 suppliers, the two other templates. Statements scoped by the test company's id matched nothing; the inserts failed on their foreign keys.
-- The two rows were **not** restored: that is a write to the dev database and waits for the owner. The statements are prepared (the dump's rows as they were).
+- **Restored on the owner's word („恢复“, 16.11.2026)**, in one transaction that checked the row counts before it committed. The rows are as in the dump of 12.10., with that evening's change applied as it was to the two other templates (§9 item 6: `sendEmail = false`, `updatedAt` 2026-10-12 20:00:10.348). Afterwards: 3 templates, 5 items, 0 runs, 318 invoices, 220 customers, 18 suppliers. The template is active and has never run, like the other two.
 - `pw.sh` now sources `env.sh` and refuses to run unless `PG_CONTAINER=tmp-ci-pg`. The 57 files were run again against the test database.
 - A lasting fix for the repository would be for `test-env.ts` to refuse instead of falling back to the dev container. Not done here: CI and `local-ci-stack.sh` set the variable, and the change belongs in a tier of its own.
 
