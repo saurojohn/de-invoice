@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 847b — CI green for Tier 847, no flaky
+
+Run 43954841052 (Tier 847, c86c61f5): six jobs. Backend **540 passed / 0 failed / 1 skipped** (541 included). Playwright **1166 passed (36.9 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`. CI sets `CI`, so the specs' container default applied there as before.
+
+**Open, for the owner's word:** the tax of an invoice issued without USt on a day the Kleinunternehmerregelung no longer covers (Tier 845 lists them) taken out of its price in the reports.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 847 — a restore that cannot issue leaves nothing behind; no spec starts against a database nobody named
 
 Two items left open by Tier 846, both the owner's „继续“. Backend spec 541: 11 ✗ on Tier 846.
