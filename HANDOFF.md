@@ -2673,6 +2673,64 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 846 — a bug hunt across the project: the dunning letter's date, the Land's holidays, 32 requests that answered 500
+
+The owner asked for a hunt across the whole project (16.11.2026). Four sweeps: hard-coded years, shortcuts the code admits to in its comments, credit notes in the remaining reports, and a probe of odd values on the write endpoints. Backend spec 540: 27 ✗ on Tier 845.
+
+**1. A Mahnung's letter took the day of the download.**
+- Measured: a Zahlungserinnerung sent on 17.10. with its Frist on 24.10., downloaded on 16.11., was dated 16.11.2026 and read „überfällig seit 30 Werktagen (15 Kalendertagen)“. The fees, the calendar days and the Frist are stored with the Mahnung; the letter's date and its Werktage were taken from `new Date()` when the PDF was rendered.
+- Change: `MahnungPdfInput.letterDate`. The download passes `mahnung.sentAt`; the date, the Werktage and the Skonto note are reckoned to that day, as a German calendar day.
+- The letter sent in bulk printed the calendar days as its Werktage („the PDF just displays this number, so either is fine“). It counts them now.
+- Not changed: the letterhead and the customer's address are still those of the day of the download. A kept copy, as invoices have, would settle that.
+
+**2. Werktage used a holiday table of their own** (`reminder/werktage.ts`, „Bayern default … a real production app would key this off Company.state“).
+- Heilige Drei Könige, Mariä Himmelfahrt, Fronleichnam and Allerheiligen counted as holidays for every company, the Reformationstag and the Frauentag for none, and Easter was a list up to 2030.
+- It is used for the letter's „überfällig seit“ and for the day the automatic Mahnung of a level goes out.
+- Change: `isHoliday` / `isWerktag` / `countWerktage` / `addWerktage` take the Land and ask `publicHolidays` of `filing-deadlines.ts`. The three callers pass `Company.bundesland`; without one, the nationwide holidays apply.
+
+**3. Requests that answered 500.** A probe sent 34 odd values to every field of 36 write requests (8 400 requests): 32 combinations answered HTTP 500. All are refused with 400 now, or handled; both probes end with 0.
+
+| Cause | Where | Change |
+| --- | --- | --- |
+| `@IsNumber({ maxDecimalPlaces })` throws on a number in exponent notation (`1e-9`) | product price and VAT rate, a customer's hourly rate, an invoice's exchange rate | `MaxDecimals(n)` (`common/max-decimals.ts`) |
+| a date checked against `\d{4}-\d{2}-\d{2}` alone: `2026-13-01`, `0000-00-00`, `9999-12-31` | a recurring template's start and end, a time entry's date, the journal's range, the § 19 period | `isCalendarDay` / `@IsCalendarDay()` (`common/calendar-day.ts`): a day that exists, 1900 – 2199 |
+| `null` for a column that takes none (`@IsOptional()` lets it through) | a new product's unit, VAT rate, stock, flags; a customer's name and type; an expense's description; a cash book entry's description and amount; the company's payment term | `@IsOptionalNotNull()` (`common/optional-not-null.ts`) on updates; on a new product and on the company the null is „not given“ |
+| a list as the body of a DTO route | `PUT` company, customer, product | `ObjectBodyPipe` (global, before the ValidationPipe) |
+| a number beyond its column | product price, stock and threshold; a customer's credit limit; a cash book entry's amount on an update | `@Max` at the column's size |
+| „every 100 000 months“ | a recurring template: the next run lay past the year 9999 | `intervalCount` at most 1 000 |
+| `companyId: ""` in the body | a manual voucher | `@IsNotEmpty()` |
+
+- Checked on the way: a voucher with another company's `companyId` in its body is refused with 403. The tenant guard holds.
+- An expense's amounts and date still take `null` on an update as before (it is ignored). Only what answered 500 was tightened.
+
+**4. Found and left as they are.**
+- The year-bound tables already say when they run out: the Basiszinssatz (`basiszinssatzWarning`), the UStVA form year (`formYearNotice`), the Kinderfreibetrag table.
+- Credit notes in the GuV, BWA, P&L, sales report and UStVA of a GmbH: consistent.
+- A recurring invoice's lines carry no product link (`productId: null`, „not implemented yet“), so a stock-tracked product billed by a template does not leave the stock. Not changed.
+- The IBAN of a SEPA transfer is checked for its format, not for its check digits.
+
+**Specs.**
+- Backend spec 540 (new; 27 ✗ on Tier 845): the letter's date and Werktage of a Mahnung moved 30 days back; the Werktage of fixed dates per Land (`scripts/probe-werktage.ts`); 27 requests that answered 500.
+- The test harness in the scratchpad had been removed by the system's cleanup again (`env.sh`, `up.sh`, `some.sh`, `pw.sh`, the Playwright config). Rebuilt from the running backend's environment.
+
+**Incident: the owner's development database was written to (16.11.2026).**
+- The rebuilt `pw.sh` did not source `env.sh`. `frontend/e2e/fixtures/test-env.ts` falls back to `PG_CONTAINER=de-invoice-postgres`, so a run of 57 Playwright files sent the specs' raw SQL to the dev database. The 36 failures named `docker exec -i de-invoice-postgres psql` in their error text.
+- Compared table by table with `~/data/backups/de-invoice-manual/vor-migration-2026-10-12.dump` (read-only SELECTs; the dump printed as text through `pg_restore -f -`):
+  - deleted: `RecurringInvoice` `tier136-tpl-001` („Tier 136 Wartungsvertrag“) and `RecurringInvoiceItem` `tier136-item-001`, by `recurring-generated-invoices-tier147`'s fixed-id DELETE. Old test fixtures the owner had decided on 09.11. to leave as they are;
+  - `Supplier` `tier137-supp-001` rewritten with the values it already had;
+  - otherwise as in the dump: 318 invoices, 220 customers, 18 suppliers, the two other templates. Statements scoped by the test company's id matched nothing; the inserts failed on their foreign keys.
+- The two rows were **not** restored: that is a write to the dev database and waits for the owner. The statements are prepared (the dump's rows as they were).
+- `pw.sh` now sources `env.sh` and refuses to run unless `PG_CONTAINER=tmp-ci-pg`. The 57 files were run again against the test database.
+- A lasting fix for the repository would be for `test-env.ts` to refuse instead of falling back to the dev container. Not done here: CI and `local-ci-stack.sh` set the variable, and the change belongs in a tier of its own.
+
+Locally, on the test database:
+- all 538 backend specs pass;
+- the 57 Playwright files on customers, products, the cash book, recurring invoices, time entries, bills, dunning, assets, suppliers and vouchers: 221 passed, 2 failed. Afterwards the dev database's row counts were unchanged.
+  - The 2 failures are state of the shared local test company, not this tier: the same files fail the same 3 tests on Tier 845's code.
+  - `mahnung-fees-preview-tier164` expects the default interest of 9 %. `mahnung.spec` saves 11.5 % through the page and never resets it; the earlier mis-aimed run left it so (its API calls went to the test backend).
+  - `customer-tag-filter-tier148` looks for „BWA Test Kunde“ in the tag-filtered list of the same shared company.
+  - CI starts from a fresh database.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 845b — CI green for Tiers 844 and 845, no flaky
 
 - **Run 43441972294 (Tier 844, 961dfb4f):** six jobs. Backend **537 passed / 0 failed / 1 skipped** (538 included). Playwright **1165 passed (44.5 m)**. **0 flaky**.

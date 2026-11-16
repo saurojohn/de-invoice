@@ -1,3 +1,4 @@
+import { MaxDecimals } from '../../../common/max-decimals' // Tier 846: not IsNumber's maxDecimalPlaces, which throws on 1e-9
 import { StrictNumber } from '../../../common/strict-number'
 import { IsString, IsArray, ValidateNested, IsNumber, IsOptional, IsDateString, IsBoolean, MaxLength, IsInt, Min, Max, IsIn, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -106,7 +107,7 @@ export class CreateInvoiceDto {
   // Tier 652: the rate entered by hand, as the ECB and the BMF quote it —
   // 1 EUR = exchangeRate units of the invoice's currency. Left out (or 0): the
   // ECB reference rate of the invoice's day.
-  @StrictNumber() @IsNumber({ maxDecimalPlaces: 6 }, { message: 'exchangeRate muss eine Zahl mit höchstens 6 Nachkommastellen sein' }) @IsOptional() @Min(0) @Max(1_000_000)
+  @StrictNumber() @IsNumber({}, { message: 'exchangeRate muss eine Zahl mit höchstens 6 Nachkommastellen sein' }) @MaxDecimals(6, { message: 'exchangeRate muss eine Zahl mit höchstens 6 Nachkommastellen sein' }) @IsOptional() @Min(0) @Max(1_000_000)
   exchangeRate?: number;
   
   @IsString()
@@ -245,7 +246,7 @@ export class UpdateInvoiceDto {
   @IsString() @IsOptional() referenceInvoiceId?: string;
   @IsString() @IsOptional() @Matches(/^[A-Za-z]{3}$/, { message: 'currency muss ein Währungscode aus drei Buchstaben sein (z. B. EUR, USD, CHF)' }) currency?: string;
   // Tier 652: see CreateInvoiceDto. 0 goes back from a rate entered by hand to the ECB's.
-  @StrictNumber() @IsNumber({ maxDecimalPlaces: 6 }, { message: 'exchangeRate muss eine Zahl mit höchstens 6 Nachkommastellen sein' }) @IsOptional() @Min(0) @Max(1_000_000)
+  @StrictNumber() @IsNumber({}, { message: 'exchangeRate muss eine Zahl mit höchstens 6 Nachkommastellen sein' }) @MaxDecimals(6, { message: 'exchangeRate muss eine Zahl mit höchstens 6 Nachkommastellen sein' }) @IsOptional() @Min(0) @Max(1_000_000)
   exchangeRate?: number;
   @IsString() @IsOptional() language?: string;
   @IsString() @IsOptional() notes?: string;

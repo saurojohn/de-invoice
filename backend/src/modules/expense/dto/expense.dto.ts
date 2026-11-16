@@ -1,3 +1,4 @@
+import { IsOptionalNotNull } from "../../../common/optional-not-null"
 import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 211 — request DTOs for ExpenseController.
@@ -133,7 +134,7 @@ export class CreateExpenseDto {
  * note keeps its sign unless `creditNote` says otherwise.
  */
 export class UpdateExpenseDto {
-  @IsOptional() @IsString() @MinLength(1, { message: "Beschreibung ist erforderlich" }) @MaxLength(500)
+  @IsOptionalNotNull() @IsString() @MinLength(1, { message: "Beschreibung ist erforderlich" }) @MaxLength(500)
   description?: string
 
   @IsOptional() @IsDateString({}, { message: "Rechnungsdatum muss ein Datum sein (ISO date)" })

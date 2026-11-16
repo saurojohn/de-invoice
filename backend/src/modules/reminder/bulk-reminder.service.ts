@@ -33,6 +33,7 @@ import { ReminderService } from "./reminder.service"
 import {
   generateMahnungPDF,
   computeNeueFrist,
+  countWerktage,
 } from "./mahnung-pdf.service"
 import { invoicesHeldByPlan, PLAN_HOLD_MESSAGE } from "./installment-hold"
 import { activePause, pauseHoldMessage } from "./pause-hold"
@@ -405,9 +406,9 @@ export class BulkReminderService {
         settings: company.settings, // Tier 731e: an old settings.rechtsform
       },
       daysOverdue,
-      werktageOverdue: daysOverdue, // the cron counts Werktage but
-      // the manual path uses calendar days; the PDF just
-      // displays this number, so either is fine.
+      // Tier 846: Werktage, as the letter says („überfällig seit N Werktagen
+      // (M Kalendertagen)“). The calendar days stood here for both.
+      werktageOverdue: dueDate ? Math.max(0, countWerktage(new Date(dueDate), new Date(new Date(today).setHours(0, 0, 0, 0)), (company as any).bundesland)) : 0,
       neueFrist: neueFrist.toISOString(),
       bankLine,
       costCenter: (invoice as any).costCenter ?? null,

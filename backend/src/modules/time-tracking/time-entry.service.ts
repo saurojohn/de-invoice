@@ -1,3 +1,4 @@
+import { isCalendarDay } from '../../common/calendar-day'
 import { csvNumber } from '../../common/csv'
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
@@ -28,7 +29,8 @@ export const hoursOf = (minutes: number): number => Math.round((minutes / 60) * 
 export const amountOf = (minutes: number, rate: number): number => Math.round(hoursOf(minutes) * rate * 100) / 100
 
 export const isoDay = (v: unknown, label: string): string => {
-  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v) || new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) !== v) {
+  // Tier 846: „2026-13-01“ threw in toISOString() here (HTTP 500)
+  if (!isCalendarDay(v)) {
     throw new BadRequestException(`${label} muss ein Datum (JJJJ-MM-TT) sein.`)
   }
   return v

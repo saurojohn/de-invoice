@@ -1,3 +1,5 @@
+import { IsOptionalNotNull } from '../../../common/optional-not-null'
+import { MaxDecimals } from '../../../common/max-decimals' // Tier 846: not IsNumber's maxDecimalPlaces, which throws on 1e-9
 import { StrictNumber } from '../../../common/strict-number'
 import {
   IsString,
@@ -144,13 +146,13 @@ export class CreateCustomerDto {
   // credit-utilisation report, but no endpoint accepted it — the whitelist
   // rejected it with 400 and the form had no field, so no customer could
   // ever have one.
-  @StrictNumber() @IsNumber() @Min(0) @IsOptional()
+  @StrictNumber() @IsNumber() @Min(0) @Max(9999999999.99) @IsOptional() // Tier 846: Decimal(12, 2)
   creditLimit?: number
 
   // Tier 616: the hourly rate (net) a new time entry for this customer
   // starts with; null takes it away again
   @ValidateIf((_, v) => v !== null)
-  @StrictNumber() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
+  @StrictNumber() @IsNumber() @MaxDecimals(2) @Min(0) @Max(100000) @IsOptional()
   defaultHourlyRate?: number | null
 
   // Tier 626: this customer's own rounding of logged time — null: as the
@@ -172,13 +174,13 @@ export class CreateCustomerDto {
  * for the PATCH-style update.
  */
 export class UpdateCustomerDto {
-  @IsString() @IsOptional() @MinLength(1) @MaxLength(200)
+  @IsString() @IsOptionalNotNull() @MinLength(1) @MaxLength(200)
   name?: string
 
   @IsString() @IsOptional() @MaxLength(20)
   customerNumber?: string
 
-  @IsString() @IsIn(['business', 'individual']) @IsOptional()
+  @IsString() @IsIn(['business', 'individual']) @IsOptionalNotNull()
   type?: string
 
   @IsString() @IsOptional() @MaxLength(20)
@@ -212,13 +214,13 @@ export class UpdateCustomerDto {
   // credit-utilisation report, but no endpoint accepted it — the whitelist
   // rejected it with 400 and the form had no field, so no customer could
   // ever have one.
-  @StrictNumber() @IsNumber() @Min(0) @IsOptional()
+  @StrictNumber() @IsNumber() @Min(0) @Max(9999999999.99) @IsOptional() // Tier 846: Decimal(12, 2)
   creditLimit?: number
 
   // Tier 616: the hourly rate (net) a new time entry for this customer
   // starts with; null takes it away again
   @ValidateIf((_, v) => v !== null)
-  @StrictNumber() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100000) @IsOptional()
+  @StrictNumber() @IsNumber() @MaxDecimals(2) @Min(0) @Max(100000) @IsOptional()
   defaultHourlyRate?: number | null
 
   // Tier 626: this customer's own rounding of logged time — null: as the

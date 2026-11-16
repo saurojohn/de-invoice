@@ -15,6 +15,7 @@ import { StrictNumber } from '../../../common/strict-number'
  * type is the *internal* type.
  */
 import {
+  IsNotEmpty,
   IsString,
   IsOptional,
   IsNumber,
@@ -103,7 +104,7 @@ export class CreateVoucherLineDto {
  * ArrayMinSize(2) here for a clean 400.
  */
 export class CreateVoucherDto {
-  @IsString()
+  @IsString() @IsNotEmpty({ message: 'companyId ist erforderlich' }) // Tier 846: '' answered 500
   companyId!: string
 
   @IsDateString({}, { message: "date is required (ISO date)" })

@@ -23,6 +23,7 @@
 // the Steuerberater uses when an
 // auditor asks for a specific receipt.
 
+import { isCalendarDay } from '../../common/calendar-day'
 import {
   Controller,
   Get,
@@ -63,7 +64,7 @@ export class JournalController {
           'dateFrom und dateTo sind erforderlich (oder voucherNumber)',
         )
       }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+      if (!isCalendarDay(dateFrom) || !isCalendarDay(dateTo)) { // Tier 846: a day that exists
         throw new BadRequestException('Datum muss YYYY-MM-DD sein')
       }
       if (dateFrom > dateTo) {

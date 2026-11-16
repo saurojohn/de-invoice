@@ -5,6 +5,19 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+/**
+ * Tier 846: `null` for a column that takes none is „not given“ — the default
+ * on a create, unchanged on an update. @IsOptional() lets null through, and
+ * Prisma answered 500 (measured: `"unit": null`, `"vatRate": null`,
+ * `"stockQuantity": null`, `"trackInventory": null` on a new product).
+ */
+const REQUIRED_COLUMNS = ['name', 'type', 'unit', 'basePrice', 'vatRate', 'stockQuantity', 'trackInventory', 'active'] as const
+function withoutNullForRequired<T extends Record<string, unknown>>(data: T): T {
+  const out: Record<string, unknown> = { ...data }
+  for (const k of REQUIRED_COLUMNS) if (out[k] === null) delete out[k]
+  return out as T
+}
+
 @Injectable()
 export class ProductService {
   constructor(private prisma: PrismaService) {}
@@ -79,6 +92,7 @@ export class ProductService {
   }
 
   async create(companyId: string, data: any) {
+    data = withoutNullForRequired(data)
     return this.prisma.product.create({
       data: {
         ...data,
@@ -101,6 +115,7 @@ export class ProductService {
     // bad URL doesn't accidentally cross-tenant.
     const existing = await this.prisma.product.findFirst({ where: { id, companyId } })
     if (!existing) throw new NotFoundException('Product not found')
+    data = withoutNullForRequired(data)
     // Tier 28: refresh the denormalised categoryName
     // if the category changed (or is being cleared).
     const categoryName = data.categoryId !== undefined

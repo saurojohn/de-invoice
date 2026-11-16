@@ -25,6 +25,7 @@ import { greetingLine } from "../mail/templates/invoice-email.template" // Tier 
 import PDFDocument from "pdfkit"
 import { countWerktage } from "./werktage"
 import { businessLetterFooter, countryCode, countryLine } from '../../common/business-letter'
+import { businessDayIso } from '../../common/business-date'
 
 export interface MahnungPdfInput {
   level: "first" | "second" | "final"
@@ -92,6 +93,15 @@ export interface MahnungPdfInput {
   zinsaufschlag?: number
   /** Tier 421: § 288 Abs. 1 (consumer, +5 points) instead of Abs. 2 (+9) */
   consumer?: boolean
+  /**
+   * Tier 846: the day of the Mahnung — the date the letter bears and the day
+   * its „überfällig seit“ and its Skonto note are reckoned to. The letter is
+   * rendered when it is downloaded and took the day of the download:
+   * measured, a Mahnung sent on 17.10. with its Frist on 24.10., downloaded
+   * on 16.11., was dated 16.11. and „überfällig seit 30 Werktagen (15
+   * Kalendertagen)“. Not given: now (a letter being sent).
+   */
+  letterDate?: Date
   /**
    * Tier 40: optional DATEV Kostenstelle 1 + Kostenträger
    * stamps copied from the underlying Invoice. Pulled by
@@ -215,13 +225,15 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     }
 
     // ─── TITLE + DATE (right column) ───
-    const today = new Date()
+    // Tier 846: the day of the Mahnung, as a German calendar day (the server's
+    // clock is UTC: a letter sent at 00:30 was dated the day before)
+    const letterDay = businessDayIso(input.letterDate ?? new Date())
     const fmtDate = (d: Date) =>
       `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`
     doc
       .fontSize(9)
       .font("Helvetica")
-      .text(fmtDate(today), PAGE_WIDTH - PAGE_MARGIN - 100, 70, {
+      .text(letterDay.split("-").reverse().join("."), PAGE_WIDTH - PAGE_MARGIN - 100, 70, {
         width: 100,
         align: "right",
       })
@@ -345,7 +357,7 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
       skontoExpiry.setDate(
         skontoExpiry.getDate() + Number(input.skontoDays),
       )
-      const today = new Date()
+      const today = new Date(input.letterDate ?? new Date()) // Tier 846: on the day of the Mahnung
       today.setHours(0, 0, 0, 0)
       if (skontoExpiry < today) {
         const fmt = (d: Date) =>

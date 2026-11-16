@@ -1,3 +1,4 @@
+import { MaxDecimals } from '../../../common/max-decimals' // Tier 846: not IsNumber's maxDecimalPlaces, which throws on 1e-9
 import { StrictNumber } from '../../../common/strict-number'
 import {
   IsString,
@@ -13,6 +14,9 @@ import {
 import { Type, Transform } from 'class-transformer';
 
 import { StrictBoolean } from '../../../common/strict-boolean'
+
+/** Tier 846: the most a Decimal(12, 4) column holds */
+const DECIMAL_12_4_MAX = 99999999.9999
 export class CreateProductDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
@@ -37,8 +41,9 @@ export class CreateProductDto {
   // Prices / VAT are stored as strings in the DB (Decimal). Coerce
   // numbers safely so a missing field becomes 0 rather than NaN.
   @Type(() => Number)
-  @StrictNumber() @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Ungültiger Preis' })
+  @StrictNumber() @IsNumber({}, { message: 'Ungültiger Preis' }) @MaxDecimals(4, { message: 'Ungültiger Preis' })
   @Min(0, { message: 'Preis darf nicht negativ sein' })
+  @Max(DECIMAL_12_4_MAX, { message: 'Preis ist zu groß' }) // Tier 846: beyond the column it answered 500
   basePrice!: number;
 
   // German UIs typically display VAT as a percentage (e.g. "19 %"),
@@ -54,7 +59,7 @@ export class CreateProductDto {
     return n > 1 ? n / 100 : n
   })
   @Type(() => Number)
-  @StrictNumber() @IsNumber({ maxDecimalPlaces: 4 }, { message: 'Ungültiger MwSt-Satz' })
+  @StrictNumber() @IsNumber({}, { message: 'Ungültiger MwSt-Satz' }) @MaxDecimals(4, { message: 'Ungültiger MwSt-Satz' })
   @Min(0, { message: 'MwSt-Satz darf nicht negativ sein' })
   @Max(1, { message: 'MwSt-Satz darf höchstens 100 % sein' })
   @IsOptional()
@@ -66,13 +71,13 @@ export class CreateProductDto {
 
   @Type(() => Number)
   @StrictNumber() @IsNumber()
-  @Min(0)
+  @Min(0) @Max(DECIMAL_12_4_MAX)
   @IsOptional()
   stockQuantity?: number;
 
   @Type(() => Number)
   @StrictNumber() @IsNumber()
-  @Min(0)
+  @Min(0) @Max(DECIMAL_12_4_MAX)
   @IsOptional()
   lowStockThreshold?: number;
 
@@ -116,14 +121,14 @@ export class UpdateProductDto {
 
   @IsOptional()
   @Type(() => Number)
-  @StrictNumber() @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0)
+  @StrictNumber() @IsNumber() @MaxDecimals(4)
+  @Min(0) @Max(DECIMAL_12_4_MAX)
   basePrice?: number;
 
   @IsOptional()
   @Type(() => Number)
   @StrictNumber() @IsNumber()
-  @Min(0)
+  @Min(0) @Max(DECIMAL_12_4_MAX)
   purchasePrice?: number;
 
   /**
@@ -140,13 +145,13 @@ export class UpdateProductDto {
   @IsOptional()
   @Type(() => Number)
   @StrictNumber() @IsNumber()
-  @Min(0)
+  @Min(0) @Max(DECIMAL_12_4_MAX)
   stockQuantity?: number;
 
   @IsOptional()
   @Type(() => Number)
   @StrictNumber() @IsNumber()
-  @Min(0)
+  @Min(0) @Max(DECIMAL_12_4_MAX)
   lowStockThreshold?: number;
 
   @IsOptional()

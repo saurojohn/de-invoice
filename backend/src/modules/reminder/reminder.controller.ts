@@ -528,10 +528,13 @@ export class ReminderController {
       .filter(Boolean)
       .join(', ');
 
-    const today = new Date();
+    // Tier 846: as on the day the Mahnung was sent, not the day of this
+    // download — the letter was dated today and counted its Werktage to
+    // today beside the calendar days, the fees and the Frist of that day.
+    const today = new Date(mahnung.sentAt);
     today.setHours(0, 0, 0, 0);
     const dueDate = inv.dueDate ? new Date(inv.dueDate) : today;
-    const werktageOverdue = Math.max(0, countWerktage(dueDate, today));
+    const werktageOverdue = Math.max(0, countWerktage(dueDate, today, company.bundesland)); // Tier 846: the Land's holidays
     const daysOverdue = mahnung.daysOverdue;
 
     const pdfBuffer = await generateMahnungPDF({
@@ -568,6 +571,7 @@ export class ReminderController {
       },
       daysOverdue,
       werktageOverdue,
+      letterDate: mahnung.sentAt,
       neueFrist: mahnung.neueFrist.toISOString(),
       bankLine,
       mahngebuehr: Number(mahnung.mahngebuehr),

@@ -170,7 +170,7 @@ export class AutoReminderService {
         // count here using the same start (dueDate).
         const dueDate = inv.dueDate ? new Date(inv.dueDate) : null
         if (!dueDate) continue
-        const werktageOverdue = Math.max(0, countWerktage(dueDate, today))
+        const werktageOverdue = Math.max(0, countWerktage(dueDate, today, company.bundesland)) // Tier 846: the Land's holidays
 
         // Decide which level to send. The escalation
         // rule (from reminder.service.getNextReminderLevel):

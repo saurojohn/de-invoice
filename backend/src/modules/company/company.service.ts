@@ -19,6 +19,19 @@ export class CompanyService {
   }
 
   async update(id: string, data: any) {
+    // Tier 846: the body is the company's fields — a list, or nothing, reached
+    // Prisma and answered 500. And `null` for a column that takes none is
+    // „not given“ (@IsOptional() lets it through; measured:
+    // `"defaultPaymentDays": null` answered 500).
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new BadRequestException('Die Angaben zum Unternehmen fehlen.');
+    }
+    for (const k of ['invoiceNumberContinuous', 'defaultPaymentDays', 'ossVerfahren']) {
+      if (data[k] === null) {
+        data = { ...data };
+        delete data[k];
+      }
+    }
     // Tier 490: the company's own USt-IdNr. (on every invoice) normalised and checked
     // Tier 527: what every invoice prints — a name, a Steuernummer that can be
     // one, an IBAN that passes its check digit.

@@ -1,3 +1,4 @@
+import { IsCalendarDay } from '../../../common/calendar-day'
 import { StrictNumber } from '../../../common/strict-number'
 import {
   IsArray,
@@ -9,7 +10,6 @@ import {
   IsOptional,
   IsString,
   Length,
-  Matches,
   Max,
   MaxLength,
   Min,
@@ -38,11 +38,14 @@ import { StrictBoolean } from '../../../common/strict-boolean'
  * code already has; they do not introduce new business rules.
  */
 
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
 // normalizeDates() appends 'T00:00:00.000Z' to startDate / endDate, so a full
 // ISO timestamp here would become an Invalid Date (→ 500). Every caller sends
-// YYYY-MM-DD; require it.
+// YYYY-MM-DD; require it — a day that exists (Tier 846: „2026-13-01“ passed the
+// pattern and answered 500).
 const DATE_ONLY_MSG = 'Datum im Format YYYY-MM-DD erwartet'
+// Tier 846: „every N months“ — with N in the tens of thousands the next run
+// lay past the year 9999 and the template could not be stored (HTTP 500).
+const INTERVAL_COUNT_MAX = 1000
 // RecurringInvoiceItem.quantity / unitPrice are Decimal(12,4). Symmetric on
 // purpose — this only prevents the overflow, it does not rule on negatives.
 const DEC_12_4 = 99999999.9999
@@ -103,7 +106,7 @@ export class CreateRecurringInvoiceDto {
   @IsOptional()
   @StrictNumber() @IsInt()
   @Min(1)
-  @Max(2147483647)
+  @Max(INTERVAL_COUNT_MAX)
   intervalCount?: number
 
   @IsOptional()
@@ -112,11 +115,11 @@ export class CreateRecurringInvoiceDto {
   @Max(31)
   dayOfMonth?: number
 
-  @Matches(DATE_ONLY, { message: DATE_ONLY_MSG })
+  @IsCalendarDay({ message: DATE_ONLY_MSG })
   startDate!: string
 
   @IsOptional()
-  @Matches(DATE_ONLY, { message: DATE_ONLY_MSG })
+  @IsCalendarDay({ message: DATE_ONLY_MSG })
   endDate?: string | null
 
   // Not date-normalised: the pause modal sends a full ISO timestamp, or null.
@@ -166,10 +169,10 @@ export class UpdateRecurringInvoiceDto {
   @IsOptional() @IsString() name?: string
   @IsOptional() @IsString() customerId?: string
   @IsOptional() @IsIn(INTERVALS) interval?: 'monthly' | 'quarterly' | 'yearly' | 'weekly'
-  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(2147483647) intervalCount?: number
+  @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(INTERVAL_COUNT_MAX) intervalCount?: number
   @IsOptional() @StrictNumber() @IsInt() @Min(1) @Max(31) dayOfMonth?: number
-  @IsOptional() @Matches(DATE_ONLY, { message: DATE_ONLY_MSG }) startDate?: string
-  @IsOptional() @Matches(DATE_ONLY, { message: DATE_ONLY_MSG }) endDate?: string | null
+  @IsOptional() @IsCalendarDay({ message: DATE_ONLY_MSG }) startDate?: string
+  @IsOptional() @IsCalendarDay({ message: DATE_ONLY_MSG }) endDate?: string | null
   @IsOptional() @IsDateString() pausedUntil?: string | null
   @IsOptional() @IsString() @Length(3, 3) currency?: string
   @IsOptional() @IsString() @MaxLength(10) language?: string
@@ -191,6 +194,6 @@ export class CloneRecurringInvoiceDto {
   @IsOptional() @IsString() name?: string
   @IsOptional() @IsString() customerId?: string
   // The controller appends 'T00:00:00.000Z', so this must be date-only too.
-  @IsOptional() @Matches(DATE_ONLY, { message: DATE_ONLY_MSG }) startDate?: string
+  @IsOptional() @IsCalendarDay({ message: DATE_ONLY_MSG }) startDate?: string
   @IsOptional() @IsString() createdById?: string
 }

@@ -1,3 +1,4 @@
+import { IsCalendarDay } from '../../../common/calendar-day'
 import { StrictNumber } from '../../../common/strict-number'
 import { BUNDESLAENDER } from '../../../common/steuernummer';
 import { StrictBoolean } from '../../../common/strict-boolean'
@@ -220,12 +221,12 @@ export class UpdateCompanyDto {
   // "YYYY-MM-DD" or null. Checked in CompanyService.withKleinunternehmerPeriod.
   @ValidateIf((_, v) => v !== null)
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'kleinunternehmerAb muss ein Datum (JJJJ-MM-TT) sein' })
+  @IsCalendarDay({ message: 'kleinunternehmerAb muss ein Datum (JJJJ-MM-TT) sein' })
   kleinunternehmerAb?: string | null;
 
   @ValidateIf((_, v) => v !== null)
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'kleinunternehmerBis muss ein Datum (JJJJ-MM-TT) sein' })
+  @IsCalendarDay({ message: 'kleinunternehmerBis muss ein Datum (JJJJ-MM-TT) sein' })
   kleinunternehmerBis?: string | null;
 
   // Tier 441: the legal form (company/rechtsform.ts); null clears it.

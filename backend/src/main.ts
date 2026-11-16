@@ -1,3 +1,4 @@
+import { ObjectBodyPipe } from './common/object-body.pipe';
 import { noNulMiddleware } from './common/no-nul';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -183,6 +184,7 @@ async function bootstrap() {
 
   // Global validation pipe
   app.useGlobalPipes(
+    new ObjectBodyPipe(), // Tier 846: a DTO's body is an object, not a list
     new ValidationPipe({
       whitelist: true,
       transform: true,

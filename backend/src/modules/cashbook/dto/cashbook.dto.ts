@@ -1,3 +1,4 @@
+import { IsOptionalNotNull } from "../../../common/optional-not-null"
 import { StrictNumber } from '../../../common/strict-number'
 /**
  * Tier 211 — request DTOs for CashbookController.
@@ -132,13 +133,14 @@ export class ReopenCashBookDayDto {
  * "clear the VAT rate".
  */
 export class UpdateCashBookEntryDto {
-  @IsString() @IsOptional() @MaxLength(500)
+  @IsString() @IsOptionalNotNull() @MaxLength(500)
   description?: string
 
-  @IsOptional()
+  @IsOptionalNotNull()
   @Type(() => Number)
   @StrictNumber() @IsNumber()
   @Min(0)
+  @Max(DECIMAL_12_4_MAX, { message: "Betrag darf höchstens 99999999.9999 sein" }) // Tier 846: as on a create
   amount?: number
 
   @IsOptional()
