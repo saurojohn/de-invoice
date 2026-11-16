@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
+import { ibanProblem } from '../../common/iban'
 
 /**
  * Tier 108: SEPA pain.001 batch payment generator.
@@ -26,10 +27,9 @@ import { PrismaService } from '../../prisma/prisma.service'
  * the outgoing "Überweisung" (credit transfer) path
  * here. v2: extend with pain.008 for Lastschriften.
  *
- * IBAN validation: SEPA IBAN check digit algorithm
- * (ISO 13616, mod-97-10). We validate the format
- * but not the check digits — the bank does that
- * at submission time. v1: format + length check.
+ * IBAN validation: format and check digit (ISO 13616,
+ * mod-97-10; common/iban.ts) — since Tier 848. A file
+ * with one wrong IBAN is refused by the bank as a whole.
  *
  * BIC: optional in SEPA pain.001.001.09 since
  * 2016 (the routing can be derived from the
@@ -129,7 +129,9 @@ export class PaymentsService {
     const debtorBic =
       params.debtorBic || (company.bankInfo as any)?.bic
     const debtorName = params.debtorName || company.legalName || company.name
-    if (!debtorIban || !/^[A-Z]{2}\d{2}/.test(String(debtorIban).replace(/\s/g, '').toUpperCase())) {
+    // Tier 848: the check digit too (common/iban.ts) — the format alone let
+    // „DE00…“ into the file, which the bank then refuses as a whole.
+    if (!debtorIban || ibanProblem(String(debtorIban))) {
       throw new BadRequestException(
         'Debtor-IBAN fehlt oder ist ungültig (bitte unter "Einstellungen" → Bankverbindung erfassen).',
       )
@@ -159,12 +161,16 @@ export class PaymentsService {
       )
     }
 
-    // Validate each expense has an IBAN + the IBAN format.
+    // Validate each expense has an IBAN that is one.
+    // Tier 848: with its check digit. A supplier saved before Tier 527 (or
+    // written by an import) can hold an IBAN with a typing error; measured,
+    // „DE00 3704…“ went into the pain.001. And an IBAN in lower case is one.
     for (const e of expenses) {
       const iban = (e.supplier as any)?.bankInfo?.iban
-      if (!iban || !/^[A-Z]{2}\d{2}/.test(String(iban).replace(/\s/g, ''))) {
+      const problem = iban ? ibanProblem(String(iban)) : 'keine IBAN'
+      if (problem) {
         throw new BadRequestException(
-          `Ausgabe ${e.invoiceNumber || e.id} hat keine gültige Lieferanten-IBAN.`,
+          `Ausgabe ${e.invoiceNumber || e.id} hat keine gültige Lieferanten-IBAN${iban ? ` (${e.supplier?.name}: ${problem})` : ''}.`,
         )
       }
     }
@@ -179,10 +185,14 @@ export class PaymentsService {
       notes: params.notes,
       messageId: `BATCH-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
       payments: expenses.map((e) => {
-        const iban = String((e.supplier as any).bankInfo.iban).replace(/\s/g, '')
+        const iban = String((e.supplier as any).bankInfo.iban).replace(/\s/g, '').toUpperCase()
         const bic = (e.supplier as any).bankInfo?.bic
-        const recipientName = (e.supplier as any).bankInfo?.kontoinhaber
-          || e.supplier!.name
+        // Tier 848: the account holder the supplier's form stores is
+        // `accountHolder`. This read `kontoinhaber`, which nothing writes, so
+        // the payee was always the supplier's name — the name the bank checks
+        // against the account (Verification of Payee, since 09.10.2025).
+        const holder = (e.supplier as any).bankInfo?.accountHolder ?? (e.supplier as any).bankInfo?.kontoinhaber
+        const recipientName = (typeof holder === 'string' && holder.trim()) || e.supplier!.name
         return {
           paymentId: e.id,
           endToEndId: `E2E-${e.id}`,

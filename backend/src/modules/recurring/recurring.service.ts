@@ -15,6 +15,7 @@ import { InvoiceEmailService } from '../invoice/invoice-email.service';
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { nextInvoiceNumber, releaseInvoiceNumber } from '../invoice/invoice-number'
 import { resolveDueDate } from '../invoice/due-date';
+import { syncInvoiceStock } from '../invoice/stock'
 import { assertInvoiceDetails } from '../invoice/mandatory-details'
 import { igLVatIdProblem } from '../invoice/ust-behandlung-detector'
 import { invoiceRecipientOf } from '../customer/invoice-recipient';
@@ -1154,6 +1155,20 @@ export class RecurringService {
         if (refusal) throw new BadRequestException(refusal)
       }
 
+      // Tier 848: the lines of a template name their product by its number
+      // (SKU), and the invoice's lines were written without the link
+      // (`productId: null` — „not implemented yet“). Measured: a tracked
+      // product billed by a template, 2 a month, stayed at 10 in stock —
+      // issued by the run, or as a draft issued by hand.
+      const skus = [...new Set(items.map((it: any) => String(it.productNumber ?? '').trim()).filter(Boolean))]
+      const productIdBySku = new Map<string, string>(
+        skus.length
+          ? (await tx.product.findMany({ where: { companyId, sku: { in: skus } }, select: { id: true, sku: true }, orderBy: { createdAt: 'asc' } }))
+            .reverse() // the oldest wins where a number is there twice
+            .map((p: { id: string; sku: string | null }) => [String(p.sku), p.id] as [string, string])
+          : [],
+      )
+
       const invoice = await tx.invoice.create({
         data: {
           companyId,
@@ -1196,10 +1211,8 @@ export class RecurringService {
               netAmount: amounts.lines[idx].net.toFixed(2),
               vatAmount: amounts.lines[idx].vat.toFixed(2),
               grossAmount: amounts.lines[idx].gross.toFixed(2),
-              // productId snapshot if the productNumber matches
-              // an existing product — best-effort (not implemented
-              // yet; user can edit the invoice afterwards to link).
-              productId: null,
+              // Tier 848: the product whose number the line carries
+              productId: (it.productNumber && productIdBySku.get(String(it.productNumber).trim())) || null,
             })),
           },
         },
@@ -1275,6 +1288,16 @@ export class RecurringService {
       }
       if (result && result.__skipped) {
         throw new RecurringSkip('Das Enddatum ist erreicht — die Vorlage wurde deaktiviert.')
+      }
+      return result
+    }).then(async (result: any) => {
+      // Tier 848: the goods of an invoice the run issued leave the stock, as
+      // those of one issued by hand do (a draft's leave when it is issued).
+      // After the commit, and never the run's failure: the invoice exists.
+      if (result?.invoiceId) {
+        await syncInvoiceStock(this.prisma, companyId, result.invoiceId).catch((err) =>
+          this.logger.warn(`stock of the invoice of template ${templateId} not booked: ${err?.message ?? err}`),
+        )
       }
       return result
     })

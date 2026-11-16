@@ -2673,6 +2673,23 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 848 — a recurring template's goods leave the stock; the SEPA transfer file checks the IBAN and names the account holder
+
+The two gaps Tier 846 had found and left, on the owner's „修复“. Backend spec 542: 13 ✗ on Tier 847.
+
+**1. A product billed by a recurring template did not leave the stock.**
+- Measured: a tracked product, 10 in stock, billed 2 a month by a template. After a run that issues, and after a draft of a run issued by hand, the stock was still 10.
+- Cause: the run writes the invoice itself and set every line's `productId` to null („not implemented yet“). The stock follows the lines' products (Tier 520).
+- Change (`RecurringService.runOne`): a line's `productNumber` is looked up among the company's products by SKU and the line carries that product. After the run has committed, `syncInvoiceStock` books what the invoice holds. A draft's goods leave when it is issued, as before for a draft made by hand. A number that names no product gives a line without one.
+
+**2. The SEPA transfer file (pain.001).**
+- **The IBAN was checked for its first four characters.** A supplier's IBAN with a wrong check digit — a row from before Tier 527, which checks it on saving — went into the file. A bank refuses the whole file for one such IBAN. The supplier's and the company's IBAN are now checked with `ibanProblem` (format and check digit); the refusal names the bill, the supplier and the reason. An IBAN typed in lower case is accepted and written in capitals.
+- **The payee was always the supplier's name.** The supplier's form stores the account holder as `bankInfo.accountHolder`; the file read `bankInfo.kontoinhaber`, which nothing writes. The payee's name is what the bank compares with the account (Verification of Payee, since 09.10.2025). The holder is used when there is one, else the supplier's name.
+
+**Specs.**
+- Backend spec 542 (new; 13 ✗ on Tier 847): the stock after a run that issues, after a draft issued by hand, after its Storno, and for a line without a product; the file's payee and IBAN; the refusal of a wrong check digit, with no batch made.
+- Locally: the 45 backend specs on recurring invoices, transfer batches and stock, with the guards: all pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 847b — CI green for Tier 847, no flaky
 
 Run 43954841052 (Tier 847, c86c61f5): six jobs. Backend **540 passed / 0 failed / 1 skipped** (541 included). Playwright **1166 passed (36.9 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`. CI sets `CI`, so the specs' container default applied there as before.
