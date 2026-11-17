@@ -656,6 +656,7 @@ const ACCOUNT_USAGE: [string, string][] = [
   ['kursgewinn', 'Erträge aus der Währungsumrechnung'],
   ['kursverlust', 'Aufwendungen aus der Währungsumrechnung'],
   ['otherIncome', 'Sonstige Erträge'],
+  ['interestIncome', 'Zinserträge'],
   ['receivable', 'Forderungen (Sammelkonto)'],
   ['payable', 'Verbindlichkeiten (Sammelkonto)'],
   ['revenue19', 'Erlöse 19 %'],
@@ -679,6 +680,7 @@ const ACCOUNT_USAGE: [string, string][] = [
 ]
 
 const SKR03_NAMES: Record<string, string> = {
+  '2650': 'Sonstige Zinsen und ähnliche Erträge',
   '1000': 'Kasse',
   '1360': 'Geldtransit',
   '1711': 'Erhaltene, versteuerte Anzahlungen 7 % USt',

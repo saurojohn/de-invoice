@@ -141,6 +141,7 @@ model Company {
   reminderTemplates          ReminderTemplate[]
   noteTemplates              NoteTemplate[]
   mahnungen                  Mahnung[]
+  dunningIncomes             DunningIncome[]
   vatRates                   VatRate[]
   vatRateHistories           VatRateHistory[]
   invitations                UserInvitation[]
@@ -995,6 +996,7 @@ model Invoice {
   // "what Mahnungen went out for this invoice and what
   // did they charge" answerable in one query.
   mahnungen                 Mahnung[]
+  dunningIncomes            DunningIncome[]
   reconciliations           BankReconciliation[]
   voucherRef                Voucher?                   @relation(fields: [voucherRefId], references: [id])
   voucherRefId              String?                    @unique
@@ -1165,6 +1167,8 @@ model Payment {
   receiptNumber String?
   createdAt     DateTime       @default(now())
   cashBookEntry CashBookEntry?
+  /// Tier 854: the Mahnkosten this payment settled
+  dunningIncome DunningIncome?
 
   @@index([invoiceId])
   @@index([paymentDate])
@@ -3726,4 +3730,28 @@ model RetiredInvoiceNumber {
   resolvedAt    DateTime?
 
   @@unique([companyId, invoiceNumber])
+}
+
+/// Tier 854 — what a customer paid beyond an invoice for its dunning: the
+/// Mahngebühr and the Verzugszinsen of the latest Mahnung (§ 288 BGB). They
+/// are income — damages, not a supply, so without VAT (UStAE 1.3 Abs. 6) —
+/// and not the customer's credit. Written by PaymentService when a payment
+/// exceeds the open amount; it leaves with its payment.
+model DunningIncome {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  paymentId   String   @unique
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  mahnungId   String?
+  /// the day it was received — the payment's date
+  date        DateTime @db.Date
+  mahngebuehr Decimal  @default(0) @db.Decimal(12, 4)
+  verzugszins Decimal  @default(0) @db.Decimal(12, 4)
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, date])
+  @@index([invoiceId])
 }

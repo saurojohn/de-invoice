@@ -86,6 +86,8 @@ export interface DatevAccountMap {
   kursverlust: string
   /** Tier 838: a counted Kassenüberschuss (sonstige Erträge) */
   otherIncome: string
+  /** Tier 854: Verzugszinsen received (GuV 11) */
+  interestIncome: string
   receivable: string
   payable: string
   revenue19: string
@@ -133,8 +135,9 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   privateUseNoVat: '8924',      // Verwendung von Gegenständen, ohne USt
   homeOffice: '4288',           // Aufwendungen für ein häusliches Arbeitszimmer
   kursgewinn: '2660',           // Erträge aus der Währungsumrechnung
-  kursverlust: '2150',
-  otherIncome: '2700',          // Sonstige Erträge (Tier 838: Kassenüberschuss)          // Aufwendungen aus der Währungsumrechnung
+  kursverlust: '2150',          // Aufwendungen aus der Währungsumrechnung
+  otherIncome: '2700',          // Sonstige Erträge (Tier 838: Kassenüberschuss; Tier 854: Mahngebühren)
+  interestIncome: '2650',       // Sonstige Zinsen und ähnliche Erträge (Tier 854: Verzugszinsen)
   receivable: '1406',           // Forderungen aus L+L (the bank import's vouchers use it too)
   payable: '1600',              // Verbindlichkeiten aus L+L (Sammelkonto der Kreditoren)
   revenue19: '8400',            // Erlöse 19 % USt (Automatikkonto)
@@ -471,6 +474,7 @@ export async function buildBuchungenFromDb(
       invoice: {
         select: { invoiceNumber: true, customerId: true, currency: true, subtotal: true, eurSubtotal: true },
       },
+      dunningIncome: { select: { mahngebuehr: true, verzugszins: true } }, // Tier 854
     },
     orderBy: [{ paymentDate: 'asc' }, { createdAt: 'asc' }],
   })
@@ -564,6 +568,29 @@ export async function buildBuchungenFromDb(
       buchungstext: `Zahlung ${p.invoice.invoiceNumber}`,
       paymentMethod: p.paymentMethod,
     })
+    // Tier 854: the Mahnkosten in the payment — they cleared nothing on the
+    // Debitor, which the payment credited with them: Debitor an Sonstige
+    // Erträge (Mahngebühr) / Zinserträge (Verzugszinsen), without VAT
+    const dunning = (p as { dunningIncome?: { mahngebuehr: unknown; verzugszins: unknown } | null }).dunningIncome
+    for (const [part, konto, text] of [
+      [dunning?.mahngebuehr, a.otherIncome, 'Mahngebühr'],
+      [dunning?.verzugszins, a.interestIncome, 'Verzugszinsen'],
+    ] as Array<[unknown, string, string]>) {
+      const v = r2(Number(part ?? 0))
+      if (v > 0) {
+        out.push({
+          belegdatum: p.paymentDate,
+          belegfeld1: p.receiptNumber || p.invoice.invoiceNumber,
+          belegfeld2: p.invoice.invoiceNumber,
+          konto: debitor(p.invoice.customerId),
+          gegenkonto: konto,
+          betrag: v,
+          shVz: 'S',
+          buchungstext: `${text} ${p.invoice.invoiceNumber}`,
+          paymentMethod: p.paymentMethod,
+        })
+      }
+    }
     // Tier 540: the payment above is at the invoice's rate (it clears the
     // Debitor). What arrived in EUR differs — the difference goes to the bank
     // against 2660 (gain) / 2150 (loss), so the bank account shows the

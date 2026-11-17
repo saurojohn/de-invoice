@@ -22,6 +22,9 @@ import { syncInstallments } from '../installment-plan/installment-sync';
 import { refreshOpenStatus } from './open-status';
 import { businessDayIso, businessTodayIso } from '../../common/business-date';
 
+/** Tier 854: the reason ReminderService gives a Mahnung it voids because its invoice was paid */
+const PAID_MAHNUNG_REASON = 'invoice paid'
+
 @Injectable()
 export class PaymentService {
   constructor(
@@ -313,9 +316,20 @@ export class PaymentService {
     // (not CN — a CN is itself a refund and any overage on
     // a CN would be a bank-import mis-attribution; the
     // service throws on CN payments above).
-    const overage = totalPaid - invoiceTotal;
+    // Tier 854: the part of THIS payment beyond the invoice. It was the sum of
+    // all payments less the total, so every later payment of an overpaid
+    // invoice credited the earlier overpayment again (100 € invoice, 110 €
+    // then 5 €: a credit of 10 + 15 instead of 15).
+    const overage = Math.min(Number(payment.amount), totalPaid - invoiceTotal);
+    // Tier 854: what was paid beyond the invoice settles its dunning first —
+    // the Mahngebühr, then the Verzugszinsen of the latest Mahnung (§ 367
+    // BGB: costs, then interest). That is income, not the customer's credit.
+    const dunning = overage > 0.005 && (invoice.type === 'INV' || invoice.type === 'RCV')
+      ? await this.settleDunning(invoice, payment, overage)
+      : 0;
+    const credit = Math.round((overage - dunning) * 100) / 100;
     if (
-      overage > 0.005 &&
+      credit > 0.005 &&
       (invoice.type === 'INV' || invoice.type === 'RCV')
     ) {
       try {
@@ -323,7 +337,7 @@ export class PaymentService {
           invoice.companyId,
           invoice.customerId,
           payment.id,
-          overage,
+          credit,
           invoice.invoiceNumber,
         )
       } catch (err: any) {
@@ -365,7 +379,7 @@ export class PaymentService {
         await this.reminders.cancelOpenMahnungenForInvoice(
           invoice.companyId,
           invoiceId,
-          { reason: 'invoice paid' },
+          { reason: PAID_MAHNUNG_REASON },
         )
       } catch (err: any) {
         // Soft-fail: log to ErrorEvent (best-effort) but
@@ -631,6 +645,59 @@ export class PaymentService {
     // Tier 711: past its due date it is „überfällig“ again, not „versendet“
     await refreshOpenStatus(this.prisma, companyId, payment.invoiceId);
     return { ok: true };
+  }
+
+  /**
+   * Tier 854 — the Mahnkosten a payment settles: of what it paid beyond the
+   * invoice, the Mahngebühr and the Verzugszinsen of the invoice's latest
+   * Mahnung sent by the payment's day (not cancelled), less what earlier
+   * payments already settled of them. Costs before interest (§ 367 BGB).
+   * Measured before: a Mahnung of 5 € and 15,43 € interest paid with the
+   * invoice — the 20,43 € became the customer's credit, which the next
+   * invoice would have used up, and no income anywhere. Only for an invoice
+   * in EUR (the Mahnung's amounts are in the invoice's currency). Returns
+   * what it settled.
+   */
+  private async settleDunning(
+    invoice: { id: string; companyId: string; currency?: string | null },
+    payment: { id: string; paymentDate: Date },
+    overage: number,
+  ): Promise<number> {
+    if (String(invoice.currency || 'EUR').toUpperCase() !== 'EUR') return 0
+    const mahnung = await this.prisma.mahnung.findFirst({
+      // not one the user withdrew; one made void because the invoice was paid
+      // (cancelOpenMahnungenForInvoice) still claims its costs
+      where: {
+        invoiceId: invoice.id, companyId: invoice.companyId,
+        sentAt: { lte: new Date(payment.paymentDate.getTime() + 86_399_999) },
+        OR: [{ cancelledAt: null }, { cancelReason: PAID_MAHNUNG_REASON }],
+      },
+      orderBy: { sentAt: 'desc' },
+      select: { id: true, mahngebuehr: true, verzugszins: true },
+    })
+    if (!mahnung) return 0
+    const before = await this.prisma.dunningIncome.aggregate({
+      where: { invoiceId: invoice.id, mahnungId: mahnung.id },
+      _sum: { mahngebuehr: true, verzugszins: true },
+    })
+    const cents = (n: unknown) => Math.round(Number(n ?? 0) * 100)
+    let left = cents(overage)
+    const fee = Math.min(left, Math.max(0, cents(mahnung.mahngebuehr) - cents(before._sum.mahngebuehr)))
+    left -= fee
+    const interest = Math.min(left, Math.max(0, cents(mahnung.verzugszins) - cents(before._sum.verzugszins)))
+    if (fee + interest <= 0) return 0
+    await this.prisma.dunningIncome.create({
+      data: {
+        companyId: invoice.companyId,
+        invoiceId: invoice.id,
+        paymentId: payment.id,
+        mahnungId: mahnung.id,
+        date: new Date(`${businessDayIso(payment.paymentDate)}T00:00:00.000Z`),
+        mahngebuehr: fee / 100,
+        verzugszins: interest / 100,
+      },
+    })
+    return (fee + interest) / 100
   }
 
   /** Tier 430: the payments a customer reported, newest first. */

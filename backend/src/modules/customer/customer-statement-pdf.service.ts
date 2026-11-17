@@ -289,7 +289,8 @@ export async function generateStatementPdf(
       // Description (type icon + German label)
       const icon =
         line.type === 'invoice' ? 'R ' :
-        line.type === 'credit' ? 'G ' : 'Z '
+        line.type === 'credit' ? 'G ' :
+        line.type === 'fees' ? 'M ' : 'Z ' // Tier 854: Mahnkosten
       doc.text(icon + line.description, COL_DESC_X, y, { width: 175 })
 
       // Reference

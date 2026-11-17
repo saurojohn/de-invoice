@@ -129,6 +129,22 @@ export async function manualJournalLines(
       out.push({ date: businessDayIso(v.date), voucherNumber: v.voucherNumber, accountNumber: l.account.accountNumber, kind, amount })
     }
   }
+  // Tier 854: the Mahnkosten customers paid (DunningIncome) — the Mahngebühr
+  // as other income (2700), the Verzugszinsen as interest income (2650),
+  // on the day they were received; money in, so in a cash-only view too
+  const dunning = await prisma.dunningIncome.findMany({
+    where: { companyId, date: { gte: start, lte: end } },
+    select: { date: true, mahngebuehr: true, verzugszins: true, invoice: { select: { invoiceNumber: true } } },
+    orderBy: { date: 'asc' },
+  })
+  for (const d of dunning) {
+    const day = businessDayIso(d.date)
+    const ref = `Mahnkosten ${d.invoice.invoiceNumber}`
+    const fee = Math.round(Number(d.mahngebuehr) * 100) / 100
+    const interest = Math.round(Number(d.verzugszins) * 100) / 100
+    if (fee) out.push({ date: day, voucherNumber: ref, accountNumber: '2700', kind: 'ertrag', amount: fee })
+    if (interest) out.push({ date: day, voucherNumber: ref, accountNumber: '2650', kind: 'zinsertrag', amount: interest })
+  }
   return out
 }
 

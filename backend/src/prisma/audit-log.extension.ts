@@ -205,6 +205,7 @@ const AUDITED_MODELS = new Set<string>([
   // Tier 430: a payment the customer reported, and who booked or dismissed it.
   'PaymentNotice',
   'CustomerCreditTransaction',
+  'DunningIncome', // Tier 854: the Mahnkosten a payment settled
   'CashBookDailyClose',
   'UStvaFiling',
   // Tier 484: VAT paid to / refunded by the Finanzamt outside a UStVA

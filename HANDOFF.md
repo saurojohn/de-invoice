@@ -2673,6 +2673,51 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 854 — the Mahnkosten a customer pays are income, not the customer's credit; each payment credits only its own excess
+
+The owner: „继续“. This round followed a dunned invoice to its payment.
+
+**Measured** on Tier 853. A 2. Mahnung with a Mahngebühr of 5 € and 15,43 € of Verzugszinsen; the customer paid 1 210,43 €, the invoice and the costs.
+- The 20,43 € became an „overpayment“ — the customer's credit, which `apply-credit` would set against the next invoice.
+- It was income nowhere: not in the GuV, the BWA, the EÜR, and in DATEV the Debitor kept −20,43 €.
+- Before Tier 852 the GuV had counted every credit as other income, which hid it. Since then a credit is rightly no income, and the costs had nowhere to go.
+
+**Decision** (an accounting decision).
+- Mahngebühr and Verzugszinsen are damages for the delay (§ 286, § 288 BGB): no supply, so no VAT (UStAE 1.3 Abs. 6), but income. The Mahngebühr is other operating income (GuV 4, SKR03 2700), the interest is interest income (GuV 11, SKR03 2650).
+- What a payment brings beyond the invoice settles the latest Mahnung's costs first, then its interest (§ 367 BGB). Only the rest is the customer's credit.
+
+**Change.**
+- `DunningIncome` (migration `20261118000001_dunning_income`, one new table): per payment, the Mahngebühr and the interest it settled, on its day. It leaves with its payment (cascade).
+- `PaymentService.settleDunning`:
+  - the latest Mahnung sent by the payment's day; not one the user withdrew, but one voided because the invoice was paid (`cancelReason` „invoice paid“) still claims its costs;
+  - less what earlier payments settled of it;
+  - only for invoices in EUR (a Mahnung's amounts are in the invoice's currency).
+- `manualJournalLines` yields them as lines: `ertrag` on 2700 and `zinsertrag` on 2650. So every income statement that reads manual vouchers takes them: GuV, BWA, EÜR, Anlage S, Anlage G, P&L, the dashboard.
+- DATEV: after the payment, „Debitor an 2700“ (Mahngebühr) and „Debitor an 2650“ (Verzugszinsen), without a tax key; the Debitor is settled. A new account key `interestIncome` (2650), with its label in the Buchungsliste and on the settings page (de / en / zh).
+
+- The customer statement (Kontoauszug, page and PDF): a line of the new type `fees` („Mahnkosten“) on the payment's day raises what was owed. Without it, the payment took the whole 1 210,43 € off and the statement ended at −20,43 €, a credit the customer does not have. The Mahnkosten before the period are in the opening balance. They count in „Summe Rechnungen“ (owed like an invoice, but no document to count), so opening + invoices + credits + payments is still the closing balance. Labels de / en / zh; the PDF marks them „M“.
+- `DunningIncome` is audited like the other money-bearing models (spec 196's guard named it).
+
+**Also found: every payment of an overpaid invoice credited the earlier overpayment again.** The excess was the sum of all payments less the total. A 1 190 € invoice paid 1 200 € and then 5 € gave a credit of 10 + 15 = 25 € instead of 15 €. Now each payment credits only what it paid beyond the open amount.
+
+**Specs.** Backend spec 547 (new; 13 ✗ on Tier 853):
+- paid in full with the costs: the fee and the interest as income, no credit; GuV 4 and 11; no USt; DATEV's two rows; the Debitor settled; the payment deleted takes them along;
+- paid beyond the Mahnung: only the rest is credit;
+- the invoice first, then 3 €, then the rest: fee first, then interest;
+- the double overpayment;
+- no Mahnung, or one the user cancelled: as before.
+- the statement: one „Mahnkosten“ line of 20,43 €, closing balance 0.
+
+Locally, the whole backend suite (545 specs):
+- 541 passed, 1 skipped (16).
+- 196 named `DunningIncome` (now audited).
+- 95 and 193 failed once in the long run (a 503 on the search; 7 of 8 parallel creates); alone they pass.
+- After the statement and audit changes: the 224 backend specs on statements, payments, dunning, DATEV and credits, with the guards, pass.
+- The 142 Playwright files on them and the settings: 536 passed, 33 failed.
+  - The local `next dev` ran out of memory near the end (`FATAL`).
+  - Rerun after a restart, the 10 files gave 56 passed, `ui-walk-tier590` among them (the new labels `settings.datevAccount_interestIncome` and `statement.type_fees`).
+  - Left aside: `invoice-duplicate-check-tier150`, the known local failure.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 853b — CI green for Tier 853, no flaky
 
 Run 44136018294 (Tier 853, d1797b8c): six jobs. Backend **545 passed / 0 failed / 1 skipped** (546 included). Playwright **1166 passed (34.5 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`. No migration; the day1 images were not rebuilt.

@@ -13,7 +13,7 @@ import { todayIso } from "@/lib/today"
 
 interface StatementLine {
   date: string
-  type: "invoice" | "credit" | "payment"
+  type: "invoice" | "credit" | "payment" | "fees" // Tier 854: fees = Mahnkosten a payment settled
   reference: string
   description: string
   amount: number
@@ -568,7 +568,9 @@ export default function CustomerStatementPage() {
                               ? "bg-blue-100 text-blue-800"
                               : line.type === "credit"
                                 ? "bg-orange-100 text-orange-800"
-                                : "bg-green-100 text-green-800")
+                                : line.type === "fees"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-green-100 text-green-800")
                           }
                         >
                           {t("statement.type_" + line.type)}

@@ -42,7 +42,8 @@ export interface StatementLine {
   /** Date for sorting / display. For invoices = issueDate,
    *  for payments = paymentDate. */
   date: string
-  type: 'invoice' | 'credit' | 'payment'
+  /** Tier 854: 'fees' — the Mahnkosten a payment settled (they raise what was owed) */
+  type: 'invoice' | 'credit' | 'payment' | 'fees'
   /** Invoice number (INV-2026-00123) for invoices/credits,
    *  payment reference (e.g. "Bankeinzug 2026-06-15") for payments. */
   reference: string
@@ -208,7 +209,7 @@ export class CustomerStatementService {
     // (regardless of which invoice the payment covered — for
     //  Kontoauszug purposes, payments reduce the open balance
     //  in date order, not by invoice allocation).
-    const [invBefore, payBefore] = await Promise.all([
+    const [invBefore, payBefore, feesBefore] = await Promise.all([
       this.prisma.invoice.aggregate({
         where: {
           customerId,
@@ -230,14 +231,20 @@ export class CustomerStatementService {
         },
         _sum: { amount: true },
       }),
+      // Tier 854: the Mahnkosten payments settled — owed, and paid with them
+      this.prisma.dunningIncome.aggregate({
+        where: { companyId, date: { lt: from }, invoice: { customerId, currency: inCur } },
+        _sum: { mahngebuehr: true, verzugszins: true },
+      }),
     ])
     const openingBalance =
-      Number(invBefore._sum.total ?? 0) - Number(payBefore._sum.amount ?? 0)
+      Number(invBefore._sum.total ?? 0) - Number(payBefore._sum.amount ?? 0) +
+      Number(feesBefore._sum.mahngebuehr ?? 0) + Number(feesBefore._sum.verzugszins ?? 0)
 
     // ── Lines in [from..to] ───────────────────────────
     // Fetch invoices + payments in parallel, then merge
     // and sort by date ascending.
-    const [invoices, payments] = await Promise.all([
+    const [invoices, payments, fees] = await Promise.all([
       this.prisma.invoice.findMany({
         where: {
           customerId,
@@ -280,6 +287,11 @@ export class CustomerStatementService {
         },
         orderBy: { paymentDate: 'asc' },
       }),
+      this.prisma.dunningIncome.findMany({
+        where: { companyId, date: { gte: from, lte: to }, invoice: { customerId, currency: inCur } },
+        select: { date: true, mahngebuehr: true, verzugszins: true, paymentId: true, invoice: { select: { invoiceNumber: true } } },
+        orderBy: { date: 'asc' },
+      }),
     ])
 
     // Build a unified timeline. We keep invoices and credits
@@ -314,6 +326,24 @@ export class CustomerStatementService {
         amount: -Math.abs(Number(p.amount)),
         balance: 0,
         docId: p.id,
+      })
+    }
+
+    // Tier 854: the Mahnkosten a payment settled. The payment above takes the
+    // whole amount off the balance; without this line a Mahnung paid with
+    // its costs left the statement at −20,43 € — a credit the customer does
+    // not have.
+    for (const f of fees) {
+      const amount = Math.round((Number(f.mahngebuehr) + Number(f.verzugszins)) * 100) / 100
+      if (amount <= 0) continue
+      lines.push({
+        date: f.date.toISOString(),
+        type: 'fees',
+        reference: f.invoice.invoiceNumber,
+        description: 'Mahnkosten (Mahngebühr und Verzugszinsen)',
+        amount,
+        balance: 0,
+        docId: f.paymentId,
       })
     }
 
@@ -359,6 +389,11 @@ export class CustomerStatementService {
       } else if (line.type === 'credit') {
         creditsCount++
         creditsAmount += line.amount  // negative
+      } else if (line.type === 'fees') {
+        // Tier 854: Mahnkosten are owed like an invoice (not a document of
+        // its own — no count); opening + invoices + credits + payments still
+        // gives the closing balance
+        invoicesAmount += line.amount
       } else {
         paymentsCount++
         paymentsAmount += line.amount  // negative
