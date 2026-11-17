@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 853b — CI green for Tier 853, no flaky
+
+Run 44136018294 (Tier 853, d1797b8c): six jobs. Backend **545 passed / 0 failed / 1 skipped** (546 included). Playwright **1166 passed (34.5 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`. No migration; the day1 images were not rebuilt.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 853 — a GWG is written off in full in its acquisition month; the asset page says how a sale is booked
 
 The owner: „继续“. This round checked assets, AfA, a disposal and incoming § 13b / igE bills across the reports, on a probe GmbH (`scratchpad/inv/assets.py`).
