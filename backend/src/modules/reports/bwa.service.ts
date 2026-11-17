@@ -569,21 +569,11 @@ export class BwaService {
     // Tier 830 / 832: per asset, booked or computed — as the current year
     const vorjahresYtdAfA = manualVorjahrSum('afa') + (await afaOfYear(this.prisma, companyId, vorjahr)).cost(vorjahresYtdStart, vorjahresYtdEnd, 0)
 
-    // Sonstige betriebliche Erträge (1300) —
-    // positive customer credits in the year.
-    const credits = await this.prisma.customerCreditTransaction.findMany({
-      where: {
-        companyId,
-        createdAt: { gte: spanStart, lte: monthEnd },
-        type: { in: ['overpayment', 'gutschrift'] },
-      },
-      select: { amount: true, createdAt: true },
-    })
-    // Tier 792: in the month it was booked — each credit was dated `new
-    // Date()`, so the month column held the whole year's credits when the
-    // month asked for was the current one, and none otherwise.
+    // Sonstige betriebliche Erträge (1300): manual vouchers of other income
+    // and a cash surplus. Tier 852: not the customer credits of the year (an
+    // overpayment, a credit note beyond its invoice) — owed to the customer,
+    // not income; they stood here as the GuV had them.
     const creditItems = [
-      ...credits.map((c) => ({ date: c.createdAt, amount: Number(c.amount) > 0 ? Number(c.amount) : 0 })),
       ...manualOf('ertrag'),
       ...cash.filter((c) => c.direction === 'in' && c.kassendifferenz).map((c) => ({ date: c.date, amount: cashCost(c) })),
     ]

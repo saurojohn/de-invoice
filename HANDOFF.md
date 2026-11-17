@@ -2673,6 +2673,28 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 852 — a customer credit is owed to the customer, not income: out of the GuV, the BWA and the taxes that start from them
+
+The owner: „继续“. This round cross-checked the annual reports of the probe GmbH (Tier 851's company).
+- The year's result is the same in the GuV, the balance sheet, the KSt 1 and the GewSt: 2 383,84 € after taxes, 3 379,67 € before.
+- The taxes add up: KSt 506 € + Soli 27,83 € + GewSt 462 € = 995,83 €, the GuV's tax expense and the balance sheet's Steuerrückstellungen.
+
+**One thing did not hold.** The GuV had 31 € of „sonstige betriebliche Erträge“: the overpayment the balance sheet shows as owed to the customer.
+- `GuvService` and `BwaService` counted every positive customer credit of the year as other income. That covers an overpayment, and the part of a credit note beyond its invoice's open amount (`CustomerCreditTransaction` `overpayment` / `gutschrift`).
+- Both are owed to the customer — a liability (kreditorischer Debitor), which the balance sheet shows rightly — and neither is income.
+- Measured on the Ist company of Tier 851: a paid 595 € invoice cancelled with a Storno and a 31 € overpayment gave 626 € of other income in the GuV and the BWA. The Storno takes the revenue back and its refund came back as income.
+- For a GmbH, the KSt 1 and the GewSt start from the GuV: spec 545's company had an income before taxes of 726 € for 100 € of revenue.
+
+**Change.**
+- The GuV's and the BWA's „sonstige betriebliche Erträge“ (BWA 1300) hold the manual vouchers of other income and a cash surplus, as before, and no customer credits. The GuV's `counts.credits` stays in the response as 0.
+- The GuV page's footer no longer shows a third count („Gutschriften“, de / en / zh).
+- Spec 108 had asserted the old behaviour (+250 € of other income from an overpayment). It now asserts no change.
+- **Not decided here:** a credit the customer never claims becomes income when the claim is time-barred (three years, § 195 BGB). The app does not track that; the Steuerberater books it.
+
+**Specs.** Backend spec 545 (new; 4 ✗ on Tier 851): the Storno of a paid invoice plus an overpayment — GuV other income 0, Umsatzerlöse and Betriebsleistung 100 €, BWA revenue of the year 100 €, KSt 1 income 100 € (was 726 €); the balance sheet still owes the customer the 626 €.
+- Spec 494 (Tier 792) checked the month placement of BWA line 1300 with customer credits. It now books manual vouchers of other income (2700) of the same amounts, 80 € in January and 40 € in March, beside the same credits. 1300 shows 40 / 120 in March: the vouchers in their months, and the credits not at all — counted, it would be twice that.
+- Locally: the 85 backend specs on GuV, BWA, KSt, GewSt, the balance sheet and customer credits, with the guards, pass after 108 and 494 were changed. The 107 Playwright files on the accounting pages: 489 passed, 4 failed — `invoice-duplicate-check-tier150`, the known local failure.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 851b — CI green for Tier 851, no flaky
 
 Run 44099412842 (Tier 851, 4acf51d2): six jobs. Backend **543 passed / 0 failed / 1 skipped** (544 included). Playwright **1166 passed (34.0 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`. No migration; the day1 images were not rebuilt.

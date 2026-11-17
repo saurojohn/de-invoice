@@ -279,8 +279,9 @@ export function GuVSection() {
               </div>
 
               <div className="mt-2 text-xs text-gray-500" data-testid="guv-counts">
-                {tRef.current("guv.counts")}: <b>{data.counts.invoices}</b> / <b>{data.counts.expenses}</b> /{" "}
-                <b>{data.counts.credits}</b> · {tRef.current("guv.generatedAt")}:{" "}
+                {/* Tier 852: customer credits are no income — no third count */}
+                {tRef.current("guv.counts")}: <b>{data.counts.invoices}</b> / <b>{data.counts.expenses}</b>
+                {" "}· {tRef.current("guv.generatedAt")}:{" "}
                 {new Date(data.generatedAt).toLocaleString("de-DE")}
               </div>
             </>

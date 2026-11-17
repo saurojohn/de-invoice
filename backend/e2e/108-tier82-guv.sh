@@ -31,7 +31,8 @@
 #      schuss) = umsatzerlöse + sonstige
 #      Erträge - 5a - 6a - 8 - 13.
 #   9. Sonstige betriebliche Erträge delta
-#      = +250 from positive credit.
+#      = 0 from a customer credit (Tier 852: it
+#      is owed to the customer, not income).
 #  10. Sonstige betriebliche Aufwendungen
 #      sums ALL other categories, not just one.
 #  11. Gutschrift contributes negative to
@@ -228,7 +229,7 @@ VALUES
   (gen_random_uuid()::text, '$COMPANY_ID', 'GUV-${TS}-EXP-4', 'Miete',     '2026-06-01'::date, 168.07, 0.19, 31.93, 200, 'Miete',            'booked', now(), now());
 EOF
 
-# Add a positive customer credit: +250 (sonstige betr. Erträge)
+# Add a positive customer credit of 250 € — Tier 852: owed to the customer, no income
 # Tier 791: in the reported year 2026 — at now() it fell into the next year from 1 January
 docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice <<EOF >/dev/null
 INSERT INTO "CustomerCreditTransaction" (id, "companyId", "customerId", "amount", "balanceAfter", "type", "description", "createdById", "createdAt")
@@ -396,9 +397,9 @@ print('true' if ok else f'expected={expected_ju} actual={actual_ju}')
 ")
 assert_eq "Jahresüberschuss identity holds" "$JU_IDENTITY" "true"
 
-# ── 9. Sonstige betriebliche Erträge delta = +250 (from positive credit) ──
+# ── 9. Sonstige betriebliche Erträge: no delta from a customer credit (Tier 852) ──
 echo
-note "=== 9. Pos 4 (Sonstige betriebliche Erträge) delta = +250 (positive credit) ==="
+note "=== 9. Pos 4 (Sonstige betriebliche Erträge): the customer credit is no income ==="
 NEW_SONST_ERTR=$(python3 -c "
 import json
 d = json.load(open('$TMP'))
@@ -408,7 +409,7 @@ for l in d['revenue']['lines']:
     break
 ")
 D_SONST_ERTR=$(python3 -c "print(round(float('$NEW_SONST_ERTR') - float('$BASE_SONST_ERTR')))")
-assert_eq "Sonstige betr. Erträge delta = +250" "$D_SONST_ERTR" "250"
+assert_eq "Sonstige betr. Erträge delta = 0 (Tier 852; was +250: a credit owed to the customer counted as income)" "$D_SONST_ERTR" "0"
 
 # ── 10. PDF endpoint ──
 echo

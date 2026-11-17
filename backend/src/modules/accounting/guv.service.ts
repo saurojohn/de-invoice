@@ -40,10 +40,10 @@ import { shareWhileRunning } from '../../common/shared-while-running'
  *     1.  Umsatzerlöse: signed Invoice subtotal
  *         (paid + sent + overdue) in the year.
  *         Gutschriften contribute negative.
- *     4.  Sonstige betriebliche Erträge: positive
- *         customer-credit overages (CustomerCredit-
- *         Transaction with type='overpayment' or
- *         'gutschrift' and amount > 0).
+ *     4.  Sonstige betriebliche Erträge: manual
+ *         vouchers of other income, a cash surplus.
+ *         Not customer credits — owed to the customer
+ *         (Tier 852).
  *
  *   Cost:
  *     5.  Materialaufwand: Expense Material/Waren
@@ -359,27 +359,14 @@ export class GuVService {
     ).toNumber()
 
     // ===== SONSTIGE BETRIEBLICHE ERTRÄGE =====
-    // CustomerCreditTransaction with type
-    // 'overpayment' or 'gutschrift' and amount
-    // > 0 are positive credits the company
-    // received but didn't apply to an invoice.
-    // They're operational income (the company
-    // got the money), so they belong here.
-    //
-    // Negative credits (payouts, applies) are
-    // NOT income — they're the reverse.
-    const credits = await this.prisma.customerCreditTransaction.findMany({
-      where: {
-        companyId,
-        createdAt: { gte: yearStart, lte: yearEnd },
-        type: { in: ['overpayment', 'gutschrift'] },
-      },
-      select: { amount: true },
-    })
-    let sonstigeErtrage = credits.reduce(
-      (s, t) => s + (Number(t.amount) > 0 ? Number(t.amount) : 0),
-      0,
-    )
+    // Tier 852: manual vouchers of other income and a cash surplus (below).
+    // The customer credits of the year stood here too — an overpayment and
+    // the part of a credit note beyond its invoice's open amount. Both are
+    // owed to the customer (a liability; the balance sheet shows them so),
+    // not income. Measured: a paid 595 € invoice cancelled with a Storno and
+    // a 31 € overpayment put 626 € of „sonstige betriebliche Erträge“ into the
+    // GuV — and into the KSt 1 and GewSt that start from it.
+    let sonstigeErtrage = 0
 
     // Tier 83: pull the Asset pool + compute
     // the annual AfA per asset. The 7a
@@ -614,7 +601,7 @@ export class GuVService {
       counts: {
         invoices: invoices.length,
         expenses: expenses.length,
-        credits: credits.length,
+        credits: 0, // Tier 852: customer credits are no income (kept for the response's shape)
         // Tier 87: how many AfA bookings exist
         // for this year. 0 = 7a line uses
         // the in-memory computed value; >0 =

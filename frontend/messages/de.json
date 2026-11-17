@@ -3279,7 +3279,7 @@
     "summe": "Summe",
     "summary": "Zusammenfassung",
     "generatedAt": "Erstellt",
-    "counts": "Rechnungen / Ausgaben / Gutschriften",
+    "counts": "Rechnungen / Ausgaben",
     "previewHint": "VORSCHAU — nur teilweise aus den vorhandenen Buchungsdaten abgeleitet. Die restlichen Positionen (AfA, Bestandsveränderungen, Beteiligungserträge, Zinserträge, Steuern vom Einkommen und Ertrag) muss der Steuerberater ergänzen. Vor der Einreichung durch den Steuerberater prüfen lassen."
   },
   "assets": {

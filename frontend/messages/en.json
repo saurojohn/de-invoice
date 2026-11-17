@@ -3279,7 +3279,7 @@
     "summe": "Subtotal",
     "summary": "Summary",
     "generatedAt": "Generated",
-    "counts": "Invoices / Expenses / Credits",
+    "counts": "Invoices / Expenses",
     "previewHint": "PREVIEW — only partially derived from the bookkeeping data in the system. The remaining positions (depreciation, inventory changes, investment income, interest income, income taxes) must be completed by the tax advisor. Have your tax advisor verify before filing."
   },
   "assets": {
