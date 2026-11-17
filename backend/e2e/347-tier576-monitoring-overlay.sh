@@ -18,7 +18,8 @@ if ! docker compose version >/dev/null 2>&1; then
   note "SKIP: docker compose is not available here"; summary; exit 0
 fi
 D=$(mktemp -d)
-printf 'POSTGRES_PASSWORD=x\nJWT_SECRET=x\nFRONTEND_URL=https://rechnung.example.test\n' > "$D/env"
+# Tier 855: FINTS_PIN_ENC_KEY and SETUP_TOKEN are required
+printf 'POSTGRES_PASSWORD=x\nJWT_SECRET=x\nFRONTEND_URL=https://rechnung.example.test\nFINTS_PIN_ENC_KEY=x0123456789abcdef0123456789abcdef\nSETUP_TOKEN=x\n' > "$D/env"
 cp "$D/env" "$D/env-grafana"; echo 'GRAFANA_ADMIN_PASSWORD=ein-gesetztes-passwort' >> "$D/env-grafana"
 resolve() { # env-file overlay → exit code; output in $D/cfg(.err)
   docker compose --env-file "$1" -f "$PROD/docker-compose.yml" -f "$PROD/$2" config --format json > "$D/cfg" 2> "$D/cfg.err"

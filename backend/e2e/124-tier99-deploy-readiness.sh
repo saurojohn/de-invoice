@@ -21,7 +21,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE="$REPO_ROOT/infra/prod/docker-compose.yml"
-lint() { POSTGRES_PASSWORD=lint-test JWT_SECRET=lint-test FRONTEND_URL=https://lint-test.invalid docker compose -f "$COMPOSE" config "$@"; }
+# Tier 855: the encryption key and the setup token are required too
+lint() { POSTGRES_PASSWORD=lint-test JWT_SECRET=lint-test FRONTEND_URL=https://lint-test.invalid FINTS_PIN_ENC_KEY=lint-test-0123456789abcdef0123456789abcdef SETUP_TOKEN=lint-test docker compose -f "$COMPOSE" config "$@"; }
 
 note "=== 1. infra/prod/docker-compose.yml validates ==="
 cd "$REPO_ROOT"
@@ -42,7 +43,7 @@ else
 fi
 
 note "=== 3. Required env vars are declared as required ==="
-for var in POSTGRES_PASSWORD JWT_SECRET FRONTEND_URL; do
+for var in POSTGRES_PASSWORD JWT_SECRET FRONTEND_URL FINTS_PIN_ENC_KEY SETUP_TOKEN; do
   if grep -qE "\\\${${var}:\\?.*required" "$COMPOSE"; then
     pass "${var} is required (compose :-? ... required syntax)"
   else
@@ -105,7 +106,7 @@ done
 note "=== 9. .env.example / .env.production docs the required vars ==="
 # We don't ship a real .env in the repo (secrets); the example env file
 # lists what the operator must set.
-for var in POSTGRES_PASSWORD JWT_SECRET FRONTEND_URL; do
+for var in POSTGRES_PASSWORD JWT_SECRET FRONTEND_URL FINTS_PIN_ENC_KEY; do
   if grep -q "^$var=" "$REPO_ROOT/infra/prod/.env.example" 2>/dev/null; then
     pass "infra/prod/.env.example documents $var"
   else
