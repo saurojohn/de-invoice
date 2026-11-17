@@ -2673,6 +2673,20 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 849 — a Mahnung's Werktage count to the German day its letter bears; spec 540 no longer depends on the hour it runs
+
+**CI run 43963857901 (Tier 848, b5c1cb97): backend 540 passed / 1 failed.** Playwright 1166 passed, 0 flaky; spec 542 passed. The failure was spec 540 of Tier 846, not Tier 848.
+- The run met 23:15 in Germany (22:15 UTC). The spec moved the Mahnung's `sentAt` 30 days back to 17.10. 22:15 UTC, which is 18.10. 00:15 in Germany (summer time). The letter rightly bore 18.10.
+- The spec's expectation was wrong: `"sentAt" at time zone 'Europe/Berlin'` reads a timestamp without zone as Berlin time, not UTC, and gave 17.10.
+- Behind it, a real one: the letter's date was the German day, but its „überfällig seit N Werktagen“ counted to the server's midnight (`setHours(0,0,0,0)`; UTC on the production server). Around midnight in Germany the two were a day apart.
+
+**Change.**
+- `GET /reminders/mahnungen/:id/pdf`: the Werktage are counted between the German days of the due date and of `sentAt`.
+- Spec 540: the Mahnung is now sent at 23:30 UTC on a Wednesday 30 – 36 days back — the next day in Germany in summer and winter time, and a Werktag in UTC, so a count to the wrong day shows. Its calendar days and Frist are set to match. The expectation reads `sentAt` as UTC, then as a German day.
+- Checked: on a UTC backend the old controller now fails it („7 Werktagen“ for 8); the new one passes on a UTC backend and on the local one.
+
+Locally: the 30 backend specs on reminders and the guards pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 848 — a recurring template's goods leave the stock; the SEPA transfer file checks the IBAN and names the account holder
 
 The two gaps Tier 846 had found and left, on the owner's „修复“. Backend spec 542: 13 ✗ on Tier 847.

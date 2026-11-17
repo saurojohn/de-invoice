@@ -1,3 +1,4 @@
+import { businessDayIso } from '../../common/business-date';
 import { isConsumer } from './reminder.service';
 import { Controller, Get, Post, Put, Body, Param, Query, BadRequestException, ConflictException, NotFoundException, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -531,10 +532,13 @@ export class ReminderController {
     // Tier 846: as on the day the Mahnung was sent, not the day of this
     // download — the letter was dated today and counted its Werktage to
     // today beside the calendar days, the fees and the Frist of that day.
-    const today = new Date(mahnung.sentAt);
-    today.setHours(0, 0, 0, 0);
+    // Tier 849: both as German calendar days, as the letter's date is — the
+    // server's midnight made a Mahnung sent at 00:15 in Germany count its
+    // Werktage to the day before the date it bears (CI run 43963857901).
+    const germanDay = (d: Date) => new Date(`${businessDayIso(d)}T00:00:00`);
+    const today = germanDay(mahnung.sentAt);
     const dueDate = inv.dueDate ? new Date(inv.dueDate) : today;
-    const werktageOverdue = Math.max(0, countWerktage(dueDate, today, company.bundesland)); // Tier 846: the Land's holidays
+    const werktageOverdue = Math.max(0, countWerktage(inv.dueDate ? germanDay(inv.dueDate) : today, today, company.bundesland)); // Tier 846: the Land's holidays
     const daysOverdue = mahnung.daysOverdue;
 
     const pdfBuffer = await generateMahnungPDF({

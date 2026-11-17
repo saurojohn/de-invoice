@@ -43,14 +43,23 @@ SEND="{\"companyId\":\"$C\",\"invoiceId\":\"$I\",\"level\":\"first\"}"
 AS POST "/api/v1/reminders/send" "$SEND"
 assert_status 201 "fixture: a Zahlungserinnerung, 45 days after the due date"
 MID=$(json_field "$BODY" mahnungId)
-# sent 30 days ago: every stored day of the Mahnung 30 days back
-PSQL "update \"Mahnung\" set \"sentAt\" = \"sentAt\" - interval '30 days', \"createdAt\" = \"createdAt\" - interval '30 days', \"neueFrist\" = \"neueFrist\" - interval '30 days', \"daysOverdue\" = \"daysOverdue\" - 30 where id='$MID'" >/dev/null
-SENT=$(PSQL "select to_char(\"sentAt\" at time zone 'Europe/Berlin', 'DD.MM.YYYY') from \"Mahnung\" where id='$MID'")
+# sent 30 days ago, at 23:30 UTC — already the next day in Germany, summer or
+# winter time (Tier 849: CI run 43963857901 met that hour by chance; the
+# letter is dated by the German day, its Werktage must count to the same one)
+# A Wednesday (30 – 36 days back): the UTC day is a Werktag, so counting to it
+# instead of the German day shows as one Werktag less.
+D30=$(python3 -c "import datetime;d=datetime.date.today()-datetime.timedelta(days=30);d-=datetime.timedelta(days=(d.weekday()-2)%7);print(d.isoformat())")
+KT=$(python3 -c "import datetime;print((datetime.date.fromisoformat('$D30')+datetime.timedelta(days=1)-datetime.date.fromisoformat('$DUE')).days)")
+PSQL "update \"Mahnung\" set \"sentAt\" = '$D30 23:30:00', \"createdAt\" = '$D30 23:30:00', \"neueFrist\" = '$D30'::date + 7, \"daysOverdue\" = $KT where id='$MID'" >/dev/null
+# the stored timestamp is UTC: read it as UTC, then as a German day
+SENT_ISO=$(PSQL "select to_char((\"sentAt\" at time zone 'UTC') at time zone 'Europe/Berlin', 'YYYY-MM-DD') from \"Mahnung\" where id='$MID'")
+SENT=$(echo "$SENT_ISO" | awk -F- '{print $3"."$2"."$1}')
+assert_eq "fixture: sent at 23:30 UTC on $D30 is the next day in Germany" "$SENT_ISO" "$(python3 -c "import datetime;print((datetime.date.fromisoformat('$D30')+datetime.timedelta(days=1)).isoformat())")"
 curl -sS -o /tmp/t540-m.pdf -H "x-user-id: $U" -H "x-company-id: $C" "$API/api/v1/reminders/mahnungen/$MID/pdf?$q"
 TXT=$(pdf_text /tmp/t540-m.pdf | tr -s ' \n' ' ')
-WANT=$(python3 - "$DUE" <<'PY'
+WANT=$(python3 - "$DUE" "$SENT_ISO" <<'PY'
 import datetime, sys
-due = datetime.date.fromisoformat(sys.argv[1]); sent = datetime.date.today() - datetime.timedelta(days=30)
+due = datetime.date.fromisoformat(sys.argv[1]); sent = datetime.date.fromisoformat(sys.argv[2])
 def easter(y):
     a=y%19; b=y//100; c=y%100; d=b//4; e=b%4; f=(b+8)//25; g=(b-f+1)//3; h=(19*a+b-d-g+15)%30; i=c//4; k=c%4
     l=(32+2*e+2*i-h-k)%7; m=(a+11*h+22*l)//451; return datetime.date(y,(h+l-7*m+114)//31,(h+l-7*m+114)%31+1)
@@ -66,8 +75,8 @@ PY
 )
 [[ "$TXT" == *"$SENT"* ]] && pass "the letter is dated the day it was sent, $SENT (was: the day of the download)" || fail "letter date $SENT not in: ${TXT:0:300}"
 [[ "$TXT" != *"$(TZ=Europe/Berlin date +%d.%m.%Y)"* ]] && pass "…and today's date is nowhere in it" || fail "today's date is in the letter: ${TXT:0:300}"
-[[ "$TXT" == *"Überfällig seit $WANT Werktagen (15 Kalendertagen)"* ]] && pass "überfällig seit $WANT Werktagen (15 Kalendertagen) — both of the day it was sent (was: 30 Werktage beside 15 Kalendertage)" \
-  || fail "expected „Überfällig seit $WANT Werktagen (15 Kalendertagen)“ in: $(echo "$TXT" | grep -o 'Überfällig seit[^.]*\.')"
+[[ "$TXT" == *"Überfällig seit $WANT Werktagen ($KT Kalendertagen)"* ]] && pass "überfällig seit $WANT Werktagen ($KT Kalendertagen) — both of the German day it was sent (was: Werktage to the day of the download; Tier 849: to the server's day)" \
+  || fail "expected „Überfällig seit $WANT Werktagen ($KT Kalendertagen)“ in: $(echo "$TXT" | grep -o 'Überfällig seit[^.]*\.')"
 
 note "=== 2. Werktage: the holidays of the company's Land ==="
 assert_eq "29.10. – 03.11.2027: 1 Werktag in BY (Allerheiligen), 2 in BE and without a Land; Karfreitag 2031 and the Reformationstag in BB are none (was: 1 for every Land, both Werktage)" \
