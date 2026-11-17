@@ -2771,6 +2771,8 @@ Locally: specs 55, 374, 523, 548 and the guards pass.
 
 **Tier 855c.** Specs 124 (deploy readiness) and 347 (monitoring overlay) run `docker compose config` with the required variables set; they set neither the key nor the token, so compose refused to resolve the file. Both now set them; 124 also checks that both are declared required. Found while running the specs of Tier 856, after the push — the spec list of Tier 855 had missed every spec that resolves the compose file.
 
+**Tier 855d.** The image check's refusal run (docker-build.yml) failed in CI: started without a storage volume, the image's entrypoint stopped first — „/data/invoice-system is not writable by app“ — before the program could name the missing key and token. Reproduced with an image of Tier 855; with the volume the run exits 1 naming both. The run now has the volume, as compose gives it.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 854b — CI green for Tier 854, no flaky; the migration on the production images
 
 - **Run 44171707171 (Tier 854, fdd3d779):** six jobs. Backend **546 passed / 0 failed / 1 skipped** (547 included). Playwright **1166 passed (33.8 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`.
