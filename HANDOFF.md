@@ -2673,6 +2673,31 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 859 — every page sends a Content-Security-Policy; a walk through the main pages breaks none of its rules
+
+Security audit, item 5.
+
+**Measured.** No response of the frontend had a Content-Security-Policy:
+- Caddy sends HSTS, nosniff, X-Frame-Options, Referrer-Policy and Permissions-Policy.
+- helmet in the backend has CSP switched off („Next.js handles its own“ — it did not).
+
+A script that got into a page could load code from any site, send what it read anywhere, and post forms elsewhere.
+
+**Change.** `frontend/next.config.ts` `headers()` sends the policy on every path:
+- `default-src`, scripts, styles, fonts and workers from the app;
+- images, connections and frames from the app, `data:`/`blob:` where the app makes them (QR code, PDF previews), and the API's origin from `NEXT_PUBLIC_API_URL` (the same origin in production; :3011 while developing);
+- `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'self'`.
+
+Inline scripts stay allowed: Next.js writes each page's data as inline scripts, and a nonce per request would make every page dynamic. `'unsafe-eval'` and the websocket are allowed only under `next dev` (React Refresh).
+
+**Specs.**
+- Playwright `content-security-policy-tier859`:
+  - /login, /register and /dashboard send the policy with its rules;
+  - a walk through ten main pages records every `securitypolicyviolation` the browser reports, and there are none.
+- Checked that the walk catches one: with the API's origin left out of `connect-src`, it fails and lists every blocked API call.
+- The CSV, asset and download Playwright specs pass with the policy.
+- The production image (`next build`, `de-invoice-frontend`): the policy without `unsafe-eval`, the API's origin from the build argument; the walk run against it (`BASE_URL` on that container, the API on :3011) reports no violation.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 858 — the dependencies' known holes fixed and checked in CI; each image scanned by Trivy, pinned by digest
 
 Security audit, item 4.
