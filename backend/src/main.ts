@@ -1,3 +1,4 @@
+import { productionConfigProblems } from './common/production-config';
 import { ObjectBodyPipe } from './common/object-body.pipe';
 import { noNulMiddleware } from './common/no-nul';
 import { NestFactory } from '@nestjs/core';
@@ -27,6 +28,13 @@ declare global {
 }
 
 async function bootstrap() {
+  // Tier 855: no protection switched off by a wrong .env (common/production-config.ts)
+  const configProblems = productionConfigProblems();
+  if (configProblems.length) {
+    console.error(['Der Server startet nicht — die Produktionskonfiguration ist unsicher:', ...configProblems.map((p) => `  - ${p}`)].join('\n'));
+    process.exit(1);
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 

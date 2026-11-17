@@ -231,7 +231,9 @@ services:
       OCR_ENGINE: ${OCR_ENGINE:-tesseract}
       # Read by the backend, and without effect unless listed here:
       APP_ORIGIN: ${APP_ORIGIN:-}
-      FINTS_PIN_ENC_KEY: ${FINTS_PIN_ENC_KEY:-}
+      # Tier 855: required — without it SMTP passwords and FinTS PINs were stored
+      # as typed; the backend also refuses to start without it (production-config.ts)
+      FINTS_PIN_ENC_KEY: ${FINTS_PIN_ENC_KEY:?FINTS_PIN_ENC_KEY is required (openssl rand -hex 32, never change it afterwards)}
       # Tier 568: the demo bank (invented transactions) stays off in
       # production. 1 turns it on — for a demo installation only.
       FINTS_ALLOW_MOCK: ${FINTS_ALLOW_MOCK:-0}
@@ -252,7 +254,8 @@ services:
       REGISTRATION: ${REGISTRATION:-first-only}
       # Tier 825: the first registration of the empty installation needs the
       # setup link /register?setup=<token> (HETZNER-DEPLOY.sh sets and prints it)
-      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      # Tier 855: required — empty, the first visitor of a new installation became its owner
+      SETUP_TOKEN: ${SETUP_TOKEN:?SETUP_TOKEN is required (openssl rand -hex 24; HETZNER-DEPLOY.sh writes one)}
       # Tier 549: when set, GET /metrics needs `Authorization: Bearer <token>`.
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       # Optional — VIES mock mode for offline tests.

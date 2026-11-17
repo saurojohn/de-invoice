@@ -59,8 +59,9 @@ grep -q 'SETUP_TOKEN=%s' "$D" && grep -q 'register?setup=$SETUP_TOKEN' "$D" \
   && pass "it writes a SETUP_TOKEN into .env and prints the setup link" || fail "no setup token in the deploy"
 grep -q 'auth/registration' "$D" && grep -q 'health/deep' "$D" && grep -q 'de-invoice-backup running' "$D" \
   && pass "after the start it checks the database, the registration and the backup container" || fail "no first-day checks after the start"
-grep -q 'SETUP_TOKEN: ${SETUP_TOKEN:-}' "$ROOT/infra/prod/docker-compose.yml" && grep -q '^# SETUP_TOKEN=' "$ROOT/infra/prod/.env.example" \
-  && pass "compose hands SETUP_TOKEN to the backend, .env.example documents it" || fail "SETUP_TOKEN not wired through compose / .env.example"
+# Tier 855: required — compose refuses to start without it
+grep -q 'SETUP_TOKEN: ${SETUP_TOKEN:?' "$ROOT/infra/prod/docker-compose.yml" && grep -q '^# SETUP_TOKEN=' "$ROOT/infra/prod/.env.example" \
+  && pass "compose hands SETUP_TOKEN to the backend (required since Tier 855), .env.example documents it" || fail "SETUP_TOKEN not wired through compose / .env.example"
 ! grep -q "Run 'certbot renew" "$ROOT/infra/prod/smoke-test.sh" && bash -n "$ROOT/infra/prod/smoke-test.sh" \
   && pass "the smoke test no longer sends the operator to certbot (Caddy renews)" || fail "smoke-test.sh still advises certbot"
 summary

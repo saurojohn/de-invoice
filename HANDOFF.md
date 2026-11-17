@@ -2673,6 +2673,40 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 855 — the production backend refuses an unsafe configuration; the encryption key and the setup token are required
+
+The owner asked for a security audit before going live (18.11.2026; findings in the chat), then: „修复“. This tier is the audit's items 2, 3 and 10.
+
+**Measured.**
+- **2:** `FINTS_PIN_ENC_KEY: ${FINTS_PIN_ENC_KEY:-}` in the production compose. Without the key `secret-crypto.ts` stores each company's SMTP password as typed.
+- **3:** `SETUP_TOKEN: ${SETUP_TOKEN:-}`. `HETZNER-DEPLOY.sh` writes one, but a deploy by hand had none, and the first person to reach `/register` of the empty installation became its owner.
+- **10:** several protections hang on the environment and fell away without a word: `ALLOW_HEADER_AUTH=1` (the header `x-user-id` as a login), `THROTTLE_DISABLED=1` (no rate limit, the login included), `VIES_MOCK` / `EXCHANGE_RATES_MOCK` / `FINTS_ALLOW_MOCK` (made-up answers of outside services).
+
+**Change.**
+- `common/production-config.ts` `productionConfigProblems()`. With `NODE_ENV=production`, `main.ts` refuses to start, naming each problem, when:
+  - the key is missing or shorter than 32 characters;
+  - `SETUP_TOKEN` is missing;
+  - `ALLOW_HEADER_AUTH`, `THROTTLE_DISABLED` or a mock is on.
+- A drill on the production images may use the mocks with `PRODUCTION_DRILL=1`; nothing else is let through by it. Outside production nothing is checked.
+- `infra/prod/docker-compose.yml`: `FINTS_PIN_ENC_KEY` and `SETUP_TOKEN` with `:?` — compose itself refuses to start without them.
+- `HETZNER-DEPLOY.sh` writes a key of 64 hex characters when `.env` has none (an empty `FINTS_PIN_ENC_KEY=` line from the example is replaced). It never replaces one that is there: a changed key loses every sealed password. It stops on a key shorter than 32 characters and tells the operator to keep a copy apart from the server.
+- `.env.example` says both are required.
+- `docker-build.yml` (the image check in CI): the hardened run gets CI-only values for both. A new step starts the image without them and requires it to exit, naming both.
+- Plain SMTP passwords already stored are sealed at start once the key is there (Tier 630, `MailService.onModuleInit`); nothing new was needed for that.
+- The day1 drill environment (scratchpad) got a test key and `PRODUCTION_DRILL=1`.
+
+**Specs.**
+- Backend spec 548 (new; 6 ✗ on Tier 854):
+  - the check for a safe configuration, without key and token, a short key, each switch, the mocks with and without the drill flag, `=0` values, outside production;
+  - `main.ts` calls it;
+  - compose requires both;
+  - the deploy's key step against a scratch `.env`: an empty line replaced by one key, a second run keeps it, a short key stops the deploy;
+  - the image build checks the refusal.
+- Spec 523 (Tier 825) asserted `SETUP_TOKEN: ${SETUP_TOKEN:-}`; it now asserts the required form.
+- Checked by hand: the backend started with `NODE_ENV=production` and no setup token exits 1 with „Der Server startet nicht — …“.
+
+Locally: specs 55, 374, 523, 548 and the guards pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 854b — CI green for Tier 854, no flaky; the migration on the production images
 
 - **Run 44171707171 (Tier 854, fdd3d779):** six jobs. Backend **546 passed / 0 failed / 1 skipped** (547 included). Playwright **1166 passed (33.8 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`.

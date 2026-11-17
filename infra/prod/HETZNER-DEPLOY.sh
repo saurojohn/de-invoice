@@ -288,6 +288,19 @@ if ! grep -qE '^SETUP_TOKEN=[^ ]' infra/prod/.env; then
 fi
 SETUP_TOKEN=$(grep -E '^SETUP_TOKEN=' infra/prod/.env | tail -1 | cut -d= -f2-)
 
+# Tier 855: the key that seals the SMTP passwords and FinTS PINs. Required —
+# the backend refuses to start without it. Written once, only when there is
+# none: a key that changes makes every sealed password unreadable.
+if ! grep -qE '^FINTS_PIN_ENC_KEY=[^ ]{32,}' infra/prod/.env; then
+  if grep -qE '^FINTS_PIN_ENC_KEY=[^ ]' infra/prod/.env; then
+    die "FINTS_PIN_ENC_KEY in .env is shorter than 32 characters — set a longer one before anything was sealed with it"
+  fi
+  KEY_NEW=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+  sed -i.bak '/^FINTS_PIN_ENC_KEY=$/d' infra/prod/.env && rm -f infra/prod/.env.bak
+  printf '\n# Tier 855: seals SMTP passwords and FinTS PINs. NEVER change it — keep a copy with the backups.\nFINTS_PIN_ENC_KEY=%s\n' "$KEY_NEW" >> infra/prod/.env
+  log "  FINTS_PIN_ENC_KEY written to .env — keep a copy of it apart from the server (without it the sealed passwords are lost)"
+fi
+
 # ─── Step 3: build images ──────────────────────────────
 log "Step 3/6 — build Docker images (3-5 min on a cold cache)"
 # Tier 828: with the commit and build time („Systembetrieb" shows them)

@@ -127,7 +127,15 @@ jobs:
           HARD=(--read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true)
           ENVS=(--network harden -e NODE_ENV=production -e DISABLE_CRON=1
                 -e "DATABASE_URL=postgresql://de_invoice:ci-only@postgres:5432/de_invoice?schema=public"
-                -e JWT_SECRET=ci-only-0123456789abcdef0123456789abcdef -e FRONTEND_URL=http://localhost:3000)
+                -e JWT_SECRET=ci-only-0123456789abcdef0123456789abcdef -e FRONTEND_URL=http://localhost:3000
+                -e FINTS_PIN_ENC_KEY=ci-only-0123456789abcdef0123456789abcdef -e SETUP_TOKEN=ci-only-setup-token)
+          # Tier 855: without its key and its setup token the production image does not start
+          if docker run --rm --network harden -e NODE_ENV=production -e DISABLE_CRON=1 \
+               -e "DATABASE_URL=postgresql://de_invoice:ci-only@postgres:5432/de_invoice?schema=public" \
+               -e FRONTEND_URL=http://localhost:3000 "${HARD[@]}" de-invoice-backend:ci > unsafe.txt 2>&1; then
+            echo "::error::the production image started without FINTS_PIN_ENC_KEY and SETUP_TOKEN"; cat unsafe.txt; exit 1
+          fi
+          grep -q "FINTS_PIN_ENC_KEY fehlt" unsafe.txt && grep -q "SETUP_TOKEN fehlt" unsafe.txt || { cat unsafe.txt; exit 1; }
           docker run --rm "${ENVS[@]}" -v harden-storage:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci npx prisma migrate deploy | tail -2
           # Tier 756: with the CDN of tesseract.js out of reach, as below
           docker run -d --name harden-be --add-host cdn.jsdelivr.net:127.0.0.1 "${ENVS[@]}" -v harden-storage:/data/invoice-system "${HARD[@]}" de-invoice-backend:ci
