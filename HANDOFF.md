@@ -2673,6 +2673,27 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 860 — ten wrong passwords within 15 minutes lock the account for 15 minutes, wherever they come from; only the right password learns of it
+
+Security audit, item 7.
+
+**Measured.** The login counted failures per client address, in memory: five from one address locked that address for 15 minutes. Spec 552 on Tier 859: ten wrong passwords for one account from ten addresses, then the right one — signed in. Guesses spread over many addresses were never stopped, and a restart forgot every count.
+
+**Change** (migration 20261119000001).
+- `User.failedLoginCount`, `failedLoginFirstAt`, `loginLockedUntil`.
+- A wrong password for an existing account counts within a 15-minute window. The tenth locks the account for 15 minutes and writes `login_account_locked` (with the count) to the audit log.
+- While locked:
+  - a wrong password gets the answer every wrong password and every unknown address gets — the lock tells nobody which addresses exist — and the lock is not lengthened;
+  - the right password is refused, saying until when and that „Passwort vergessen“ gives a new password at once (`login_blocked_account_locked` in the audit log).
+- A successful login and a new password through the e-mail link reset the count and the lock.
+- The per-address lockout stays as it was.
+- Not done: an e-mail to the owner of a locked account. The audit log has the row; a mail to an address an attacker chose to lock would be a mail they can trigger.
+
+**Specs.**
+- Spec 552 (new; 10 ✗ on Tier 859): the count from ten addresses, the lock and its audit row, a wrong password while locked, the right one refused without a session, after the lock, the 15-minute window, the reset.
+- Related specs (every spec that logs in: 24 43 99 171 176 187 190 191 192 346 457 485 487 489 490 491 521) and the guards pass.
+- The migration applied with `migrate deploy` on the day1 production image (4 users, counts 0).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 859 — every page sends a Content-Security-Policy; a walk through the main pages breaks none of its rules
 
 Security audit, item 5.
@@ -2834,6 +2855,8 @@ The owner asked for a security audit before going live (18.11.2026; findings in 
 Locally: specs 55, 374, 523, 548 and the guards pass.
 
 **Tier 855c.** Specs 124 (deploy readiness) and 347 (monitoring overlay) run `docker compose config` with the required variables set; they set neither the key nor the token, so compose refused to resolve the file. Both now set them; 124 also checks that both are declared required. Found while running the specs of Tier 856, after the push — the spec list of Tier 855 had missed every spec that resolves the compose file.
+
+**Tier 855f.** The Docker images run of Tier 858 (44198898624) passed the refusal check, then failed at the receipt-scanner check: `scripts/ci-ocr-check.js` registers the first company of the hardened image's empty database, and with `SETUP_TOKEN` now set that registration needs the token (403 „Die erste Registrierung … braucht den Einrichtungslink“). The script sends `SETUP_TOKEN` from the container's environment; later registrations ignore it.
 
 **Tier 855e.** Spec 191 (production auth mode) restarted the backend with `NODE_ENV=production` beside `VIES_MOCK=1` and `THROTTLE_DISABLED=1`, and a second time with `ALLOW_HEADER_AUTH=1` — none of which starts any more. Its production runs now have a setup token, the rate limit on, no mock, and CI's fixture key (the key every spec runs with, so the SMTP passwords sealed at start are the ones the later specs can open). The demo-bank checks use the session cookie. The case „ALLOW_HEADER_AUTH=1 still turns the header on“ is now „production with it does not start, and says why“. The demo bank in production runs only with `PRODUCTION_DRILL=1`. CI run 44180583528 failed on 124, 191 and 347 (544 passed). Locally (the harness exports `EXCHANGE_RATES_MOCK=1` as CI does) the production runs also turn that mock off. The log check counts from the line after `wc -l` — macOS pads its number with spaces.
 

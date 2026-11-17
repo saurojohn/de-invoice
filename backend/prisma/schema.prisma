@@ -238,6 +238,15 @@ model User {
   passwordResetToken   String?   @unique
   passwordResetExpires DateTime?
 
+  // Tier 860: failed logins of this account (security audit, item 7). The
+  // lockout per address in the login controller is in memory and per IP: a
+  // guess from many addresses was never stopped, a restart forgot it. Ten
+  // wrong passwords within 15 minutes lock the account for 15 minutes; the
+  // right password then says so, a wrong one says nothing more than before.
+  failedLoginCount     Int       @default(0)
+  failedLoginFirstAt   DateTime?
+  loginLockedUntil     DateTime?
+
   // Tier 736: the address confirmed by a link sent to it. The token is kept
   // as a SHA-256 hash (32 random bytes — no need for bcrypt, and it can be
   // looked up). Until an admin of a company has confirmed their address, the

@@ -160,6 +160,10 @@ export class AuthService {
         // Invalidate any other active reset tokens for this user
         passwordResetToken: null,
         passwordResetExpires: null,
+        // Tier 860: the link came to the mailbox — a lock from wrong passwords ends
+        failedLoginCount: 0,
+        failedLoginFirstAt: null,
+        loginLockedUntil: null,
       },
     });
     if (count !== 1) {

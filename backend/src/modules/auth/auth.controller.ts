@@ -30,6 +30,11 @@ interface LoginAttempt {
 const FAILED_LOGIN_WINDOW_MS = 15 * 60_000; // 15 min
 const FAILED_LOGIN_MAX = 5;                   // 5 fails → lock
 const FAILED_LOGIN_LOCK_MS = 15 * 60_000;      // 15 min lockout
+// Tier 860: per account, in the database (User.failedLoginCount …) — a guess
+// spread over many addresses, or over a restart, counts all the same
+export const ACCOUNT_FAILED_MAX = 10;
+export const ACCOUNT_WINDOW_MS = 15 * 60_000;
+export const ACCOUNT_LOCK_MS = 15 * 60_000;
 
 @Controller('auth')
 export class AuthController {
@@ -54,6 +59,38 @@ export class AuthController {
       if (a.lockedUntil < now && now - a.firstAt > FAILED_LOGIN_WINDOW_MS) {
         this.attempts.delete(ip);
       }
+    }
+  }
+
+  /**
+   * Tier 860: a wrong password for an existing account. Counts within a
+   * window of 15 minutes; the tenth locks the account for 15 minutes (and is
+   * written to the audit log). Wrong passwords while locked count on but do
+   * not lengthen the lock.
+   */
+  private async countAccountFailure(user: { id: string; companyId: string | null; failedLoginFirstAt: Date | null; loginLockedUntil: Date | null }, ip: string, req: any, now: number) {
+    const fresh = !user.failedLoginFirstAt || now - user.failedLoginFirstAt.getTime() > ACCOUNT_WINDOW_MS;
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: fresh
+        ? { failedLoginCount: 1, failedLoginFirstAt: new Date(now) }
+        : { failedLoginCount: { increment: 1 } },
+      select: { failedLoginCount: true },
+    });
+    const locked = user.loginLockedUntil && user.loginLockedUntil.getTime() > now;
+    if (!locked && updated.failedLoginCount >= ACCOUNT_FAILED_MAX) {
+      await this.prisma.user.update({ where: { id: user.id }, data: { loginLockedUntil: new Date(now + ACCOUNT_LOCK_MS) } });
+      this.logger.warn(`Account ${user.id} locked after ${updated.failedLoginCount} failed logins within 15 minutes (last from ${ip})`);
+      await this.audit.writeActivity({
+        companyId: user.companyId || null,
+        userId: user.id,
+        action: 'login_account_locked',
+        entityType: 'auth',
+        entityId: user.id,
+        ipAddress: ip,
+        userAgent: req?.headers['user-agent'] || null,
+        metadata: { failedLogins: updated.failedLoginCount, lockedMinutes: ACCOUNT_LOCK_MS / 60_000 },
+      });
     }
   }
 
@@ -134,6 +171,30 @@ export class AuthController {
       throw new BadRequestException('Invalid email or password');
     }
 
+    // Tier 860: the account is locked after ten wrong passwords. Only the
+    // right password learns it (and when it ends) — a wrong one gets the
+    // answer every wrong password gets, so the lock tells a guesser nothing
+    // about which addresses exist.
+    if (user && user.loginLockedUntil && user.loginLockedUntil.getTime() > now) {
+      if (valid) {
+        await this.audit.writeActivity({
+          companyId: user.companyId || null,
+          userId: user.id,
+          action: 'login_blocked_account_locked',
+          entityType: 'auth',
+          entityId: user.id,
+          ipAddress: ip,
+          userAgent: req?.headers['user-agent'] || null,
+        });
+        const until = user.loginLockedUntil.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+        throw new BadRequestException(
+          `Dieses Konto ist nach zu vielen fehlgeschlagenen Anmeldeversuchen bis ${until} Uhr gesperrt. Danach ist die Anmeldung wieder möglich; über „Passwort vergessen“ kann es auch sofort ein neues Passwort bekommen.`,
+        );
+      }
+    }
+
+    if (user && !valid) await this.countAccountFailure(user, ip, req, now);
+
     if (!user || !valid) {
       const a = this.attempts.get(ip) || { count: 0, firstAt: now, lockedUntil: 0, lastEmail: dto.email };
       a.count += 1;
@@ -164,6 +225,9 @@ export class AuthController {
     }
 
     this.attempts.delete(ip);
+    if (user.failedLoginCount || user.loginLockedUntil) {
+      await this.prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, failedLoginFirstAt: null, loginLockedUntil: null } });
+    }
     // Tier 368: signed via AuditService (was an unsigned direct insert).
     await this.audit.writeActivity({
       companyId: user.companyId,
