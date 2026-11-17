@@ -2673,6 +2673,45 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 858 — the dependencies' known holes fixed and checked in CI; each image scanned by Trivy, pinned by digest
+
+Security audit, item 4.
+
+**Measured** (`npm audit --omit=dev`, 18.11.2026):
+- **Frontend:** Next.js 15.5.27, with a critical advisory — remote code execution through the image optimizer with SVG files; fixed in 15.5.29.
+- **Backend:** ten high advisories, each with a fix:
+  - node-forge 1.4.0: RSA signature and PKCS#12 MAC forgery, the X.509 basicConstraints bypass, several denials of service;
+  - multer 2.4.0 and body-parser 2.3.0: denial of service.
+- Nothing in CI looked at advisories or at the images' packages.
+
+**Change.**
+- Versions:
+  - Next.js 15.5.29 (and eslint-config-next);
+  - node-forge ^1.4.3, multer ^2.5.0, body-parser 2.4.0 and qs 6.17.1 through express;
+  - nodemailer ^10.6.0, which fixes three moderate address-parser advisories (display text turned into a recipient).
+  - Nest 11 pins multer 2.4.0: an `overrides` entry makes it the package's own `multer`.
+- `scripts/ci-npm-audit.mjs`:
+  - runs `npm audit --omit=dev --package-lock-only` per package and fails on a high or critical advisory;
+  - an exception needs an entry in `scripts/npm-audit-allow.json` with the reason and an end date, and fails again after that date;
+  - moderate and low advisories are listed.
+- One exception: picomatch ≤ 4.0.7 (ReDoS), through next-intl's `@parcel/watcher`, which watches source files during development. No glob a visitor gives is matched, and no fixed 4.x exists. Until 31.12.2026.
+- CI job `dependency-audit` runs the script (the weekly schedule too).
+- `docker-build.yml` scans each built image with Trivy:
+  - CRITICAL with a fixed version fails the run; HIGH is listed.
+  - Trivy runs as `aquasec/trivy:0.69.3` by digest. 0.69.4–0.69.6 and `latest` were malicious builds in March 2026 (CVE-2026-33634).
+- Not added: Dependabot — it opens pull requests, each one a CI run; the owner decides (the account has hit its spending limit before).
+- Still listed, not failing: fast-xml-parser 3.21.1 (moderate), pinned by `fints` 0.5.0. A new fints version is needed for it.
+
+**Specs.**
+- Spec 551 (new; 8 ✗ on the old lock files and workflows):
+  - the fixed versions are what the lock files install (one multer);
+  - the gate passes on both packages;
+  - a lock file with node-forge 1.4.0: fails naming it, passes with an exception, fails again after its date;
+  - every exception has a reason and an end date at most half a year ahead;
+  - the CI job; Trivy pinned by digest, never a moving tag.
+- Full local backend run on the new dependencies: 547 pass, 16 skip; 191 failed only on the configuration Tier 855e fixes, and passes after it.
+- Playwright: the CSV, asset and download specs pass on Next.js 15.5.29.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 857 — no exported CSV cell is a formula: text that begins with = + - @ gets an apostrophe, numbers stay numbers
 
 Security audit, item 6.
@@ -2770,6 +2809,8 @@ The owner asked for a security audit before going live (18.11.2026; findings in 
 Locally: specs 55, 374, 523, 548 and the guards pass.
 
 **Tier 855c.** Specs 124 (deploy readiness) and 347 (monitoring overlay) run `docker compose config` with the required variables set; they set neither the key nor the token, so compose refused to resolve the file. Both now set them; 124 also checks that both are declared required. Found while running the specs of Tier 856, after the push — the spec list of Tier 855 had missed every spec that resolves the compose file.
+
+**Tier 855e.** Spec 191 (production auth mode) restarted the backend with `NODE_ENV=production` beside `VIES_MOCK=1` and `THROTTLE_DISABLED=1`, and a second time with `ALLOW_HEADER_AUTH=1` — none of which starts any more. Its production runs now have a setup token, the rate limit on, no mock, and CI's fixture key (the key every spec runs with, so the SMTP passwords sealed at start are the ones the later specs can open). The demo-bank checks use the session cookie. The case „ALLOW_HEADER_AUTH=1 still turns the header on“ is now „production with it does not start, and says why“. The demo bank in production runs only with `PRODUCTION_DRILL=1`. CI run 44180583528 failed on 124, 191 and 347 (544 passed). Locally (the harness exports `EXCHANGE_RATES_MOCK=1` as CI does) the production runs also turn that mock off. The log check counts from the line after `wc -l` — macOS pads its number with spaces.
 
 **Tier 855d.** The image check's refusal run (docker-build.yml) failed in CI: started without a storage volume, the image's entrypoint stopped first — „/data/invoice-system is not writable by app“ — before the program could name the missing key and token. Reproduced with an image of Tier 855; with the volume the run exits 1 naming both. The run now has the volume, as compose gives it.
 

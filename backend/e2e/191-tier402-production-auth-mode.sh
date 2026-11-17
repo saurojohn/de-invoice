@@ -126,25 +126,22 @@ note "=== 3b. Tier 555: production without the flag — the header is off by def
 # The flag was opt-out, and infra/prod/docker-compose.yml did not pass it to
 # the container: a production backend accepted x-user-id from anyone who knew
 # a user's id. NODE_ENV=production alone must now be enough.
-if restart_backend "NODE_ENV=production"; then
+# Tier 855c: production starts only with a safe configuration (common/
+# production-config.ts) — its key (CI's own fixture key, the one every other
+# spec runs with), a setup token, the rate limit on, no mocked service.
+PROD="NODE_ENV=production VIES_MOCK=0 EXCHANGE_RATES_MOCK=0 THROTTLE_DISABLED=0 SETUP_TOKEN=e2e-191-setup-token FINTS_PIN_ENC_KEY=${FINTS_PIN_ENC_KEY:-ci-fixture-key-do-not-use-in-prod-00000000000000000000}"
+if restart_backend "$PROD"; then
   STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \
     -H "x-user-id: $U" -H "x-company-id: $C")
   assert_status 401 "NODE_ENV=production, no flag: x-user-id is refused (was 200)"
   STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \
     -H "Cookie: de_session=$TOKEN" -H "x-company-id: $C")
   assert_status 200 "…the session cookie authenticates"
-else
-  fail "backend did not come up with NODE_ENV=production"
-fi
-if restart_backend "NODE_ENV=production ALLOW_HEADER_AUTH=1"; then
-  STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \
-    -H "x-user-id: $U" -H "x-company-id: $C")
-  assert_status 200 "…and an explicit ALLOW_HEADER_AUTH=1 still turns it on"
 
   # Tier 568: the demo bank ("Demo-Modus") writes invented transactions that
   # can be matched and booked like real ones. It was the default of the form
   # and of the API in every environment; in production it is off.
-  bank() { curl -sS -o /tmp/t568.out -w "%{http_code}" -X "$1" "$API/api/v1/fints/$2" -H "x-user-id: $U" -H "x-company-id: $C" -H "Content-Type: application/json" ${3:+-d "$3"}; }
+  bank() { curl -sS -o /tmp/t568.out -w "%{http_code}" -X "$1" "$API/api/v1/fints/$2" -H "Cookie: de_session=$TOKEN" -H "x-company-id: $C" -H "Content-Type: application/json" ${3:+-d "$3"}; }
   BANK="{\"companyId\":\"$C\",\"blz\":\"50050201\",\"userId\":\"e2e-568\",\"label\":\"$TAG\",\"pin\":\"12345\""
   assert_eq "production: the form is told the demo bank is not offered" "$(bank GET capabilities >/dev/null; json_field "$(cat /tmp/t568.out)" mockAllowed)" "False"
   assert_eq "production: a demo connection asked for explicitly: 400 (was 201)" "$(bank POST connections "$BANK,\"mockMode\":true}")" "400"
@@ -153,13 +150,23 @@ if restart_backend "NODE_ENV=production ALLOW_HEADER_AUTH=1"; then
   [[ "$ST" == "201" || "$ST" == "400" ]] && pass "production: without saying which, it is not the demo bank's turn = $ST" || fail "default connection: $ST $(head -c 160 /tmp/t568.out)"
   assert_eq "…no demo connection exists for this company (the default was mock)" "$(sql "select count(*) from \"FinTSConnection\" where \"companyId\"='$C' and \"mockMode\"=1")" "0"
 else
-  fail "backend did not come up with NODE_ENV=production ALLOW_HEADER_AUTH=1"
+  fail "backend did not come up with NODE_ENV=production"
 fi
-if restart_backend "NODE_ENV=production ALLOW_HEADER_AUTH=1 FINTS_ALLOW_MOCK=1"; then
-  assert_eq "production with FINTS_ALLOW_MOCK=1: a demo connection can be created" "$(bank POST connections "$BANK,\"mockMode\":true}")" "201"
+# Tier 855: the header login in production is no setting any more — the
+# backend does not start with it (it did, and the header still worked)
+LOGSTART=$(( $(wc -l < /tmp/backend.log) + 1 ))
+if restart_backend "$PROD ALLOW_HEADER_AUTH=1"; then
+  fail "production started with ALLOW_HEADER_AUTH=1"
+else
+  assert_eq "production with ALLOW_HEADER_AUTH=1: does not start, says why" \
+    "$(tail -n +"$LOGSTART" /tmp/backend.log | grep -c 'ALLOW_HEADER_AUTH=1 —' | awk '{print ($1>0)}')" "1"
+fi
+# the demo bank in production: only in a drill on the production images
+if restart_backend "$PROD FINTS_ALLOW_MOCK=1 PRODUCTION_DRILL=1"; then
+  assert_eq "production drill with FINTS_ALLOW_MOCK=1: a demo connection can be created" "$(bank POST connections "$BANK,\"mockMode\":true}")" "201"
   sql "delete from \"FinTSConnection\" where \"companyId\"='$C'" >/dev/null
 else
-  fail "backend did not come up with FINTS_ALLOW_MOCK=1"
+  fail "backend did not come up with FINTS_ALLOW_MOCK=1 PRODUCTION_DRILL=1"
 fi
 rm -f /tmp/t568.out
 assert_eq "the compose file keeps the demo bank off" "$(grep -c 'FINTS_ALLOW_MOCK: ${FINTS_ALLOW_MOCK:-0}' "$SCRIPT_DIR/../../infra/prod/docker-compose.yml")" "1"
