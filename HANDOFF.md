@@ -2673,6 +2673,44 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 856 — the off-site copy is encrypted or not made; the restore drill loads the newest dump, off-site included, into a throwaway database
+
+Security audit, items 1 and 16.
+
+**Measured.**
+- `offsite-backup.sh` copied the dumps and the file mirror to any rclone remote. HETZNER-DEPLOY.md §9 called the crypt remote „optional, recommended“ and offered `storagebox:de-invoice` „without encryption“.
+- Spec 549 on the old script: a plain remote got the dump as a `.sql.gz` with the customer's IBAN readable in it, and the kept invoice under its own name.
+- `scripts/backup-prod.sh` (the host cron variant) uploaded `db.sql.gz` and `attachments.tar.gz` as they are when `BACKUP_ENCRYPTION_PASSPHRASE` was empty.
+- The only restore check in the RUNBOOK loaded the local `-latest` dump into a database of the production server. Nothing proved that the off-site copy, the one a lost server leaves, can be opened and loaded.
+
+**Change.**
+- `offsite-backup.sh` copies to an rclone `crypt` remote only. It reads the remote's type with `rclone listremotes --long`. Any other remote, or one not in `rclone.conf`, is refused with the reason, and nothing is copied.
+  - crypt encrypts content and names (spec 549: no gzip, no name, no IBAN on the storage).
+  - The rules of Tier 733c still hold through crypt: `--ignore-existing`, removal by age (`--min-age` sees the stored files' times). Spec 453 now runs through a crypt remote (`filename_encryption = off`, so it can still see which dump is where).
+- `backup-prod.sh` stops in preflight (exit 3, webhook „fail“) when a remote is set, no passphrase is set, and the remote is not a crypt remote.
+- New `infra/prod/restore-drill.sh`:
+  - takes the newest hourly dump from the backups volume, or `--offsite` from the encrypted copy (`BACKUP_OFFSITE_REMOTE`, `./rclone.conf`), or `DRILL_DUMP`;
+  - loads it into a throwaway PostgreSQL container: the compose file's image, `--network none`, data on tmpfs, as the dump's owner role, `ON_ERROR_STOP`;
+  - reports the tables, companies, users, invoices, the newest invoice (German time) and the last migration;
+  - fails on a cut gzip, a dump that does not load, or one without a company.
+  - The container and the decrypted copy are removed. The production database, the volume and the remote are only read.
+- Docs:
+  - HETZNER-DEPLOY.md §9: crypt is required, with two passphrases (`password2`); keep both, better the whole `rclone.conf`, apart from the server; the drill as the check after setup.
+  - RUNBOOK §4: „Verify a backup is restorable“ is now the drill — once a quarter and after every change to backup, off-site or `rclone.conf` — with a log table.
+  - `.env.example`: the remote must be a crypt remote; the passphrase is required for an upload.
+  - Verfahrensdokumentation: the off-site copy is encrypted, the keys kept apart, the restore drilled.
+- On the server (not done by the code): wrap the Storage Box in a crypt remote before the first `--profile offsite`. An installation that already copies to a plain remote stops copying after this update and says why. Its plain copy stays on the box until the operator removes it — that is the operator's decision.
+
+**Specs.**
+- Spec 549 (new; 11 ✗ on Tier 855):
+  - a real `pg_dump -Z6` with an IBAN;
+  - a plain remote and an unknown remote refused, nothing copied;
+  - through crypt: nothing readable on the storage, everything back through the passwords;
+  - the drill from the off-site copy: counts, newest invoice, last migration, its container gone, the copy unchanged;
+  - a cut dump and a dump without a company fail with the reason;
+  - the cron refusal; the guides.
+- Specs 453, 463 and 467 pass, with the guards.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 855 — the production backend refuses an unsafe configuration; the encryption key and the setup token are required
 
 The owner asked for a security audit before going live (18.11.2026; findings in the chat), then: „修复“. This tier is the audit's items 2, 3 and 10.

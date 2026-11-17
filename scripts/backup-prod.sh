@@ -164,6 +164,17 @@ else
 fi
 [[ -n "$BACKUP_RCLONE_REMOTE" ]] && need_cmd rclone
 [[ -n "$BACKUP_ENCRYPTION_PASSPHRASE" ]] && need_cmd gpg
+# Tier 856: nothing leaves the server unencrypted. Without a passphrase the
+# dump and the attachments were uploaded as they are; now that needs the
+# remote to be an rclone crypt remote, or the backup stops here.
+if [[ -n "$BACKUP_RCLONE_REMOTE" && -z "$BACKUP_ENCRYPTION_PASSPHRASE" ]]; then
+  remote_type=$(rclone listremotes --long 2>/dev/null | awk -v n="${BACKUP_RCLONE_REMOTE%%:*}:" '$1 == n { print $2; exit }')
+  if [[ "$remote_type" != "crypt" ]]; then
+    err "BACKUP_RCLONE_REMOTE=$BACKUP_RCLONE_REMOTE is no crypt remote and BACKUP_ENCRYPTION_PASSPHRASE is empty — the backup would be uploaded unencrypted"
+    notify "fail" "preflight: off-site copy would be unencrypted"
+    exit 3
+  fi
+fi
 stage_end 0
 
 # ─── Stage 1: pg_dump ───────────────────────────────────

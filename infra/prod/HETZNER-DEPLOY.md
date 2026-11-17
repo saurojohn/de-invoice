@@ -389,23 +389,27 @@ host = u123456.your-storagebox.de
 user = u123456
 pass = $OBSCURED
 
-# optional, recommended: everything encrypted before it leaves the server
+# required (Tier 856): everything encrypted before it leaves the server —
+# offsite-backup.sh copies to nothing but a crypt remote
 [storagebox-crypt]
 type = crypt
 remote = storagebox:de-invoice
 password = $(docker run --rm rclone/rclone:1.68.2 obscure '<a long passphrase>')
+password2 = $(docker run --rm rclone/rclone:1.68.2 obscure '<a second long passphrase (salt)>')
 CONF
 chmod 600 rclone.conf
 ```
 
-Keep the passphrase in the password manager, **not only on this server** — a
-restore from the Storage Box needs it.
+Two passphrases, e.g. `openssl rand -base64 32` each. Keep both in the
+password manager, **not only on this server** — a restore from the Storage
+Box needs both; without them the copy there cannot be read by anyone, you
+included. (Better still: keep a copy of the whole `rclone.conf` there.)
 
 ### 3. .env and start
 
 ```bash
 # infra/prod/.env
-BACKUP_OFFSITE_REMOTE=storagebox-crypt:      # or storagebox:de-invoice without encryption
+BACKUP_OFFSITE_REMOTE=storagebox-crypt:      # the crypt remote; a plain one is refused
 ```
 
 ```bash
@@ -413,10 +417,22 @@ docker compose --profile offsite up -d offsite-backup
 docker compose logs -f offsite-backup        # "offsite: ok" within a minute or two
 ```
 
-The backup page then shows the remote under „Kopie außer Haus“. Off-site the
+With a remote that is not of type `crypt` the service copies nothing and
+says why in its log (`offsite: … is no crypt remote`). The backup page then
+shows the remote under „Kopie außer Haus“. Off-site the
 dumps are added and removed by age only (hourly 3 days, daily 35 days, weekly
 13 weeks, monthly 121 months — `OFFSITE_KEEP_*` in `offsite-backup.sh`); a
 file that is there is never overwritten; the files are only ever added.
+
+### Check that the copy can be restored
+
+```bash
+bash restore-drill.sh --offsite    # fetches the newest dump from the box, loads it into a throwaway database
+```
+
+„drill: ok“ with the counts of your installation: the copy is there, the
+passphrases open it, the dump loads. Once a quarter (RUNBOOK §4, „the restore
+drill“).
 
 ### Restore from the Storage Box
 

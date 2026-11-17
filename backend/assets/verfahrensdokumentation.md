@@ -201,7 +201,7 @@ Betreiber bestätigt, dass sie eingehalten werden.
 > zu Server und Datenbank hat.
 
 - **Datensicherung.** Die Datenbank wird stündlich gesichert. Aufbewahrt werden die Sicherungen der letzten 24 Stunden, eine je Tag für 30 Tage, eine je Woche für 12 Wochen, eine je Monat für 120 Monate. Die Dateien werden stündlich gespiegelt. Ist die letzte Sicherung älter als 3 Stunden, meldet das Programm das.
-- **Kopie außer Haus.** Der Dienst `offsite-backup` kopiert Sicherungen und Dateien an einen entfernten Speicher (`infra/prod/offsite-backup.sh`). Er löscht dort nichts wegen des Zustands des Servers. Er muss eingerichtet werden (`BACKUP_OFFSITE_REMOTE`).
+- **Kopie außer Haus.** Der Dienst `offsite-backup` kopiert Sicherungen und Dateien an einen entfernten Speicher (`infra/prod/offsite-backup.sh`). Er löscht dort nichts wegen des Zustands des Servers. Er kopiert nur an einen verschlüsselten Speicher: Inhalte und Namen werden vor dem Versand verschlüsselt, die Schlüssel getrennt vom Server aufbewahrt. Er muss eingerichtet werden (`BACKUP_OFFSITE_REMOTE`). Die Wiederherstellung wird regelmäßig geprobt, auch aus der Kopie außer Haus (`infra/prod/restore-drill.sh`).
 - **Wiederherstellung.** Ablauf und Probe sind festgelegt (`infra/prod/DR-TEST.md`, `infra/prod/restore.sh`). Nach einer Wiederherstellung prüft das Programm, ob es Rechnungen gibt, die neuer sind als die Datenbanksicherung, meldet sie und sperrt ihre Nummern (`backend/src/modules/backup/restore-check.service.ts`).
 - **Überwachung.** Der Zustand der Dienste und der geplanten Aufgaben ist für den Betreiber einsehbar (`infra/prod/RUNBOOK.md`).
 - **Änderungen am Programm.** Jede Änderung ist im Git-Verlauf mit Datum und Begründung nachvollziehbar und durchläuft automatische Tests.

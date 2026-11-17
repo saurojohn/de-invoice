@@ -371,20 +371,32 @@ bash scripts/backup-prod.sh /tmp
 bash scripts/backup-prod.sh
 ```
 
-### Verify a backup is restorable
+### Verify a backup is restorable — the restore drill (Tier 856)
 
-Load the newest dump into a throwaway database and drop it again — it
-touches nothing the app uses:
+`restore-drill.sh` loads the newest dump into a throwaway PostgreSQL container
+(the compose file's image, no network, in memory) and says what is in it —
+tables, companies, users, invoices, the newest invoice, the last migration.
+The running database, the backups and the remote are only read; the
+container and the decrypted copy are removed at the end.
 
 ```bash
-docker compose -f infra/prod/docker-compose.yml exec -T backup sh -c '
-  set -e; export PGPASSWORD="$POSTGRES_PASSWORD"
-  p() { psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -v ON_ERROR_STOP=1 -q "$@"; }
-  p -d postgres -c "DROP DATABASE IF EXISTS restore_check" -c "CREATE DATABASE restore_check"
-  gunzip -c "/backups/last/${POSTGRES_DB}-latest.sql.gz" | p -d restore_check >/dev/null
-  p -d restore_check -Atc "select count(*) || '"'"' invoices in the dump'"'"' from \"Invoice\""
-  p -d postgres -c "DROP DATABASE restore_check"'
+cd infra/prod
+bash restore-drill.sh              # the newest hourly dump on this server
+bash restore-drill.sh --offsite    # the newest one in the encrypted off-site copy
 ```
+
+Exit code 0 and „drill: ok“: the dump loads and holds at least one company.
+Compare the counts with the app. Run both **once a quarter** and after every
+change to the backup, the off-site copy or `rclone.conf` — the off-site run is
+the one that proves the crypt passphrases you keep apart from the server
+still open the copy. Write each run down:
+
+| Date | Source | Dump | Invoices | Result | By |
+|------|--------|------|----------|--------|----|
+| | | | | | |
+
+A full restore on a new server (RUNBOOK §4 „Restoring after a loss“,
+DR-TEST.md Test 1) is the yearly drill on top of this.
 
 ---
 

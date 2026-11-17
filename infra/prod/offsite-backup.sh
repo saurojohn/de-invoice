@@ -20,12 +20,29 @@
 #     weeks, monthly 121 months (OFFSITE_KEEP_* to change).
 #   - the files are only ever added (as before).
 #
-# ONCE=1: one pass, its result as the exit code (used by e2e spec 453).
+# Tier 856. The remote must be an rclone `crypt` remote: the dumps hold every
+# invoice, customer, IBAN and user of the installation, the files every kept
+# invoice and receipt. A plain remote (the Storage Box itself) kept them there
+# as they are here — whoever reads the box (a leaked Storage Box password, the
+# provider) read the books. The script refuses any other remote; crypt
+# encrypts content and names before they leave the server. Its password is
+# in rclone.conf: keep a copy apart from the server (password manager) — a
+# restore from the box needs it (HETZNER-DEPLOY.md §9).
+#
+# ONCE=1: one pass, its result as the exit code (used by e2e specs 453, 549).
 # ──────────────────────────────────────────────────────────
 set -u
 
 if [ -z "${REMOTE:-}" ]; then
   echo "offsite: BACKUP_OFFSITE_REMOTE is not set in .env — nothing is copied"
+  exit 1
+fi
+
+NAME=${REMOTE%%:*}
+TYPE=$(rclone listremotes --long 2>/dev/null | awk -v n="$NAME:" '$1 == n { print $2; exit }')
+if [ "$TYPE" != "crypt" ]; then
+  echo "offsite: BACKUP_OFFSITE_REMOTE=$REMOTE is no crypt remote (type: ${TYPE:-not in rclone.conf}) — nothing is copied."
+  echo "offsite: the dumps and files would lie there unencrypted. Wrap the storage in a crypt remote (HETZNER-DEPLOY.md §9) and set BACKUP_OFFSITE_REMOTE to it."
   exit 1
 fi
 

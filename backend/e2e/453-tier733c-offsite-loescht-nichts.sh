@@ -12,6 +12,9 @@
 # never overwritten; off-site they go by age only (hourly 3 days, daily 35
 # days, weekly 13 weeks, monthly 121 months); the files only ever added. Run
 # here with that image, against a local remote, one pass at a time (ONCE=1).
+# Since Tier 856 the script copies only to a crypt remote: the local remote
+# here is wrapped in one (names kept, `filename_encryption = off`, so the
+# checks below can see which dump is where; spec 549 checks the encryption).
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
@@ -27,7 +30,8 @@ assert_eq "compose runs the script (no sync in it)" \
 
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 mkdir -p "$W/remote" "$W/files"
-printf '[t]\ntype = local\n' > "$W/rclone.conf"
+PASS=$(docker run --rm --pull=never "$IMG" obscure "spec-453-only-$$")
+printf '[plain]\ntype = local\n\n[t]\ntype = crypt\nremote = plain:/remote\nfilename_encryption = off\npassword = %s\n' "$PASS" > "$W/rclone.conf"
 server() { # dir name… — a server's /backups: each dump says whose it is
   local dir="$W/$1"; shift
   mkdir -p "$dir/last" "$dir/daily" "$dir/weekly" "$dir/monthly"
@@ -36,13 +40,17 @@ server() { # dir name… — a server's /backups: each dump says whose it is
 }
 run_once() { # dir [env…] → OUT, RC
   local dir="$W/$1"; shift
-  OUT=$(docker run --rm --user "$(id -u):$(id -g)" -e ONCE=1 -e REMOTE=t:/remote -e RCLONE_CONFIG=/config/rclone.conf "$@" \
+  OUT=$(docker run --rm --user "$(id -u):$(id -g)" -e ONCE=1 -e REMOTE=t: -e RCLONE_CONFIG=/config/rclone.conf "$@" \
     -v "$W/rclone.conf:/config/rclone.conf:ro" -v "$dir:/backups:ro" -v "$W/files:/data/backup-files:ro" -v "$W/remote:/remote" \
     -v "$PROD/offsite-backup.sh:/offsite-backup.sh:ro" --entrypoint /bin/sh "$IMG" /offsite-backup.sh 2>&1); RC=$?
 }
-remote() { (cd "$W/remote/db" && find . -name '*.sql.gz' | sed 's|^\./||' | sort | tr '\n' ' '); }
-whose() { gunzip -c "$W/remote/db/$1.sql.gz" | cut -d' ' -f1; }
-age() { python3 -c "import os,sys,time;t=time.time()-float(sys.argv[1])*86400;os.utime(sys.argv[2],(t,t))" "$1" "$W/remote/db/$2.sql.gz"; }
+remote() { (cd "$W/remote/db" && find . -name '*.sql.gz.bin' | sed 's|^\./||; s|\.bin$||' | sort | tr '\n' ' '); }
+rcat() { # path on the remote → its content, decrypted
+  docker run --rm --pull=never --user "$(id -u):$(id -g)" -e RCLONE_CONFIG=/config/rclone.conf -v "$W/rclone.conf:/config/rclone.conf:ro" \
+    -v "$W/remote:/remote:ro" "$IMG" cat "t:$1" 2>/dev/null
+}
+whose() { rcat "db/$1.sql.gz" | gunzip -c | cut -d' ' -f1; }
+age() { python3 -c "import os,sys,time;t=time.time()-float(sys.argv[1])*86400;os.utime(sys.argv[2],(t,t))" "$1" "$W/remote/db/$2.sql.gz.bin"; }
 
 note "=== 1. the old server: its dumps off-site ==="
 server old last/de_invoice-20261028-090000 last/de_invoice-20261028-100000 daily/de_invoice-20261027 daily/de_invoice-20261028 \
@@ -51,7 +59,7 @@ echo "kept copy of an invoice" > "$W/files/INV-1.pdf"
 run_once old
 assert_eq "one pass: ok" "$RC/$(grep -c 'offsite: ok' <<<"$OUT")" "0/1"
 assert_eq "8 dumps off-site (the -latest link not copied)" "$(remote | wc -w | tr -d ' ')" "8"
-assert_eq "…and the files" "$(cat "$W/remote/files/INV-1.pdf")" "kept copy of an invoice"
+assert_eq "…and the files" "$(rcat files/INV-1.pdf)" "kept copy of an invoice"
 
 note "=== 2. a new server's first pass: its empty database dumped, the old dumps not here ==="
 server new last/de_invoice-20261029-120000 daily/de_invoice-20261029 weekly/de_invoice-202644 monthly/de_invoice-202610
@@ -62,7 +70,7 @@ assert_eq "all 8 old dumps still off-site, the new server's 2 new names added (w
 assert_eq "this month's and this week's file: the old server's, not overwritten by the empty one" \
   "$(whose monthly/de_invoice-202610) $(whose weekly/de_invoice-202644)" "old old"
 assert_eq "the old server's newest hourly dump is there to restore from" "$(whose last/de_invoice-20261028-100000)" "old"
-assert_eq "the kept copy deleted here stays off-site" "$(cat "$W/remote/files/INV-1.pdf")" "kept copy of an invoice"
+assert_eq "the kept copy deleted here stays off-site" "$(rcat files/INV-1.pdf)" "kept copy of an invoice"
 
 note "=== 3. off-site, they go by age only ==="
 age 4 last/de_invoice-20261028-090000; age 2 last/de_invoice-20261028-100000
