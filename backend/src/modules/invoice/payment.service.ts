@@ -1,3 +1,4 @@
+import { ModuleRef } from '@nestjs/core';
 import { besteuerungsart } from '../reports/ustva-ist';
 import { assertBooksOpen, assertPeriodOpen } from '../reports/filed-period';
 import { withKeyLock } from '../../common/key-lock';
@@ -38,6 +39,8 @@ export class PaymentService {
     private creditBalance: CreditBalanceService,
     // Tier 422: a Skonto is settled with a credit note (createCreditNote).
     private invoices: InvoiceService,
+    // Tier 851: the Kassenbuch (resolved lazily — its module imports this one)
+    private moduleRef: ModuleRef,
   ) {}
 
   /**
@@ -115,8 +118,39 @@ export class PaymentService {
       receiptNumber?: string;
       /** Tier 540: the EUR received for a payment of a foreign-currency invoice */
       eurAmount?: number;
+      /** Tier 851: set by the Kassenbuch, which records the cash itself */
+      fromCashBook?: boolean;
     },
   ) {
+    // Tier 851: cash received for an invoice belongs in the Kassenbuch
+    // (§ 146 Abs. 1 Satz 2 AO: cash receipts are recorded daily). A cash
+    // payment entered on the invoice made the payment only. Measured: an
+    // invoice of 2,78 € paid „bar“ — DATEV booked it on Kasse 1000, the
+    // Kassenbuch and the balance sheet's Kassenbestand (619,00) never had it.
+    // Where the company keeps its Kassenbuch here, the payment is entered
+    // there, with every rule of the Kassenbuch (closed days, no future day),
+    // and the Kassenbuch makes the payment.
+    if (
+      data.paymentMethod === 'cash' && !data.fromCashBook && data.amount > 0 &&
+      (await this.prisma.cashBookEntry.count({ where: { companyId } })) > 0
+    ) {
+      const invoice = await this.prisma.invoice.findFirst({ where: { id: invoiceId, companyId }, select: { invoiceNumber: true } })
+      if (!invoice) throw new NotFoundException('Rechnung nicht gefunden');
+      // loaded here, not at the top: kassenbuch.service imports this file
+      const { KassenbuchService } = require('../cashbook/kassenbuch.service') as typeof import('../cashbook/kassenbuch.service')
+      const kassenbuch = this.moduleRef.get(KassenbuchService, { strict: false })
+      const entry = await kassenbuch.createEntry(companyId, undefined, {
+        businessDate: new Date(data.paymentDate),
+        type: 'einnahme',
+        description: `Zahlung Rechnung ${invoice.invoiceNumber}`,
+        amount: data.amount,
+        belegNumber: data.receiptNumber || data.reference || null,
+        invoiceId,
+        notes: data.notes || null,
+      }) as { payment?: Awaited<ReturnType<PaymentService['createLocked']>> }
+      if (!entry.payment) throw new BadRequestException('Die Barzahlung wurde nicht erfasst.')
+      return entry.payment
+    }
     // Tier 534: one at a time per invoice
     return withKeyLock(`invoice:${invoiceId}`, () => this.createLocked(invoiceId, companyId, data));
   }

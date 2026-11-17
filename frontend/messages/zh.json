@@ -345,6 +345,7 @@
     "connectionCreateError": "无法创建连接",
     "loadError": "无法加载连接",
     "syncOk": "已获取 {count} 笔新交易",
+    "syncOk_one": "已获取 1 笔新交易",
     "syncFailed": "同步失败",
     "tanRequired": "需要输入 TAN",
     "tanPrompt": "请输入 TAN。",

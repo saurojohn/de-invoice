@@ -2673,6 +2673,46 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 851 — a cash payment entered on an invoice is recorded in the Kassenbuch
+
+The owner: „继续“ — the bug hunt goes on. A new sweep this time: one company with typical business, then the reports checked against each other. The business was discount, Skonto, a part payment, a USD invoice, a Storno, an overpayment, a cash payment, the Kassenbuch, and paid and unpaid bills.
+
+**What held.**
+- Each customer's DATEV Debitor balance equals the aging report: 335 €, and −31 € as the overpayment's credit.
+- The bank account in DATEV equals the payments and bills paid by bank: 3 538,56 €.
+- The year's UStVA tax equals the invoices' tax plus the cash sale's.
+- The balance sheet balances.
+- Its bank line is „nicht bekannt“ without an imported statement (Tier 426, by design). The Saldoposten takes that up, and the sheet says so.
+
+**What did not.** An invoice of 2,78 € paid „bar“ on the invoice page.
+- DATEV booked it on Kasse 1000.
+- The Kassenbuch never had it, nor the balance sheet's Kassenbestand (619,00 € instead of 621,78 €).
+- A cash receipt entered in the Kassenbuch with its invoice makes both, the entry and the payment (Tier 425). One entered on the invoice made the payment only.
+- § 146 Abs. 1 Satz 2 AO wants every cash receipt recorded, daily.
+
+**Change.**
+- `PaymentService.create`: a positive cash payment, for a company that keeps its Kassenbuch here (it has at least one entry), is entered through `KassenbuchService.createEntry` as an „Einnahme“ with its invoice. The Kassenbuch makes the payment, as for a receipt entered there.
+- Its rules apply: no closed day, no future day, the lock per invoice. The payment is returned as before, with its Skonto where there is one.
+- The Kassenbuch passes `fromCashBook` so the two do not call each other again.
+- `KassenbuchService` is loaded lazily, as `kassenbuch.service` imports `payment.service`.
+- Unchanged:
+  - a company without a Kassenbuch here: no Kassenbuch is started for a cash payment;
+  - a cash refund (a negative payment);
+  - bank transfers and the other methods.
+
+**Also found: a page text in ICU syntax.** `banking.syncOk` (de, en) was `{count, plural, =0 {…} one {# …} other {# …}} abgerufen`. The page's `t()` replaces `{name}` only (`useI18n`), so every bank sync showed that string. Now in the project's convention: `syncOk` with `{count}`, and `syncOk_one` for 1 (Tier 826). A sweep of all three languages found no other such text; spec 544 keeps it so. The same sweep: the three languages have the same keys, and one key differs in its placeholders on purpose (`billingEmail.body`: only German has `{salutation}`).
+
+**Also checked, without a finding:**
+- **An Ist-Versteuerer:** the year's UStVA output tax equals the EÜR's VAT received (604,30 €). This held across part payments over two months, Skonto, a USD invoice paid at another rate, an overpayment and a Storno. The USD invoice is taxed at the invoice's rate and the 60 € more as a Kursgewinn on 4190 (§ 16 Abs. 6 UStG). The 0,00 € „Gutschrift“ payment a Storno of a paid invoice writes is what links the credit note to its invoice (Tier 461 reads it).
+- **Every API call of the pages has a route in the backend:** 556 calls, 540 routes. The 22 a script did not match are routes declared elsewhere (a module file) or paths put together at runtime.
+
+**Found and left as it is.** The Kassenbuch's opening balance (Eröffnung) is not in the DATEV export. DATEV takes opening balances as Saldenvorträge (EB-Werte), which the Steuerberater carries over.
+
+**Specs.**
+- Backend spec 544 (new; 4 ✗ on Tier 850): the cash payment on the invoice in the Kassenbuch, with its invoice and payment, once; the Kassenbestand; refused on a closed day, with no payment left; a bank transfer on that day as before; a receipt entered in the Kassenbuch still one payment and one entry; a company without a Kassenbuch as before.
+- The probe: `scratchpad/inv/setup.py` and `check.py` (a company, then the invariants).
+- Locally: the 184 backend specs on payments and the Kassenbuch, with the guards, pass. The 179 Playwright files on payments, cash, Skonto and the pages they reach: 763 passed, 71 failed. The local `next dev` had run out of memory after an hour (`FATAL` in its log). Its starter had been removed by the system's cleanup and was rebuilt. Run again, the 22 files gave 118 passed and 4 failed — `invoice-duplicate-check-tier150`, the known local failure (seed data, Tier 842).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 850b — CI green for Tier 850, no flaky; the migration on the production images
 
 - **Run 44061755564 (Tier 850, 55466e9f):** six jobs. Backend **542 passed / 0 failed / 1 skipped** (543, 509 and 511 included). Playwright **1166 passed (35.2 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`.

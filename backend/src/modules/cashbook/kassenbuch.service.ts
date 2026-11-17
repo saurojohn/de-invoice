@@ -563,13 +563,15 @@ export class KassenbuchService {
     // first: PaymentService validates it, and a rejected payment leaves no
     // cash-book entry behind.
     let paymentId: string | null = null
+    let payment: Awaited<ReturnType<PaymentService['create']>> | null = null
     if (data.invoiceId) {
-      const payment = await this.payments.create(data.invoiceId, companyId, {
+      payment = await this.payments.create(data.invoiceId, companyId, {
         amount: data.amount,
         paymentDate: bd,
         paymentMethod: 'cash',
         reference: data.belegNumber || undefined,
-        notes: 'Kassenbuch',
+        notes: data.notes || 'Kassenbuch',
+        fromCashBook: true, // Tier 851: recorded here, not handed back to the Kassenbuch
       })
       paymentId = payment.id
     }
@@ -580,7 +582,7 @@ export class KassenbuchService {
         data: { paidAt: bd },
       })
     }
-    return this.prisma.cashBookEntry.create({
+    const entry = await this.prisma.cashBookEntry.create({
       data: {
         companyId,
         businessDate: bd,
@@ -597,6 +599,8 @@ export class KassenbuchService {
         createdById,
       },
     })
+    // Tier 851: the payment it made, for a caller that came from the invoice
+    return payment ? Object.assign(entry, { payment }) : entry
   }
 
   /** Tier 425: undo what a linked entry did outside the cash book. */
