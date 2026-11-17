@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 854b — CI green for Tier 854, no flaky; the migration on the production images
+
+- **Run 44171707171 (Tier 854, fdd3d779):** six jobs. Backend **546 passed / 0 failed / 1 skipped** (547 included). Playwright **1166 passed (33.8 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`.
+- **The day1 production images, rebuilt on Tier 854.** `migrate deploy` in a one-off container applied `20261118000001_dunning_income` on the database with its history; the table is there; API and page answer 200. The drills could not log in (their sessions were removed by the cleanup, Tier 850b).
+- Also checked in this round, without a finding: a Proforma paid 1 190 € in October, its final invoice of 2 380 € in November, the rest paid. UStVA October 1 000 / 190 (the advance), November 1 000 / 190 (the rest). GuV 2 000 €. DATEV 1718 in and out, the Debitor settled. The statement and the aging end at 0.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 854 — the Mahnkosten a customer pays are income, not the customer's credit; each payment credits only its own excess
 
 The owner: „继续“. This round followed a dunned invoice to its payment.
