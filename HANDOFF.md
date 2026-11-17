@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 850b — CI green for Tier 850, no flaky; the migration on the production images
+
+- **Run 44061755564 (Tier 850, 55466e9f):** six jobs. Backend **542 passed / 0 failed / 1 skipped** (543, 509 and 511 included). Playwright **1166 passed (35.2 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`.
+- **The day1 production images, rebuilt on Tier 850.**
+  - The system's cleanup of `/private/tmp` had removed `build.sh` and `up.sh` again. They were rebuilt from the running containers' configuration: the repository's Dockerfiles without the `# syntax=` line, `--pull=false`, the KoSIT context. The secrets were taken from the old container into `creds-backend.env` (600).
+  - The first start did **not** apply the migration: the image's entrypoint does not migrate. Production applies them as a step of its own (RUNBOOK: `npx prisma migrate deploy` in a one-off container), and the rebuilt `up.sh` had left that step out. Added; then `20261117000001_invoice_tax_out_of_price` was applied on the database with its migration history, and the column is there. API and page answer 200.
+  - **The three drills (cash book, 2026, loss year) could not run.** The cleanup had also removed their session tokens and the drill accounts' passwords (`owner.token`, `kasse.token`, `creds.*`). Running them again needs new drill sessions in the day1 database. The behaviour they check is covered by CI.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 850 — an invoice issued without USt on a day § 19 does not cover owes the tax out of its price, and the reports declare it
 
 The item Tier 845 had left for the owner's word; the owner: „修复“. Backend spec 543: 8 ✗ on Tier 849.
