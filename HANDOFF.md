@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 851b — CI green for Tier 851, no flaky
+
+Run 44099412842 (Tier 851, 4acf51d2): six jobs. Backend **543 passed / 0 failed / 1 skipped** (544 included). Playwright **1166 passed (34.0 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`. No migration; the day1 images were not rebuilt.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 851 — a cash payment entered on an invoice is recorded in the Kassenbuch
 
 The owner: „继续“ — the bug hunt goes on. A new sweep this time: one company with typical business, then the reports checked against each other. The business was discount, Skonto, a part payment, a USD invoice, a Storno, an overpayment, a cash payment, the Kassenbuch, and paid and unpaid bills.
