@@ -44,6 +44,7 @@
 // which would silently exclude customers the user wanted to
 // include.
 
+import { csvText } from '../../common/csv'
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { generateStatementPdf } from './customer-statement-pdf.service'
@@ -186,7 +187,7 @@ export class CustomerStatementBatchService {
 
             indexRows.push(
               [
-                stmt.customer.customerNumber || '',
+                this.csvEscape(stmt.customer.customerNumber || ''),
                 this.csvEscape(stmt.customer.name),
                 this.fmtEur(stmt.openingBalance),
                 this.fmtEur(stmt.closingBalance),
@@ -208,7 +209,7 @@ export class CustomerStatementBatchService {
             )
             indexRows.push(
               [
-                cust.customerNumber || '',
+                this.csvEscape(cust.customerNumber || ''),
                 this.csvEscape(cust.name),
                 'ERROR',
                 'ERROR',
@@ -280,9 +281,11 @@ export class CustomerStatementBatchService {
     return `Kontoauszug_${num}_${nameSafe}_${from}_${to}.pdf`
   }
 
-  private csvEscape(s: string): string {
+  private csvEscape(v: string): string {
     // CSV with semicolon separator: escape quotes + wrap in
     // quotes if the value contains ; or " or newline.
+    // Tier 857: and never a formula (common/csv.ts)
+    const s = csvText(v)
     if (/[;"\n\r]/.test(s)) {
       return `"${s.replace(/"/g, '""')}"`
     }

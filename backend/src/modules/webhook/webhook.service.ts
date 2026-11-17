@@ -62,6 +62,7 @@
 //   the HMAC and comparing in
 //   constant time.
 
+import { csvText } from '../../common/csv'
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { createHmac, randomBytes } from 'crypto'
@@ -1015,7 +1016,8 @@ export class WebhookService {
     // embedded quotes.
     const esc = (v: any): string => {
       if (v === null || v === undefined) return ''
-      const s = String(v)
+      // Tier 857: never a formula in the spreadsheet (common/csv.ts)
+      const s = csvText(v)
       if (/[",\n\r]/.test(s)) {
         return '"' + s.replace(/"/g, '""') + '"'
       }

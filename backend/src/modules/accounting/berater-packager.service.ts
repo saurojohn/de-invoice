@@ -1,3 +1,4 @@
+import { csvText } from '../../common/csv'
 import { resolveRechtsform, isKapitalgesellschaft as isKapG } from '../company/rechtsform'
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -846,8 +847,9 @@ export class BeraterPackagerService {
   }
 
   private csvEscape(v: string | number): string {
-    const s = String(v)
-    if (!/[;"\n]/.test(s)) return s
+    // Tier 857: an asset's name or note never a formula (common/csv.ts)
+    const s = csvText(v)
+    if (!/[;"\n\r]/.test(s)) return s
     return '"' + s.replace(/"/g, '""') + '"'
   }
 

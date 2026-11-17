@@ -1,5 +1,5 @@
 import { isCalendarDay } from '../../common/calendar-day'
-import { csvNumber } from '../../common/csv'
+import { csvNumber, csvText } from '../../common/csv'
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -625,7 +625,7 @@ export class TimeEntryService {
       const s = v === null || v === undefined ? '' : String(v)
       return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
     }
-    const text = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s)
+    const text = csvText // Tier 857: the rule of every export now (common/csv.ts)
     // Tier 648: hours and amounts with a comma (common/csv.ts)
     const hours = (minutes: number) => csvNumber(Math.round((minutes / 60) * 100) / 100)
     const first = r.groupBy === 'customer' ? 'Kunde' : r.groupBy === 'project' ? 'Projekt' : 'Mitarbeiter'

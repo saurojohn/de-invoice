@@ -2673,6 +2673,30 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 857 — no exported CSV cell is a formula: text that begins with = + - @ gets an apostrophe, numbers stay numbers
+
+Security audit, item 6.
+
+**Measured.** A spreadsheet runs a cell that begins with `=`, `+`, `-` or `@` as a formula. Spec 550 on Tier 856:
+- The invoice list wrote a customer named `=HYPERLINK("https://…";"Zahlung")` as it was: a link in the file the owner or the Steuerberater opens.
+- The cash book did the same with a description `@SUMME(A1:A9)`, a counterparty `+49 30 1234` and a note `-2+3` (3 formulas in one row).
+- The same held, by their code, for the audit log's two exports, the webhook delivery log, the asset list of the Berater package, and the statement batch's `index.csv`. The index also wrote the customer number without any escaping.
+- Only the hours report put an apostrophe in front, since Tier 628.
+
+**Change.**
+- `common/csv.ts` `csvText`: text that begins with `=`, `+`, `-`, `@`, a tab or a line break gets a leading apostrophe. A number (`-12,50`, `+3`, `-1.234,56`) stays as it is; the exports write negative amounts.
+- `csvCell` applies it before quoting, so the invoice list and the cash book are covered.
+- The escapers of the following apply it too: the audit log (`export.csv`, `activity.csv`), the webhook deliveries, the Berater package's asset list, the statement batch (now also the customer number), and the hours report (its own rule, replaced).
+- Not touched: the files a program reads and whose values must be exact as booked — DATEV EXTF, the DATEV Buchungsliste (account numbers and fixed names), the GoBD Z3 data sets, and the GoBD archive's audit log.
+
+**Specs.**
+- Spec 550 (new; 12 ✗ on Tier 856):
+  - the rule;
+  - the invoice list, the cash book and the hours report with formula-like input, read with a real CSV reader, with no formula cell left;
+  - the other escapers use the rule;
+  - DATEV and GoBD untouched.
+- The CSV specs (383, 435 and the others reading these exports) pass, with the guards.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 856 — the off-site copy is encrypted or not made; the restore drill loads the newest dump, off-site included, into a throwaway database
 
 Security audit, items 1 and 16.

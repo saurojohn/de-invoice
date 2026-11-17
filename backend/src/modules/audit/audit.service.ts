@@ -1,3 +1,4 @@
+import { csvText } from '../../common/csv'
 import {
   Injectable,
   BadRequestException,
@@ -993,7 +994,8 @@ export class AuditService {
   private buildActivityCsv(rows: any[]): string {
     const esc = (v: any): string => {
       if (v === null || v === undefined) return ''
-      const s = String(v)
+      // Tier 857: never a formula in the spreadsheet (common/csv.ts)
+      const s = csvText(v)
       if (/[",\n\r;]/.test(s)) {
         return '"' + s.replace(/"/g, '""') + '"'
       }
@@ -1329,7 +1331,8 @@ export class AuditService {
  *  and doubles any embedded quote. */
 function esc(v: unknown): string {
   if (v === null || v === undefined) return ''
-  const s = String(v)
+  // Tier 857: never a formula in the spreadsheet (common/csv.ts)
+  const s = csvText(v)
   if (s.includes('"') || s.includes(';') || s.includes('\n') || s.includes('\r')) {
     return `"${s.replace(/"/g, '""')}"`
   }
