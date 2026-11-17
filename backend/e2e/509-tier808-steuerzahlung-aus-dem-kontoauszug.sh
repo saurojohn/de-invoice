@@ -146,7 +146,11 @@ assert_eq "…as an expense „Gewerbesteuer\" on 4320, paid on the day" \
   "$(q "select category||' '||\"grossAmount\"::numeric(10,2)||' '||\"accountNumber\"||' '||\"paidAt\"::date from \"Expense\" where id='$EXP'")" "Gewerbesteuer 1000.00 4320 $TODAY"
 if [[ ! "$GDUE" < "$(python3 -c "import datetime as t;print(t.date.fromisoformat('$TODAY')-t.timedelta(days=30))")" ]]; then
   AS GET "/api/v1/ustva/deadlines?companyId=$C"
-  assert_eq "…and the dashboard calls Q$GQN/$GY paid" "$(P "[x['status'] for x in d['deadlines'] if x['kind'] == 'gewst' and x['year'] == $GY and x['quarter'] == $GQN]")" "['filed']"
+  # Tier 849: the quarter due next is shown as paid; one whose deadline has
+  # passed is shown only while it is unpaid (filing-deadlines.service
+  # prepayments) — CI run 44051038972 ran the day after the Q4 deadline
+  if [[ ! "$GDUE" < "$TODAY" ]]; then WANT="['filed']"; else WANT="[]"; fi
+  assert_eq "…and the dashboard calls Q$GQN/$GY paid (due $GDUE: $WANT)" "$(P "[x['status'] for x in d['deadlines'] if x['kind'] == 'gewst' and x['year'] == $GY and x['quarter'] == $GQN]")" "$WANT"
 fi
 BOOK "KSt IV" "{\"kind\":\"kst\",\"year\":$Y,\"quarter\":4}"
 assert_eq "the KSt prepayment booked, on 2200" "$STATUS/$(q "select category||' '||\"accountNumber\" from \"Expense\" where id='$(P "d['expenseId']")'")" "201/Körperschaftsteuer 2200"

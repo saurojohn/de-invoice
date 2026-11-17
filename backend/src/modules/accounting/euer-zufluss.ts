@@ -29,7 +29,7 @@ import { Ku, kuAt, kuDayOf } from '../../common/kleinunternehmer-period'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CLAIM_TYPES, ISSUED_STATUSES } from '../invoice/document-scope'
-import { invoiceNetRevenue } from '../invoice/tax-breakdown'
+import { invoiceNetRevenue, owedEurVat, owedVat } from '../invoice/tax-breakdown'
 import { ADVANCE_SETTLEMENT_METHOD } from '../invoice/advance'
 
 export interface Inflow<T> {
@@ -51,7 +51,7 @@ const INVOICE_FIELDS = {
   status: true,
   referenceInvoiceId: true,
   subtotal: true,
-  totalVat: true,
+  totalVat: true, taxOutOfPrice: true,
   total: true,
   eurSubtotal: true,
   eurTotalVat: true,
@@ -60,7 +60,7 @@ const INVOICE_FIELDS = {
   euTransaction: true,
   // Tier 844: a credit note follows the invoice it corrects (its line, its § 19)
   referenceInvoice: {
-    select: { issueDate: true, subtotal: true, totalVat: true, reverseCharge: true, euTransaction: true },
+    select: { issueDate: true, subtotal: true, total: true, totalVat: true, taxOutOfPrice: true, reverseCharge: true, euTransaction: true },
   },
 } as const
 
@@ -292,7 +292,8 @@ export function euerVat(
   let vorsteuer = 0
   for (const f of inflows) {
     if (kuAt(kleinunternehmer, kuDayOf(f.invoice))) continue // Tier 844: a credit note as its invoice
-    received += f.fraction * Number(f.invoice.eurTotalVat ?? f.invoice.totalVat ?? 0)
+    // Tier 850: the tax owed out of the price too
+    received += f.fraction * (owedEurVat(f.invoice as any) ?? owedVat(f.invoice as any))
   }
   for (const e of expenses) {
     if (/^AfA/i.test(e.category || '')) continue
@@ -325,7 +326,7 @@ export function revenueKz<C>(
   ctx: C,
 ): string {
   const of = (inv.type === 'CN' ? inv.referenceInvoice : inv) as { subtotal?: unknown; totalVat?: unknown } | null | undefined
-  const unsigned = of && { ...of, subtotal: Math.abs(Number(of.subtotal ?? 0)), totalVat: Math.abs(Number(of.totalVat ?? 0)) }
+  const unsigned = of && { ...of, subtotal: Math.abs(Number(of.subtotal ?? 0)), totalVat: Math.abs(Number(of.totalVat ?? 0)), total: Math.abs(Number((of as { total?: unknown }).total ?? 0)) }
   const kz = unsigned ? lines.find((d) => d.matcher(unsigned, ctx))?.kz : undefined
   return kz ?? (amount < 0 || inv.type === 'CN' ? '4100' : '4190')
 }

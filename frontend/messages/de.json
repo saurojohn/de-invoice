@@ -4748,7 +4748,7 @@
     "gruendungsjahr": "Für {vorjahr} ist kein Umsatz erfasst. Wurde das Unternehmen {jahr} gegründet, war {grenzeVorjahr} schon die Grenze dieses Jahres: seit dem Umsatz, der sie überschritten hat, gilt die Regelbesteuerung.",
     "action": "Gezählt sind die vereinnahmten Entgelte (netto) laut EÜR. Bitte mit dem Steuerberater klären und die Umsatzsteuer-Behandlung anpassen:",
     "settings": "Einstellungen",
-    "ohneUmsatzsteuer": "{anzahl} Rechnung(en) über zusammen {summe} sind ohne Umsatzsteuer ausgestellt, an einem Tag, für den die Kleinunternehmerregelung nicht gilt. Diese Umsätze sind steuerpflichtig: Die Umsatzsteuer steckt im Rechnungsbetrag und ist geschuldet. In der Umsatzsteuer-Voranmeldung und der EÜR stehen sie noch als steuerfrei. Berichtigen Sie jede mit einer Stornorechnung und einer neuen Rechnung mit Umsatzsteuer, oder klären Sie die Versteuerung mit dem Steuerberater:",
+    "ohneUmsatzsteuer": "{anzahl} Rechnung(en) über zusammen {summe} sind ohne Umsatzsteuer ausgestellt, an einem Tag, für den die Kleinunternehmerregelung nicht gilt. Diese Umsätze sind steuerpflichtig: Die Umsatzsteuer steckt im Rechnungsbetrag und ist geschuldet. Die Auswertungen (Umsatzsteuer-Voranmeldung, EÜR, DATEV) rechnen sie zu 19 % heraus; gilt für eine Leistung der ermäßigte Satz, klären Sie das mit dem Steuerberater. Die Rechnungen selbst nennen keine Steuer — berichtigen Sie jede mit einer Stornorechnung und einer neuen Rechnung mit Umsatzsteuer:",
     "ohneWeitere": "und {anzahl} weitere"
   }
 }

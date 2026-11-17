@@ -7,6 +7,7 @@ import { assertIban } from '../../common/iban';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
 import { businessTodayIso } from '../../common/business-date';
+import { refreshTaxOutOfPrice } from '../invoice/tax-out-of-price';
 import { assertPeriodOpen } from '../reports/filed-period';
 import { companySettingsTransaction } from '../../common/company-settings';
 
@@ -111,9 +112,17 @@ export class CompanyService {
     // page does not send. Read and merged under the company's row lock, so a
     // writer of another key at the same time is not undone
     // (common/company-settings.ts).
-    if ('defaultVatMode' in data || 'kleinunternehmerAb' in data || 'kleinunternehmerBis' in data) {
+    const kuChanges = 'defaultVatMode' in data || 'kleinunternehmerAb' in data || 'kleinunternehmerBis' in data
+    if (kuChanges) {
       data = await this.withKleinunternehmerPeriod(id, data);
     }
+    // Tier 850: the invoices that owe their tax out of the price follow the period
+    const saved = await this.saveCompany(id, data);
+    if (kuChanges) await refreshTaxOutOfPrice(this.prisma, id);
+    return saved;
+  }
+
+  private async saveCompany(id: string, data: any) {
     const plain = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
     const merges = plain(data.settings) || plain(data.bankInfo)
     if (!merges) return this.prisma.company.update({ where: { id }, data: withCheckedVatId(data) });

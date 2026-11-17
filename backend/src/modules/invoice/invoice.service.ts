@@ -867,6 +867,8 @@ export class InvoiceService {
         // For credit notes, store the link back to the original invoice.
         // The FK is nullable so this is a no-op for INV/PI/RCV.
         referenceInvoiceId: (dto.type === 'CN' && dto.referenceInvoiceId) ? dto.referenceInvoiceId : null,
+        // Tier 850: a credit note takes back the tax its invoice owes out of the price
+        taxOutOfPrice: creditedInvoice?.taxOutOfPrice ?? null,
         // Tier 27: USt-Behandlung. The UI presents a
         // single radio group ("Standard" / "Reverse-
         // Charge" / "IgE"), but on the wire these are
@@ -2460,6 +2462,8 @@ export class InvoiceService {
           dueDate: now,
           subtotal,
           totalVat,
+          // Tier 850: it takes back the tax its invoice owes out of the price
+          taxOutOfPrice: original.taxOutOfPrice ?? null,
           total,
           // Tier 652: a credit note is in the currency of what it credits and
           // takes the tax base back at the rate it was reported at (§ 17

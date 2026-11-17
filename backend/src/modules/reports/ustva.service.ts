@@ -141,7 +141,7 @@ export interface UstvaData {
 
 /** Tier 788: what the UStVA reads of a sales document. */
 const USTVA_DOC_SELECT = {
-  id: true, issueDate: true, total: true, totalVat: true, subtotal: true, eurSubtotal: true,
+  id: true, issueDate: true, total: true, totalVat: true, taxOutOfPrice: true, subtotal: true, eurSubtotal: true,
   euTransaction: true, reverseCharge: true,
   items: { select: { quantity: true, unitPrice: true, vatRate: true } },
   customer: { select: { address: true, vatId: true } },

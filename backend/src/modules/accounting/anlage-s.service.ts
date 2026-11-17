@@ -1,3 +1,4 @@
+import { owedVat } from '../invoice/tax-breakdown'
 import { KU_SELECT, KuOn, kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { manualJournalLines, type ManualKind } from './manual-journal'
@@ -106,7 +107,7 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
   {
     kz: '4100',
     label: 'Umsatzerlöse (umsatzsteuerpflichtig)',
-    matcher: (inv) => Number(inv.totalVat) > 0,
+    matcher: (inv) => owedVat(inv) > 0, // Tier 850: also the tax owed out of the price
   },
   {
     kz: '4120',
@@ -118,7 +119,7 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
     // was billed at 19 %, so nobody noticed).
     matcher: (inv, ctx) =>
       ctx.kleinunternehmer(inv.issueDate) && !isTaxFreeSupply(inv) &&
-      Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0,
+      owedVat(inv) === 0 && Number(inv.subtotal) > 0,
   },
   {
     kz: '4135',
@@ -127,7 +128,7 @@ const REVENUE_LINES: Array<{ kz: string; label: string; matcher: (inv: any, ctx:
     // revenue of a company that is not a Kleinunternehmer (§4 exempt).
     matcher: (inv, ctx) =>
       isTaxFreeSupply(inv) ||
-      (!ctx.kleinunternehmer(inv.issueDate) && Number(inv.totalVat) === 0 && Number(inv.subtotal) > 0),
+      (!ctx.kleinunternehmer(inv.issueDate) && owedVat(inv) === 0 && Number(inv.subtotal) > 0),
   },
   {
     kz: '4170',

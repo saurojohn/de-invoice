@@ -119,7 +119,7 @@ export class PnlService {
       issueDate: true,
       subtotal: true,
       total: true,
-      totalVat: true,
+      totalVat: true, taxOutOfPrice: true,
       eurSubtotal: true,
       eurTotal: true,
       eurTotalVat: true,

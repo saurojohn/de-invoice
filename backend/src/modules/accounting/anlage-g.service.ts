@@ -416,7 +416,7 @@ export class AnlageGService {
           type: { in: SALES_TYPES }, // Tier 424: not a Proforma
         },
         select: {
-          id: true, type: true, subtotal: true, totalVat: true, total: true,
+          id: true, type: true, subtotal: true, totalVat: true, taxOutOfPrice: true, total: true,
           eurTotal: true, eurTotalVat: true, reverseCharge: true, euTransaction: true, issueDate: true,
           referenceInvoice: { select: { issueDate: true, reverseCharge: true, euTransaction: true } }, // Tier 844
         },
@@ -431,7 +431,7 @@ export class AnlageGService {
         ? await this.prisma.invoice.findMany({
           where: { id: { in: [...new Set(revenueRows.map((r) => r.invoice.id))] } },
           select: {
-            id: true, subtotal: true, totalVat: true, total: true, eurTotal: true, eurTotalVat: true,
+            id: true, subtotal: true, totalVat: true, taxOutOfPrice: true, total: true, eurTotal: true, eurTotalVat: true,
             items: { select: { quantity: true, unitPrice: true, vatRate: true } },
           },
         })

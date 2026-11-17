@@ -218,7 +218,7 @@ export class GuVService {
       // original-currency amounts.
       select: {
         subtotal: true,
-        totalVat: true,
+        totalVat: true, taxOutOfPrice: true,
         eurSubtotal: true,
         eurTotalVat: true,
         reverseCharge: true,

@@ -915,6 +915,11 @@ model Invoice {
   exchangeRateSource String?
   eurSubtotal        Decimal? @db.Decimal(12, 4)
   eurTotalVat        Decimal? @db.Decimal(12, 4)
+  /// Tier 850: the VAT rate owed out of the invoice's price — set (by the
+  /// system, never from a request) on an invoice issued without VAT on a day
+  /// the Kleinunternehmerregelung does not cover, and on its credit notes.
+  /// The reports take the tax out of the total at this rate. Null: as stated.
+  taxOutOfPrice      Decimal? @db.Decimal(5, 4)
   eurTotal           Decimal? @db.Decimal(12, 4)
 
   vatBreakdown  Json?

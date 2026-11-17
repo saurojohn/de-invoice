@@ -126,14 +126,19 @@ assert_eq "…booked again (was 400 „bereits eine Zahlung erfasst“)" "$STATU
 AS PUT "/api/v1/accounting/gewst/settings?companyId=$C" "{\"year\":$Y,\"q1\":1000,\"q2\":1000,\"q3\":1000,\"q4\":1000}"
 TAX "Gewerbesteuer" "{\"kind\":\"gewst\",\"year\":$Y,\"quarter\":4}"
 E=$(P "d['expenseId']"); V=$(VOUCHER Gewerbesteuer)
+# Tier 849: Q4's deadline (15.11., on a working day). Before it, Q4 is the
+# quarter due next and shown as paid or open; after it, a paid Q4 is no longer
+# shown and an unpaid one is overdue — CI run 44051038972 ran on 17.11.
+Q4DUE=$(cd "$SCRIPT_DIR/.." && npx ts-node -T -e "console.log(require('./src/modules/reports/filing-deadlines').prepaymentDeadline('gewst', $Y, 4, null))" 2>&1 | tail -1)
+if [[ ! "$Q4DUE" < "$TODAY" ]]; then PAID="['filed']"; UNPAID="['open']"; else PAID="[]"; UNPAID="['overdue']"; fi
 AS GET "/api/v1/ustva/deadlines?companyId=$C"
-assert_eq "fixture: the GewSt Q4 paid by the bank" \
-  "$(P "[x['status'] for x in d['deadlines'] if x['kind'] == 'gewst' and x['year'] == $Y and x['quarter'] == 4]")" "['filed']"
+assert_eq "fixture: the GewSt Q4 paid by the bank (due $Q4DUE: $PAID)" \
+  "$(P "[x['status'] for x in d['deadlines'] if x['kind'] == 'gewst' and x['year'] == $Y and x['quarter'] == 4]")" "$PAID"
 AS POST "/api/v1/accounting/vouchers/$V/reversal?companyId=$C" '{}'
 assert_eq "the Storno of a GewSt prepayment: its expense gets the counter-entry, it stays paid (was: an open bill)" \
   "$STATUS/$(q "select \"grossAmount\"::numeric(10,2) from \"Expense\" where \"reversesExpenseId\"='$E'")/$(q "select \"paidAt\" is not null from \"Expense\" where id='$E'")" "201/-1000.00/t"
 AS GET "/api/v1/ustva/deadlines?companyId=$C"
-assert_eq "…and the deadline counts nothing paid for Q4" \
-  "$(P "[x['status'] for x in d['deadlines'] if x['kind'] == 'gewst' and x['year'] == $Y and x['quarter'] == 4]")" "['open']"
+assert_eq "…and the deadline counts nothing paid for Q4 ($UNPAID)" \
+  "$(P "[x['status'] for x in d['deadlines'] if x['kind'] == 'gewst' and x['year'] == $Y and x['quarter'] == 4]")" "$UNPAID"
 
 summary

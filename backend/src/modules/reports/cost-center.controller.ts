@@ -99,7 +99,7 @@ export class CostCenterController {
           status: { in: ISSUED_STATUSES },
           type: { in: SALES_TYPES },
         },
-        select: { costCenter: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
+        select: { costCenter: true, total: true, totalVat: true, taxOutOfPrice: true, eurTotal: true, eurTotalVat: true },
       }).then((rows) => {
         const by = new Map<string | null, { total: number; totalVat: number; n: number }>()
         for (const r of rows) {
@@ -354,7 +354,7 @@ export class CostCenterController {
           total: true,
           eurTotal: true,
           eurTotalVat: true,
-          totalVat: true,
+          totalVat: true, taxOutOfPrice: true,
         },
       }),
       this.prisma.expense.findMany({
@@ -565,7 +565,7 @@ export class CostCenterController {
           total: true,
           eurTotal: true,
           eurTotalVat: true,
-          totalVat: true,
+          totalVat: true, taxOutOfPrice: true,
           currency: true,
           customerName: true,
           status: true,

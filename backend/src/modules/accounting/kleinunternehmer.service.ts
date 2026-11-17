@@ -2,8 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { businessDayIso, businessToday } from '../../common/business-date'
 import { KU_SELECT, KuCompany, kuOn } from '../../common/kleinunternehmer-period'
-import { EXEMPTION_HINT } from '../invoice/mandatory-details'
-import { zeroRatedGround } from '../invoice/zero-rated'
+import { untaxedOnTaxedDays } from '../invoice/tax-out-of-price'
 import { EuerService } from './euer.service'
 
 /**
@@ -140,47 +139,9 @@ export class KleinunternehmerService {
    */
   private async ohneUmsatzsteuer(companyId: string, co: KuCompany): Promise<KuOhneUmsatzsteuer> {
     const none: KuOhneUmsatzsteuer = { anzahl: 0, summe: 0, rechnungen: [] }
-    const on = kuOn(co)
-    const mode = co?.defaultVatMode === 'kleinunternehmer'
     const day = (d: Date) => businessDayIso(d)
-    const ab = co?.kleinunternehmerAb ? day(co.kleinunternehmerAb) : null
-    const bis = co?.kleinunternehmerBis ? day(co.kleinunternehmerBis) : null
-    // the days § 19 does not cover that lie beside a § 19 period
-    const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
-    const ranges: Array<{ gt?: Date; lt?: Date }> = []
-    if (mode) {
-      if (!ab) return none // a Kleinunternehmer since always
-      ranges.push({ lt: utc(ab), ...(bis ? { gt: utc(bis) } : {}) })
-    } else {
-      if (!bis) return none // never one
-      ranges.push({ gt: utc(bis) })
-      if (ab) ranges.push({ lt: utc(ab) })
-    }
-    const rows = await this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        type: { in: ['INV', 'RCV'] },
-        status: { in: ['sent', 'paid', 'overdue'] },
-        reverseCharge: false,
-        euTransaction: false,
-        totalVat: 0,
-        subtotal: { gt: 0 },
-        OR: ranges.map((r) => ({ issueDate: r })),
-      },
-      select: {
-        id: true, invoiceNumber: true, issueDate: true, total: true, eurTotal: true, notes: true,
-        reverseCharge: true, euTransaction: true,
-        customer: { select: { address: true, vatId: true } },
-      },
-      orderBy: [{ issueDate: 'asc' }, { invoiceNumber: 'asc' }],
-    })
-    const open = rows.filter(
-      (r) =>
-        !on(r.issueDate) &&
-        zeroRatedGround(r, (r.customer?.address as { country?: string } | null)?.country, r.customer?.vatId) === 'exempt' &&
-        // remarks that name § 19 name no exemption
-        !EXEMPTION_HINT.test((r.notes ?? '').replace(/§\s*19(?!\d)/g, '')),
-    )
+    // Tier 850: the query is shared with the reports' tax out of the price
+    const open = await untaxedOnTaxedDays(this.prisma, companyId, co)
     if (!open.length) return none
     const credited = await this.prisma.invoice.groupBy({
       by: ['referenceInvoiceId'],

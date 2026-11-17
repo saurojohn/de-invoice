@@ -66,7 +66,7 @@ export class InvoiceStatisticsService {
         issueDate: { lt: new Date(Date.UTC(year + 1, 0, 1)) },
       },
       select: {
-        id: true, type: true, issueDate: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true,
+        id: true, type: true, issueDate: true, total: true, totalVat: true, taxOutOfPrice: true, eurTotal: true, eurTotalVat: true,
         creditNotes: CREDIT_NOTE_FIELDS,
       },
     })

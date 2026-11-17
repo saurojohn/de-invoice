@@ -47,6 +47,8 @@ export interface BreakdownInvoice {
   total: unknown
   totalVat: unknown
   items: Array<{ quantity: unknown; unitPrice: unknown; vatRate: unknown }>
+  /** Tier 850: the rate owed out of the price (tax-out-of-price.ts) */
+  taxOutOfPrice?: unknown
 }
 
 const r4 = (n: number) => Math.round(n * 10000) / 10000
@@ -76,7 +78,43 @@ function allocate(total: number, weights: number[]): number[] {
   return parts
 }
 
+/**
+ * Tier 850 — the rate at which an invoice owes tax its document does not
+ * state (Invoice.taxOutOfPrice; tax-out-of-price.ts), else 0.
+ */
+export function taxOutOfPriceRate(inv: { taxOutOfPrice?: unknown }): number {
+  const r = num(inv.taxOutOfPrice)
+  return r > 0 && r < 1 ? r : 0
+}
+
+/** the tax in a gross amount at a rate (§ 10 Abs. 1 UStG: the price includes it) */
+const taxIn = (gross: number, rate: number) => r4((gross * rate) / (1 + rate))
+
+/**
+ * Tier 850 — the VAT an invoice owes, in its currency: what it states, or for
+ * one that owes tax out of its price, that tax.
+ */
+export function owedVat(inv: { total: unknown; totalVat: unknown; taxOutOfPrice?: unknown }): number {
+  const r = taxOutOfPriceRate(inv)
+  return r ? taxIn(num(inv.total), r) : num(inv.totalVat)
+}
+
+/** Tier 850 — the same in EUR (the amounts stored at issue), null when the invoice has none. */
+export function owedEurVat(inv: { eurTotal?: unknown; eurTotalVat?: unknown; taxOutOfPrice?: unknown }): number | null {
+  const r = taxOutOfPriceRate(inv)
+  if (r) return inv.eurTotal != null ? taxIn(num(inv.eurTotal), r) : null
+  return inv.eurTotalVat != null ? num(inv.eurTotalVat) : null
+}
+
 export function invoiceTaxBreakdown(inv: BreakdownInvoice): TaxBreakdown {
+  // Tier 850: a supply that owes its tax out of the price — one bucket at that rate
+  const owing = taxOutOfPriceRate(inv)
+  if (owing) {
+    const gross = r4(num(inv.total))
+    const vat = taxIn(gross, owing)
+    const net = r4(gross - vat)
+    return { net, vat, gross, byRate: [{ rate: owing, net, vat }] }
+  }
   const gross = r4(num(inv.total))
   const vat = r4(num(inv.totalVat))
   const net = r4(gross - vat)
@@ -124,13 +162,17 @@ export interface RevenueInvoice {
   totalVat: unknown
   eurTotal?: unknown
   eurTotalVat?: unknown
+  /** Tier 850: the rate owed out of the price */
+  taxOutOfPrice?: unknown
 }
 
 export function invoiceNetRevenue(inv: RevenueInvoice): number {
-  if (inv.eurTotal != null && inv.eurTotalVat != null) {
-    return r4(num(inv.eurTotal) - num(inv.eurTotalVat))
+  // Tier 850: net of the tax owed out of the price, where there is one
+  const r = taxOutOfPriceRate(inv)
+  if (inv.eurTotal != null && (inv.eurTotalVat != null || r)) {
+    return r4(num(inv.eurTotal) - (owedEurVat(inv) ?? 0))
   }
-  return r4(num(inv.total) - num(inv.totalVat))
+  return r4(num(inv.total) - owedVat(inv))
 }
 
 /** EUR per unit of the invoice currency, from the amounts stored at issue. */

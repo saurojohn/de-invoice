@@ -132,7 +132,7 @@ export class DashboardController {
           type: { in: SALES_TYPES },
         },
         // Tier 658: with the euros the invoice was booked at
-        select: { issueDate: true, type: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
+        select: { issueDate: true, type: true, total: true, totalVat: true, taxOutOfPrice: true, eurTotal: true, eurTotalVat: true },
       }),
       this.prisma.expense.findMany({
         where: { companyId, invoiceDate: { gte: spanStart, lte: todayEnd }, ...NOT_AFA_BOOKING },
@@ -303,7 +303,7 @@ export class DashboardController {
         // customer invoiced in USD led the list with dollars counted as euros.
         this.prisma.invoice.findMany({
           where: { companyId, issueDate: { gte: yearStart }, status: { in: ISSUED_STATUSES }, type: { in: SALES_TYPES } },
-          select: { customerId: true, costCenter: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true },
+          select: { customerId: true, costCenter: true, total: true, totalVat: true, taxOutOfPrice: true, eurTotal: true, eurTotalVat: true },
         }),
         // Last 5 invoices. Sorted by createdAt desc —
         // matches the activity feed ordering.

@@ -2673,6 +2673,50 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 850 — an invoice issued without USt on a day § 19 does not cover owes the tax out of its price, and the reports declare it
+
+The item Tier 845 had left for the owner's word; the owner: „修复“. Backend spec 543: 8 ✗ on Tier 849.
+
+**CI run 44051038972 (Tier 849, b4cc3b88):** backend 539 passed / **2 failed**; Playwright 1166 passed, 0 flaky. Spec 540 passed (Tier 849's fix held); 542 passed.
+- The two failures were specs 509 and 511 (Tier 808 / 810), on the day after the GewSt Q4 deadline (15.11., a Sunday, so 16.11.). They expected Q4 to be the quarter due next: paid → „filed“, unpaid → „open“.
+- The deadline list shows the quarter due next, and one whose deadline has passed only while it is unpaid — then as overdue (`filing-deadlines.service` `prepayments`). That is right. The specs were not.
+- Both now take the status of the day they run: before the deadline „filed“ / „open“; after it, a paid quarter is not listed and an unpaid one is „overdue“. Both pass locally on 17.11.
+
+**Measured.** A § 19 invoice of 1 190 € of 03.08., paid; then the end of the regulation set back to 30.06. — what Tier 843's own advice leads to once last year turns out to be over 25 000 €.
+- UStVA 08: 1 190 € on Kz 48 („sonstige steuerfreie Umsätze“), no tax.
+- EÜR: 1 190 € on 4170. DATEV: 8100 without a tax key. GuV: 1 190 € of revenue.
+- The 190 € owed (§ 10 Abs. 1 Satz 2 UStG: the agreed price includes the tax) were in no return.
+
+**Decision** (an accounting decision; § 10 Abs. 1, § 12 Abs. 1, § 13 Abs. 1 Nr. 1 a UStG).
+- Until it is corrected, such an invoice is reported as a taxed supply in its own period, the tax taken out of its total: 1 190 € → 1 000 € net + 190 € tax.
+- The rate is the general one (19 %). A 0 % line does not say whether the supply would have had the reduced rate (§ 12 Abs. 2); the notice tells the owner to settle that with the Steuerberater.
+- The invoice is not changed (GoBD). The rate is kept beside it in `Invoice.taxOutOfPrice` (migration `20261117000001_invoice_tax_out_of_price`). It is set by the system only — a request that sends it is refused by the whitelist.
+- A credit note of such an invoice carries the same rate (Tier 844: a correction follows what it corrects), so a Storno takes the tax back (§ 17 UStG).
+
+**Change.**
+- `invoice/tax-out-of-price.ts`:
+  - `untaxedOnTaxedDays` is the query Tier 845 used for its list, now shared;
+  - `refreshTaxOutOfPrice` sets the rate on those invoices and their credit notes, and clears it where it no longer applies. `CompanyService.update` calls it after every change of the Kleinunternehmer period.
+- `tax-breakdown.ts`: `invoiceTaxBreakdown` and `invoiceNetRevenue` take the tax out of the total at that rate; `owedVat` / `owedEurVat` for the readers of the stated tax. Every report that splits net and tax through them follows: UStVA (Soll and Ist), EÜR, Anlage S, Anlage G, GuV, BWA, P&L, DATEV, the dashboard, the cost-centre, customer and statistics reports.
+- The EÜR / Anlage S revenue matchers and the EÜR's VAT received (Zeile 17) read the owed tax.
+- Both credit-note paths (`createCreditNote`, a CN draft through `create`) copy the rate of their invoice.
+- Left as issued, on purpose: the documents (PDF, e-invoice), the customer portal and the GoBD archive's sums.
+- Tier 845's notice says now that the reports take the tax out at 19 %, and that the invoices themselves state none (de / en / zh).
+
+**Not covered:** an invoice that is a mix of a taxed and a 0 % line is not on Tier 845's list (it states some tax) and is not touched.
+
+**Specs.** Backend spec 543 (new; 8 ✗ on Tier 849):
+- while a § 19 invoice, in no UStVA line;
+- after the end is set back: UStVA Kz 81 = 1 000 / Kz 83 = 190, EÜR 4100 = 1 000 / 4140 = 190, DATEV 8400 with key 3, GuV 1 000; the invoice itself unchanged and still listed;
+- its Storno: −1 000 / −190 in the month of the credit note;
+- the end moved back again: the rate cleared, the reports as before;
+- `taxOutOfPrice` in a request refused.
+
+Locally:
+- all 541 backend specs: 540 passed, 1 skipped (16, dark mode, as in CI);
+- the 66 Playwright files on the Kleinunternehmer mode, UStVA, EÜR, Anlagen, GuV, BWA, DATEV, the dashboard, credit notes and the settings: 235 passed.
+- Migration `20261117000001_invoice_tax_out_of_price` applied to `tmp-ci-pg` by psql. The owner's dev database gets it with the next `start.sh` (`prisma migrate deploy`; one additive column).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 849 — a Mahnung's Werktage count to the German day its letter bears; spec 540 no longer depends on the hour it runs
 
 **CI run 43963857901 (Tier 848, b5c1cb97): backend 540 passed / 1 failed.** Playwright 1166 passed, 0 flaky; spec 542 passed. The failure was spec 540 of Tier 846, not Tier 848.

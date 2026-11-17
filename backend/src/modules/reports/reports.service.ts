@@ -104,7 +104,7 @@ export class ReportsService {
       // Tier 765: what the report reads. Every column and every line of a year's
       // invoices were held for it, and the dashboard asks for it on each opening.
       select: {
-        customerId: true, issueDate: true, total: true, totalVat: true, eurTotal: true, eurTotalVat: true,
+        customerId: true, issueDate: true, total: true, totalVat: true, taxOutOfPrice: true, eurTotal: true, eurTotalVat: true,
         customer: { select: { name: true } },
       },
       orderBy: { issueDate: 'asc' },
@@ -311,7 +311,7 @@ export class ReportsService {
         type: { in: SALES_TYPES },
       },
       select: {
-        customerId: true, issueDate: true, status: true, total: true, totalVat: true, eurTotal: true,
+        customerId: true, issueDate: true, status: true, total: true, totalVat: true, taxOutOfPrice: true, eurTotal: true,
         customer: { select: { name: true } },
         payments: { select: { amount: true } },
       },
