@@ -1,0 +1,11 @@
+{
+  "_": "Tier 858: high or critical advisories of production dependencies that scripts/ci-npm-audit.mjs lets pass — each with why it cannot be reached here and the date it is looked at again (after it, the run fails again). Keep this list short.",
+  "allow": [
+    {
+      "id": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "reason": "ReDoS through a glob pattern; comes with next-intl's @parcel/watcher, which watches source files while developing. The production frontend matches no glob a visitor can give. No fixed picomatch 4.x was published on 18.11.2026.",
+      "until": "2026-12-31"
+    }
+  ]
+}

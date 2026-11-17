@@ -84,6 +84,28 @@ jobs:
           cache-from: type=gha,scope=ci-${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=ci-${{ matrix.name }}
 
+      # Tier 858 (security audit, item 4): the image's known holes. Trivy reads
+      # the OS packages (Debian / Alpine), the node_modules and the validator's
+      # jar of the image just built. A CRITICAL one with a fixed version fails
+      # the run — rebuild with the fix (the weekly run rebuilds on new base
+      # images); HIGH ones are listed. Trivy 0.69.3 by digest: 0.69.4 to
+      # 0.69.6 and `latest` were replaced by malicious builds in March 2026
+      # (CVE-2026-33634); never a moving tag here.
+      - name: Scan the image for known vulnerabilities
+        env:
+          TRIVY_IMAGE: aquasec/trivy:0.69.3@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c
+        run: |
+          set -euo pipefail
+          for try in 1 2 3; do docker pull -q "$TRIVY_IMAGE" && break; sleep $((try * 10)); done
+          scan() {
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+              "$TRIVY_IMAGE" image --quiet --scanners vuln --ignore-unfixed --no-progress "$@" de-invoice-${{ matrix.name }}:ci
+          }
+          echo "── HIGH (listed) ──"
+          scan --severity HIGH --exit-code 0
+          echo "── CRITICAL (fails the run) ──"
+          scan --severity CRITICAL --exit-code 1
+
       # The backend image is what it claims: the compiled program, without the
       # compiler, with the validator and a Java runtime for it.
       - name: Look inside the backend image

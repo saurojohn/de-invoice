@@ -134,6 +134,22 @@ jobs:
       - run: npm ci
       - run: npx eslint . --max-warnings 0
 
+  # Tier 858 (security audit, item 4): no known high or critical advisory in
+  # the production dependencies of either package (scripts/ci-npm-audit.mjs;
+  # exceptions with a reason and an end date in scripts/npm-audit-allow.json).
+  # The lock files are enough — no install. Weekly too (the schedule above):
+  # advisories appear without a push.
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node scripts/ci-npm-audit.mjs backend frontend
+
   frontend-lint:
     name: Frontend lint
     runs-on: ubuntu-latest
