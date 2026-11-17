@@ -27,6 +27,20 @@
  */
 export const isLand = (type: string | null | undefined): boolean => type === 'Grundstueck'
 
+/**
+ * Tier 853 — a geringwertiges Wirtschaftsgut (§ 6 Abs. 2 EStG): acquisition
+ * cost (net of a deductible input tax) of at most 800 € may be written off in
+ * full in the year it is acquired. The type „GWG“ is that choice. It was
+ * depreciated like any asset over the useful life entered — measured: a
+ * printer of 700 € acquired in February over 36 months gave 213,89 € of AfA
+ * in its first year instead of 700 €, and 486,11 € stayed in the balance
+ * sheet. Now it is written off in its acquisition month. A GWG over 800 € is
+ * refused when saved; one stored before is depreciated over its useful life.
+ */
+export const GWG_GRENZE = 800
+export const isGwgSofort = (asset: { type?: string | null; anschaffungsKosten: unknown }): boolean =>
+  asset.type === 'GWG' && Number(asset.anschaffungsKosten) <= GWG_GRENZE
+
 
 export interface AfaAsset {
   id?: string
@@ -68,7 +82,7 @@ export function afaMonths(from: Date, to: Date): number {
 export function computeAfaSummary(asset: AfaAsset, snapshot: Date): AfaSummary {
   const ak = Number(asset.anschaffungsKosten)
   const restwert = Number(asset.restwert)
-  const nd = isLand(asset.type) ? 0 : asset.nutzungsdauerMonate
+  const nd = isLand(asset.type) ? 0 : isGwgSofort(asset) ? 1 : asset.nutzungsdauerMonate // Tier 853
   const depreciable = Math.max(0, ak - restwert)
   const monthlyAfA = nd > 0 ? depreciable / nd : 0
 

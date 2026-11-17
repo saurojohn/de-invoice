@@ -2673,6 +2673,39 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 853 — a GWG is written off in full in its acquisition month; the asset page says how a sale is booked
+
+The owner: „继续“. This round checked assets, AfA, a disposal and incoming § 13b / igE bills across the reports, on a probe GmbH (`scratchpad/inv/assets.py`).
+
+**What held.**
+- A shelf of 3 600 € over 36 months from March: 1 000 € AfA in its first year.
+- A van of 24 000 € over 72 months from July of last year, sold on 30.06.: 2 000 € AfA this year and a Restbuchwert of 20 000 € on the day of the sale.
+- The asset register, the GuV, the BWA and the balance sheet agree.
+- UStVA: a § 13b service from Poland on Kz 46 / 47 with Kz 67; an igE on Kz 89 with Kz 61.
+
+**1. A GWG was depreciated over its useful life.**
+- Measured: a printer of 700 €, type „GWG“, acquired on 10.02. over 36 months, had 213,89 € of AfA in its first year, and 486,11 € stayed in the balance sheet.
+- § 6 Abs. 2 EStG lets an asset of at most 800 € (net of a deductible input tax) be written off in full in the year it is acquired. The type „GWG“ is that choice.
+- A „GWG“ of 2 000 € was taken as well.
+- Change:
+  - `afa.ts` `isGwgSofort`: a GWG of at most 800 € has a useful life of one month, so it is written off in its acquisition month — in the annual and in the monthly booking;
+  - `AssetsService` refuses a GWG over 800 € on create and on update, naming the limit and what to choose instead;
+  - a „GWG“ over 800 € stored before is depreciated over its useful life, as before;
+  - the type's label says it (de / en / zh).
+- Not covered: the Sammelposten (§ 6 Abs. 2a EStG, 250 – 1 000 € over five years). The app has no pool; such an asset is entered with its useful life.
+
+**2. The sale of an asset: the price is booked with the invoice for it.**
+- The van's sale put its Restbuchwert of 20 000 € into the year's „sonstige betriebliche Aufwendungen“, and the 20 000 € of its price into no income: a loss of 20 000 € that did not happen.
+- This is by design (Tier 438). The sale is a supply with VAT and needs an invoice, which books the price. `verkaufsPreis` on the asset only records it.
+- But the dispose dialog said only „Die Anlage wird aus dem Bilanz-Pool entfernt“. Now it says that the Restbuchwert becomes an expense, and that the price is booked with the invoice for the sale, issued like any other (de / en / zh).
+
+**Specs.** Backend spec 546 (new; 7 ✗ on Tier 852):
+- the GWG of 700 € written off in full, the other asset as before, the balance sheet and the GuV's Abschreibungen, the monthly booking in February;
+- a GWG of 2 000 € refused, and a change to 900 €;
+- an older „GWG“ over 800 € depreciated over its useful life.
+
+Locally: the 59 backend specs on assets and AfA, with the guards, pass; the 38 Playwright files on assets and the Anlagen: 184 passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 852b — CI green for Tier 852, no flaky
 
 Run 44115838598 (Tier 852, d7538c4d): six jobs. Backend **544 passed / 0 failed / 1 skipped** (545, 108 and 494 included). Playwright **1166 passed (38.9 m)**. **0 flaky**, no retry, no Traceback, no `REFUSED`. No migration; the day1 images were not rebuilt.

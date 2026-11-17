@@ -7,7 +7,7 @@ import {
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AuditService } from '../audit/audit.service'
-import { computeAfaSummary, isLand } from './afa'
+import { computeAfaSummary, isLand, GWG_GRENZE } from './afa'
 import { assertNotFuture } from '../../common/business-date'
 import { assertBooksOpen } from '../reports/filed-period'
 import { LIVE_AFA } from '../accounting/booked-afa'
@@ -170,6 +170,16 @@ function round2(n: number): number {
 }
 
 
+/** Tier 853: a GWG costs at most 800 € (§ 6 Abs. 2 EStG) — above that it is depreciated over its useful life */
+function assertGwg(type: string | undefined | null, anschaffungsKosten: number | undefined): void {
+  if (type === 'GWG' && anschaffungsKosten != null && Number(anschaffungsKosten) > GWG_GRENZE) {
+    throw new BadRequestException(
+      `Ein geringwertiges Wirtschaftsgut kostet höchstens ${GWG_GRENZE} € (netto, § 6 Abs. 2 EStG) und wird im Anschaffungsmonat voll abgeschrieben. ` +
+      'Wählen Sie für eine teurere Anschaffung die Art, zu der sie gehört (z. B. Betriebsausstattung) — sie wird über ihre Nutzungsdauer abgeschrieben.',
+    )
+  }
+}
+
 @Injectable()
 export class AssetsService {
   private readonly logger = new Logger(AssetsService.name)
@@ -238,6 +248,7 @@ export class AssetsService {
       throw new BadRequestException('Anschaffungskosten müssen > 0 sein')
     }
     // Tier 674: land has no useful life; everything else needs one — also an
+    assertGwg(dto.type ?? existing.type, dto.anschaffungsKosten ?? Number(existing.anschaffungsKosten)) // Tier 853
     // asset that was land and is given another type
     const landAfter = isLand(dto.type ?? existing.type)
     const lifeAfter = dto.nutzungsdauerMonate ?? existing.nutzungsdauerMonate
@@ -289,6 +300,7 @@ export class AssetsService {
     if (dto.restwert != null && dto.restwert > dto.anschaffungsKosten) {
       throw new BadRequestException('Restwert darf nicht größer als AK sein')
     }
+    assertGwg(dto.type, dto.anschaffungsKosten) // Tier 853
   }
 
   async dispose(id: string, companyId: string, dto: AssetDisposeDto) {
