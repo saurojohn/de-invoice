@@ -33,7 +33,9 @@ async function main() {
   const reg = await fetch(`${API}/auth/register`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN },
-    body: JSON.stringify({ email, password: 'Ocr-check-1', companyName: `${email} GmbH` }),
+    // Tier 855f: the image runs with a setup token now — the first registration of
+    // the empty installation needs it (registration.ts); later ones ignore it
+    body: JSON.stringify({ email, password: 'Ocr-check-1', companyName: `${email} GmbH`, setupToken: process.env.SETUP_TOKEN }),
   })
   if (reg.status !== 201) throw new Error(`register: ${reg.status} ${await reg.text()}`)
   const body = await reg.json()
