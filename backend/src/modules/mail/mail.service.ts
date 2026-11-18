@@ -215,7 +215,10 @@ export class MailService implements OnModuleInit {
       this.logger.log(`SMTP transporter ready: ${key}`);
     }
 
-    const from = `"${cfg.fromName}" <${cfg.fromEmail}>`;
+    // Tier 866: name and address apart — nodemailer quotes the name. Written
+    // into one string, a name with a quote in it („Firma" <ceo@bank.example>,
+    // "x“) changed the sender the mail claimed.
+    const from = { name: String(cfg.fromName ?? ''), address: cfg.fromEmail };
     const info = await this.transporter.sendMail({
       from,
       to: options.to,

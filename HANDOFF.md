@@ -2673,6 +2673,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 866 — a company's name is text in the team invitation's HTML; the sender's name and address are given apart
+
+**Measured** on Tier 865 through a mailbox (`fixtures/smtp-sink.py`):
+- The team invitation (`POST users/invitations`) wrote the company's name into its HTML as it was. A name typed as `<a href="https://phish…">Jetzt bestätigen</a>` became a working link in a mail the installation sends to any address. A company can be registered by anyone while the registration is open.
+- The sender was one string, `"${fromName}" <${fromEmail}>`. A sender name `Muster" <ceo@bank.example.test>, "x` put a second address into the From line: the mail claimed to come from `ceo@bank.example.test` too.
+
+**Change.**
+- `common/html-escape.ts` `escapeHtml()`; the invitation escapes the company's name. This was the only typed text in an HTML part — the other HTML mails hold links and fixed text only; invoices and Mahnungen are text.
+- `MailService.send` gives nodemailer `{ name, address }`, and nodemailer quotes the name.
+
+**Specs.** Spec 558 (new; 3 ✗ on Tier 865): no link from the name, the name as text, the From line holds the configured address only. Every spec that sends through a mailbox, sets a mail server or invites (44 152 187 190 191 332 355 374 407 408 409 413 415 421 426 427 428 432 436 440 456 457 464 467 485 487 491 519 520 522) and the guards pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 865 — a Berater's attachment is shown in place only when it is a PDF or a picture (Tier 573's rule)
 
 The owner: „继续“. A look at the routes that serve stored files.

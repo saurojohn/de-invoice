@@ -13,6 +13,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { escapeHtml } from '../../common/html-escape' // Tier 866
 import { publicOrigin } from '../../common/public-origin'
 import { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
@@ -167,7 +168,7 @@ export class UsersController {
             `${link}\n\n` +
             `Falls Sie diese Einladung nicht erwartet haben, ignorieren Sie diese E-Mail.`,
           html: `
-            <p>Sie wurden eingeladen, dem Team <strong>${inv.companyName ?? 'Ihr Unternehmen'}</strong> auf de-invoice beizutreten.</p>
+            <p>Sie wurden eingeladen, dem Team <strong>${escapeHtml(inv.companyName ?? 'Ihr Unternehmen')}</strong> auf de-invoice beizutreten.</p>
             <p>Klicken Sie auf den folgenden Link, um die Einladung anzunehmen und ein Passwort festzulegen (gültig 7 Tage):</p>
             <p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:6px;">Einladung annehmen</a></p>
             <p>Oder kopieren Sie diesen Link:<br><code>${link}</code></p>
