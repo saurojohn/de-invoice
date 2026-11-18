@@ -11,7 +11,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
 ROOT="$SCRIPT_DIR/../.."
 check() { # env assignments… → the problems found, by their variable, or "ok"
-  (cd "$SCRIPT_DIR/.." && env -i PATH="$PATH" HOME="$HOME" "$@" npx ts-node -T -e "
+  # ts-node itself, not npx: under NODE_ENV=production npx printed an „npm notice“
+  # after the answer in CI (run 44198898442), and that was read as the result
+  (cd "$SCRIPT_DIR/.." && env -i PATH="$PATH" HOME="$HOME" "$@" ./node_modules/.bin/ts-node -T -e "
 const { productionConfigProblems } = require('./src/common/production-config')
 const p = productionConfigProblems(process.env)
 console.log(p.length ? p.map((x: string) => x.split(/[ =]/)[0]).join(' ') : 'ok')" 2>&1 | tail -1)

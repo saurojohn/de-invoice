@@ -127,6 +127,10 @@ BAD_ENABLE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$API/api/v1/auth/2
 assert_eq "enable with bad code 400" "$BAD_ENABLE" "400"
 
 # Test 5: enable with valid TOTP code
+# Tier 855g: this code is the previous step's (window 1). Generated in the last
+# seconds of a step, the request reached the server in the next one, where it
+# was two steps old and refused (CI run 44198898442). Not within 5 s of the end.
+while (( $(date +%s) % 30 >= 25 )); do sleep 1; done
 CODE=$(cd "$BACKEND_DIR" && node -e "
 const { authenticator } = require('otplib');
 authenticator.options = { step: 30, window: 1, digits: 6, epoch: Date.now() + (-1) * 30000 }; // Tier 786: -1, 0, +1 — each code counts once
