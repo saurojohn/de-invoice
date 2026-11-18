@@ -2698,6 +2698,7 @@ The owner: „继续“.
   - the compose wiring.
 - Related backend specs (124 144 333 388 438 449 451 452 453 538 541 549 556, 46, 347) pass.
 - Playwright `backups-automatic-tier727`, `operator-page-tier822`, `operator-cards-tier598` and `ui-walk-tier590` pass. `backups.spec` passes except its manual backup, which waits 90 s: the local test database has grown to 1.5 GB (71 455 invoices from repeated full runs), and the dump takes longer. CI starts from a fresh one.
+- **Tier 870b.** CI run 44407334710 failed on spec 363 alone. Every variable the backend reads needs a line in an `.env.example`, and `BACKUP_OFFSITE_STATUS_DIR` had none. `backend/.env.example` now documents it and `BACKUP_OFFSITE_MAX_AGE_HOURS`. The guard list had not been run for this tier; it passes now. Playwright 1170 passed, Docker images green.
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 869b — CI green for Tier 869, no flaky; Trivy finds nothing in either image
 
