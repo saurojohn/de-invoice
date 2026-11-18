@@ -2673,6 +2673,29 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 864b — CI green for the security audit's fixes (Tiers 855–864), no flaky; the image check green with Trivy, the refusal and 2FA
+
+- **Run 44290516632 (Tier 861c, b6d74086, HEAD of the audit batch):**
+  - The first attempt's backend job stopped before any spec: Maven Central answered 429 to the Mustang download. The rerun of that job passed.
+  - Backend **555 passed / 0 failed / 1 skipped**, Playwright **1169 passed**. **0 flaky**, no retry, no Traceback, no `REFUSED`.
+  - The new `dependency-audit` job passed.
+- **Docker images 44290516856:** both images built.
+  - The hardened backend image refuses to start without its key and setup token.
+  - With them it sets up 2FA for its administrator and reads a receipt (201); without language data it says so (503).
+  - Trivy: no CRITICAL. 10 HIGH, all in the npm that the node base image brings along (sigstore, pacote, ip-address, brace-expansion, picomatch): npm's own dependencies, not the program's. They are listed, not failing.
+- Earlier green runs of the batch: 44270790412 (Tier 860, 551 / 1168), 44277178122 (Tier 861, 552 / 1169), 44283702841 (Tier 864, 555 / 1169).
+- **Fixed on the way** (each a commit of its own; details in the entries below):
+  - 855c: specs 124 and 347;
+  - 855d: the image check's storage volume;
+  - 855e: spec 191 in production mode;
+  - 855f: the setup token in the OCR check;
+  - 855g: spec 548's npm notice, and spec 24's step boundary — that one was there before;
+  - 861c: 2FA in the OCR check.
+- **The migration** `20261119000001_user_login_lockout` was applied with `migrate deploy` on the day1 production database (4 users).
+- **The audit's items, where they stand:**
+  - fixed: 1 (Tier 856), 2 3 10 (855), 4 (858), 5 (859), 6 (857), 7 (860), 8 (861, the owner's per-company switch), 12 (863), 13 (862 — the audit overstated it; only the address as password was taken), 14 (864), 16 (856, the restore drill);
+  - not done: 9, the 30-day sliding session, which is the owner's choice of Tier 399; 11, HSTS `preload` on a host name (it has no effect there and does no harm); 15, FinTS real mode is a stub, which the app already says.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 864 — every container's own log is rotated (5 × 10 MB), the overlays' too
 
 Security audit, item 14 (log retention, DSGVO).
