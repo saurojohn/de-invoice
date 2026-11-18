@@ -129,6 +129,9 @@ note "=== 3b. Tier 555: production without the flag — the header is off by def
 # Tier 855c: production starts only with a safe configuration (common/
 # production-config.ts) — its key (CI's own fixture key, the one every other
 # spec runs with), a setup token, the rate limit on, no mocked service.
+# Tier 861: production asks administrators for 2FA unless the company decides
+# otherwise — this spec is about the auth mode, so its company decides so
+sql "update \"Company\" set settings = coalesce(settings, '{}'::jsonb) || '{\"requireAdmin2fa\": false}'::jsonb where id='$C'" >/dev/null
 PROD="NODE_ENV=production VIES_MOCK=0 EXCHANGE_RATES_MOCK=0 THROTTLE_DISABLED=0 SETUP_TOKEN=e2e-191-setup-token FINTS_PIN_ENC_KEY=${FINTS_PIN_ENC_KEY:-ci-fixture-key-do-not-use-in-prod-00000000000000000000}"
 if restart_backend "$PROD"; then
   STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$API/api/v1/customers?companyId=$C" \

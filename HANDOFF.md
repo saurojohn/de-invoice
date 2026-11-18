@@ -2673,6 +2673,41 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 861 — a company can require its administrators to sign in with 2FA, by default in production; without it they reach only the security page
+
+Security audit, item 8. The owner chose (18.11.2026, asked): „可由公司设置开关“ — a setting of each company.
+
+**Measured.** 2FA was optional for everybody. Spec 553 on Tier 860 (12 ✗): there was no way to require it, and an administrator's password alone opened the books, the users, the bank connection and the settings.
+
+**Change.**
+- `auth/admin-two-factor.ts`: `Company.settings.requireAdmin2fa`. When the company has not set it, it is on in production and off elsewhere (development and the test suites run `NODE_ENV=test`).
+- `HeaderAuthGuard`: an administrator (the role in the company of the request) without 2FA, in a company that asks for it, is refused every request with 403 `code: TWO_FACTOR_REQUIRED` and a German message. Only these stay reachable:
+  - `GET /auth/me`, `POST /auth/logout`, `/auth/change-password`, `/auth/resend-verification`;
+  - `POST /auth/2fa/status|setup|enable`, `GET /auth/2fa/policy`;
+  - `GET /users/me/companies`, `POST /users/me/switch-company` (to a company that does not ask it).
+- Turning the rule off (`PUT /auth/2fa/policy`, `company.update`) is one of the refused requests — it takes an administrator with 2FA. Each change is audited (`admin_2fa_policy_changed`, before/after).
+- `POST /auth/2fa/status` also tells whether the company asks it of the caller (`requiredForMe`). Other roles are not asked.
+- Frontend:
+  - `api.ts` sends a TWO_FACTOR_REQUIRED answer to `/dashboard/security?required=1`;
+  - the security page shows a banner when it is required and not yet set up, and, for administrators, the switch with an explanation (disabled while the rule is on and the administrator has no 2FA yet);
+  - texts in de/en/zh.
+- HETZNER-DEPLOY.md §7a: after the first registration, set up 2FA (the app shows only „Sicherheit“ until then).
+
+**Specs.**
+- Spec 553 (new; 12 ✗ on Tier 860):
+  - the rule and its default;
+  - the routes reachable without 2FA;
+  - off: works as before;
+  - an accountant cannot switch it, and is not asked;
+  - on: the administrator is refused everywhere with the code, sees who they are and the status;
+  - turning it off without 2FA is refused;
+  - setup and enable are reachable; with 2FA everything works again and the rule can be turned off;
+  - both changes are audited.
+- Playwright `admin-two-factor-required-tier861`: the switch, any page sends the administrator back to the security page with the banner, the switch cannot be turned off before 2FA.
+- Spec 177's reviewed list of routes without a role gains `GET auth/2fa/policy`.
+- Spec 191 runs the backend in production, where the rule is on by default; its company now turns the rule off — that spec is about the auth mode.
+- Related backend specs (2FA, auth, the guards: 24 99 124 176 177 190 191 457 485 487 489 490 521 552 553 …) pass. Playwright passes: 2FA, the security page, account data, change password, auth/me, all pages quiet, the UI walk, and the new spec (62 tests).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 860 — ten wrong passwords within 15 minutes lock the account for 15 minutes, wherever they come from; only the right password learns of it
 
 Security audit, item 7.

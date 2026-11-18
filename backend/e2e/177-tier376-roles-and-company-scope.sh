@@ -38,8 +38,12 @@ grep -qE "@CompanyIdParam\('id'\)" "$SRC/modules/company/company.controller.ts" 
 # the caller's own address. Tier 737: auth/my-data, auth/delete-account(/check)
 # — the caller's own data and account; the deletion asks for the password.
 # Tier 820: PUT auth/registration — the operator's, by SystemAdminGuard.
-# Tier 821: auth/registration/invites — the operator's too.)
+# Tier 821: auth/registration/invites — the operator's too.
+# Tier 861: GET auth/2fa/policy — whether the caller's company asks its
+# administrators for 2FA; every member may read it, changing it takes
+# company.update.)
 EXPECTED_NO_ROLE="DELETE auth/registration/invites/:id
+GET auth/2fa/policy
 GET auth/delete-account/check
 GET auth/me
 GET auth/my-data

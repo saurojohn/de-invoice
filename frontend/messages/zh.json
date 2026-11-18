@@ -2262,7 +2262,13 @@
     "invalidCode": "代码无效",
     "setupFailed": "设置失败",
     "enabled": "2FA 已成功开启。",
-    "disabled": "2FA 已关闭。"
+    "disabled": "2FA 已关闭。",
+    "requiredBanner": "本公司要求管理员使用两步验证登录。请在此设置——设置完成前只能访问此页面。",
+    "policyTitle": "管理员两步验证",
+    "policyText": "本公司的管理员在设置第二因素之前，除了设置它之外不能进行任何操作。只有自己已启用两步验证的管理员才能关闭此规则。",
+    "policyLabel": "管理员必须使用两步验证登录",
+    "policyDefault": "尚未设置——使用本安装的默认设置。",
+    "policySaved": "已保存"
   },
   "users": {
     "title": "用户管理",

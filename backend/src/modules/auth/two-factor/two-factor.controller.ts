@@ -32,7 +32,9 @@
 import {
   Body,
   Controller,
+  Get,
   Post,
+  Put,
   Req,
   Res,
   UseGuards,
@@ -46,6 +48,9 @@ import { HeaderAuthGuard } from "../../../auth/header-auth.guard"
 import { TwoFactorService } from "./two-factor.service"
 import { Public } from "../../../auth/public.decorator"
 import { Throttle } from "@nestjs/throttler"
+import { Require } from "../../../auth/roles.decorator"
+import { AuditService } from "../../audit/audit.service"
+import { adminTwoFactorPolicy } from "../../../auth/admin-two-factor"
 import {
   endTwoFactorChallenge,
   failTwoFactorChallenge,
@@ -96,6 +101,7 @@ export class TwoFactorController {
     private readonly prisma: PrismaService,
     private readonly twoFactor: TwoFactorService,
     private readonly sessions: UserSessionService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -358,11 +364,57 @@ export class TwoFactorController {
       where: { id: userId },
       select: { twoFactorEnabled: true, recoveryCodes: true },
     })
+    // Tier 861: whether this company asks it of the caller (an administrator)
+    const caller = (req as any).user as { role?: string; companyId?: string } | undefined
+    const company = caller?.companyId
+      ? await this.prisma.company.findUnique({ where: { id: caller.companyId }, select: { settings: true } })
+      : null
     return {
       enabled: !!user?.twoFactorEnabled,
+      requiredForMe: caller?.role === "admin" && adminTwoFactorPolicy(company?.settings).required,
       remainingRecoveryCodes: Array.isArray(user?.recoveryCodes)
         ? (user!.recoveryCodes as string[]).length
         : 0,
     }
+  }
+
+  /**
+   * Tier 861: does this company ask its administrators for 2FA? Every member
+   * may read it (an administrator without 2FA too — the security page shows it).
+   */
+  @Get("policy")
+  @UseGuards(HeaderAuthGuard)
+  async policy(@Req() req: Request) {
+    const companyId = (req as any).user?.companyId as string
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { settings: true } })
+    const p = adminTwoFactorPolicy(company?.settings)
+    return { requireAdmin2fa: p.required, source: p.source }
+  }
+
+  /**
+   * Tier 861: the company's choice. An administrator only — and, while the
+   * rule is on, one with 2FA (the guard refuses this to one without).
+   */
+  @Put("policy")
+  @UseGuards(HeaderAuthGuard)
+  @Require("company.update")
+  async setPolicy(@Req() req: Request, @Body() body: { requireAdmin2fa?: unknown }) {
+    if (typeof body?.requireAdmin2fa !== "boolean") {
+      throw new BadRequestException("requireAdmin2fa: true oder false")
+    }
+    const caller = (req as any).user as { id: string; companyId: string }
+    const company = await this.prisma.company.findUnique({ where: { id: caller.companyId }, select: { settings: true } })
+    const before = adminTwoFactorPolicy(company?.settings)
+    const settings = { ...((company?.settings as Record<string, unknown> | null) ?? {}), requireAdmin2fa: body.requireAdmin2fa }
+    await this.prisma.company.update({ where: { id: caller.companyId }, data: { settings: settings as any } })
+    await this.audit.writeActivity({
+      companyId: caller.companyId,
+      userId: caller.id,
+      action: "admin_2fa_policy_changed",
+      entityType: "company",
+      entityId: caller.companyId,
+      metadata: { before: before.required, after: body.requireAdmin2fa },
+    })
+    return { requireAdmin2fa: body.requireAdmin2fa, source: "setting" as const }
   }
 }

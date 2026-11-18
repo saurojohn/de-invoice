@@ -2262,7 +2262,13 @@
     "invalidCode": "Code invalid",
     "setupFailed": "Setup failed",
     "enabled": "2FA was successfully enabled.",
-    "disabled": "2FA was disabled."
+    "disabled": "2FA was disabled.",
+    "requiredBanner": "This company requires administrators to use two-factor sign-in. Set it up here — until then only this page is available.",
+    "policyTitle": "Two-factor sign-in for administrators",
+    "policyText": "Administrators of this company can do nothing without a second factor except set it up. Only an administrator who uses two-factor sign-in can turn the rule off.",
+    "policyLabel": "Administrators must use two-factor sign-in",
+    "policyDefault": "Not set yet — the default of this installation applies.",
+    "policySaved": "Saved"
   },
   "users": {
     "title": "User Management",

@@ -370,6 +370,13 @@ mirror), a check every hour that both are fresh. They are on **this** server
 — a lost server takes them along. The `offsite-backup` service copies both,
 every hour, to a place outside it. It is off until set up:
 
+
+**Then set up two-factor sign-in** (Tier 861). In production every company
+asks its administrators for it unless it decides otherwise: right after the
+registration the app shows only „Sicherheit“ until an authenticator app is
+set up. Keep the recovery codes it shows apart from the phone. The rule is
+a switch on that page; turning it off takes an administrator who uses 2FA.
+
 ### 1. A Hetzner Storage Box
 
 Order one in Hetzner Robot (BX11 is plenty — a year of hourly dumps of this

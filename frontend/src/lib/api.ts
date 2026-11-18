@@ -161,6 +161,12 @@ export async function apiFetch(path: string, opts: ApiFetchOptions = {}): Promis
     // the cleanup so the original ApiError still
     // surfaces to the caller's catch (the toast
     // may be redundant, but logout is the real fix).
+    // Tier 861: an administrator without 2FA in a company that asks for it —
+    // only the security page is reachable until it is set up
+    if (res.status === 403 && data?.code === "TWO_FACTOR_REQUIRED" && typeof window !== "undefined"
+        && window.location.pathname !== "/dashboard/security") {
+      window.location.replace("/dashboard/security?required=1")
+    }
     if (res.status === 401 && typeof window !== "undefined") {
       try {
         localStorage.removeItem("userId")

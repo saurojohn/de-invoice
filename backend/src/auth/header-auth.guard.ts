@@ -1,4 +1,5 @@
 import { businessDayIso } from '../common/business-date'
+import { adminTwoFactorPolicy, allowedWithoutTwoFactor, TWO_FACTOR_REQUIRED_CODE, TWO_FACTOR_REQUIRED_MESSAGE } from './admin-two-factor'
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
@@ -88,7 +89,7 @@ export class HeaderAuthGuard implements CanActivate {
     // its own write gets through (a connection burst, not a full outage).
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, companyId: true, role: true, status: true },
+      select: { id: true, email: true, companyId: true, role: true, status: true, twoFactorEnabled: true },
     })
 
     if (!user) {
@@ -106,7 +107,7 @@ export class HeaderAuthGuard implements CanActivate {
       where: {
         userId_companyId: { userId, companyId },
       },
-      select: { role: true, accessUntil: true, company: { select: { closedAt: true } } },
+      select: { role: true, accessUntil: true, company: { select: { closedAt: true, settings: true } } },
     })
     if (!access) {
       // Cross-tenant access is never allowed. The user
@@ -152,7 +153,15 @@ export class HeaderAuthGuard implements CanActivate {
     // companies, and everything that scoped by `req.user.companyId` (the error
     // list and its bulk actions, the operator check, /auth/me) looked at the
     // wrong one — or, with a null home company, at none.
-    req.user = { ...user, companyId, homeCompanyId: user.companyId, role: access.role, readonly }
+    const { twoFactorEnabled, ...who } = user
+    req.user = { ...who, companyId, homeCompanyId: user.companyId, role: access.role, readonly }
+
+    // Tier 861: an administrator without 2FA in a company that asks for it
+    // reaches only what setting it up takes (auth/admin-two-factor.ts)
+    if (access.role === 'admin' && !twoFactorEnabled && adminTwoFactorPolicy(access.company.settings).required
+        && !allowedWithoutTwoFactor(req.method, req.originalUrl || req.url)) {
+      throw new ForbiddenException({ statusCode: 403, code: TWO_FACTOR_REQUIRED_CODE, message: TWO_FACTOR_REQUIRED_MESSAGE })
+    }
 
     // Tier 400: the audit context (Tier 384) is started by a middleware that
     // runs before guards, so with a session cookie it has no user yet. Fill it

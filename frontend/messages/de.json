@@ -2262,7 +2262,13 @@
     "invalidCode": "Code ungültig",
     "setupFailed": "Setup fehlgeschlagen",
     "enabled": "2FA wurde erfolgreich aktiviert.",
-    "disabled": "2FA wurde deaktiviert."
+    "disabled": "2FA wurde deaktiviert.",
+    "requiredBanner": "Diese Firma verlangt von Administratoren die Zwei-Faktor-Anmeldung. Richten Sie sie hier ein — bis dahin ist nur diese Seite erreichbar.",
+    "policyTitle": "Zwei-Faktor-Anmeldung für Administratoren",
+    "policyText": "Administratoren dieser Firma können ohne zweiten Faktor nichts tun außer ihn einzurichten. Ausschalten kann die Regel nur ein Administrator, der selbst die Zwei-Faktor-Anmeldung verwendet.",
+    "policyLabel": "Administratoren müssen die Zwei-Faktor-Anmeldung verwenden",
+    "policyDefault": "Noch nicht festgelegt — es gilt die Voreinstellung dieser Installation.",
+    "policySaved": "Gespeichert"
   },
   "users": {
     "title": "Benutzerverwaltung",

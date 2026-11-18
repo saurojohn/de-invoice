@@ -14,13 +14,21 @@ import { Input } from "@/components/ui/input"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n } from "@/components/useI18n"
 import { useToast } from "@/components/useToast"
-import { apiPost, ApiError } from "@/lib/api"
+import { apiGet, apiPost, apiPut, ApiError } from "@/lib/api"
+import { useRole } from "@/lib/role"
 import { ChangePasswordCard } from "@/components/ChangePasswordCard"
 import { AccountDataCard } from "@/components/AccountDataCard"
 
 interface TwoFactorStatus {
   enabled: boolean
   remainingRecoveryCodes: number
+  /** Tier 861: this company asks it of the caller (an administrator) */
+  requiredForMe?: boolean
+}
+
+interface AdminTwoFactorPolicy {
+  requireAdmin2fa: boolean
+  source: "setting" | "default"
 }
 
 interface TwoFactorSetup {
@@ -59,12 +67,17 @@ export default function TwoFactorPage() {
   const [submitting, setSubmitting] = useState(false)
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
   const [confirming, setConfirming] = useState(false)
+  // Tier 861: the company's rule for its administrators
+  const role = useRole()
+  const [policy, setPolicy] = useState<AdminTwoFactorPolicy | null>(null)
+  const [savingPolicy, setSavingPolicy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const data = await apiPost<TwoFactorStatus>("/api/v1/auth/2fa/status", {})
       setStatus(data)
+      setPolicy(await apiGet<AdminTwoFactorPolicy>("/api/v1/auth/2fa/policy").catch(() => null))
     } catch (e: any) {
       toastRef.current.error(e?.message ?? tRef.current("common.loadError"))
     } finally {
@@ -171,8 +184,54 @@ export default function TwoFactorPage() {
           </div>
         </div>
 
+        {/* Tier 861: the company asks it of this administrator */}
+        {status && status.requiredForMe && !status.enabled && (
+          <div
+            role="alert"
+            className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+            data-testid="two-factor-required-banner"
+          >
+            {t("twoFactor.requiredBanner")}
+          </div>
+        )}
+
         {/* Tier 575 */}
         <ChangePasswordCard />
+
+        {/* Tier 861: the rule for the company's administrators */}
+        {role === "admin" && policy && (
+          <Card data-testid="admin-2fa-policy-card">
+            <CardHeader>
+              <CardTitle>{t("twoFactor.policyTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-gray-700 dark:text-gray-300">{t("twoFactor.policyText")}</p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={policy.requireAdmin2fa}
+                  disabled={savingPolicy || (policy.requireAdmin2fa && !status?.enabled)}
+                  onChange={async (e) => {
+                    setSavingPolicy(true)
+                    try {
+                      setPolicy(await apiPut<AdminTwoFactorPolicy>("/api/v1/auth/2fa/policy", { requireAdmin2fa: e.target.checked }))
+                      toastRef.current.success(tRef.current("twoFactor.policySaved"))
+                    } catch (err: any) {
+                      toastRef.current.error(err?.message ?? tRef.current("common.saveError"))
+                    } finally {
+                      setSavingPolicy(false)
+                    }
+                  }}
+                  data-testid="admin-2fa-policy-toggle"
+                />
+                {t("twoFactor.policyLabel")}
+              </label>
+              {policy.source === "default" && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t("twoFactor.policyDefault")}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {loading ? (
           <p
