@@ -124,6 +124,8 @@ jobs:
             if command -v npm >/dev/null; then echo "npm is in the image"; exit 1; fi
             npx prisma --version | grep -q "^prisma"
             if npx left-pad 2>/dev/null; then echo "npx ran a tool the program does not have"; exit 1; fi
+            # Tier 871: no manual backups here — the page must not offer them
+            node -e "const { BackupService } = require(\"./dist/modules/backup/backup.service\"); process.exit(new BackupService().manualAvailable() ? 1 : 0)"
           '
           test "$(docker inspect -f '{{json .Config.Cmd}}' de-invoice-backend:ci)" = '["node","--enable-source-maps","dist/main.js"]'
           # Tier 654: not root

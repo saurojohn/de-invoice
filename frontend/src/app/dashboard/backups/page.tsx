@@ -53,6 +53,8 @@ interface BackupListResponse {
   newest: BackupInfo | null
   health: "green" | "amber" | "red" | "grey"
   backupRoot: string
+  /** Tier 871: false in an installation without manual backups (the production image) */
+  manualAvailable?: boolean
 }
 
 interface VerifyResult {
@@ -250,13 +252,15 @@ export default function BackupsPage() {
           >
             {t("backup.refresh")}
           </Button>
-          <Button
-            onClick={trigger}
-            disabled={running}
-            data-testid="backup-trigger"
-          >
-            {running ? t("backup.triggerRunning") : t("backup.trigger")}
-          </Button>
+          {data?.manualAvailable !== false && (
+            <Button
+              onClick={trigger}
+              disabled={running}
+              data-testid="backup-trigger"
+            >
+              {running ? t("backup.triggerRunning") : t("backup.trigger")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -349,6 +353,13 @@ export default function BackupsPage() {
         </div>
       )}
 
+      {/* Tier 871: the manual backups — not in an installation without them (the production image) */}
+      {data?.manualAvailable === false ? (
+        <div className="text-sm px-3 py-2 rounded bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300" data-testid="backup-manual-unavailable">
+          {t("backup.manualUnavailable")}
+        </div>
+      ) : (
+      <>
       {/* Health chip + newest summary */}
       <div className="flex flex-wrap gap-3 text-sm">
         <div
@@ -508,6 +519,8 @@ export default function BackupsPage() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   )
 }

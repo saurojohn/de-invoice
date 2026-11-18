@@ -46,6 +46,10 @@ import { ProductionBackupsService } from './production-backups.service'
 import { BackupScheduler } from './backup.scheduler'
 import { RestoreCheckService } from './restore-check.service'
 
+
+/** Tier 871 */
+export const MANUAL_UNAVAILABLE_MESSAGE =
+  'Manuelle Sicherungen gibt es in dieser Installation nicht — die Datenbank wird stündlich automatisch gesichert (siehe „Automatische Sicherungen“), die Dateien ebenso.'
 // Tier 548: the installation's operator only (auth/system-admin.guard.ts)
 @SystemAuth()
 @Controller('admin/backups')
@@ -107,6 +111,15 @@ export class BackupController {
       newest,
       health: BackupService.healthColor(newest),
       backupRoot: this.backup['backupRoot'] as string,
+      // Tier 871: no manual backups in this installation — the page shows the automatic ones only
+      manualAvailable: this.backup.manualAvailable(),
+    }
+  }
+
+  /** Tier 871: the manual actions answer in words where they cannot work */
+  private assertManual(): void {
+    if (!this.backup.manualAvailable()) {
+      throw new ConflictException(MANUAL_UNAVAILABLE_MESSAGE)
     }
   }
 
@@ -125,6 +138,7 @@ export class BackupController {
   // pass, so 5/hr covers ~5 passes.
   @Throttle({ default: { limit: 5, ttl: 3_600_000 } })
   async run() {
+    this.assertManual()
     return this.backup.runBackup()
   }
 
@@ -138,6 +152,7 @@ export class BackupController {
   // in the list during restore-drill setup).
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async verify(@Param('id') id: string) {
+    this.assertManual()
     return this.backup.verify(id)
   }
 
@@ -167,6 +182,7 @@ export class BackupController {
   // spot-checks plus several test passes.
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
   async restoreDrill() {
+    this.assertManual()
     return this.backup.restoreDrill()
   }
 

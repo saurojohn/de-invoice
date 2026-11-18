@@ -218,6 +218,19 @@ export class BackupService {
     return fs.existsSync(this.scriptPath)
   }
 
+  /**
+   * Tier 871: whether the manual backups work here at all — the script for a
+   * new one, the docker CLI for checking and restoring one. The production
+   * image has neither (Tier 558): its database is dumped every hour by the
+   * compose file's backup container. The page offered „Backup erstellen“
+   * there anyway, and every click failed.
+   */
+  manualAvailable(): boolean {
+    if (!this.scriptAvailable()) return false
+    const dirs = String(process.env.PATH || '').split(path.delimiter).filter(Boolean)
+    return dirs.some((d) => fs.existsSync(path.join(d, 'docker')))
+  }
+
   async runBackup(): Promise<BackupRunResult> {
     const t0 = Date.now()
     const beforeDirs = new Set(

@@ -2104,7 +2104,8 @@
     "autoDiskLow": "空间不足 —— 请扩容或把旧备份移出服务器",
     "lostTitle": "数据库中缺少 {n} 张已开具的发票",
     "lostHint": "这些发票的存档副本还在，但数据库里没有——它们是在最近一次恢复所用的数据库备份之后开具的，客户已经收到。它们的编号不会再次分配。公司可在“发票”页面从副本恢复它们。",
-    "lostCopy": "副本：{path}"
+    "lostCopy": "副本：{path}",
+    "manualUnavailable": "本安装没有手动备份：数据库每小时自动备份，文件也一样（见上方）。恢复演练请在服务器上运行 `infra/prod/restore-drill.sh`。"
   },
   "systemHealth": {
     "title": "系统健康",

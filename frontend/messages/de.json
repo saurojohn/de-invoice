@@ -2104,7 +2104,8 @@
     "autoDiskLow": "zu wenig — bitte Speicher erweitern oder ältere Sicherungen auslagern",
     "lostTitle": "{n} ausgestellte Rechnung(en) fehlen in der Datenbank",
     "lostHint": "Von diesen Rechnungen liegt die abgelegte Kopie vor, in der Datenbank sind sie nicht — sie wurden nach der Datenbanksicherung ausgestellt, aus der zuletzt wiederhergestellt wurde. Der Kunde hat sie erhalten. Ihre Nummern werden nicht noch einmal vergeben. Die Firma stellt sie unter Rechnungen aus ihrer Kopie wieder her.",
-    "lostCopy": "Kopie: {path}"
+    "lostCopy": "Kopie: {path}",
+    "manualUnavailable": "Manuelle Sicherungen gibt es in dieser Installation nicht: Die Datenbank wird stündlich automatisch gesichert, die Dateien ebenso (oben). Eine Wiederherstellung probt `infra/prod/restore-drill.sh` auf dem Server."
   },
   "systemHealth": {
     "title": "System-Gesundheit",

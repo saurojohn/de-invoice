@@ -24,7 +24,7 @@ for dp, dn, fn in os.walk(os.path.join(root, 'src')):
 example = open(os.path.join(root, '.env.example'), encoding='utf-8').read() + open(os.path.join(root, '..', 'infra', 'prod', '.env.example'), encoding='utf-8').read()
 documented = set(re.findall(r'^#?\s*([A-Z][A-Z0-9_]+)=', example, re.M))
 # set by the platform or the test harness, not by an operator
-PLATFORM = {'NODE_ENV', 'PORT', 'HOME', 'JAVA_HOME', 'PG_CONTAINER', 'TZ', 'CI'}
+PLATFORM = {'NODE_ENV', 'PORT', 'HOME', 'PATH', 'JAVA_HOME', 'PG_CONTAINER', 'TZ', 'CI'}  # Tier 871: PATH (is docker there?)
 missing = sorted(used - documented - PLATFORM)
 print(len(used)); print(','.join(missing) or '-')
 PY

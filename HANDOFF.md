@@ -2673,6 +2673,37 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 871 — the backup page offers manual backups only where they work; in the production image it shows the automatic ones and a note
+
+The owner: „继续“.
+
+**Measured.** The manual backups — Tier 120's „Backup erstellen“, verify, and Tier 195's restore drill (`POST /admin/backups/restore-drill`) — run `scripts/backup.sh` and `docker exec` against the database container.
+
+The production image has neither (Tier 558). Its database is dumped every hour by the compose file's backup container. Checked in an image of this tree:
+- the script path resolves to `/scripts/backup.sh`, which is not there;
+- there is no `docker`, `pg_dump` or `pg_restore`.
+
+The page offered the button there anyway, and every click ended in „Backup fehlgeschlagen“. Next to the green automatic backups stood a red „Letztes Backup: noch nie“.
+
+**Change.**
+- `BackupService.manualAvailable()` is true when the script and a `docker` on PATH are there.
+- `GET /admin/backups` returns `manualAvailable`.
+- `run`, `verify` and `restore-drill` answer 409 with a note when it is false.
+- The page hides „Backup erstellen“, the health chip and the manual list, and shows the note instead (de/en/zh): the automatic backups are above, and `infra/prod/restore-drill.sh` rehearses a restore on the server.
+- `docker-build.yml` checks that the production image reports false.
+- Here and in CI nothing changes: script and docker are present.
+- Spec 363's list of platform variables gains `PATH`.
+
+**Specs.**
+- Spec 563 (new; 3 ✗ on Tier 870):
+  - available with docker on PATH, not without;
+  - the list says so; the three actions answer 409 with the note;
+  - the image check is there;
+  - here it is available.
+- Checked in an image of this tree: `manualAvailable()` is false.
+- Playwright `backups-manual-unavailable-tier871`: the answer set to false shows the note, with no button and no chip; here, the button.
+- The guards and the backup specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 870c — CI green for Tiers 870 and 870b, no flaky
 
 - **Run 44414704768 (Tier 870b, 70b20519):** backend **561 passed / 0 failed / 1 skipped** (562 included), Playwright **1170 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
