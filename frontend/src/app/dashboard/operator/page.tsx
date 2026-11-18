@@ -39,7 +39,8 @@ interface CronRow { name: string; health: Health }
 interface BackupStatus {
   db: { configured: boolean; latestAt: string | null; ageHours: number | null; ok: boolean }
   files: { configured: boolean; lastRunAt: string | null; ageHours: number | null; ok: boolean }
-  offsite: { configured: boolean; remote: string | null }
+  // Tier 870: ok null — the installation does not report the off-site copy's passes
+  offsite: { configured: boolean; remote: string | null; ok?: boolean | null; ageHours?: number | null; lastRunOk?: boolean | null }
   restore?: { lost: unknown[] }
 }
 interface StorageHealth { localPath: string; reachable: boolean; writable: boolean; freeBytes?: number; freeBytesFormatted?: string }
@@ -170,13 +171,19 @@ export default function OperatorPage() {
 
     const backup = apiGet<BackupStatus>("/api/v1/admin/backups/status").then((b): Area => {
       const lost = b.restore?.lost?.length ?? 0
-      const bad = (b.db.configured && !b.db.ok) || (b.files.configured && !b.files.ok)
+      const bad = (b.db.configured && !b.db.ok) || (b.files.configured && !b.files.ok) || b.offsite.ok === false
       return {
         health: bad ? "red" : !b.db.configured || lost > 0 || !b.offsite.configured ? "amber" : "green",
         lines: [
           F(L("Datenbank: {state}"), { state: lastBackup(b.db.configured, b.db.ok, b.db.ageHours) }),
           F(L("Belege: {state}"), { state: lastBackup(b.files.configured, b.files.ok, b.files.ageHours) }),
-          F(L("Kopie außer Haus: {state}"), { state: b.offsite.configured ? (b.offsite.remote || L("eingerichtet")) : L("nicht eingerichtet") }),
+          // Tier 870: when it last went through
+          F(L("Kopie außer Haus: {state}"), {
+            state: !b.offsite.configured ? L("nicht eingerichtet")
+              : b.offsite.ok == null ? (b.offsite.remote || L("eingerichtet"))
+              : b.offsite.lastRunOk === false ? L("der letzte Lauf ist gescheitert")
+              : lastBackup(true, !!b.offsite.ok, b.offsite.ageHours ?? null),
+          }),
           ...(lost > 0 ? [F(L("{n} Rechnungen nach einer Wiederherstellung nur als Kopie vorhanden"), { n: lost })] : []),
         ],
       }

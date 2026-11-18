@@ -33,8 +33,23 @@
 # ──────────────────────────────────────────────────────────
 set -u
 
+# Tier 870: each pass leaves its result where the backend reads it
+# ($STATUS_DIR, the `offsite_status` volume): last-run.json — when, ok or not,
+# why — and last-ok, the time of the last pass that went through. The backup
+# page and the hourly freshness check show a copy that stopped; before, the
+# page said „configured“ while nothing went off-site.
+status() { # true|false message
+  [ -n "${STATUS_DIR:-}" ] && [ -d "$STATUS_DIR" ] && [ -w "$STATUS_DIR" ] || return 0
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  clean() { printf '%s' "$1" | tr -d '"\\' | tr '\n\r\t' '   ' | cut -c1-300; }
+  printf '{"at":"%s","ok":%s,"remote":"%s","message":"%s"}\n' "$now" "$1" "$(clean "${REMOTE:-}")" "$(clean "$2")" \
+    > "$STATUS_DIR/last-run.json.tmp" && mv "$STATUS_DIR/last-run.json.tmp" "$STATUS_DIR/last-run.json"
+  if [ "$1" = true ]; then echo "$now" > "$STATUS_DIR/last-ok"; fi
+}
+
 if [ -z "${REMOTE:-}" ]; then
   echo "offsite: BACKUP_OFFSITE_REMOTE is not set in .env — nothing is copied"
+  status false "BACKUP_OFFSITE_REMOTE is not set — nothing is copied"
   exit 1
 fi
 
@@ -43,6 +58,7 @@ TYPE=$(rclone listremotes --long 2>/dev/null | awk -v n="$NAME:" '$1 == n { prin
 if [ "$TYPE" != "crypt" ]; then
   echo "offsite: BACKUP_OFFSITE_REMOTE=$REMOTE is no crypt remote (type: ${TYPE:-not in rclone.conf}) — nothing is copied."
   echo "offsite: the dumps and files would lie there unencrypted. Wrap the storage in a crypt remote (HETZNER-DEPLOY.md §9) and set BACKUP_OFFSITE_REMOTE to it."
+  status false "$REMOTE is no crypt remote (type: ${TYPE:-not in rclone.conf}) — nothing is copied"
   exit 1
 fi
 
@@ -59,9 +75,11 @@ while true; do
   date -u +"%Y-%m-%dT%H:%M:%SZ offsite: start"
   if pass; then
     date -u +"%Y-%m-%dT%H:%M:%SZ offsite: ok"
+    status true "ok"
     [ "${ONCE:-}" = "1" ] && exit 0
   else
     date -u +"%Y-%m-%dT%H:%M:%SZ offsite: FAILED"
+    status false "the copy failed — docker compose logs offsite-backup"
     [ "${ONCE:-}" = "1" ] && exit 1
   fi
   sleep "${INTERVAL_SECONDS:-3600}"

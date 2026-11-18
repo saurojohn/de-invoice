@@ -85,6 +85,15 @@ export class BackupScheduler {
         ? `Letzte Dateisicherung vor ${files.ageHours} Std. (${files.lastRunAt}) — erwartet höchstens ${files.maxAgeHours} Std.`
         : `Noch keine Dateisicherung in ${files.dir}`)
     }
+    // Tier 870: the off-site copy — failing, or not current
+    const offsite = this.production.offsiteStatus()
+    if (offsite.ok === false && !(offsite.lastRunAt == null && upHours < offsite.maxAgeHours)) {
+      problems.push(offsite.lastRunOk === false
+        ? `Kopie außer Haus fehlgeschlagen (${offsite.lastRunAt}): ${offsite.message ?? 'ohne Angabe'}`
+        : offsite.lastOkAt
+          ? `Letzte Kopie außer Haus vor ${offsite.ageHours} Std. (${offsite.lastOkAt}) — erwartet höchstens ${offsite.maxAgeHours} Std.`
+          : `Noch keine Kopie außer Haus nach ${offsite.remote}`)
+    }
     // Tier 727b: the disk the backups are on — before it is full, not after
     for (const disk of [db.disk, files.disk]) {
       if (disk?.low) {
@@ -97,7 +106,7 @@ export class BackupScheduler {
     if (restore.lost.length) problems.push(describeLost(restore.lost))
     if (problems.length) {
       const message = `Datensicherung: ${problems.join('; ')}`
-      await this.errors.capture({ source: 'backend', kind: 'manual', message, context: { db, files, lost: restore.lost } }).catch(() => {})
+      await this.errors.capture({ source: 'backend', kind: 'manual', message, context: { db, files, offsite, lost: restore.lost } }).catch(() => {})
       throw new Error(message)
     }
     return `db ${db.configured ? `${db.ageHours} h` : '—'}, files ${files.configured ? `${files.ageHours} h` : '—'}`

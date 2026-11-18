@@ -112,6 +112,9 @@ volumes:
     # Tier 727: the backend's hourly mirror of `storage` (kept invoice copies,
     # receipts, attachments) — nothing is deleted here, changed files keep
     # their earlier version under versions/.
+  offsite_status:
+    # Tier 870: the off-site copy's last result (offsite-backup.sh writes it,
+    # the backend reads it for the backup page and the hourly check).
   caddy_data:
     # Caddy's data dir — stores issued certs, ACME account
     # state, and on-demand TLS state. Without this volume
@@ -284,11 +287,15 @@ services:
       BACKUP_DB_DIR: /backups
       BACKUP_FILES_DIR: /data/backup-files
       BACKUP_OFFSITE_REMOTE: ${BACKUP_OFFSITE_REMOTE:-}
+      # Tier 870: where the off-site copy leaves its last result
+      BACKUP_OFFSITE_STATUS_DIR: /data/offsite-status
     volumes:
       - storage:/data/invoice-system
       # Tier 727: the dumps (read only) and the file mirror
       - backups:/backups:ro
       - backup_files:/data/backup-files
+      # Tier 870: the off-site copy's last result (read only)
+      - offsite_status:/data/offsite-status:ro
     # Tier 654: the image runs as `app` (it ran as root). Read-only root
     # filesystem — uploads and PDFs go to the volume, temporary files (the
     # validator's reports, npm's cache for `npx prisma migrate deploy`) to
@@ -483,6 +490,7 @@ services:
       INTERVAL_SECONDS: ${BACKUP_OFFSITE_INTERVAL_SECONDS:-3600}
       RCLONE_CONFIG: /config/rclone/rclone.conf
       RCLONE_CACHE_DIR: /tmp/rclone-cache
+      STATUS_DIR: /status # Tier 870: each pass's result, for the backend
     # Tier 733c: the loop is a script of its own — it copies, never deletes
     # because of what is (not) here; a new server's first pass used to sync
     # the remote down to its empty dumps
@@ -490,6 +498,7 @@ services:
     volumes:
       - backups:/backups:ro
       - backup_files:/data/backup-files:ro
+      - offsite_status:/status # Tier 870
       - ./rclone.conf:/config/rclone/rclone.conf:ro
       - ./offsite-backup.sh:/offsite-backup.sh:ro
     read_only: true

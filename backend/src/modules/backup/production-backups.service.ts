@@ -76,6 +76,28 @@ export interface FilesBackupStatus {
   ok: boolean
 }
 
+/**
+ * Tier 870 — the off-site copy, as its last pass left it (offsite-backup.sh
+ * writes `last-run.json` and `last-ok` into BACKUP_OFFSITE_STATUS_DIR).
+ */
+export interface OffsiteStatus {
+  /** a remote is set (BACKUP_OFFSITE_REMOTE) */
+  configured: boolean
+  remote: string | null
+  /** where the results are read; unset: the installation does not report them */
+  statusDir: string | null
+  lastRunAt: string | null
+  lastRunOk: boolean | null
+  /** the last pass's own words: „ok“, or why it copied nothing */
+  message: string | null
+  lastOkAt: string | null
+  /** hours since the last pass that went through */
+  ageHours: number | null
+  maxAgeHours: number
+  /** null when nothing reports (no status dir); else whether the copy is current */
+  ok: boolean | null
+}
+
 export interface MirrorResult {
   files: number
   copied: number
@@ -116,6 +138,41 @@ export class ProductionBackupsService {
   get storageDir(): string {
     // as storage.service.ts resolves it
     return process.env.STORAGE_PATH || path.join(os.homedir(), 'data', 'invoice-system')
+  }
+
+  /** Tier 870: the off-site copy's last pass — current, failing, or never run */
+  offsiteStatus(now = new Date()): OffsiteStatus {
+    const remote = process.env.BACKUP_OFFSITE_REMOTE?.trim() || null
+    const statusDir = process.env.BACKUP_OFFSITE_STATUS_DIR?.trim() || null
+    // an hourly copy; a long first pass (all the files) is allowed for
+    const maxAgeHours = hoursEnv('BACKUP_OFFSITE_MAX_AGE_HOURS', 6)
+    const base = { configured: !!remote, remote, statusDir, lastRunAt: null, lastRunOk: null, message: null, lastOkAt: null, ageHours: null, maxAgeHours }
+    if (!remote || !statusDir) return { ...base, ok: null }
+    let run: { at?: unknown; ok?: unknown; message?: unknown } = {}
+    try {
+      run = JSON.parse(fs.readFileSync(path.join(statusDir, 'last-run.json'), 'utf8'))
+    } catch {
+      run = {}
+    }
+    let lastOkAt: string | null = null
+    try {
+      const t = fs.readFileSync(path.join(statusDir, 'last-ok'), 'utf8').trim()
+      if (!Number.isNaN(Date.parse(t))) lastOkAt = new Date(t).toISOString()
+    } catch {
+      lastOkAt = null
+    }
+    const lastRunAt = typeof run.at === 'string' && !Number.isNaN(Date.parse(run.at)) ? new Date(run.at).toISOString() : null
+    const lastRunOk = typeof run.ok === 'boolean' ? run.ok : null
+    const ageHours = lastOkAt ? Math.round(((now.getTime() - Date.parse(lastOkAt)) / 3_600_000) * 10) / 10 : null
+    return {
+      ...base,
+      lastRunAt,
+      lastRunOk,
+      message: typeof run.message === 'string' ? run.message.slice(0, 300) : null,
+      lastOkAt,
+      ageHours,
+      ok: lastRunOk === true && ageHours != null && ageHours <= maxAgeHours,
+    }
   }
 
   dbStatus(now = new Date()): DbBackupStatus {

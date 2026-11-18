@@ -69,7 +69,8 @@ export class BackupController {
     const files = this.production.filesStatus()
     // Tier 733: invoices only left as their kept copy (after a restore)
     const restore = await this.restoreCheck.check()
-    return { db, files, restore, offsite: { configured: !!process.env.BACKUP_OFFSITE_REMOTE?.trim(), remote: process.env.BACKUP_OFFSITE_REMOTE?.trim() || null } }
+    // Tier 870: the off-site copy's last pass, not only whether one is set up
+    return { db, files, restore, offsite: this.production.offsiteStatus() }
   }
 
   /** Tier 727: the file backup now (it runs every hour) */

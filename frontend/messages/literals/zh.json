@@ -293,5 +293,6 @@
  "— Konto wählen —": "— 选择科目 —",
  "⚠ Steuerbefreit": "⚠ 免税",
  "✓ Speichern": "✓ 保存",
- "📥 Kunden aus CSV importieren": "📥 从 CSV 导入客户"
+ "📥 Kunden aus CSV importieren": "📥 从 CSV 导入客户",
+ "der letzte Lauf ist gescheitert": "最近一次运行失败"
 }

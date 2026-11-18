@@ -2673,6 +2673,32 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 870 — the off-site copy says how its last pass went; a copy that stopped turns the backup page, the operator page and the hourly check red
+
+The owner: „继续“.
+
+**Measured** on Tier 869. The backup page and the operator page said „Kopie außer Haus: <remote>“ (green) as soon as `BACKUP_OFFSITE_REMOTE` was set — whether the `offsite-backup` service ran, copied, or refused (Tier 856 refuses a plain remote; the container then restarts in a loop). The dumps and the file mirror have a freshness check (Tier 727); the off-site copy had none. A copy that stopped stayed unseen until the day a restore needed it. Spec 562: 11 ✗ on Tier 869.
+
+**Change.**
+- `offsite-backup.sh` writes after every pass, and at each refusal (no remote, not crypt), into `$STATUS_DIR`:
+  - `last-run.json` — time, ok, remote, message;
+  - `last-ok` — the time of the last pass that went through.
+- Compose: a volume `offsite_status`, written by the service at `/status` and read by the backend at `/data/offsite-status:ro` (`BACKUP_OFFSITE_STATUS_DIR`).
+- `ProductionBackupsService.offsiteStatus()`: `ok` when the last pass went through and the last good one is at most `BACKUP_OFFSITE_MAX_AGE_HOURS` old (default 6: an hourly copy, room for a long first pass). Without a status dir it is `null` — unknown, shown as before.
+- `GET /admin/backups/status` returns the whole status.
+- The hourly freshness check reports a failing pass (with its words), a copy too old, or none yet — after the app has been up longer than the allowed age.
+- **Backup page:** the remote is red when not ok. Below it: the age of the last copy, and why the last run failed or that the copy is too old (de/en/zh).
+- **Operator page:** the area is red when not ok, and the line says „der letzte Lauf ist gescheitert“ or the age.
+
+**Specs.**
+- Spec 562 (new):
+  - the script in the rclone image leaves ok and `last-ok` after a crypt pass, and not ok with the reason for a plain remote or none;
+  - the backend reads fresh, ten hours old, refusing, never ran, not reporting, not set up;
+  - the scheduler's messages;
+  - the compose wiring.
+- Related backend specs (124 144 333 388 438 449 451 452 453 538 541 549 556, 46, 347) pass.
+- Playwright `backups-automatic-tier727`, `operator-page-tier822`, `operator-cards-tier598` and `ui-walk-tier590` pass. `backups.spec` passes except its manual backup, which waits 90 s: the local test database has grown to 1.5 GB (71 455 invoices from repeated full runs), and the dump takes longer. CI starts from a fresh one.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 869b — CI green for Tier 869, no flaky; Trivy finds nothing in either image
 
 - **Run 44396607404 (Tier 869, 3505374d):** backend **560 passed / 0 failed / 1 skipped** (561 included), Playwright **1170 passed**, 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

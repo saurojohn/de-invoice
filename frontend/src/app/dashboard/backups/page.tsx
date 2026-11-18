@@ -103,7 +103,8 @@ interface DiskSpace { totalBytes: number; freeBytes: number; freePercent: number
 interface AutoStatus {
   db: { configured: boolean; latestAt: string | null; ageHours: number | null; latestSizeBytes: number; counts: { hourly: number; daily: number; weekly: number; monthly: number }; totalBytes?: number; disk?: DiskSpace | null; maxAgeHours: number; ok: boolean }
   files: { configured: boolean; lastRunAt: string | null; ageHours: number | null; files: number; bytes: number; versions: number; mirrorBytes?: number; versionsBytes?: number; disk?: DiskSpace | null; maxAgeHours: number; ok: boolean }
-  offsite: { configured: boolean; remote: string | null }
+  // Tier 870: the off-site copy's last pass (ok null: the installation does not report it)
+  offsite: { configured: boolean; remote: string | null; lastRunAt?: string | null; lastRunOk?: boolean | null; message?: string | null; lastOkAt?: string | null; ageHours?: number | null; maxAgeHours?: number; ok?: boolean | null }
   /** Tier 733: issued invoices left only as their kept copy (after a restore) */
   restore?: { lost: { companyId: string; companyName: string; invoiceNumber: string; pdfPath: string; foundAt: string }[] }
 }
@@ -313,10 +314,26 @@ export default function BackupsPage() {
             </div>
             <div className="space-y-1" data-testid="backup-auto-offsite">
               <div className="font-medium">{t("backup.autoOffsite")}</div>
-              <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${auto.offsite.configured ? healthBg("green") : healthBg("amber")}`}>
+              <span
+                className={`inline-block px-2 py-0.5 rounded-full text-xs ${!auto.offsite.configured ? healthBg("amber") : auto.offsite.ok === false ? healthBg("red") : healthBg("green")}`}
+                data-testid="backup-auto-offsite-state"
+              >
                 {auto.offsite.configured ? auto.offsite.remote : t("backup.autoOffsiteNone")}
               </span>
               {!auto.offsite.configured && <div className="text-xs text-gray-600 dark:text-gray-400">{t("backup.autoOffsiteHint")}</div>}
+              {/* Tier 870: when it last went through, and why not */}
+              {auto.offsite.configured && auto.offsite.ok != null && (
+                <div className="text-xs text-gray-600 dark:text-gray-400" data-testid="backup-auto-offsite-last">
+                  {auto.offsite.ageHours == null ? t("backup.autoOffsiteNever") : t("backup.autoOffsiteLast", { age: formatAge(auto.offsite.ageHours) })}
+                </div>
+              )}
+              {auto.offsite.configured && auto.offsite.ok === false && (
+                <div className="text-xs text-red-700 dark:text-red-300" data-testid="backup-auto-offsite-problem">
+                  {auto.offsite.lastRunOk === false
+                    ? t("backup.autoOffsiteFailed", { message: auto.offsite.message ?? "" })
+                    : t("backup.autoOffsiteStale", { max: String(auto.offsite.maxAgeHours ?? "") })}
+                </div>
+              )}
             </div>
           </div>
           {/* Tier 727b: the disk the backups are on */}

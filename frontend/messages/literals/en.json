@@ -293,5 +293,6 @@
  "— Konto wählen —": "— Choose an account —",
  "⚠ Steuerbefreit": "⚠ Tax-exempt",
  "✓ Speichern": "✓ Save",
- "📥 Kunden aus CSV importieren": "📥 Import customers from CSV"
+ "📥 Kunden aus CSV importieren": "📥 Import customers from CSV",
+ "der letzte Lauf ist gescheitert": "the last run failed"
 }
