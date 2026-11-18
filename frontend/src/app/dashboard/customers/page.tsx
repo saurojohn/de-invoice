@@ -15,6 +15,7 @@ import { useToast } from "@/components/useToast"
 import { apiGet, apiPost, apiPut, apiDelete, ApiError } from "@/lib/api"
 import { PaymentTermSelect } from "@/components/PaymentTermSelect"
 import { askConfirm } from "@/components/ConfirmDialog" // Tier 827
+import { safeSnippet } from "@/lib/search-snippet"
 
 interface Customer {
   id: string
@@ -978,7 +979,7 @@ export default function CustomersPage() {
                         {searchSnippets[customer.id] ? (
                           <span
                             dangerouslySetInnerHTML={{
-                              __html: searchSnippets[customer.id],
+                              __html: safeSnippet(searchSnippets[customer.id]), // Tier 867
                             }}
                             data-testid="customer-search-snippet"
                           />

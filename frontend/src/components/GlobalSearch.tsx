@@ -34,6 +34,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
+import { safeSnippet } from "@/lib/search-snippet"
 
 interface GlobalHit {
   id: string
@@ -293,7 +294,7 @@ export default function GlobalSearch() {
                       <div className="flex-1 min-w-0">
                         <div
                           className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
-                          dangerouslySetInnerHTML={{ __html: h.snippet }}
+                          dangerouslySetInnerHTML={{ __html: safeSnippet(h.snippet) }}
                         />
                         {h.subtitle && (
                           <div className="text-xs text-gray-500 truncate">

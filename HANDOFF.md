@@ -2673,6 +2673,21 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 867 — a search snippet carries no HTML from the data (a product's raw name ran as HTML in the search box); the box keeps only <mark>
+
+**Measured** on Tier 866. The search snippets are rendered as HTML for their `<mark>`s (GlobalSearch, the customer list). Tier 317 escaped the text before marking it — but a product found by its description, with no word of its name marked, got its **raw name** as the snippet. The invoice number had the same fallback.
+
+A product named `<b onmouseover=alert(1)>X</b>` with the description „Holzstuhl aus Eiche“, searched for „eiche“, came back as that tag. In the search box it was a live element for everyone in the company: whoever may create products (an accountant) could run script in the administrator's session.
+
+**Change.**
+- `search.service.ts`: both fallbacks go through `markTermsInText(x, [])`, which escapes.
+- `frontend/src/lib/search-snippet.ts` `safeSnippet()`: every tag but `<mark>` becomes text again. Both places that render snippets use it, so a server-side slip is no script any more.
+
+**Specs.**
+- Spec 559 (new; 3 ✗ on Tier 866): the product found by its description shows its name as text, no tag in any snippet, no raw fallback left.
+- Playwright `search-snippet-no-html-tier867` answers the search with a raw tag on purpose. No injected element, the text shown, the `<mark>` kept. It fails without `safeSnippet`.
+- The search specs (60 95 177; Playwright global-search and search-highlight) pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 866 — a company's name is text in the team invitation's HTML; the sender's name and address are given apart
 
 **Measured** on Tier 865 through a mailbox (`fixtures/smtp-sink.py`):

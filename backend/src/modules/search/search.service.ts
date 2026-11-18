@@ -291,7 +291,9 @@ export class SearchService {
       } else if (markedSku.includes('<mark>')) {
         snippet = markedSku
       } else {
-        snippet = r.name
+        // Tier 867: escaped like the marked ones — the raw name went to
+        // dangerouslySetInnerHTML (GlobalSearch) when only the description matched
+        snippet = markTermsInText(r.name, [])
       }
       return {
         row: {
@@ -378,7 +380,7 @@ export class SearchService {
       } else if (markedCustomerName.includes('<mark>')) {
         snippet = markedCustomerName
       } else {
-        snippet = r.invoiceNumber
+        snippet = markTermsInText(r.invoiceNumber, []) // Tier 867: escaped, as above
       }
       return {
         row: {
