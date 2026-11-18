@@ -119,6 +119,11 @@ jobs:
             test -d node_modules/.prisma/client
             test -f /infra/kosit/validator.jar
             java -version
+            # Tier 869: no npm in the image; npx runs the program'"'"'s own tool
+            test ! -e /usr/local/lib/node_modules/npm
+            if command -v npm >/dev/null; then echo "npm is in the image"; exit 1; fi
+            npx prisma --version | grep -q "^prisma"
+            if npx left-pad 2>/dev/null; then echo "npx ran a tool the program does not have"; exit 1; fi
           '
           test "$(docker inspect -f '{{json .Config.Cmd}}' de-invoice-backend:ci)" = '["node","--enable-source-maps","dist/main.js"]'
           # Tier 654: not root
@@ -197,6 +202,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(docker inspect -f '{{.Config.User}}' de-invoice-frontend:ci)" = 'app'
+          # Tier 869: no npm in the image
+          docker run --rm --entrypoint sh de-invoice-frontend:ci -c '! command -v npm && ! command -v npx && test ! -e /usr/local/lib/node_modules/npm'
           docker run -d --name harden-fe -e NODE_ENV=production -e PORT=3000 -e HOSTNAME=0.0.0.0 \
             --read-only --tmpfs /tmp --tmpfs /app/.next/cache --cap-drop ALL --security-opt no-new-privileges:true de-invoice-frontend:ci
           for i in $(seq 1 30); do docker exec harden-fe wget -q --spider http://localhost:3000/login 2>/dev/null && break; sleep 2; done

@@ -74,10 +74,14 @@ RUN npm run build
 # ─── Stage 3: runtime ──────────────────────────────────────────
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 WORKDIR /app
+# Tier 869: npm leaves the image — `node server.js` never needs it, and its
+# own dependencies were the image's ten HIGH advisories (Trivy)
 RUN apt-get update \
   && apt-get install -y --no-install-recommends wget ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
-  && addgroup --system app && adduser --system --ingroup app app
+  && addgroup --system app && adduser --system --ingroup app app \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 ENV NODE_ENV=production \
     PORT=3000 \

@@ -2673,6 +2673,29 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 869 — npm is not in the production images; the backend keeps `npx <tool>` for the program's own tools
+
+The owner: „继续“.
+
+**Measured.** Trivy (Tier 858) listed ten HIGH advisories in each image, every one in the npm that `node:22-bookworm-slim` brings along (`/usr/local/lib/node_modules/npm`): sigstore, pacote, ip-address, brace-expansion (5 CVEs), picomatch — npm's own dependencies. The running programs never use npm: the frontend runs `node server.js`, the backend `node dist/main.js`, and no code spawns npm or npx. The only npm command in a running container is `npx prisma …`, which RUNBOOK, `restore.sh` and the image check use for `migrate deploy`.
+
+**Change.**
+- **Frontend runtime stage:** `npm`, `npx`, `corepack` and their modules removed.
+- **Backend runtime stage**, as root before the stage turns to `app` (spec 388: it never turns back):
+  - the same removal;
+  - a stand-in `/usr/local/bin/npx` that runs `/app/node_modules/.bin/<tool>` and refuses anything else (exit 127, naming the tools there). Every documented `npx prisma migrate deploy` keeps working, and nothing comes from the registry.
+  - `prisma generate` in the image build runs `./node_modules/.bin/prisma`.
+- `docker-build.yml` checks:
+  - backend — no npm, `npx prisma --version` works, `npx left-pad` is refused;
+  - frontend — no npm, no npx.
+
+**Verified** with images built from this tree:
+- the hardened backend migrates via `npx prisma migrate deploy` on a read-only root, answers `/health/deep`, and reads a receipt (201) and fails cleanly without language data (503);
+- the hardened frontend serves `/login`;
+- both run as `app`.
+
+**Specs.** Spec 561 (new): both runtime stages remove npm, the backend's removal comes before `USER app`, the stand-in, `prisma generate` without npx, the image check's assertions, and the local image when it is there. Specs 124, 341, 388, 438, 474, 477, 526, 548 and 551 pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 868b — CI green for Tiers 868, 856c and 858b, no flaky; 2027 checked
 
 - **Run 44339165662 (Tier 856c, 9ca9239c):** backend **559 passed / 0 failed / 1 skipped**, Playwright **1170 passed**, 0 flaky, no retry, no Traceback, no `REFUSED`.

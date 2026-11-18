@@ -183,6 +183,21 @@ COPY --from=kosit / /infra/kosit/
 # left root-owned is handed over by the entrypoint (see there).
 # Tier 727: the file mirror of the backups — a new volume takes this owner too
 RUN mkdir -p /data/invoice-system /data/backup-files && chown app:app /data/invoice-system /data/backup-files /app
+
+# Tier 869: npm leaves the image. The running program never needs it; its own
+# dependencies (sigstore, pacote, ip-address, brace-expansion, picomatch) were
+# the image's ten HIGH advisories (Trivy). `npx <tool>` stays a command — the
+# documented `npx prisma migrate deploy` (RUNBOOK, restore.sh) — and runs the
+# program's own tool from node_modules/.bin, nothing from the registry.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+  && printf '%s\n' '#!/bin/sh' \
+      '# Tier 869: npm is not in this image - npx runs the program'"'"'s own tool' \
+      'tool="$1"; [ -n "$tool" ] && shift' \
+      'if [ -n "$tool" ] && [ -x "/app/node_modules/.bin/$tool" ]; then exec "/app/node_modules/.bin/$tool" "$@"; fi' \
+      'echo "npx: npm is not installed in this image; tools: $(ls /app/node_modules/.bin | tr "\n" " ")" >&2' \
+      'exit 127' > /usr/local/bin/npx \
+  && chmod 755 /usr/local/bin/npx
 COPY --chown=app:app docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod 0555 /app/docker-entrypoint.sh
 EXPOSE 3001
@@ -209,8 +224,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 USER app
 ENV NPM_CONFIG_CACHE=/tmp/.npm \
     NPM_CONFIG_UPDATE_NOTIFIER=false
+# (Tier 869: the program's own prisma — npm is no longer in the image)
 RUN DATABASE_URL=postgresql://nobody:nobody@127.0.0.1:1/nobody \
-    npx prisma generate 2>&1 | tail -2 && rm -rf /tmp/.npm
+    ./node_modules/.bin/prisma generate 2>&1 | tail -2 && rm -rf /tmp/.npm
+
 
 # Tier 828: which code this is (infra/prod/build.sh passes them; empty for a
 # build by hand). Last, so that a new commit does not rebuild the layers above.
