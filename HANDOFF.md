@@ -2673,6 +2673,22 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 868 — a voucher template's {month}/{year} take the German day; a guard against any day cut from the UTC clock
+
+The owner: „继续“. A sweep of „today“ across both packages, six weeks before the year changes.
+
+**Measured.** Tiers 478, 750 and 756 moved every business „today“ onto the German day (`common/business-date.ts`, frontend `lib/today.ts`). Left: `voucher-template.service.ts` filled `{month}` and `{year}` of a template applied without a date from `new Date().toISOString()`. At 00:30 on 1 November that is still October in UTC: „Miete 10/2026“ for November's rent.
+
+Checked and in order:
+- every other `getUTC*` on now — the credit note, the dashboard months, the auto-booker's next run;
+- the frontend's three `toISOString().slice` uses — the statement's default range, the due date, the KU switch. Each is built from UTC parts or a date string.
+
+**Change.**
+- The placeholders take `applyData.date || businessTodayIso()`.
+- Spec 560 (new) guards both packages: no `new Date()` / `new Date(Date.now())` ISO string cut to a day, month or year, and no `|| new Date().toISOString()` cut.
+
+**Specs.** 560 (fails on Tier 867 at the template's two lines); the voucher-template specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 867b — CI green for Tiers 865–867, no flaky
 
 - **Run 44309174517 (Tier 865, 0ad944e6):** backend **556 passed / 0 failed / 1 skipped**, Playwright **1169 passed**, 0 flaky, no retry, no Traceback, no `REFUSED`.

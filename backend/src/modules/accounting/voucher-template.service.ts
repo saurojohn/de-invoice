@@ -18,6 +18,7 @@
  * (we resolve accountNumber → accountId at apply time).
  */
 
+import { businessTodayIso } from '../../common/business-date'
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -444,8 +445,11 @@ export class VoucherTemplateService {
     //   {counterparty} → applyData.counterparty or "" (placeholder stays unfilled if not supplied)
     let description = applyData.description ?? template.descriptionPattern ?? template.name;
     const unfilledPlaceholders: string[] = [];
-    const month = (applyData.date || new Date().toISOString()).slice(5, 7);
-    const year = (applyData.date || new Date().toISOString()).slice(0, 4);
+    // Tier 868: without a date, the German day — at 00:30 on the 1st the UTC
+    // instant was still last month („Miete 10/2026“ for November's rent)
+    const day = applyData.date || businessTodayIso();
+    const month = day.slice(5, 7);
+    const year = day.slice(0, 4);
     // Track unfilled placeholders BEFORE substitution
     // — once we substitute, the {name} is gone from
     // the string. Scan for any known placeholder
