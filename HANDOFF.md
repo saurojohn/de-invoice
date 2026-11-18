@@ -2745,6 +2745,7 @@ Security audit, item 8. The owner chose (18.11.2026, asked): „可由公司设�
   - the security page shows a banner when it is required and not yet set up, and, for administrators, the switch with an explanation (disabled while the rule is on and the administrator has no 2FA yet);
   - texts in de/en/zh.
 - HETZNER-DEPLOY.md §7a: after the first registration, set up 2FA (the app shows only „Sicherheit“ until then).
+- **Tier 861c.** The Docker images run of Tier 864 (44283702747) failed at the receipt-scanner check: the hardened image runs in production, where the rule is on by default, and the check's freshly registered administrator was refused (403 TWO_FACTOR_REQUIRED). This was not seen at Tier 861 because that push touched none of the paths that start the image workflow. `scripts/ci-ocr-check.js` now sets up 2FA (`setup`, `enable` with an otplib code, not in the last seconds of a step), as the first administrator does — so the image's own 2FA flow is exercised too. Reproduced with an image of Tier 864: refused before, both checks (201 and 503) pass after.
 
 **Specs.**
 - Spec 553 (new; 12 ✗ on Tier 860):

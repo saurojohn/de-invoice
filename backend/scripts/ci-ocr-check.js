@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global require, process, fetch, FormData, Blob, AbortSignal, console */
+/* global require, process, fetch, FormData, Blob, AbortSignal, console, setTimeout */
 // Tier 756 — the receipt scanner of a running backend, through its own API.
 //
 //   node scripts/ci-ocr-check.js 201   a German receipt is read
@@ -41,6 +41,9 @@ async function main() {
   const body = await reg.json()
   const companyId = body.user.companyId || body.company.id
   const cookie = reg.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
+  // Tier 861: a production installation asks its administrators for 2FA
+  // (auth/admin-two-factor.ts) — set it up, as the first administrator does
+  await enableTwoFactor({ cookie, 'x-company-id': companyId, origin: ORIGIN })
 
   const form = new FormData()
   form.append('file', new Blob([receipt()], { type: 'image/png' }), 'beleg.png')
@@ -60,6 +63,23 @@ async function main() {
   } else if (!/Belegerkennung/.test(text)) {
     throw new Error(`no word about the scanner: ${text.slice(0, 300)}`)
   }
+}
+
+async function enableTwoFactor(headers) {
+  const { authenticator } = require('otplib')
+  const post = async (path, body) => {
+    const r = await fetch(`${API}/auth/2fa/${path}`, {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (r.status !== 201) throw new Error(`2fa ${path}: ${r.status} ${await r.text()}`)
+    return r.json()
+  }
+  const { secret } = await post('setup', {})
+  // not in the last seconds of a step: the code must still count when it arrives
+  while (Math.floor(Date.now() / 1000) % 30 >= 25) await new Promise((r) => setTimeout(r, 1000))
+  await post('enable', { code: authenticator.generate(secret) })
 }
 
 main().catch((e) => {
