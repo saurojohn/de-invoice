@@ -69,8 +69,10 @@ note "=== 3. the crypt remote: copied, nothing readable there ==="
 run_once
 assert_eq "one pass: ok" "$RC/$(grep -c 'offsite: ok' <<<"$OUT")" "0/1"
 assert_eq "two files on the storage" "$(find "$W/remote" -type f | wc -l | tr -d ' ')" "2"
+# whole path parts, not substrings: crypt's names are random base32 (a-z, 2-7) and
+# may contain „sql“ or begin with „db“ by chance (CI run 44331580669)
 assert_eq "no name there says what it is (no .sql.gz, no RE-549, no de_invoice, no last/)" \
-  "$(find "$W/remote" | grep -c -E 'sql|RE-549|de_invoice|/last|/files|/db')" "0"
+  "$(cd "$W/remote" && find . -mindepth 1 | tr '/' '\n' | grep -c -E '^(db|last|daily|weekly|monthly|files)$|\.sql\.gz$|^RE-549|de_invoice')" "0"
 assert_eq "no file there is a gzip (the dump's own format)" \
   "$(find "$W/remote" -type f -exec sh -c 'head -c2 "$1" | od -An -tx1 | tr -d " \n"; echo' sh {} \; | grep -c '^1f8b')" "0"
 assert_eq "the IBAN and the invoice text are nowhere there in the clear" \

@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 856c — spec 549 checks the off-site names by whole path parts, not substrings
+
+CI run 44331580669 (Tier 868): backend 558 passed, 1 failed; Playwright 1170 passed, 0 flaky.
+
+The one failure was spec 549's „no name there says what it is“. It grepped the encrypted names for substrings (`sql`, `/db`, …). Crypt's names are random base32 (a–z, 2–7) and can contain „sql“ or begin with „db“ by chance — one of the six did. The spec was flaky by construction; nothing in the program was wrong.
+
+It now compares whole path parts: `db`, `last`, `daily`, `weekly`, `monthly`, `files`, a `.sql.gz` ending, `RE-549…`, `de_invoice`. The `.` and `_` of the real names cannot occur in base32. Three local runs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 868 — a voucher template's {month}/{year} take the German day; a guard against any day cut from the UTC clock
 
 The owner: „继续“. A sweep of „today“ across both packages, six weeks before the year changes.
