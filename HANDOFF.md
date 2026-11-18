@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 869b — CI green for Tier 869, no flaky; Trivy finds nothing in either image
+
+- **Run 44396607404 (Tier 869, 3505374d):** backend **560 passed / 0 failed / 1 skipped** (561 included), Playwright **1170 passed**, 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- **Docker images 44396607393:** both built.
+  - The checks passed: no npm; `npx prisma` works; `npx left-pad` is refused.
+  - Every hardened step passed — the refusal without key and token; 2FA, then the receipt read (201) and the clean refusal without language data (503).
+  - **Trivy: 0 findings in both images, HIGH and CRITICAL** (before: 10 HIGH each, all in npm).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 869 — npm is not in the production images; the backend keeps `npx <tool>` for the program's own tools
 
 The owner: „继续“.
