@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 867b — CI green for Tiers 865–867, no flaky
+
+- **Run 44309174517 (Tier 865, 0ad944e6):** backend **556 passed / 0 failed / 1 skipped**, Playwright **1169 passed**, 0 flaky, no retry, no Traceback, no `REFUSED`.
+- **Run 44317075473 (Tiers 866–867, 19a15e41):** backend **558 passed / 0 failed / 1 skipped** (557, 558 and 559 included), Playwright **1170 passed** (the snippet spec included), 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- Looked at in this round without a finding: the logo route, the file store's paths, `forgot-password` (generic answer, 3 an hour, the link's origin from the configured list), the portal links (the public request has been closed since Tier 703; a token only goes to the company), the login's redirect (always /dashboard), links built from typed URLs (none), archive extraction (none), XML entities (the e-invoice reader refuses any DOCTYPE).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 867 — a search snippet carries no HTML from the data (a product's raw name ran as HTML in the search box); the box keeps only <mark>
 
 **Measured** on Tier 866. The search snippets are rendered as HTML for their `<mark>`s (GlobalSearch, the customer list). Tier 317 escaped the text before marking it — but a product found by its description, with no word of its name marked, got its **raw name** as the snippet. The invoice number had the same fallback.
