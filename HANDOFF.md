@@ -2673,6 +2673,30 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 863 — a webhook connects only to the address that was checked (DNS rebinding); its own connection each time, the answer capped
+
+Security audit, item 12.
+
+**Measured** (spec 555, a resolver answering like an attacker's name with TTL 0, a server on 127.0.0.1). Before a delivery the name was resolved and every address checked (Tier 391); then `fetch` resolved it a second time to connect. The check saw 93.184.216.34, and the POST reached 127.0.0.1 — its answer is stored and shown in the deliveries drawer.
+
+**Change** (`common/ssrf-guard.ts`).
+- `publicOnlyLookup()` is the connection's own lookup: every address it would use must be public (the same `isPrivateAddress`), or the connection is not made (`EPRIVATEADDR`).
+- `postToPublicUrl()` posts with it through `http`/`https`:
+  - its own connection each time (`agent: false` — a pooled keep-alive socket skipped the lookup in the spec);
+  - redirects are not followed (a 3xx is the answer);
+  - the answer is read up to 256 KiB;
+  - the timeout covers the whole exchange.
+- `WebhookService.postJson` uses it. The check before it stays, so the message is the same as before.
+
+**Specs.**
+- Spec 555 (new; 6 ✗ on Tier 862):
+  - the old way reaches 127.0.0.1, the new one is refused before connecting;
+  - a public address passes;
+  - a 302 is answered, not followed;
+  - the cap;
+  - postJson uses no `fetch`.
+- The webhook specs (08 50 56 85 143 150 156 179 318 336 339 356 357 457 550) and the guards pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 862 — a registration's password may not be its e-mail address; the audit's item 13 corrected
 
 Security audit, item 13.

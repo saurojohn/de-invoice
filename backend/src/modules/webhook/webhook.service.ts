@@ -66,7 +66,7 @@ import { csvText } from '../../common/csv'
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { createHmac, randomBytes } from 'crypto'
-import { assertHostResolvesPublic, assertPublicHttpUrl } from '../../common/ssrf-guard'
+import { assertHostResolvesPublic, assertPublicHttpUrl, postToPublicUrl } from '../../common/ssrf-guard'
 import type { Webhook } from '@prisma/client'
 
 export type WebhookEventType =
@@ -904,26 +904,18 @@ export class WebhookService {
     // the response body is stored and shown in the deliveries drawer).
     const parsed = assertPublicHttpUrl(url, { label: 'Webhook-URL' })
     await assertHostResolvesPublic(parsed.hostname, 'Webhook-URL')
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        redirect: 'error',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Signature': `sha256=${signature}`,
-          'X-Webhook-Id': 'de-invoice',
-          'User-Agent': 'de-invoice-webhook/1.0',
-        },
-        body,
-        signal: controller.signal,
-      })
-      const responseBody = await res.text()
-      return { statusCode: res.status, body: responseBody }
-    } finally {
-      clearTimeout(timer)
-    }
+    // Tier 863: the connection checks the address it connects to (a name can
+    // answer public to the check above and private to a second lookup)
+    return postToPublicUrl(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Signature': `sha256=${signature}`,
+        'X-Webhook-Id': 'de-invoice',
+        'User-Agent': 'de-invoice-webhook/1.0',
+      },
+      body,
+      timeoutMs,
+    })
   }
 
   /**

@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common'
 import { isIP } from 'net'
 import { lookup } from 'dns/promises'
+import { lookup as dnsLookup } from 'dns'
+import * as http from 'http'
+import * as https from 'https'
 
 /**
  * Tier 391 — one SSRF guard for every place that takes a URL from the client
@@ -156,4 +159,79 @@ export async function assertHostResolvesPublic(
   if (addrs.some((a) => isPrivateAddress(a.address)) || (!opts.allowUnresolved && addrs.length === 0)) {
     throw new BadRequestException(`${label} darf nicht auf eine lokale/private Adresse zeigen`)
   }
+}
+
+/**
+ * Tier 863 (security audit, item 12) — the address that is checked is the
+ * address that is connected to.
+ *
+ * assertHostResolvesPublic() resolved the name and then `fetch` resolved it
+ * again to connect. A name under an attacker's control with a TTL of 0 can
+ * answer a public address to the first question and 127.0.0.1 or
+ * 169.254.169.254 to the second (DNS rebinding) — the check passed, the
+ * request went inside. Here the connection's own lookup is checked: every
+ * address it would use must be public, or the connection is not made.
+ */
+type LookupCallback = (err: Error & { code?: string } | null, address: string | { address: string; family: number }[], family?: number) => void
+type LookupFn = (hostname: string, options: { all?: boolean; family?: number } & Record<string, unknown>, callback: LookupCallback) => void
+
+export function publicOnlyLookup(resolve: LookupFn = dnsLookup as unknown as LookupFn): LookupFn {
+  return (hostname, options, callback) => {
+    resolve(hostname, { ...options, all: true }, (err, addresses) => {
+      if (err) return callback(err, [] as { address: string; family: number }[])
+      const list = (Array.isArray(addresses) ? addresses : [{ address: addresses as string, family: isIP(addresses as string) }])
+      const bad = list.find((a) => isPrivateAddress(a.address))
+      if (!list.length || bad) {
+        const e = new Error(`Webhook-Ziel löst auf eine lokale/private Adresse auf (${bad?.address ?? 'keine Adresse'})`) as Error & { code?: string }
+        e.code = 'EPRIVATEADDR'
+        return callback(e, [] as { address: string; family: number }[])
+      }
+      if (options?.all) return callback(null, list)
+      callback(null, list[0].address, list[0].family)
+    })
+  }
+}
+
+/**
+ * POST a body to a public http(s) URL: the connection's lookup is
+ * publicOnlyLookup(), redirects are not followed (a 3xx is answered as it
+ * is), the answer is read up to `maxBody` bytes, the whole exchange ends after
+ * `timeoutMs`.
+ */
+export function postToPublicUrl(
+  url: string,
+  opts: { headers: Record<string, string>; body: string; timeoutMs: number; maxBody?: number; lookup?: LookupFn },
+): Promise<{ statusCode: number; body: string }> {
+  const u = new URL(url)
+  const mod = u.protocol === 'https:' ? https : http
+  const max = opts.maxBody ?? 256 * 1024
+  return new Promise((resolve, reject) => {
+    const req = mod.request(
+      u,
+      {
+        method: 'POST',
+        headers: { ...opts.headers, 'Content-Length': Buffer.byteLength(opts.body) },
+        lookup: (opts.lookup ?? publicOnlyLookup()) as unknown as http.RequestOptions['lookup'],
+        // a connection of its own each time: a pooled keep-alive socket would
+        // skip the lookup (measured: spec 555 reached 127.0.0.1 through one)
+        agent: false,
+        timeout: opts.timeoutMs,
+      },
+      (res: http.IncomingMessage) => {
+        const chunks: Buffer[] = []
+        let size = 0
+        res.on('data', (c: Buffer) => {
+          if (size < max) chunks.push(c.subarray(0, max - size))
+          size += c.length
+        })
+        res.on('end', () => resolve({ statusCode: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }))
+        res.on('error', reject)
+      },
+    )
+    const timer = setTimeout(() => req.destroy(new Error(`Zeitüberschreitung nach ${opts.timeoutMs} ms`)), opts.timeoutMs)
+    req.on('close', () => clearTimeout(timer))
+    req.on('timeout', () => req.destroy(new Error(`Zeitüberschreitung nach ${opts.timeoutMs} ms`)))
+    req.on('error', reject)
+    req.end(opts.body)
+  })
 }
