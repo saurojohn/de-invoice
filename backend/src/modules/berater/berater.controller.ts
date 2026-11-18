@@ -19,6 +19,7 @@ import { BeraterService } from './berater.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
 import { CallerBoundUpload } from '../../auth/caller-bound-upload'
+import { contentDisposition } from '../../common/content-disposition'
 
 /**
  * Mirror of the Multer file shape used by the
@@ -250,12 +251,13 @@ export class BeraterController {
     if (!fs.existsSync(resolvedFile)) {
       throw new NotFoundException('File on disk not found')
     }
-    const disposition = download === '1' ? 'attachment' : 'inline'
+    // Tier 865: only a PDF or a picture is shown in place, as for every other
+    // stored file (common/content-disposition.ts, Tier 573). This route showed
+    // anything inline — an XML from the Berater opened on the API's origin,
+    // where a stylesheet or XHTML in it runs with the session of the reader.
     res.setHeader('Content-Type', att.mimeType || 'application/octet-stream')
-    res.setHeader(
-      'Content-Disposition',
-      `${disposition}; filename="${att.originalName}"`,
-    )
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.setHeader('Content-Disposition', contentDisposition(att.mimeType || 'application/octet-stream', att.originalName, download === '1'))
     fs.createReadStream(resolvedFile).pipe(res)
   }
 

@@ -2673,6 +2673,23 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 865 — a Berater's attachment is shown in place only when it is a PDF or a picture (Tier 573's rule)
+
+The owner: „继续“. A look at the routes that serve stored files.
+
+**Measured** on Tier 864. Tier 573 decided which stored files a browser may show in place: a PDF or a picture; everything else is a download (`common/content-disposition.ts`). An XML shown on the API's own origin can carry a stylesheet or XHTML with script, which runs with the session of the reader; in production the API and the app share an origin.
+
+The attachments and the file store follow that rule. The Berater's notes did not: an XML a Berater attached (`berater/notes`, role berater) came back to the company's owner as `Content-Disposition: inline; filename="r.xml"`, typed `application/xml`. The file name went into the header as it was.
+
+**Change.** `GET berater/notes/:id/attachment` uses `contentDisposition()` (which also encodes the file name) and sends `nosniff`.
+
+Checked without a finding:
+- the logo route — only names the module wrote, magic bytes at upload, no SVG;
+- the other `inline` routes — the program's own PDFs and the .ics;
+- the session cookie — HttpOnly, SameSite=Lax, Secure in production.
+
+**Specs.** Spec 557 (new; 1 ✗ on Tier 864): an XML is a download, a PDF and a picture are shown in place, `?download=1` downloads, `nosniff`. The Berater specs (105 163 179 183 184), the guards and Playwright `berater` pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 864b — CI green for the security audit's fixes (Tiers 855–864), no flaky; the image check green with Trivy, the refusal and 2FA
 
 - **Run 44290516632 (Tier 861c, b6d74086, HEAD of the audit batch):**
