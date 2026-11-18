@@ -53,6 +53,11 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: de-invoice-prometheus
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     command:
@@ -87,6 +92,11 @@ services:
   grafana:
     image: grafana/grafana:11.2.0
     container_name: de-invoice-grafana
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     depends_on:
@@ -127,6 +137,11 @@ services:
   node_exporter:
     image: prom/node-exporter:v1.8.2
     container_name: de-invoice-node-exporter
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     command:
@@ -149,6 +164,11 @@ services:
   postgres_exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: de-invoice-postgres-exporter
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     depends_on:
       postgres:

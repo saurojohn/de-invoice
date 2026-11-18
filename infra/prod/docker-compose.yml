@@ -79,6 +79,20 @@
 # two other spellings.
 name: de-invoice-prod
 
+# Tier 864 (security audit, item 14): the containers' own logs are rotated.
+# Docker's json-file driver keeps a container's stdout without end: Caddy's
+# access log (every visitor's address, its pages), the backend's (addresses,
+# e-mail addresses in warnings) — on the server for as long as the container
+# lives, and filling the disk. At most 5 files of 10 MB each per container
+# (a few weeks of an installation's traffic); Loki, if it runs, keeps 31 days
+# (infra/observability/loki). The audit log in the database is the record
+# that is kept (GoBD), not these.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 networks:
   deinvoicenet:
     driver: bridge
@@ -120,6 +134,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: de-invoice-postgres
+    logging: *default-logging
     restart: unless-stopped
     networks: [deinvoicenet]
     # Tier 18: promtail uses these labels to filter
@@ -196,6 +211,7 @@ services:
         BUILD_TIME: ${BUILD_TIME:-}
     image: de-invoice-backend:latest
     container_name: de-invoice-backend
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       postgres:
@@ -310,6 +326,7 @@ services:
         NEXT_PUBLIC_GIT_COMMIT: ${GIT_COMMIT:-} # Tier 828
     image: de-invoice-frontend:latest
     container_name: de-invoice-frontend
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       - backend
@@ -384,6 +401,7 @@ services:
     # maintaining another file that
     # doesn't add value.
     container_name: de-invoice-backup
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       postgres:
@@ -450,6 +468,7 @@ services:
   offsite-backup:
     image: rclone/rclone:1.68.2
     container_name: de-invoice-offsite-backup
+    logging: *default-logging
     profiles: ["offsite"]
     restart: unless-stopped
     depends_on:
@@ -505,6 +524,7 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: de-invoice-caddy
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       backend:

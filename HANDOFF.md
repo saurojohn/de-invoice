@@ -2673,6 +2673,23 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 864 — every container's own log is rotated (5 × 10 MB), the overlays' too
+
+Security audit, item 14 (log retention, DSGVO).
+
+**Measured.** No service of `infra/prod/docker-compose.yml`, `monitoring.yml` or `docker-compose.observability.yml` set a log driver option. Docker's json-file driver kept each container's stdout for as long as the container lived, and until the disk was full:
+- Caddy's access log — every visitor's address and pages;
+- the backend's warnings — addresses and e-mail addresses.
+
+Loki keeps 31 days, but it only ever saw a copy.
+
+**Change.**
+- An `x-logging` anchor in the production compose file: json-file, `max-size: 10m`, `max-file: 5`, on all six services (the off-site one included).
+- The same block on each service of both monitoring overlays.
+- The audit log in the database stays the record that is kept (GoBD).
+
+**Specs.** Spec 556 (new; fails on Tier 863): the production compose file with the off-site profile resolves and every service rotates; with both overlays as well. Specs 124, 347, 341, 453, 523, 548 and 549 pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 863 — a webhook connects only to the address that was checked (DNS rebinding); its own connection each time, the answer capped
 
 Security audit, item 12.

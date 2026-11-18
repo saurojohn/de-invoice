@@ -58,6 +58,11 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: de-invoice-prometheus
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     command:
@@ -90,6 +95,11 @@ services:
   grafana:
     image: grafana/grafana:11.2.0
     container_name: de-invoice-grafana
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     depends_on:
@@ -130,6 +140,11 @@ services:
   loki:
     image: grafana/loki:3.2.1
     container_name: de-invoice-loki
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     command: -config.file=/etc/loki/loki-config.yml
@@ -160,6 +175,11 @@ services:
   promtail:
     image: grafana/promtail:3.2.1
     container_name: de-invoice-promtail
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     command: -config.file=/etc/promtail/promtail-config.yml
@@ -184,6 +204,11 @@ services:
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: de-invoice-cadvisor
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     # cAdvisor needs rw access to cgroup + docker state.
@@ -214,6 +239,11 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: de-invoice-alertmanager
+    logging: # Tier 864: rotated, as in docker-compose.yml
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     restart: unless-stopped
     networks: [deinvoicenet]
     command:
