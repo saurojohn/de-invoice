@@ -31,8 +31,8 @@ note "=== 2. the gate ==="
 if ! npm ping >/dev/null 2>&1; then
   note "SKIP (gate runs): the npm registry is not reachable here"
 else
-  OUT=$(node "$GATE" backend frontend 2>&1); RC=$?
-  assert_eq "the production dependencies of both packages pass" "$RC/$(grep -c '→ FAIL' <<<"$OUT")" "0/0"
+  # (whether today's lock files pass is the dependency-audit job's to say — an
+  # advisory published tomorrow would otherwise fail the end-to-end suite too)
   # a package with a known hole: a lock file of node-forge 1.4.0
   mkdir -p "$W/old" && echo '{"name":"t","version":"1.0.0","dependencies":{"node-forge":"1.4.0"}}' > "$W/old/package.json"
   (cd "$W/old" && npm install --package-lock-only --no-audit --no-fund >/dev/null 2>&1)

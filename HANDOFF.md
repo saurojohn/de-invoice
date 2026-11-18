@@ -2681,6 +2681,8 @@ The one failure was spec 549's „no name there says what it is“. It grepped t
 
 It now compares whole path parts: `db`, `last`, `daily`, `weekly`, `monthly`, `files`, a `.sql.gz` ending, `RE-549…`, `de_invoice`. The `.` and `_` of the real names cannot occur in base32. Three local runs pass.
 
+**Tier 858b.** The same look at chance in the other new specs. Spec 551 also asserted that today's lock files have no high advisory. An advisory published tomorrow would then fail the end-to-end suite as well as the `dependency-audit` job, whose job that is. The assertion is gone from the spec; its fixture checks of the gate (node-forge 1.4.0 fails, an exception passes, then expires) stay. The rest — 552's minutes, 553's TOTP step, 555–559 — depend on no chance.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 868 — a voucher template's {month}/{year} take the German day; a guard against any day cut from the UTC clock
 
 The owner: „继续“. A sweep of „today“ across both packages, six weeks before the year changes.
