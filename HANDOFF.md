@@ -2673,6 +2673,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 868b — CI green for Tiers 868, 856c and 858b, no flaky; 2027 checked
+
+- **Run 44339165662 (Tier 856c, 9ca9239c):** backend **559 passed / 0 failed / 1 skipped**, Playwright **1170 passed**, 0 flaky, no retry, no Traceback, no `REFUSED`.
+- **Run 44346327580 (Tier 858b, 0d32e63e):** the same — 559 / 0 / 1, Playwright 1170, 0 flaky.
+- Run 44331580669 (Tier 868) had failed only on spec 549's chance match (Tier 856c).
+- **2027, checked:**
+  - The e-invoice obligation for B2B issuers above 800 000 € (§ 27 Abs. 38 UStG, from 1.1.2027) is met. Every fiscal invoice goes out as a Factur-X / ZUGFeRD EN 16931 hybrid PDF (`invoice-document.ts`), and as XRechnung too when the buyer has an electronic address.
+  - The UStVA form for 2027 was not published on 18.11.2026 (the 2025 form came on 9.12.2024, the 2026 one on 29.12.2025). The only 2026 change was Kz. 500 (a different legal view → manual processing), which the program never needs to set. Look again at the end of December.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 856c — spec 549 checks the off-site names by whole path parts, not substrings
 
 CI run 44331580669 (Tier 868): backend 558 passed, 1 failed; Playwright 1170 passed, 0 flaky.
