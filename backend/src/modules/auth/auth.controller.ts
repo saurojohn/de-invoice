@@ -550,6 +550,11 @@ export class AuthController {
     if (!/[0-9]/.test(dto.password)) {
       throw new BadRequestException('Passwort muss mindestens eine Zahl enthalten');
     }
+    // Tier 862 (security audit, item 13): the address itself — the first
+    // thing tried against an account — was taken as its password
+    if (dto.password.trim().toLowerCase() === String(dto.email || '').trim().toLowerCase()) {
+      throw new BadRequestException('Das Passwort darf nicht die E-Mail-Adresse sein');
+    }
     // Tier 782: stored lower-case, and taken in any case (user-email.ts)
     const email = normalizeUserEmail(dto.email);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

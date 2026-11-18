@@ -2673,6 +2673,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 862 — a registration's password may not be its e-mail address; the audit's item 13 corrected
+
+Security audit, item 13.
+
+**Measured.** The audit said the registration took any six characters, going by the DTO's `MinLength(6)`. Measured, it did not: the controller asks for 8 characters with letters and digits, as the reset, the change and the invitation do. The audit item was wrong in that part.
+
+What the registration did take: the e-mail address itself as the password. `x@example.test` / `X@Example.test` answered 201, and that is the first guess against any account.
+
+**Change.** The registration refuses a password equal to the address (case and spaces ignored): 400 „Das Passwort darf nicht die E-Mail-Adresse sein“.
+
+**Specs.** Spec 554 (new; 2 ✗ on Tier 861): the rule's answers pinned (six letters, no digit, no letter), the address as password refused, no account made for any refused one, a valid one registered. The specs that read the password messages, plus 176 and 177, pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 861 — a company can require its administrators to sign in with 2FA, by default in production; without it they reach only the security page
 
 Security audit, item 8. The owner chose (18.11.2026, asked): „可由公司设置开关“ — a setting of each company.
