@@ -54,6 +54,10 @@ AS POST "/api/v1/installment-plans/from-invoice?companyId=$C" "{\"invoiceId\":\"
 assert_eq "fixture: an installment plan" "$STATUS" "201"
 inv 2026-08-01 2026-08-15 draft; DRAFT=$I
 AS POST "/api/v1/invoices/$PAST/credit-note?companyId=$C" '{"amount":119,"reason":"Preisnachlass"}'
+# Tier 879: issued past their due date they are overdue at once (spec 571); as
+# invoices whose due date passed after they were issued, they are „sent“ again
+# here — the night's job is what this spec is about
+q "update \"Invoice\" set status='sent' where id in ('$PAST','$PART','$OTHER') and status='overdue'" >/dev/null
 assert_eq "fixture: all of them 'sent' (paid: 'paid', the draft a draft)" \
   "$(status_of "$PAST")/$(status_of "$DUE_TODAY")/$(status_of "$PAID")/$(status_of "$PART")/$(status_of "$PLAN")/$(status_of "$DRAFT")" "sent/sent/paid/sent/sent/draft"
 

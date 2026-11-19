@@ -18,6 +18,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-418-$(date +%s%N | cut -c1-13)"
 TODAY=$(TZ=Europe/Berlin date +%F); YEAR=${TODAY:0:4}; MONTH=$((10#${TODAY:5:2}))
@@ -54,7 +55,7 @@ note "=== 1. the status does not cancel an issued invoice ==="
 setstatus "$INV" cancelled
 assert_eq "status → cancelled: 400 (was 200)" "$STATUS" "400"
 assert_eq "…the answer names the Stornorechnung and § 14c" "$(says Stornorechnung)/$(says '§ 14c')" "yes/yes"
-assert_eq "…it stays issued, June keeps its tax, the belts stay sold (was: cancelled, 0, 10)" "$(status_of "$INV")/$(ust 2026 6)/$(stock)" "sent/190/6"
+assert_eq "…it stays issued, June keeps its tax, the belts stay sold (was: cancelled, 0, 10)" "$(status_of "$INV")/$(ust 2026 6)/$(stock)" "overdue/190/6"
 
 note "=== 2. a partial credit note moves nothing ==="
 AS POST "/api/v1/invoices/$INV/credit-note?companyId=$C" '{"amount":119,"reason":"Preisnachlass"}'; PART=$(json_field "$BODY" id)

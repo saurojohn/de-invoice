@@ -1,4 +1,5 @@
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
+import { refreshOpenStatus } from './open-status'
 import { KleinunternehmerService } from '../accounting/kleinunternehmer.service';
 import { assertPeriodOpen } from '../reports/filed-period';
 import { storedPaymentMethod } from './payment-method'
@@ -1595,6 +1596,20 @@ export class InvoiceService {
     // Tier 534: one at a time per invoice
     const result = await withKeyLock(`invoice:${id}`, () => this.updateStatusLocked(id, companyId, status, opts));
     await this.keepCopy(id, companyId);
+    // Tier 879: issued past its due date (a back-dated invoice entered on the
+    // first days) it is overdue at once — it stood as „Versendet“ until the
+    // nightly run, and the dashboard said „Überfällige Rechnungen 0 ✓“
+    if (status === 'sent') return this.withOpenStatus(result, id, companyId);
+    return result;
+  }
+
+  /** Tier 879: refreshOpenStatus, and the answer shows the status it left */
+  private async withOpenStatus<T>(result: T, id: string, companyId: string): Promise<T> {
+    await refreshOpenStatus(this.prisma, companyId, id);
+    if (result && typeof result === 'object' && 'status' in (result as Record<string, unknown>)) {
+      const now = await this.prisma.invoice.findFirst({ where: { id, companyId }, select: { status: true } });
+      if (now) (result as Record<string, unknown>).status = now.status;
+    }
     return result;
   }
 

@@ -2673,6 +2673,24 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 879 — an invoice issued past its due date is overdue at once, not „sent“ until the night
+
+The owner: „继续“. Found on the second walk on the production images (Tier 877 images, fresh database).
+
+**Measured.** An invoice dated 01.10.2026, due 15.10., entered and issued on 19.11. stood as „Versendet“; the dashboard said „Überfällige Rechnungen 0 ✓“ next to it, and the list filtered by „überfällig“ was empty:
+- the status „überfällig“ was set only by the nightly run (00:05) and, since Tier 829, by one run a minute after the start — never by the issue itself;
+- the first days of an installation are exactly when the old, unpaid invoices are entered, so the dashboard was wrong on the day it matters most.
+
+**Change** (`invoice.service.ts`).
+- `updateStatus(…, 'sent')` calls `refreshOpenStatus` (open-status.ts, Tier 711) for that invoice after the lock, and the answer carries the stored status. An issued invoice cannot be edited (only drafts and pro-formas), so the issue is the one place a due date already past meets an open claim.
+- The rules are those of the nightly job: past due and money open → `overdue`, unless an installment plan holds it; paid in full stays `paid`. The nightly job is unchanged.
+
+**Specs.**
+- New `571-tier879-ueberfaellig-sofort.sh`: issued past due → 200 `overdue`, stored, in the `status=overdue` list; due ahead → `sent`; paid → `paid`. On the old code 3 ✗.
+- 14 specs that issue invoices with a past due date now expect `overdue` (219, 258, 281, 291, 299, 314, 322, 364, 418, 422, 426, 537) or accept `sent`/`overdue` in their SQL (376, 515).
+- 431 and 432 test the nightly job: their past-due fixtures are set back to `sent` by SQL before the run (invoices whose due date passed after they were issued).
+- Playwright `mark-paid-records-payment-tier730`: its invoice of 01.10. is `overdue` before the payment. The 57 Playwright files that mention the status ran locally: all pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 878b — CI green for Tier 878, no flaky; the rest of the second walk without a finding
 
 - **Run 44606155277 (Tier 878, 4f7449eb):** backend **569 passed / 0 failed / 1 skipped** (570 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

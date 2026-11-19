@@ -52,9 +52,10 @@ test("„Bezahlt“ with money open: the payment is recorded", async ({ page, re
   await expect(page.getByTestId("payment-form")).toBeVisible()
   await expect(page.getByTestId("payment-amount")).toHaveValue("119.00")
   await expect(page.getByTestId("payment-method")).toHaveValue("cash")
-  await expect(status).toHaveValue("sent")
+  // Tier 879: issued on 01.10. with the default term, it is overdue at once
+  await expect(status).toHaveValue("overdue")
   const before = await (await request.get(`${API}/api/v1/invoices/${inv.id}?${q}`, { headers: H })).json()
-  expect(before.status).toBe("sent")
+  expect(before.status).toBe("overdue")
 
   await page.getByTestId("payment-save").click()
   await expect(page.getByTestId("payment-row")).toHaveCount(1, { timeout: 30_000 })

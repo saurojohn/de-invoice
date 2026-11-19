@@ -14,6 +14,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-281-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
@@ -47,7 +48,7 @@ assert_eq "…and it stays a draft" "$(q "select status from \"Invoice\" where i
 
 fixture_issuer "$C"
 mail "$I"
-assert_eq "with the details: sent" "$STATUS/$(q "select status from \"Invoice\" where id='$I'")/$(mails "$I")" "201/sent/1"
+assert_eq "with the details: sent" "$STATUS/$(q "select status from \"Invoice\" where id='$I'")/$(mails "$I")" "201/overdue/1"
 
 note "=== a final invoice e-mailed as a draft settles the advance ==="
 PI=$(inv PI 1000)

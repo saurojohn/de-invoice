@@ -18,6 +18,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 TAG="e2e-515-$(date +%s%N | cut -c1-13)"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
@@ -123,7 +124,7 @@ assert_eq "a printer on 0400 with no asset: listed (its cost is in no report)" "
 note "=== the year closed ==="
 AS PUT "/api/v1/accounting/books-closing?companyId=$C" "{\"closedUntil\":\"$Y-12-31\"}"
 assert_eq "the books closed up to 31.12.$Y" "$STATUS" "200"
-DEC=$(q "select id from \"Invoice\" where \"companyId\"='$C' and status='sent' order by \"issueDate\" desc limit 1")
+DEC=$(q "select id from \"Invoice\" where \"companyId\"='$C' and status in ('sent','overdue') order by \"issueDate\" desc limit 1")
 AS POST "/api/v1/expenses?companyId=$C" "{\"description\":\"spät\",\"invoiceDate\":\"$Y-12-20\",\"netAmount\":10,\"vatRate\":0,\"vatAmount\":0,\"grossAmount\":10,\"category\":\"Bürobedarf\"}"
 assert_eq "an expense dated in the closed year: refused" "$STATUS" "400"
 AS POST "/api/v1/invoices/$DEC/payments?companyId=$C" "{\"amount\":1,\"paymentDate\":\"$Y-12-31\",\"paymentMethod\":\"bank_transfer\"}"

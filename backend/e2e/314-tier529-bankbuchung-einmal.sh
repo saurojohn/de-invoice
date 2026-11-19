@@ -14,6 +14,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-314-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
@@ -70,13 +71,13 @@ assert_eq "matched to the first invoice: paid" "$STATUS/$(paid "$I1")" "201/119.
 match 119 "$I2"
 assert_eq "the same entry for a second invoice: 400 (was 201)" "$STATUS" "400"
 assert_eq "…it says the entry is used up" "$(P "'vollständig zugeordnet' in d['message']")" "True"
-assert_eq "…the second invoice is open, 119 € received in all (were 238)" "$(paid "$I2")|$(received)" "0.00/sent|119.00"
+assert_eq "…the second invoice is open, 119 € received in all (were 238)" "$(paid "$I2")|$(received)" "0.00/overdue|119.00"
 
 note "=== 300 € for three invoices ==="
 match 300 "$I2"; assert_eq "first: 119 €, paid" "$STATUS/$(paid "$I2")" "201/119.00/paid"
 match 300 "$I3"; assert_eq "second: 119 €, paid" "$STATUS/$(paid "$I3")" "201/119.00/paid"
 match 300 "$I4"
-assert_eq "third: the remaining 62 €, a part payment (was 119, paid)" "$STATUS/$(paid "$I4")" "201/62.00/sent"
+assert_eq "third: the remaining 62 €, a part payment (was 119, paid)" "$STATUS/$(paid "$I4")" "201/62.00/overdue"
 match 300 "$I5"
 assert_eq "a fourth: 400" "$STATUS" "400"
 assert_eq "received in all: 419 € — what the account shows (was 595)" "$(received)" "419.00"
@@ -86,7 +87,7 @@ R=$(q "select id from \"BankReconciliation\" where \"invoiceId\"='$I4' and statu
 AS POST "/api/v1/bank-statements/reconciliations/$R/reopen?companyId=$C" '{}'
 assert_eq "the 62 € match is taken back (open again, past due: überfällig)" "$([[ "$STATUS" == 20* ]] && echo ok || echo "$STATUS $BODY")/$(paid "$I4")" "ok/0.00/overdue"
 match 300 "$I5"
-assert_eq "…now the 62 € go to the fifth invoice" "$STATUS/$(paid "$I5")" "201/62.00/sent"
+assert_eq "…now the 62 € go to the fifth invoice" "$STATUS/$(paid "$I5")" "201/62.00/overdue"
 
 note "=== the statement ==="
 AS DELETE "/api/v1/bank-statements/$SID?companyId=$C"

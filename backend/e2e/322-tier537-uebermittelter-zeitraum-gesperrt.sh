@@ -14,6 +14,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-322-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
@@ -59,7 +60,7 @@ I=$LATE; issue
 assert_eq "issuing the draft dated 20.06.: 400 (was 200)" "$STATUS" "400"
 assert_eq "…the message names the period and the ways out" "$(P "'2026-06' in d['message'] and 'Verlauf“ frei' in d['message'] and 'Gutschrift' in d['message']")" "True"
 I=$INV; AS PUT "/api/v1/invoices/$I/status?companyId=$C" '{"status":"cancelled"}'
-assert_eq "cancelling the invoice of 10.06.: 400 (was 200)" "$STATUS/$(q "select status from \"Invoice\" where id='$INV'")" "400/sent"
+assert_eq "cancelling the invoice of 10.06.: 400 (was 200)" "$STATUS/$(q "select status from \"Invoice\" where id='$INV'")" "400/overdue"
 expense "2026-06-25"
 assert_eq "an expense dated 25.06.: 400 (was 201)" "$STATUS" "400"
 AS PUT "/api/v1/ustva/expenses/$EXP?companyId=$C" '{"netAmount":200}'

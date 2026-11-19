@@ -11,6 +11,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 TAG="e2e-364-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
 company() { # suffix → U C
@@ -62,7 +63,7 @@ AS PUT "/api/v1/expenses/$EXP?companyId=$C" '{"netAmount":200}';   assert_eq "ch
 AS DELETE "/api/v1/ustva/expenses/$EXP?companyId=$C";      assert_eq "deleting it" "$(closed)/$(q "select count(*) from \"Expense\" where id='$EXP'")" "locked/1"
 AS PUT "/api/v1/invoices/$LATE/status?companyId=$C" '{"status":"sent"}'; assert_eq "issuing the draft dated 20.03." "$(closed)" "locked"
 # Tier 694: no issued invoice is cancelled by its status (the Storno credit note in 3. is the way)
-AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"cancelled"}'; assert_eq "cancelling the invoice of 10.03. by its status" "$STATUS/$(q "select status from \"Invoice\" where id='$INV'")" "400/sent"
+AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"cancelled"}'; assert_eq "cancelling the invoice of 10.03. by its status" "$STATUS/$(q "select status from \"Invoice\" where id='$INV'")" "400/overdue"
 AS POST "/api/v1/invoices/$INV/payments?companyId=$C" '{"amount":50,"paymentDate":"2026-03-28","paymentMethod":"bank_transfer"}'; assert_eq "a payment dated 28.03." "$(closed)" "locked"
 AS POST "/api/v1/accounting/vouchers/$VOU/correct?companyId=$C" '{"date":"2026-03-20","lines":[{"accountId":"'$A1'","debit":60},{"accountId":"'$A2'","credit":60}]}'; assert_eq "a corrected voucher dated into March" "$(closed)" "locked"
 AS POST "/api/v1/assets?companyId=$C" '{"type":"Maschine","bezeichnung":"'$TAG'","anschaffungsDatum":"2025-01-01","anschaffungsKosten":1200,"nutzungsdauerMonate":12}'

@@ -12,6 +12,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 Y=$(TZ=Europe/Berlin date +%Y); P=$((Y - 1)); TODAY=$(TZ=Europe/Berlin date +%F)
 company() { # tag → "U C"
   curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
@@ -66,7 +67,7 @@ assert_status 200 "the settings: Umsatzsteuer from 01.01.$Y"
 draft "$Y-01-02" 1000
 issue "$I"
 assert_status 200 "the invoice made anew is issued"
-assert_eq "with its USt" "$(state "$I")" "sent 190.00 1190.00"
+assert_eq "with its USt" "$(state "$I")" "overdue 190.00 1190.00"
 
 note "=== 2. this year's 100 000 €: the supply that crosses them is taxed ==="
 read -r U C < <(company laufend); setup

@@ -11,6 +11,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-219-$(date +%s%N | cut -c1-13)"
 
@@ -48,7 +49,7 @@ print(u.parse_qs(u.urlparse(url).query).get('token',[''])[0] or d.get('token',''
 note "=== 1. the customer reports a payment in the portal ==="
 PUB POST "/api/v1/customer-portal/invoice/$A/mark-paid?token=$TOKEN" '{"amount":1}'
 assert_eq "accepted as a report" "$STATUS/$(P "d.get('reported')")" "201/True"
-assert_eq "the invoice stays open, nothing booked (was: paid, 1,00 € payment)" "$(state "$A")" "sent|-"
+assert_eq "the invoice stays open, nothing booked (was: paid, 1,00 € payment)" "$(state "$A")" "overdue|-"
 PUB POST "/api/v1/customer-portal/invoice/$A/mark-paid?token=$TOKEN" '{"amount":5}'
 assert_eq "a second click returns the open report" "$(q "select count(*)||':'||round(max(amount),2) from \"PaymentNotice\" where \"invoiceId\"='$A'")" "1:1.00"
 PUB GET "/api/v1/customer-portal/invoices?token=$TOKEN"
@@ -59,7 +60,7 @@ AS GET "/api/v1/invoices/$A/payment-notices?companyId=$C"
 N=$(P "d[0]['id']")
 assert_eq "one open report on the invoice" "$(P "[(x['status'], x['source']) for x in d]")" "[('open', 'customer-portal')]"
 AS POST "/api/v1/invoices/$A/payment-notices/$N/dismiss?companyId=$C" '{}'
-assert_eq "the 1 € never arrived: dismissed" "$STATUS/$(state "$A")" "201/sent|-"
+assert_eq "the 1 € never arrived: dismissed" "$STATUS/$(state "$A")" "201/overdue|-"
 PUB POST "/api/v1/customer-portal/invoice/$A/mark-paid?token=$TOKEN" '{"amount":5000}'
 assert_eq "a report above the open amount is refused" "$STATUS" "400"
 PUB POST "/api/v1/customer-portal/invoice/$A/mark-paid?token=$TOKEN" '{}'
@@ -78,6 +79,6 @@ AS POST "/api/v1/invoices/$B/generate-payment-link?companyId=$C" '{"origin":"htt
 LT=$(python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(d.get('token') or d.get('url','').rstrip('/').rsplit('/',1)[-1])" "$BODY")
 PUB POST "/api/v1/portal/$LT/mark-paid" '{}'
 assert_eq "reported, the open 1 000 (was: 1 190 booked on top of the 190, invoice paid)" \
-  "$STATUS/$(P "d.get('amount')")/$(state "$B")" "201/1000/sent|190.00"
+  "$STATUS/$(P "d.get('amount')")/$(state "$B")" "201/1000/overdue|190.00"
 
 summary; exit $?

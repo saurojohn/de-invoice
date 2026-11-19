@@ -12,6 +12,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-258-$(date +%s%N | cut -c1-13)"
 
@@ -107,7 +108,7 @@ PI2=$(proforma 1000 595 2025-12-11)
 AS POST "/api/v1/invoices/$PI2/final-invoice?companyId=$C" '{"issueDate":"2026-02-10"}'; INV2=$(json_field "$BODY" id)
 AS PUT "/api/v1/invoices/$INV2/status?companyId=$C" '{"status":"sent"}'
 AS GET "/api/v1/invoices/$INV2?companyId=$C"
-assert_eq "595 of 1190 deducted: still open" "$(P "d['status']")" "sent"
+assert_eq "595 of 1190 deducted: still open" "$(P "d['status']")" "overdue"
 AS GET "/api/v1/ustva/compute?companyId=$C&year=2026&month=2"
 assert_eq "02/2026: 1000 / 190 less the advance 500 / 95" "$(P "[(r['net'], r['vat']) for r in d['salesByRate'] if abs(r['rate']-0.19)<1e-9]")" "[(500, 95)]"
 

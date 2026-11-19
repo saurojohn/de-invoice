@@ -10,6 +10,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-422-$(date +%s%N | cut -c1-13)"
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
@@ -51,7 +52,7 @@ print(u.parse_qs(u.urlparse(url).query).get('token',[''])[0] or d.get('token',''
 PUB GET "/api/v1/customer-portal/invoices?token=$TOKEN"
 row() { P "[(i['status'], i['openAmount']) for i in d['invoices'] if i['id']=='$1'][0]"; }
 assert_eq "the cancelled invoice: Storniert, nothing open (was: paid)" "$(row "$STORNO")" "('cancelled', '0')"
-assert_eq "the partially credited one: open as before" "$(row "$PART")" "('sent', '476')"
+assert_eq "the partially credited one: open as before" "$(row "$PART")" "('overdue', '476')"
 assert_eq "the paid one: paid" "$(row "$PAID")" "('paid', '0')"
 assert_eq "…the tiles: open 476, paid 119 (no credit note counted as payment)" \
   "$(P "[(s['totalOpen'], s['totalPaid']) for s in d.get('summaryByCurrency', [d.get('summary', {})]) ][0]")" "(476, 119)"

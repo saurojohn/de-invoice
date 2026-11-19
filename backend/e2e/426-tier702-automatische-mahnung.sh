@@ -17,6 +17,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-426-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
@@ -49,7 +50,7 @@ AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$K\",\"issueDate\":\"
 INV=$(json_field "$BODY" id)
 AS PUT "/api/v1/invoices/$INV/status?companyId=$C" '{"status":"sent"}'
 AS POST "/api/v1/invoices/$INV/payments?companyId=$C" '{"amount":500,"paymentDate":"2026-08-20","paymentMethod":"bank_transfer"}'
-assert_eq "fixture: 1 190 € overdue since 15.08., 500 € paid" "$STATUS/$(q "select status from \"Invoice\" where id='$INV'")" "201/sent"
+assert_eq "fixture: 1 190 € overdue since 15.08., 500 € paid" "$STATUS/$(q "select status from \"Invoice\" where id='$INV'")" "201/overdue"
 
 note "=== 1. one fee setting ==="
 AS PUT "/api/v1/reminders/dunning-config?companyId=$C" '{"level1Days":1,"level2Days":7,"level3Days":14,"level1Fee":2.5,"level2Fee":7.5,"level3Fee":15}'

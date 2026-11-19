@@ -12,6 +12,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-291-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
@@ -76,7 +77,7 @@ assert_eq "it settles the invoice (within 2 %)" "$(paid "$B")" "1085.00/paid"
 
 note "=== 500 €: a partial payment ==="
 match 500 "$D"
-assert_eq "500 € at the invoice's rate = 542,50 USD, the rest stays open" "$(paid "$D")" "542.50/sent"
+assert_eq "500 € at the invoice's rate = 542,50 USD, the rest stays open" "$(paid "$D")" "542.50/overdue"
 
 rm -f "$MT"
 summary

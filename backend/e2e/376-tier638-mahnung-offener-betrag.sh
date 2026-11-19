@@ -14,6 +14,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 TAG="e2e-376-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
 AS() { # method path [body]
@@ -45,7 +46,7 @@ invoice() { # → I, issued, overdue
 invoice; A=$I
 AS POST "/api/v1/invoices/$A/payments?companyId=$C" '{"amount":190,"paymentDate":"'$PAID'","paymentMethod":"bank_transfer"}'
 invoice; B=$I
-assert_eq "fixture: two invoices over 1 190 €, overdue; 190 € paid on the first" "$STATUS $(q "select count(*)||'/'||sum(total)::numeric(10,2) from \"Invoice\" where \"companyId\"='$C' and status='sent'")" "200 2/2380.00"
+assert_eq "fixture: two invoices over 1 190 €, overdue; 190 € paid on the first" "$STATUS $(q "select count(*)||'/'||sum(total)::numeric(10,2) from \"Invoice\" where \"companyId\"='$C' and status in ('sent','overdue')")" "200 2/2380.00"
 
 note "=== 1. the text of the reminder ==="
 text "$A" first

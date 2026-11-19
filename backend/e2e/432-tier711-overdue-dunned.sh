@@ -50,6 +50,9 @@ inv() { # customer → I (1 190 €, due 15.08.2026, issued)
 }
 inv "$K"; DUN=$I
 inv "$K2"; PLAN=$I
+# Tier 879: issued past their due date they are overdue at once (spec 571); as
+# invoices whose due date passed later they are „sent“ again for the night's job
+q "update \"Invoice\" set status='sent' where id in ('$DUN','$PLAN') and status='overdue'" >/dev/null
 AS POST "/api/v1/invoice-status/_test/mark-overdue?companyId=$C" '{}'
 assert_eq "fixture: the night's job marked both „überfällig“" "$(P "d['marked']")/$(status_of "$DUN")/$(status_of "$PLAN")" "2/overdue/overdue"
 

@@ -14,6 +14,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/_lib.sh"
+# Tier 879: past its due date an issued invoice is overdue at once (it was „sent“ until the night)
 login
 TAG="e2e-299-$(date +%s%N | cut -c1-13)"
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
@@ -50,14 +51,14 @@ assert_eq "'Gutschrift' by hand: 400 (was 201 — paid without a credit note)" "
 assert_eq "…pointing to the credit note" "$(P "'Gutschrift' in d['message'] and 'nicht von Hand' in d['message']")" "True"
 pay "$A" 119 "$TODAY" Guthaben
 assert_eq "'Guthaben' by hand: 400 (was 201 — paid without any credit used)" "$STATUS" "400"
-assert_eq "the invoice is still open, nothing booked" "$(state "$A")" "sent/0"
+assert_eq "the invoice is still open, nothing booked" "$(state "$A")" "overdue/0"
 
 note "=== the payment date ==="
 pay "$A" 119 "$TOMORROW" bank_transfer
 assert_eq "tomorrow: 400 (was 201)" "$STATUS" "400"
 pay "$A" 119 "2030-01-01" bank_transfer
 assert_eq "2030: 400" "$STATUS" "400"
-assert_eq "…still open" "$(state "$A")" "sent/0"
+assert_eq "…still open" "$(state "$A")" "overdue/0"
 pay "$A" 500 "$TODAY" bank_transfer
 assert_eq "today, a real transfer (500 € on 119 €): booked" "$STATUS/$(q "select status from \"Invoice\" where id='$A'")" "201/paid"
 
