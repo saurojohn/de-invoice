@@ -2673,6 +2673,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 878b — CI green for Tier 878, no flaky; the rest of the second walk without a finding
+
+- **Run 44606155277 (Tier 878, 4f7449eb):** backend **569 passed / 0 failed / 1 skipped** (570 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- **The rest of the second walk** (production images of Tier 877, hardened, fresh database), all as they should be:
+  - the customer portal from `admin/create-session`: open 357,00 € = 300 + 57;
+  - the UStVA for November: Kz 81 300 €, Kz 83 57 €;
+  - the GoBD export: zip, 54 KB;
+  - the GoBD archive: zip, 46 KB;
+  - the Verfahrensdokumentation as Word;
+  - the DATEV export: EXTF 700, `357,00;"S";…;10000;8400;"3";1911`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 878 — a receipt's „Summe“ is its total: the scanner made 138 € of a 119 € receipt
 
 The owner: „继续“. A second walk on the production images: a fresh stack, the first company, 2FA, the company's data, an invitation, a receipt scanned.
