@@ -1485,7 +1485,8 @@
     "sourceEnv": "not yet overridden",
     "installationSender": "without an account of its own, the installation sends for this company",
     "passwordEncrypted": "the password is stored encrypted",
-    "passwordPlain": "the password is stored unencrypted (the installation lacks the key FINTS_PIN_ENC_KEY)"
+    "passwordPlain": "the password is stored unencrypted (the installation lacks the key FINTS_PIN_ENC_KEY)",
+    "passwordUnreadable": "the stored password can no longer be decrypted (the installation's key changed) — enter it again and save; nothing is sent until then"
   },
   "nav": {
     "dashboard": "Dashboard",

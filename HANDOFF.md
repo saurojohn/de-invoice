@@ -2673,6 +2673,27 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 873 — a company's SMTP password the installation can no longer open stops its mail, with the reason; the settings say so
+
+The owner: „继续“. A look at what Tiers 855–872 left at their edges.
+
+**Measured** (spec 565, 5 ✗ on Tier 872). The SMTP password is stored sealed under `FINTS_PIN_ENC_KEY` (Tier 630; required since Tier 855). When the key changes or is lost, the stored value can no longer be opened. `MailService.resolveConfig` then skipped the company's own server and only wrote a warning to the log, so:
+- its mail went out through the installation's server (another sender, the company not knowing);
+- without one, production answered with the generic „no mail server“;
+- here an invoice's send answered **201 „sent“**.
+
+The settings page went on saying „verschlüsselt gespeichert“.
+
+**Change.**
+- When the company's server is set up and switched on, but its password cannot be opened, sending and the connection test are refused (400). `SMTP_PASSWORD_UNREADABLE_MESSAGE` says to enter the password again under Einstellungen → E-Mail, and that nothing is sent until then.
+- `GET /mail/config` has `passwordUnreadable`. The page shows it in red instead of „verschlüsselt gespeichert“ (de/en/zh).
+- A switched-off company server still falls back to the installation's, as before.
+
+**Specs.**
+- Spec 565 (new): readable at first; with a sealed value of another key the settings say so, the test is refused with the reason, the invoice's send is refused and nothing reaches a mailbox; entered again it is readable and the invoice goes out through the company's own server.
+- The mail specs (17 62 281 318 365 368 372 374 407 408 409 413 415 421 426 427 428 432 436 440 456 558) and the guards pass.
+- Playwright `bulk-send`, `kontoauszug-email-tier154`, `operator-page-tier822` and `ui-walk-tier590` pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 872b — CI green for Tier 872, no flaky; the command runs in the production image
 
 - **Run 44537282494 (Tier 872, 852ff815):** backend **563 passed / 0 failed / 1 skipped** (564 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

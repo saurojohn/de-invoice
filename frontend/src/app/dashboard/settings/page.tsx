@@ -357,6 +357,7 @@ export default function SettingsPage() {
     source?: "env" | "database"
     installationSender?: boolean // Tier 630
     passwordEncrypted?: boolean
+    passwordUnreadable?: boolean // Tier 873
   }
   const [mailForm, setMailForm] = useState<MailConfig>({
     configured: false,
@@ -2379,7 +2380,11 @@ export default function SettingsPage() {
               <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">{mailForm.source || "env"}</code>
               {/* Tier 630 */}
               {!mailForm.configured && mailForm.installationSender && <span data-testid="mail-installation-sender"> — {t("mail.installationSender")}</span>}
-              {mailForm.configured && mailForm.passwordEncrypted === true && <span data-testid="mail-password-encrypted"> — {t("mail.passwordEncrypted")}</span>}
+              {mailForm.configured && mailForm.passwordEncrypted === true && !mailForm.passwordUnreadable && <span data-testid="mail-password-encrypted"> — {t("mail.passwordEncrypted")}</span>}
+              {/* Tier 873 */}
+              {mailForm.configured && mailForm.passwordUnreadable && (
+                <span className="text-red-700 dark:text-red-300" data-testid="mail-password-unreadable"> — {t("mail.passwordUnreadable")}</span>
+              )}
               {mailForm.configured && mailForm.passwordEncrypted === false && (
                 <span className="text-amber-700 dark:text-amber-300" data-testid="mail-password-plain"> — {t("mail.passwordPlain")}</span>
               )}

@@ -1485,7 +1485,8 @@
     "sourceEnv": "noch nicht überschrieben",
     "installationSender": "ohne eigenes Konto versendet die Installation für diese Firma",
     "passwordEncrypted": "das Passwort ist verschlüsselt gespeichert",
-    "passwordPlain": "das Passwort ist unverschlüsselt gespeichert (der Installation fehlt der Schlüssel FINTS_PIN_ENC_KEY)"
+    "passwordPlain": "das Passwort ist unverschlüsselt gespeichert (der Installation fehlt der Schlüssel FINTS_PIN_ENC_KEY)",
+    "passwordUnreadable": "das gespeicherte Passwort lässt sich nicht mehr entschlüsseln (der Schlüssel der Installation wurde geändert) — bitte neu eingeben und speichern; bis dahin wird nichts versendet"
   },
   "nav": {
     "dashboard": "Dashboard",

@@ -1485,7 +1485,8 @@
     "sourceEnv": "尚未被覆盖",
     "installationSender": "未配置自己的邮箱时，由本安装统一代发",
     "passwordEncrypted": "密码已加密存储",
-    "passwordPlain": "密码未加密存储（本安装缺少密钥 FINTS_PIN_ENC_KEY）"
+    "passwordPlain": "密码未加密存储（本安装缺少密钥 FINTS_PIN_ENC_KEY）",
+    "passwordUnreadable": "已保存的密码无法再解密（安装的密钥已更改）——请重新输入并保存；在此之前不会发送任何邮件"
   },
   "nav": {
     "dashboard": "仪表盘",

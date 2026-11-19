@@ -59,6 +59,10 @@ export const NO_MAIL_SERVER_MESSAGE =
 
 const noMailServerRefused = () => process.env.NODE_ENV === 'production'
 
+/** Tier 873 */
+export const SMTP_PASSWORD_UNREADABLE_MESSAGE =
+  'Das gespeicherte SMTP-Passwort Ihres E-Mail-Servers lässt sich nicht mehr entschlüsseln (der Schlüssel der Installation wurde geändert). Bitte unter Einstellungen → E-Mail das Passwort neu eingeben — bis dahin wird nichts versendet.'
+
 export const UNCONFIRMED_MAIL_MESSAGE =
   'Die E-Mail-Adresse Ihres Kontos ist noch nicht bestätigt. Bis dahin versendet de-invoice keine E-Mails ' +
   'für Ihre Firma über den Mailserver der Installation. Bitte klicken Sie auf den Link in der Bestätigungs-E-Mail ' +
@@ -103,6 +107,11 @@ export class MailService implements OnModuleInit {
       const password = cfg ? openSecret(cfg.smtpPassword) : null;
       if (cfg && cfg.smtpPassword && password === null) {
         this.logger.warn(`[mail] das SMTP-Passwort der Firma ${companyId} lässt sich nicht entschlüsseln (FINTS_PIN_ENC_KEY fehlt oder wurde geändert) — bitte neu eingeben`);
+        // Tier 873: the company's own server is set up and switched on — its
+        // mail does not go out through the installation's server instead
+        // (another sender, without the company knowing), nor end in „no mail
+        // server“: it is refused with the reason.
+        if (cfg.enabled && cfg.smtpHost && cfg.smtpUser) throw new BadRequestException(SMTP_PASSWORD_UNREADABLE_MESSAGE);
       }
       if (cfg && cfg.enabled && cfg.smtpHost && cfg.smtpUser && password) {
         return {

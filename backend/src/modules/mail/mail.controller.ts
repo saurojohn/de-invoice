@@ -16,7 +16,7 @@ import { MailService } from './mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Auth, Require } from '../../auth/roles.decorator';
 import { isSystemAdmin } from '../../auth/system-admin.guard';
-import { isSealed, sealSecret, secretEncryptionAvailable } from '../../common/secret-crypto';
+import { isSealed, openSecret, sealSecret, secretEncryptionAvailable } from '../../common/secret-crypto';
 
 interface MailConfigDto {
   smtpHost: string;
@@ -93,6 +93,8 @@ export class MailController {
       updatedAt: cfg.updatedAt,
       // Tier 630: whether the stored password is sealed (the installation has its key)
       passwordEncrypted: isSealed(cfg.smtpPassword),
+      // Tier 873: stored, but it cannot be opened (the installation's key changed)
+      passwordUnreadable: !!cfg.smtpPassword && openSecret(cfg.smtpPassword) === null,
       encryptionAvailable: secretEncryptionAvailable(),
     };
   }
