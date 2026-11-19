@@ -146,6 +146,10 @@ export function extractFieldsFromText(text: string): ReceiptData {
   if (grossAmount == null && netAmount != null && vatAmount != null) {
     grossAmount = Math.round((netAmount + vatAmount) * 100) / 100
   }
+  // Tier 878: a till receipt names its total and its VAT, not its net
+  if (netAmount == null && grossAmount != null && vatAmount != null && vatAmount < grossAmount) {
+    netAmount = round2(grossAmount - vatAmount)
+  }
   return {
     supplierName: extractSupplierName(text),
     supplierVatId: extractVatId(text),
@@ -287,6 +291,10 @@ function extractGrossAmount(text: string): number | null {
   const patterns: RegExp[] = [
     /(?:Gesamtbetrag|Gesamtbetr|Rechnungsbetrag)(?:\s*\([^)]+\))?\s*[:\s]+([\d.]+,\d{2})\s*(?:EUR|€)?/i,
     /Total(?:\s+brutto)?\s*[:\s]+([\d.]+,\d{2})\s*(?:EUR|€)?/i,
+    // Tier 878: what a till receipt calls its total, at the start of its line —
+    // „Summe 119,00 EUR“, „SUMME EUR 3,68“, „Zu zahlen 50,00“, „Gesamt 238,00“,
+    // „Endbetrag“, „Brutto“. Not „Summe netto“, not „Zwischensumme“ (net).
+    /^[ \t]*(?:Summe|Gesamtsumme|Gesamt|Endsumme|Endbetrag|Zu\s+zahlen|Zahlbetrag|Brutto(?:betrag)?)(?![ \t]*(?:\([^)]*\)[ \t]*)?netto)[ \t]*(?:\([^)]*\))?[ \t:]*(?:EUR|€)?[ \t]*([\d.]+,\d{2})/im,
   ]
   for (const re of patterns) {
     const m = text.match(re)
@@ -302,7 +310,9 @@ function extractNetAmount(text: string): number | null {
   // qualifier, optional separator (":", whitespace), and
   // then the amount. Falls back to a generic "Netto 100,00"
   // pattern for receipts without the Zwischensumme prefix.
-  const m = text.match(/(?:Zwischensumme|Netto(?:summe)?|Summe)(?:\s*\([^)]+\))?\s+(?:netto\s+)?[:\s]*([\d.]+,\d{2})\s*(?:EUR|€)?/i)
+  // Tier 878: a bare „Summe“ is a receipt's total, not its net — taken as the
+  // net it made a gross of net + VAT that was on no receipt (119 + 19 = 138)
+  const m = text.match(/(?:Zwischensumme|Netto(?:summe)?|Summe\s+netto)(?:\s*\([^)]+\))?\s+(?:netto\s+)?[:\s]*([\d.]+,\d{2})\s*(?:EUR|€)?/i)
     ?? text.match(/(?:^|\s)Netto[:\s]+([\d.]+,\d{2})\s*(?:EUR|€)?/i)
   return m ? parseGermanAmount(m[1]) : null
 }

@@ -2673,6 +2673,29 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 878 — a receipt's „Summe“ is its total: the scanner made 138 € of a 119 € receipt
+
+The owner: „继续“. A second walk on the production images: a fresh stack, the first company, 2FA, the company's data, an invitation, a receipt scanned.
+
+**Measured on the production image.** A receipt drawn in the browser was sent to `POST /ocr/scan`: „Bäckerei Müller GmbH / Brötchen 100,00 / MwSt 19% 19,00 / Summe 119,00 EUR“. It answered 201 in 615 ms with net 119, VAT 19, gross **138**:
+- a gross on no receipt, and an expense of 138 € with 19 € input VAT for one that cost 119 €;
+- the cause: `extractNetAmount` took a bare „Summe“ as the net, `extractGrossAmount` knew only „Gesamtbetrag / Rechnungsbetrag / Total“, and the gross was then made of net + VAT;
+- till receipts gave no total at all: „SUMME EUR 3,68“ and „Zu zahlen 50,00“.
+
+**Change** (`ocr.service.ts`).
+- The total also comes from a line beginning with „Summe“, „Gesamtsumme“, „Gesamt“, „Endsumme“, „Endbetrag“, „Zu zahlen“, „Zahlbetrag“ or „Brutto(betrag)“ — not when „netto“ follows. Cash given („Bar“) and change („Rückgeld“) are not totals.
+- The net no longer takes a bare „Summe“ (it still takes „Zwischensumme“, „Netto(summe)“, „Summe netto“).
+- A receipt with a total and a VAT but no net gets total − VAT.
+
+Measured after: 100/19/119, 3,44/0,24/3,68, 42,02/7,98/50. An invoice with Zwischensumme / Gesamtbetrag is unchanged at 100/19/119, and „Summe netto 200 / Gesamt 238“ gives 200/38/238.
+
+Also on the walk: an invitation without a mail server is refused in words (Tier 736) — a new installation needs its SMTP server before it can invite.
+
+**Specs.**
+- Spec 570 (new; 3 ✗ on Tier 877).
+- The scanner and receipt specs pass: 18 28 29 42 61 183 191 214 215 220 271 274 291 301 309 318 329 342 344 345 365 379 384 413 418 438 459 464 474 477 488 535 544, with 176 and 177.
+- Playwright passes (14): `e-invoice-import-tier573`, `expenses-page-tier234`, `midnight-german-day-tier750`, `ocr-scan-keeps-file-tier574`, `ocr-upload`, `several-vat-rates-tier739`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 877b — CI green for Tier 877, no flaky
 
 - **Run 44594414000 (Tier 877, e10b8775):** backend **568 passed / 0 failed / 1 skipped** (569 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
