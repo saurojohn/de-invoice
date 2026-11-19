@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 877b — CI green for Tier 877, no flaky
+
+- **Run 44594414000 (Tier 877, e10b8775):** backend **568 passed / 0 failed / 1 skipped** (569 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- The throwaway production stack of the walk (`t877-*` containers, volumes, network) is removed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 877 — a first day on the production images of Tier 876: three things fixed; everything else worked
 
 The owner: „继续“.
