@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 871b — CI green for Tier 871, no flaky; the production image reports no manual backups
+
+- **Run 44423426181 (Tier 871, 73cfd1f0):** backend **562 passed / 0 failed / 1 skipped** (563 included), Playwright **1172 passed** (the two new tests included). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- **Docker images 44423426347:** both green. The new check — the production image's `manualAvailable()` is false — passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 871 — the backup page offers manual backups only where they work; in the production image it shows the automatic ones and a note
 
 The owner: „继续“.
