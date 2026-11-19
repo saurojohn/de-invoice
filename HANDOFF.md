@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 872b — CI green for Tier 872, no flaky; the command runs in the production image
+
+- **Run 44537282494 (Tier 872, 852ff815):** backend **563 passed / 0 failed / 1 skipped** (564 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- **In an image built from this tree**, hardened (read-only root, no capability) against a fresh database: `node dist/cli/reset-two-factor.js nobody@example.test` answered „no user with the address …“ and ended with 1 after 4 s. The Docker images workflow did not run for this push: no path it watches changed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 872 — a lost second factor can be taken away: by an administrator, or on the server for the last one
 
 The owner: „继续“.
