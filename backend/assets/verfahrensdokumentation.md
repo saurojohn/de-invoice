@@ -172,7 +172,7 @@ einen zugesandten Link bestätigt.
 ### 3.3 Protokoll
 
 Das Programm schreibt Anlegen, Ändern und Löschen der Geschäftsdaten automatisch
-in ein Protokoll, mit Zeit, Benutzer, IP-Adresse und Inhalt vorher/nachher
+in ein Protokoll, mit Zeit, Benutzer, IP-Adresse (die ersten 90 Tage) und Inhalt vorher/nachher
 (`backend/src/prisma/audit-log.extension.ts`), dazu fachliche Ereignisse wie
 Anmeldungen. Die Einträge einer Firma bilden eine SHA-256-Hash-Kette; Audit-Trail →
 „Audit-Kette verifizieren" berechnet sie neu (`GET /audit-logs/verify`).

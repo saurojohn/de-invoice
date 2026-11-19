@@ -2673,6 +2673,33 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 876 — the audit log keeps an IP address and a browser 90 days, the entry itself with the books
+
+The owner, asked (19.11.2026): „90 天“. The audit's item 14 had covered the containers' logs (Tier 864), not the database's.
+
+**Measured.** Every audit row kept the client's IP address and user agent for as long as the books, ten years: sign-ins, failed sign-ins, every change. In the local test database that is 183 398 of 575 276 rows, the oldest from 16.09.2026.
+- They are personal data and no part of the books.
+- The privacy statement said „IP-Adresse und Browser (nicht anonymisiert)“ and gave no period.
+- The two columns are not hashed (`computeAuditHash`: action, entity, user, company, old and new data, previous hash, time), so clearing them leaves the chain intact.
+
+**Change.**
+- `SessionCleanupScheduler.clearOldAuditNetworkData()` runs in the nightly session cleanup (03:30). It sets `ipAddress` and `userAgent` to null on rows older than `AUDIT_NETWORK_RETENTION_DAYS` (90), in batches of 20 000 so a first run over years of rows holds no long lock. The spec scopes it to one company; the nightly run does not.
+- The job's result gains `auditNetworkCleared`.
+- The privacy statement (de/en/zh) gives 90 days, in the data list and the retention text.
+- The Verfahrensdokumentation says „IP-Adresse (die ersten 90 Tage)“.
+
+**Specs.**
+- Spec 568 (new; fails on Tier 875):
+  - a company's rows carry addresses, its chain is intact;
+  - as at 89 days on nothing is cleared, as at 91 days every address and browser is gone;
+  - the entries stay and the chain is still intact;
+  - another company's rows are untouched;
+  - the nightly job calls it;
+  - the privacy texts.
+- The audit, session, Verfahrensdokumentation and privacy specs (97 143 145 150 170 171 179 184 192 195 196 197 317 349 353 374 463 464 467 476 479 483 484) and the guards pass.
+- Spec 94 fails locally on Tier 875 as well. It reads the newest audit row of the seed company, and here that row is a sign-in from a Playwright run, which carries no old or new data. CI starts from a fresh database.
+- Playwright `legal-pages-tier170` and `ui-walk-tier590` pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 875b — CI green for Tier 875, no flaky
 
 - **Run 44573161635 (Tier 875, 159b27d9):** backend **566 passed / 0 failed / 1 skipped** (567 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
