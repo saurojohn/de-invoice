@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 874b — CI green for Tier 874, no flaky
+
+- **Run 44557330959 (Tier 874, a75972a9):** backend **565 passed / 0 failed / 1 skipped** (566 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 874 — the off-site copy's rclone.conf cannot be committed
 
 **Measured.** HETZNER-DEPLOY.md §9 has the operator write `infra/prod/rclone.conf` next to the compose file. It holds the Storage Box password and, since Tier 856, the two crypt passphrases — all only `rclone obscure`d, which anyone can reverse. `infra/prod/.gitignore` kept every `.env` out of git, but not this file: `git check-ignore infra/prod/rclone.conf` matched nothing. One `git add -A` on the server would have put both the access to the off-site copy and the keys to read it into the repository. It is not in the repository today.
