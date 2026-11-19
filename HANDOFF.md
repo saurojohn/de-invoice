@@ -2673,6 +2673,22 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 875 — a request body stored with a server error carries no PIN, no 2FA code, no nested secret
+
+**Measured** (spec 567, on Tier 874). `GlobalExceptionFilter` keeps a 5xx with the request's body for the operator (ErrorEvent, the system page). `safeBody()` blanked keys with password / token / secret / hash, and e-mail / IBAN / phone — at the first level only. These were stored as they were:
+- a bank PIN (`pin`, FinTS connections): `12345`;
+- a 2FA `code` and a `recoveryCode`;
+- the sign-in `challenge`;
+- a password or key one object deeper or in a list — `smtp.smtpPassword` was `geheim`.
+
+**Change.** `safeBody()` also blanks:
+- `pin` and `…pin`, `code`, `otp`, `…totp…`, `…recovery…`, `…challenge…`;
+- api keys, `authorization`, cookies.
+
+It walks nested objects and lists (to depth 4). Postal code, country code, the bank's BLZ and labels stay readable.
+
+**Specs.** Spec 567 (new; 2 ✗ on Tier 874). The error-tracking specs (21 64 125 179 197 257 333 335 353 356 464 486 507) and the guards pass. Spec 257 ran on the throwaway `tmp-ci-pg`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 874b — CI green for Tier 874, no flaky
 
 - **Run 44557330959 (Tier 874, a75972a9):** backend **565 passed / 0 failed / 1 skipped** (566 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

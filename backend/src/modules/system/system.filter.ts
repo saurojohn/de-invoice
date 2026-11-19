@@ -218,8 +218,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    * token, customer email, or IBAN showing up in the
    * dashboard.
    */
-  private safeBody(body: any): any {
+  private safeBody(body: any, depth = 0): any {
     if (!body || typeof body !== "object") return body
+    // Tier 875: nested values too (a password inside an object was kept)
+    if (Array.isArray(body)) return depth > 4 ? "[…]" : body.map((v) => this.safeBody(v, depth + 1))
+    if (depth > 4) return "[…]"
     const cloned: any = { ...body }
     for (const key of Object.keys(cloned)) {
       const k = key.toLowerCase()
@@ -227,7 +230,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         k.includes("password") ||
         k.includes("token") ||
         k.includes("secret") ||
-        k.includes("hash")
+        k.includes("hash") ||
+        // Tier 875: what a 500 stored as it was — a bank PIN (FinTS), a 2FA
+        // code, a recovery code, the sign-in challenge, keys and cookies
+        k === "pin" || k.endsWith("pin") ||
+        k === "code" || k === "otp" || k.includes("totp") ||
+        k.includes("recovery") || k.includes("challenge") ||
+        k.includes("apikey") || k.includes("api_key") ||
+        k.includes("authorization") || k.includes("cookie")
       ) {
         cloned[key] = "[redacted]"
         continue
@@ -246,6 +256,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         cloned[key] = "[redacted]"
         continue
       }
+      if (cloned[key] && typeof cloned[key] === "object") cloned[key] = this.safeBody(cloned[key], depth + 1)
     }
     return cloned
   }
