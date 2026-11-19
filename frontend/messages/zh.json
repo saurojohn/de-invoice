@@ -1757,7 +1757,9 @@
       "saved": "已保存",
       "resetDone": "已重置为默认",
       "confirmReset": "重置为默认模板?"
-    }
+    },
+    "asLetter": "作为信件 (PDF)",
+    "letterCreated": "催款信已生成——请打印并邮寄"
   },
   "settings": {
     "ossVerfahren": "OSS 程序（§ 18j UStG）",
@@ -2744,7 +2746,8 @@
     "costCenter": "成本中心",
     "neueFrist": "新期限",
     "statusCancelled": "已取消",
-    "statusOpen": "未付"
+    "statusOpen": "未付",
+    "byPost": "信件"
   },
   "mandant": {
     "choose": "选择客户",

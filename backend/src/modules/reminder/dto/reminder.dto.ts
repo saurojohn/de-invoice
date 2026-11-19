@@ -67,6 +67,12 @@ export class SendReminderDto {
 
   @IsOptional() @IsString()
   createdById?: string
+
+  // Tier 880: „post“ — the Mahnung is recorded and its letter is printed and
+  // posted by the company; nothing is e-mailed (no address, no mail server,
+  // or the letter is to go as an Einschreiben)
+  @IsOptional() @IsIn(['email', 'post'], { message: 'channel: email oder post' })
+  channel?: 'email' | 'post'
 }
 
 export class BulkSendReminderDto {

@@ -187,6 +187,7 @@ export class ReminderController {
       body.invoiceId,
       body.level,
       body.createdById,
+      body.channel ?? 'email', // Tier 880
     )
     if (r.status === 'skipped') {
       throw new ConflictException(r.error || 'Mahnung heute bereits versendet')
@@ -199,8 +200,9 @@ export class ReminderController {
       success: true,
       reminderId: r.reminderId,
       mahnungId: r.mahnungId ?? null,
-      recipient: r.recipient,
-      message: 'Mahnung wurde versendet',
+      recipient: r.recipient ?? null,
+      channel: body.channel ?? 'email',
+      message: body.channel === 'post' ? 'Mahnung als Brief erstellt — bitte drucken und versenden' : 'Mahnung wurde versendet',
     }
   }
 

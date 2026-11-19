@@ -2673,6 +2673,27 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 880 — a Mahnung as a letter by post: a customer without an e-mail address could not be dunned at all
+
+The owner: „继续“. Found on the second walk on the production images: the reminders page offered „Erinnerung per E-Mail senden“ only.
+
+**Measured.**
+- Without a mail server the send answers 400 with a clear message (Tier 825) — but nothing else can be done: no Mahnung, no fees, no letter to print.
+- A customer without an e-mail address: „Kunde hat keine E-Mail-Adresse hinterlegt“, and the same dead end.
+- A Mahnung is a letter in German practice; the last one often goes as an Einschreiben for proof of receipt. The PDF existed (`GET mahnungen/:id/pdf`), but only for a Mahnung that had been e-mailed.
+
+**Change.**
+- `POST /reminders/send` takes `channel: "email" | "post"` (default e-mail). By post, `sendOne` (bulk-reminder.service.ts) runs every check of the e-mail path — open claim, overdue, no pause, no plan, levels only go up, one per level and day — then records the Mahnung with its fees.
+- By post nothing is e-mailed and no `EmailSend` row is written. The Mahnung's `recipientEmail` is empty; that is the mark of a letter. No migration was needed.
+- A letter needs the customer's street and postal code or city: „Kunde hat keine Anschrift hinterlegt — …“.
+- The 30-day count on the reminders page counts the letters too.
+- Reminders page: „Als Brief (PDF)“ beside the e-mail button. It records the Mahnung and downloads its letter. The Mahnhistorie marks the row „per Brief“. Texts in de/en/zh.
+- The automatic dunning run still e-mails only.
+
+**Specs.**
+- New `572-tier880-mahnung-als-brief.sh` covers the letter path: e-mail still refused without an address; the letter 201 with its row and fees; no `EmailSend`; the PDF; the history; the count; 409 the second time a day; refused without an address; an unknown channel 400. On the old code 8 ✗.
+- New Playwright `mahnung-als-brief-tier880.spec.ts`: the button, the download, the toast, „per Brief“ in the history.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 879 — an invoice issued past its due date is overdue at once, not „sent“ until the night
 
 The owner: „继续“. Found on the second walk on the production images (Tier 877 images, fresh database).

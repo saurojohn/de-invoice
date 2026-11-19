@@ -161,15 +161,16 @@ export class BulkReminderService {
     invoiceId: string,
     level: "first" | "second" | "final",
     createdById?: string,
+    channel: "email" | "post" = "email",
   ): Promise<BulkSendResultRow> {
-    await this.mail.assertMaySend(companyId) // Tier 736
+    if (channel === "email") await this.mail.assertMaySend(companyId) // Tier 736
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
     })
     if (!company) {
       throw new Error(`Company ${companyId} not found`)
     }
-    return this.sendOne(company, invoiceId, level, createdById)
+    return this.sendOne(company, invoiceId, level, createdById, channel)
   }
 
   /**
@@ -183,6 +184,7 @@ export class BulkReminderService {
     invoiceId: string,
     level: "first" | "second" | "final",
     createdById?: string,
+    channel: "email" | "post" = "email",
   ): Promise<BulkSendResultRow> {
     const companyId = company.id
     const invoice = await this.prisma.invoice.findFirst({
@@ -247,7 +249,19 @@ export class BulkReminderService {
     }
 
     const customerEmail = invoiceRecipientOf(invoice.customer) // Tier 719
-    if (!customerEmail) {
+    // Tier 880: a letter by post needs the customer's address, not an e-mail
+    const addr = ((invoice.customer as any)?.address ?? {}) as Record<string, unknown>
+    if (channel === "post" && !(addr.street && (addr.postalCode || addr.city))) {
+      return {
+        invoiceId,
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customer.name,
+        ok: false,
+        status: "failed",
+        error: "Kunde hat keine Anschrift hinterlegt — für einen Brief bitte Straße und Ort beim Kunden eintragen.",
+      }
+    }
+    if (channel === "email" && !customerEmail) {
       return {
         invoiceId,
         invoiceNumber: invoice.invoiceNumber,
@@ -350,102 +364,108 @@ export class BulkReminderService {
       fxOf(invoice as any).rate, // Tier 653
     )
 
-    // Render the email subject + body.
-    const rendered = await this.reminders.renderForInvoice(
-      invoiceId,
-      companyId,
-      level,
-    )
-
-    // Generate the PDF attachment.
+    // Tier 880: by post the Mahnung is recorded and its letter printed from
+    // the Mahnhistorie (GET mahnungen/:id/pdf renders the same letter);
+    // nothing is e-mailed and no EmailSend row is written
     const neueFrist = computeNeueFrist(today, level)
-    const bank = (company as any).bankInfo || {}
-    const bankLine = [
-      bank.accountHolder,
-      bank.iban ? `IBAN: ${bank.iban}` : null,
-      bank.bic ? `BIC: ${bank.bic}` : null,
-      bank.bankName ? `bei ${bank.bankName}` : null,
-    ]
-      .filter(Boolean)
-      .join(", ")
-    const pdfBuffer = await generateMahnungPDF({
-      level,
-      invoiceNumber: invoice.invoiceNumber,
-      invoiceDate: new Date(invoice.issueDate),
-      dueDate,
-      totalAmount: Number(invoice.total),
-      currency: fxOf(invoice as any).currency, // Tier 653
-      // Tier 421: the open balance, and how the interest was computed.
-      openAmount: Math.round((fees.totalDue - fees.mahngebuehr - fees.verzugszins) * 100) / 100,
-      // Tier 702: the interest the Mahnung row books — the letter sent showed
-      // the fee only (its total too), the copy re-rendered from the list both
-      verzugszins: fees.verzugszins,
-      verzugszinsPct: fees.verzugszinsPct,
-      basiszinssatz: fees.basiszinssatz,
-      zinsaufschlag: fees.zinsaufschlag,
-      consumer: isConsumer((invoice.customer as any)?.type),
-      mahngebuehr: fees.mahngebuehr,
-      customer: invoice.customer as any,
-      company: {
-        name: company.name,
-        legalName: company.legalName,
-        address: company.address as any,
-        email: company.email,
-        phone: company.phone,
-        bankInfo: company.bankInfo,
-        taxId: company.taxId,
-        vatId: company.vatId,
-        logoPath: company.logoPath,
-        // Tier 728b: the register details and the rest of the letterhead
-        fax: company.fax,
-        website: company.website,
-        registerEntry: company.registerEntry,
-        managingDirector: company.managingDirector,
-        otherInfo: company.otherInfo,
-        rechtsform: company.rechtsform, // Tier 728i
-        settings: company.settings, // Tier 731e: an old settings.rechtsform
-      },
-      daysOverdue,
-      // Tier 846: Werktage, as the letter says („überfällig seit N Werktagen
-      // (M Kalendertagen)“). The calendar days stood here for both.
-      werktageOverdue: dueDate ? Math.max(0, countWerktage(new Date(dueDate), new Date(new Date(today).setHours(0, 0, 0, 0)), (company as any).bundesland)) : 0,
-      neueFrist: neueFrist.toISOString(),
-      bankLine,
-      costCenter: (invoice as any).costCenter ?? null,
-      costObject: (invoice as any).costObject ?? null,
-      skontoPercent:
-        (invoice as any).skontoPercent != null
-          ? Number((invoice as any).skontoPercent)
-          : null,
-      skontoDays: (invoice as any).skontoDays ?? null,
-    })
+    let emailSend: { id: string } | null = null
+    if (channel === "email" && customerEmail) {
+      // Render the email subject + body.
+      const rendered = await this.reminders.renderForInvoice(
+        invoiceId,
+        companyId,
+        level,
+      )
 
-    // Send the email.
-    await this.mail.send(companyId, {
-      to: customerEmail,
-      subject: rendered.subject,
-      text: rendered.body,
-      companySignature: true, // Tier 728c
-      attachments: [
-        {
-          filename: `${LEVEL_TITLE_FILENAME[level]}-${invoice.invoiceNumber}.pdf`,
-          content: pdfBuffer,
-          contentType: "application/pdf",
+      // Generate the PDF attachment.
+      const bank = (company as any).bankInfo || {}
+      const bankLine = [
+        bank.accountHolder,
+        bank.iban ? `IBAN: ${bank.iban}` : null,
+        bank.bic ? `BIC: ${bank.bic}` : null,
+        bank.bankName ? `bei ${bank.bankName}` : null,
+      ]
+        .filter(Boolean)
+        .join(", ")
+      const pdfBuffer = await generateMahnungPDF({
+        level,
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: new Date(invoice.issueDate),
+        dueDate,
+        totalAmount: Number(invoice.total),
+        currency: fxOf(invoice as any).currency, // Tier 653
+        // Tier 421: the open balance, and how the interest was computed.
+        openAmount: Math.round((fees.totalDue - fees.mahngebuehr - fees.verzugszins) * 100) / 100,
+        // Tier 702: the interest the Mahnung row books — the letter sent showed
+        // the fee only (its total too), the copy re-rendered from the list both
+        verzugszins: fees.verzugszins,
+        verzugszinsPct: fees.verzugszinsPct,
+        basiszinssatz: fees.basiszinssatz,
+        zinsaufschlag: fees.zinsaufschlag,
+        consumer: isConsumer((invoice.customer as any)?.type),
+        mahngebuehr: fees.mahngebuehr,
+        customer: invoice.customer as any,
+        company: {
+          name: company.name,
+          legalName: company.legalName,
+          address: company.address as any,
+          email: company.email,
+          phone: company.phone,
+          bankInfo: company.bankInfo,
+          taxId: company.taxId,
+          vatId: company.vatId,
+          logoPath: company.logoPath,
+          // Tier 728b: the register details and the rest of the letterhead
+          fax: company.fax,
+          website: company.website,
+          registerEntry: company.registerEntry,
+          managingDirector: company.managingDirector,
+          otherInfo: company.otherInfo,
+          rechtsform: company.rechtsform, // Tier 728i
+          settings: company.settings, // Tier 731e: an old settings.rechtsform
         },
-      ],
-    })
+        daysOverdue,
+        // Tier 846: Werktage, as the letter says („überfällig seit N Werktagen
+        // (M Kalendertagen)“). The calendar days stood here for both.
+        werktageOverdue: dueDate ? Math.max(0, countWerktage(new Date(dueDate), new Date(new Date(today).setHours(0, 0, 0, 0)), (company as any).bundesland)) : 0,
+        neueFrist: neueFrist.toISOString(),
+        bankLine,
+        costCenter: (invoice as any).costCenter ?? null,
+        costObject: (invoice as any).costObject ?? null,
+        skontoPercent:
+          (invoice as any).skontoPercent != null
+            ? Number((invoice as any).skontoPercent)
+            : null,
+        skontoDays: (invoice as any).skontoDays ?? null,
+      })
 
-    // Record the EmailSend row.
-    const emailSend = await this.reminders.recordReminderSend(
-      companyId,
-      invoiceId,
-      customerEmail,
-      (invoice.customer.contact as any)?.name || invoice.customer.name,
-      rendered.subject,
-      rendered.body,
-      level,
-      createdById,
-    )
+      // Send the email.
+      await this.mail.send(companyId, {
+        to: customerEmail,
+        subject: rendered.subject,
+        text: rendered.body,
+        companySignature: true, // Tier 728c
+        attachments: [
+          {
+            filename: `${LEVEL_TITLE_FILENAME[level]}-${invoice.invoiceNumber}.pdf`,
+            content: pdfBuffer,
+            contentType: "application/pdf",
+          },
+        ],
+      })
+
+      // Record the EmailSend row.
+      emailSend = await this.reminders.recordReminderSend(
+        companyId,
+        invoiceId,
+        customerEmail,
+        (invoice.customer.contact as any)?.name || invoice.customer.name,
+        rendered.subject,
+        rendered.body,
+        level,
+        createdById,
+      )
+    }
 
     // Record the Mahnung audit row.
     const mahnung = await this.reminders.recordMahnung(
@@ -458,11 +478,12 @@ export class BulkReminderService {
         mahngebuehr: fees.mahngebuehr,
         verzugszins: fees.verzugszins,
         totalDue: fees.totalDue,
-        recipientEmail: customerEmail,
+        // Tier 880: empty for a letter by post
+        recipientEmail: channel === "email" ? (customerEmail ?? "") : "",
         recipientName:
           (invoice.customer.contact as any)?.name || invoice.customer.name,
         sentById: createdById ?? null,
-        emailSendId: emailSend.id,
+        emailSendId: emailSend?.id ?? null,
       },
     )
 
@@ -476,8 +497,8 @@ export class BulkReminderService {
       customerName: invoice.customer.name,
       ok: true,
       status: "sent",
-      recipient: customerEmail,
-      reminderId: emailSend.id,
+      recipient: channel === "email" ? customerEmail : undefined,
+      reminderId: emailSend?.id,
       mahnungId: mahnung.id,
     }
   }

@@ -1757,7 +1757,9 @@
       "saved": "Gespeichert",
       "resetDone": "Auf Standard zurückgesetzt",
       "confirmReset": "Auf Standard zurücksetzen?"
-    }
+    },
+    "asLetter": "Als Brief (PDF)",
+    "letterCreated": "Mahnung als Brief erstellt — bitte drucken und versenden"
   },
   "settings": {
     "ossVerfahren": "OSS-Verfahren (§ 18j UStG)",
@@ -2744,7 +2746,8 @@
     "costCenter": "Kostenstelle",
     "neueFrist": "Neue Frist",
     "statusCancelled": "Storniert",
-    "statusOpen": "Offen"
+    "statusOpen": "Offen",
+    "byPost": "per Brief"
   },
   "mandant": {
     "choose": "Mandant wählen",

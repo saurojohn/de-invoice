@@ -734,7 +734,7 @@ Mit freundlichen Grüßen,
     // Tier 528: today's date as due dates are stored (midnight UTC of the German day).
     const today = businessTodayDate();
 
-    const [overdueCount, totalOverdueAmount, recentReminders] = await Promise.all([
+    const [overdueCount, totalOverdueAmount, recentEmailed, recentLetters] = await Promise.all([
       this.prisma.invoice.count({
         where: {
           companyId,
@@ -764,7 +764,17 @@ Mit freundlichen Grüßen,
           },
         },
       }),
+      // Tier 880: the letters by post count too (no EmailSend row for them)
+      this.prisma.mahnung.count({
+        where: {
+          companyId,
+          emailSendId: null,
+          recipientEmail: '',
+          sentAt: { gte: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000) },
+        },
+      }),
     ]);
+    const recentReminders = recentEmailed + recentLetters;
 
     return {
       overdueCount,

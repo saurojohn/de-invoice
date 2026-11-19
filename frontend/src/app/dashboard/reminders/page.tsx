@@ -1,6 +1,6 @@
 "use client"
 
-import { ApiError, apiGet, apiPost } from "@/lib/api"
+import { ApiError, apiGet, apiPost, downloadApiFile } from "@/lib/api"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -137,6 +137,29 @@ export default function RemindersPage() {
     if (!companyId) return
     const list = await apiGet<OverdueInvoice[]>(`/api/v1/reminders/overdue?companyId=${companyId}`)
     setOverdueInvoices(Array.isArray(list) ? list : [])
+  }
+
+  // Tier 880: the Mahnung as a letter — recorded with its fees, the PDF
+  // downloaded to be printed and posted. For a customer without an e-mail
+  // address, a company without a mail server, or an Einschreiben.
+  const handleLetter = async (invoice: OverdueInvoice) => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    try {
+      const level = selectedLevel[invoice.id] || getNextReminderLevel(invoice)
+      const r = await apiPost<{ mahnungId: string | null }>(`/api/v1/reminders/send`, {
+        companyId,
+        invoiceId: invoice.id,
+        level,
+        channel: "post",
+        ...(localStorage.getItem("userId") ? { createdById: localStorage.getItem("userId") } : {}),
+      })
+      if (r?.mahnungId) await downloadApiFile(`/api/v1/reminders/mahnungen/${r.mahnungId}/pdf?companyId=${companyId}`)
+      toast.success(t("reminder.letterCreated"))
+      await reloadOverdue()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("reminder.sendError"))
+    }
   }
 
   const handleSendReminder = async (invoice: OverdueInvoice) => {
@@ -388,12 +411,21 @@ export default function RemindersPage() {
                         <option value="final">{getReminderLevelLabel('final')}</option>
                       </select>
                     </div>
-                    <Button
-                      onClick={() => handleSendReminder(invoice)}
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      {t("reminder.sendByEmail")}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleLetter(invoice)}
+                        data-testid="reminder-letter"
+                      >
+                        {t("reminder.asLetter")}
+                      </Button>
+                      <Button
+                        onClick={() => handleSendReminder(invoice)}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        {t("reminder.sendByEmail")}
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

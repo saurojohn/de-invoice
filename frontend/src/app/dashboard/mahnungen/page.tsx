@@ -367,6 +367,10 @@ export default function MahnhistoriePage() {
                         </td>
                         <td className="py-3 pr-4 text-xs">
                           {fmtDateTimeDE(r.sentAt)}
+                          {/* Tier 880: a letter by post has no e-mail recipient */}
+                          {r.recipientEmail === "" && (
+                            <div className="text-gray-500" data-testid="mahnung-by-post">{t("mahnung.byPost")}</div>
+                          )}
                         </td>
                         <td className="py-3 pr-4 text-right font-mono">
                           {fmtMoney(r.mahngebuehr)} €

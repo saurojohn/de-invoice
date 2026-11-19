@@ -1757,7 +1757,9 @@
       "saved": "Saved",
       "resetDone": "Reset to default",
       "confirmReset": "Reset to default?"
-    }
+    },
+    "asLetter": "As a letter (PDF)",
+    "letterCreated": "Dunning letter created — please print and post it"
   },
   "settings": {
     "ossVerfahren": "OSS scheme (§ 18j UStG)",
@@ -2744,7 +2746,8 @@
     "costCenter": "Cost center",
     "neueFrist": "New deadline",
     "statusCancelled": "Cancelled",
-    "statusOpen": "Open"
+    "statusOpen": "Open",
+    "byPost": "by post"
   },
   "mandant": {
     "choose": "Choose Mandant",
