@@ -2673,6 +2673,29 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 877 — a first day on the production images of Tier 876: three things fixed; everything else worked
+
+The owner: „继续“.
+
+**The walk.** Both production images built from Tier 876, a fresh database, the backend hardened (read-only root, no capability, 1 GB), `NODE_ENV=production`, `SETUP_TOKEN`, a key, `REGISTRATION=first-only`, an off-site remote set but no off-site service. Frontend on :3177, API on :3178, in the browser. What worked:
+- the setup link registered the first company;
+- the administrator landed on „Sicherheit“ with the banner — every other call answered 403 TWO_FACTOR_REQUIRED, as Tier 861 meant;
+- 2FA was set up with the code from the shown secret, and the recovery codes were shown;
+- the dashboard worked;
+- an invoice was issued; its print view opened a `blob:` frame with no CSP violation; the PDF came as 51 KB;
+- its mail was refused in words without a mail server;
+- the backup page showed the automatic backups, the manual ones replaced by the note, the off-site copy red;
+- signing out and back in took password and code; the dashboard showed 240 € + 45,60 € = 285,60 €.
+
+**Fixed.**
+1. After the password the 2FA page's address carried the e-mail address (`/login/verify-2fa?email=…`) — into the browser's history and the proxy's access log. `LoginForm` goes to `/login/verify-2fa`; the page takes the address from `pending2faEmail` (an old link's `?email=` still works).
+2. An off-site copy that never ran was told „Seit mehr als 6 Std. keine Kopie mehr“, as if there had been one. With no run reported it now says the service has not reported, and how it is started (de/en/zh).
+3. The note on an installation without manual backups showed `infra/prod/restore-drill.sh` with its backticks; they are gone.
+
+Verified again on a rebuilt frontend image in the same stack: the address without the e-mail, the sign-in with the code completed, the stored address kept and the pending one cleared, both texts.
+
+**Specs.** Spec 569 (new; 4 ✗ on Tier 876). Spec 46 passes. Playwright `two-factor`, `admin-two-factor-required-tier861`, `backups-automatic-tier727`, `backups-manual-unavailable-tier871` and `ui-walk-tier590` pass (10).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 876b — CI green for Tier 876, no flaky
 
 - **Run 44583430420 (Tier 876, 3da44641):** backend **567 passed / 0 failed / 1 skipped** (568 and 94 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

@@ -2,7 +2,7 @@
 
 import { API_BASE } from "@/lib/api"
 
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,12 @@ import { storeSession } from "@/lib/auth"
 function Verify2FAInner() {
   const router = useRouter()
   const search = useSearchParams()
-  const email = search.get("email") || ""
+  // Tier 877: from the password step's storage (an old link may still carry ?email=)
+  const [email, setEmail] = useState(search.get("email") || "")
+  useEffect(() => {
+    if (email) return
+    try { setEmail(localStorage.getItem("pending2faEmail") || "") } catch { /* private mode */ }
+  }, [email])
   const { t } = useI18n()
   const toast = useToast()
   const [code, setCode] = useState("")

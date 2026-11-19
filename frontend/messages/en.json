@@ -2106,7 +2106,8 @@
     "lostTitle": "{n} issued invoice(s) missing from the database",
     "lostHint": "The kept copy of these invoices exists, the database does not have them — they were issued after the database backup that was last restored. The customer has received them. Their numbers will not be given out again. The company restores them from their copy under Invoices.",
     "lostCopy": "Copy: {path}",
-    "manualUnavailable": "This installation has no manual backups: the database is backed up automatically every hour, and so are the files (above). `infra/prod/restore-drill.sh` on the server rehearses a restore."
+    "manualUnavailable": "This installation has no manual backups: the database is backed up automatically every hour, and so are the files (above). infra/prod/restore-drill.sh on the server rehearses a restore.",
+    "autoOffsiteNeverRan": "The offsite-backup service has not reported a run yet — is it started? (docker compose --profile offsite up -d offsite-backup)"
   },
   "systemHealth": {
     "title": "System Health",

@@ -335,7 +335,10 @@ export default function BackupsPage() {
                 <div className="text-xs text-red-700 dark:text-red-300" data-testid="backup-auto-offsite-problem">
                   {auto.offsite.lastRunOk === false
                     ? t("backup.autoOffsiteFailed", { message: auto.offsite.message ?? "" })
-                    : t("backup.autoOffsiteStale", { max: String(auto.offsite.maxAgeHours ?? "") })}
+                    : auto.offsite.lastRunAt == null
+                      // Tier 877: it never reported — not „no copy for more than 6 h“
+                      ? t("backup.autoOffsiteNeverRan")
+                      : t("backup.autoOffsiteStale", { max: String(auto.offsite.maxAgeHours ?? "") })}
                 </div>
               )}
             </div>

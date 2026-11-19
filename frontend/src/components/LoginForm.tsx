@@ -102,7 +102,9 @@ export default function LoginForm({ autoFocus = false }: { autoFocus?: boolean }
         // Tier 780: the challenge /auth/2fa/verify takes (it took the e-mail,
         // so a code alone signed in). This tab only, gone with it.
         try { sessionStorage.setItem("pending2faToken", data.twoFactorToken || "") } catch { /* private mode */ }
-        router.push(`/login/verify-2fa?email=${encodeURIComponent(data.email || form.email)}`)
+        // Tier 877: not in the address — it went into the browser's history and
+        // the proxy's access log; the page reads it from pending2faEmail
+        router.push("/login/verify-2fa")
         return
       }
       // Tier 401: one place stores the ids and records whether the response
