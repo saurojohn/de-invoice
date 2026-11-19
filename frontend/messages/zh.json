@@ -2335,7 +2335,11 @@
     "companyInviteUntil": "有效至",
     "companyInviteRevoke": "撤销",
     "operatorPageHint": "公开注册和新公司邀请：",
-    "operatorPageLink": "系统运营"
+    "operatorPageLink": "系统运营",
+    "resetTwoFactor": "重置 2FA",
+    "confirmResetTwoFactor": "重置 {email} 的两步验证？其所有会话将结束；下次登录只需密码，然后需重新设置 2FA。请先确认对方身份再操作。",
+    "resetTwoFactorDone": "✓ 已重置 {email} 的 2FA",
+    "resetTwoFactorFailed": "无法重置 2FA"
   },
   "ustva": {
     "ossNote": "按目的国税率开给其他欧盟国家消费者的销售额：净额 {net} — 已计入 Kz 45，仅作为计税基础。其税额（{vat}）不在本期申报内，通过 OSS 程序向联邦中央税务局申报（§ 18j UStG），见 报表 → OSS。",

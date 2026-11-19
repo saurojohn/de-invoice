@@ -5,6 +5,9 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { UserSessionService } from '../../auth/user-session.service'
+import { AuditService } from '../audit/audit.service'
+import { resetTwoFactor } from '../../auth/reset-two-factor'
 import { PrismaService } from '../../prisma/prisma.service';
 import { userEmailTaken } from '../../auth/user-email';
 import { MailService } from '../mail/mail.service';
@@ -175,7 +178,35 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private mailService: MailService,
+    // Tier 872: the 2FA reset ends the member's sessions and is audited
+    private sessions: UserSessionService,
+    private audit: AuditService,
   ) {}
+
+  /**
+   * Tier 872 — an administrator takes a member's lost second factor away
+   * (auth/reset-two-factor.ts). A member of this company only, not oneself
+   * (that is POST /auth/2fa/disable with a code).
+   */
+  async resetMemberTwoFactor(companyId: string, targetId: string, actorId: string) {
+    if (targetId === actorId) {
+      throw new BadRequestException('Die eigene Zwei-Faktor-Anmeldung schalten Sie unter „Sicherheit“ mit einem Code ab.');
+    }
+    const member = await this.prisma.userCompany.findUnique({
+      where: { userId_companyId: { userId: targetId, companyId } },
+      select: { user: { select: { id: true, email: true, companyId: true, twoFactorEnabled: true } } },
+    });
+    if (!member) throw new NotFoundException('Benutzer nicht gefunden');
+    if (!member.user.twoFactorEnabled) {
+      throw new BadRequestException(`${member.user.email} verwendet keine Zwei-Faktor-Anmeldung.`);
+    }
+    const { endedSessions } = await resetTwoFactor(
+      { prisma: this.prisma, sessions: this.sessions, audit: this.audit },
+      { id: member.user.id, companyId: member.user.companyId },
+      { userId: actorId, via: 'admin', companyId },
+    );
+    return { id: member.user.id, email: member.user.email, twoFactorEnabled: false, endedSessions };
+  }
 
   /**
    * Check if a role can perform an action. Higher-ranked roles inherit
@@ -234,6 +265,7 @@ export class UsersService {
         createdAt: true,
         lastLogin: true,
         profile: true,
+        twoFactorEnabled: true, // Tier 872: the page offers the reset
         userCompanies: { where: { companyId }, select: { accessUntil: true } }, // Tier 744
       },
       orderBy: [{ createdAt: 'asc' }],

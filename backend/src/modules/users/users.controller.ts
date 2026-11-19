@@ -8,6 +8,7 @@ import {
   Query,
   Param,
   BadRequestException,
+  HttpCode,
   ForbiddenException,
   Req,
   Res,
@@ -242,6 +243,20 @@ export class UsersController {
   /**
    * Activate or deactivate a user.
    */
+  /** Tier 872: an administrator takes a member's lost second factor away */
+  @Post(':id/two-factor/reset')
+  @HttpCode(200)
+  async resetTwoFactor(
+    @Query('companyId') companyId: string,
+    @Param('id') id: string,
+    @Req() req: AuthedRequest,
+  ) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    UsersService.requireRole(req.user?.role, 'users.deactivate');
+    if (!req.user?.id) throw new BadRequestException('Unauthenticated');
+    return this.users.resetMemberTwoFactor(companyId, id, req.user.id);
+  }
+
   @Patch(':id/status')
   async setStatus(
     @Query('companyId') companyId: string,

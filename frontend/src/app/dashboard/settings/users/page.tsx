@@ -20,6 +20,7 @@ interface User {
   createdAt: string
   lastLogin: string | null
   accessUntil?: string | null // Tier 744
+  twoFactorEnabled?: boolean // Tier 872
 }
 
 interface Invitation {
@@ -254,6 +255,26 @@ export default function UsersPage() {
       return
     }
     setActionMsg(status === "inactive" ? "✓ Benutzer deaktiviert" : "✓ Benutzer aktiviert")
+    await loadAll(companyId, myId)
+  }
+
+  // Tier 872: a member who lost the second factor gets it taken away
+  const resetTwoFactor = async (u: User) => {
+    if (!await askConfirm(t("users.confirmResetTwoFactor", { email: u.email }))) return
+    const companyId = localStorage.getItem("companyId")
+    const myId = localStorage.getItem("userId")
+    if (!companyId || !myId) return
+    const res = await fetch(`${API_BASE}/api/v1/users/${u.id}/two-factor/reset?companyId=${companyId}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "x-user-id": myId, "x-company-id": companyId },
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast.error(data.message || t("users.resetTwoFactorFailed"))
+      return
+    }
+    setActionMsg(t("users.resetTwoFactorDone", { email: u.email }))
     await loadAll(companyId, myId)
   }
 
@@ -551,6 +572,15 @@ export default function UsersPage() {
                                     className="text-emerald-600 hover:underline text-xs"
                                   >
                                     {t("users.activate")}
+                                  </button>
+                                )}
+                                {u.twoFactorEnabled && (
+                                  <button
+                                    onClick={() => resetTwoFactor(u)}
+                                    className="ml-2 text-red-600 hover:underline text-xs"
+                                    data-testid={`user-reset-2fa-${u.id}`}
+                                  >
+                                    {t("users.resetTwoFactor")}
                                   </button>
                                 )}
                               </>

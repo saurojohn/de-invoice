@@ -2335,7 +2335,11 @@
     "companyInviteUntil": "until",
     "companyInviteRevoke": "Revoke",
     "operatorPageHint": "Public registration and invitations for new companies:",
-    "operatorPageLink": "System operation"
+    "operatorPageLink": "System operation",
+    "resetTwoFactor": "Reset 2FA",
+    "confirmResetTwoFactor": "Reset the two-factor sign-in of {email}? All sessions end; at the next sign-in the password is enough, and 2FA is set up again. Only do this once the person has proven who they are.",
+    "resetTwoFactorDone": "✓ 2FA of {email} reset",
+    "resetTwoFactorFailed": "2FA could not be reset"
   },
   "ustva": {
     "ossNote": "Sales to consumers in other EU states at the rate of those states: net {net} — included in Kz 45, as a base only. Their tax ({vat}) is not in this return; it is declared through the OSS scheme at the BZSt (§ 18j UStG), see Reports → OSS.",

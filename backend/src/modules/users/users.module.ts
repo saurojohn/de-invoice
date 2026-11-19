@@ -3,6 +3,7 @@ import { UsersController, InvitationsController } from './users.controller';
 import { UsersService } from './users.service';
 import { MailModule } from '../mail/mail.module';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { AuditModule } from '../audit/audit.module'; // Tier 872: the 2FA reset is audited
 import { HeaderAuthGuard } from '../../auth/header-auth.guard';
 import { RolesGuard } from '../../auth/roles.guard';
 
@@ -10,7 +11,7 @@ import { RolesGuard } from '../../auth/roles.guard';
 // without needing to import this module.
 @Global()
 @Module({
-  imports: [MailModule, PrismaModule],
+  imports: [MailModule, PrismaModule, AuditModule],
   controllers: [UsersController, InvitationsController],
   providers: [UsersService, HeaderAuthGuard, RolesGuard],
   exports: [UsersService, RolesGuard, HeaderAuthGuard],

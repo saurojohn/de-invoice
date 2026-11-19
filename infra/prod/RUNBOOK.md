@@ -204,6 +204,25 @@ on „Systembetrieb" (Dashboard → Systembetrieb). Two options:
    again in the app afterwards (Sicherheit → Passwort ändern) — the one
    above is in your shell history.
 
+### Zwei-Faktor-Anmeldung verloren (Tier 872)
+
+Lost phone and recovery codes:
+
+- **A member:** an administrator of the company resets it under Einstellungen
+  → Benutzer („2FA zurücksetzen“). While the company asks its administrators
+  for 2FA, only an administrator who uses it can do that.
+- **The last administrator:** on the server, after the person has proven who
+  they are:
+
+  ```bash
+  docker compose -f infra/prod/docker-compose.yml run --rm backend \
+    node dist/cli/reset-two-factor.js <e-mail>
+  ```
+
+Either way the member's sessions end. At the next sign-in the password is
+enough, and a company that asks for 2FA has it set up again. The reset is in
+the audit log (`two_factor_reset`, `via: admin` or `server`).
+
 ### Rotate `JWT_SECRET`
 
 ```bash

@@ -2673,6 +2673,35 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 872 — a lost second factor can be taken away: by an administrator, or on the server for the last one
+
+The owner: „继续“.
+
+**Measured.** Tier 861 made production companies ask their administrators for 2FA. Someone who lost the phone and the recovery codes had no way back: no route reset another person's 2FA (`twoFactorEnabled: false` was written only by one's own disable, with a code, and by the account deletion), and the RUNBOOK said nothing. The only administrator of a company was locked out of it for good, short of editing the database. Spec 564: 8 ✗ on Tier 871.
+
+**Change.**
+- `auth/reset-two-factor.ts` `resetTwoFactor()`, the one way both routes take:
+  - clears the secret, the recovery codes, the confirmation and the last step;
+  - ends every session of the person;
+  - writes `two_factor_reset` to the audit log (`via: admin|server`, how many sessions ended).
+- **An administrator:** `POST /users/:id/two-factor/reset` (`users.deactivate`).
+  - It covers members of the company only (404 otherwise), and not oneself — that is the disable with a code under „Sicherheit“.
+  - A member without 2FA gets a 400 that says so.
+  - While the company asks for 2FA, only an administrator who uses it gets there (HeaderAuthGuard).
+  - The users page shows „2FA zurücksetzen“ for members who use it, with a confirmation: only after the person has proven who they are (de/en/zh). The member list now carries `twoFactorEnabled`.
+- **The last administrator, on the server:** `docker compose … run --rm backend node dist/cli/reset-two-factor.js <e-mail>` (`src/cli/`).
+  - It starts the application context with crons off, resets, closes, and exits — it waited for timers left running before.
+  - Server access is the proof. The audit row has no user and `via: server`.
+- RUNBOOK §3 „Zwei-Faktor-Anmeldung verloren“.
+
+**Specs.**
+- Spec 564 (new; 8 ✗ on Tier 871):
+  - who may: a viewer refused, oneself refused with the pointer, another company's 404, without 2FA says so;
+  - the reset clears it, ends the sessions, is audited, and the member signs in with the password again;
+  - the server command resets, is audited as „server“, a second time has nothing to reset, an unknown address fails.
+- Related backend specs (44 93 152 161 176 187 190 196 316 332 333 355 374 456 457 464 467 487 491 519 558, 24, 553) and the guards pass.
+- Playwright passes (62): the users page, the operator page, auditor access, mobile width, registration closed, all pages quiet, 2FA.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 871b — CI green for Tier 871, no flaky; the production image reports no manual backups
 
 - **Run 44423426181 (Tier 871, 73cfd1f0):** backend **562 passed / 0 failed / 1 skipped** (563 included), Playwright **1172 passed** (the two new tests included). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
