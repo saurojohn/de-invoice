@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 873b — CI green for Tier 873, no flaky
+
+- **Run 44547889355 (Tier 873, d4583ef0):** backend **564 passed / 0 failed / 1 skipped** (565 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 873 — a company's SMTP password the installation can no longer open stops its mail, with the reason; the settings say so
 
 The owner: „继续“. A look at what Tiers 855–872 left at their edges.
