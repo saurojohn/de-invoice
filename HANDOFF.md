@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 876b — CI green for Tier 876, no flaky
+
+- **Run 44583430420 (Tier 876, 3da44641):** backend **567 passed / 0 failed / 1 skipped** (568 and 94 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- **Docker images 44583430286:** both green — `backend/assets` changed (the Verfahrensdokumentation).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 876 — the audit log keeps an IP address and a browser 90 days, the entry itself with the books
 
 The owner, asked (19.11.2026): „90 天“. The audit's item 14 had covered the containers' logs (Tier 864), not the database's.
