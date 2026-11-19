@@ -8,3 +8,8 @@
 .env.*.local
 .env.dryrun
 .env.staging
+# Tier 874: the off-site copy's remote (HETZNER-DEPLOY.md §9) — the Storage
+# Box password and the crypt passphrases, only obscured (reversible). Keep a
+# copy in the password manager, never in git.
+rclone.conf
+rclone.conf.*
