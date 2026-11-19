@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 875b — CI green for Tier 875, no flaky
+
+- **Run 44573161635 (Tier 875, 159b27d9):** backend **566 passed / 0 failed / 1 skipped** (567 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 875 — a request body stored with a server error carries no PIN, no 2FA code, no nested secret
 
 **Measured** (spec 567, on Tier 874). `GlobalExceptionFilter` keeps a 5xx with the request's body for the operator (ErrorEvent, the system page). `safeBody()` blanked keys with password / token / secret / hash, and e-mail / IBAN / phone — at the first level only. These were stored as they were:
