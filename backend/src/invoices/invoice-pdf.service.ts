@@ -288,10 +288,25 @@ export async function generateInvoicePDF(
     // Bottom: items table starts at a Y that follows the
     // customer block's bottom.
     const headerStartY = 50
+    // Tier 885: the company's name in the letterhead fits its room. It was
+    // drawn at 20 / 18 pt on one line: „Müller & Söhne Gebäudetechnik und
+    // Sanitärinstallationen GmbH“ ran off the page („… GmbI“) — the issuer's
+    // full name is a § 14 Abs. 4 Nr. 1 UStG item. It shrinks to 10 pt, and
+    // below that it wraps.
+    const fittedName = (text: string, maxSize: number, width: number): { size: number; wraps: boolean; height: number } => {
+      doc.font(fontFor('bold'))
+      for (let size = maxSize; size >= 10; size -= 0.5) {
+        doc.fontSize(size)
+        if (doc.widthOfString(text) <= width) return { size, wraps: false, height: size * 1.2 }
+      }
+      doc.fontSize(10)
+      return { size: 10, wraps: true, height: doc.heightOfString(text, { width }) }
+    }
 
     // Draw logo if available and template allows. Logo lives in
     // the top band, centered horizontally, height 68 (3-round
     // sizing: 40 → 52 → 68).
+    const rightBlockWidthForLogo = rightMargin - leftMargin
     if (showLogo && company.logoPath) {
       const logoPath = resolveLogoPath(company.logoPath)
       if (logoPath && fs.existsSync(logoPath)) {
@@ -309,7 +324,7 @@ export async function generateInvoicePDF(
           }
           const phoneFaxLine = [company.phone ? `Tel.: ${company.phone}` : "", (company as any).fax ? `Fax: ${(company as any).fax}` : ""].filter(Boolean).join("  ·  ")
           const textW = Math.max(
-            widest(20, true, [String(company.name || "")]),
+            Math.min(rightBlockWidthForLogo, widest(fittedName(String(company.name || ""), 20, rightBlockWidthForLogo).size, true, [String(company.name || "")])), // Tier 885
             widest(9, false, [a.street, `${a.postalCode || ""} ${a.city || ""}`.trim()]),
             widest(8, false, [phoneFaxLine, company.email || "", (company as any).website || ""]),
           )
@@ -345,9 +360,10 @@ export async function generateInvoicePDF(
       // Top-right: company name + address stack, right-aligned.
       // Starts at y=50 (headerStartY) to align with the logo's
       // top edge — that's the "同一排" requirement.
-      doc.fontSize(20).font(fontFor('bold')).text(company.name, leftMargin, headerStartY, { width: rightBlockWidth, align: "right", lineBreak: false })
+      const fit = fittedName(String(company.name || ""), 20, rightBlockWidth) // Tier 885
+      doc.fontSize(fit.size).font(fontFor('bold')).text(company.name, leftMargin, headerStartY, { width: rightBlockWidth, align: "right", lineBreak: fit.wraps })
       doc.fontSize(9).font(fontFor('regular'))
-      let cy = headerStartY + 25
+      let cy = headerStartY + Math.max(25, fit.height + 5)
       if (compAddr.street) {
         doc.text(compAddr.street, leftMargin, cy, { width: rightBlockWidth, align: "right", lineBreak: false })
         cy += 12
@@ -391,9 +407,18 @@ export async function generateInvoicePDF(
     } else {
       // No logo path on this company. Fall back to a left-aligned
       // letterhead at the top of the page.
-      doc.fontSize(18).font(fontFor('bold')).text(company.name, leftMargin, headerStartY, { lineBreak: false })
+      // Tier 885: the contact lines stand top right in this band — the name
+      // keeps clear of them
+      doc.fontSize(8).font(fontFor('regular'))
+      const contactW = Math.max(0, ...[
+        [company.phone ? `Tel.: ${company.phone}` : "", (company as any).fax ? `Fax: ${(company as any).fax}` : ""].filter(Boolean).join("  ·  "),
+        company.email || "", (company as any).website || "",
+      ].filter(Boolean).map((l) => doc.widthOfString(l)))
+      const nameW = rightBlockWidth - (contactW ? contactW + 16 : 0)
+      const fit = fittedName(String(company.name || ""), 18, nameW)
+      doc.fontSize(fit.size).font(fontFor('bold')).text(company.name, leftMargin, headerStartY, fit.wraps ? { width: nameW } : { lineBreak: false })
       doc.fontSize(9).font(fontFor('regular'))
-      let cy = headerStartY + 22
+      let cy = headerStartY + Math.max(22, fit.height + 4)
       if (compAddr.street) {
         doc.text(compAddr.street, leftMargin, cy, { lineBreak: false })
         cy += 12
@@ -449,6 +474,32 @@ export async function generateInvoicePDF(
     // closes the Vermerkzone, the recipient starts in the Anschriftzone
     // (62.7 mm).
     const addrX = (25 / 25.4) * 72
+    const invoiceTitle = (() => {
+      switch ((invoice as any).type) {
+        case "CN": return "GUTSCHRIFT"
+        case "PI": return "PROFORMARECHNUNG"
+        case "QU": return "ANGEBOT" // Tier 610
+        case "DN": return "LIEFERSCHEIN"
+        case "OC": return "AUFTRAGSBESTÄTIGUNG" // Tier 614
+        case "RCV": return "QUITTUNG"
+        default: return "RECHNUNG"
+      }
+    })()
+    // Tier 885: every address line wraps inside the window. They were drawn on
+    // one line: a long recipient („Bundesanstalt für Immobilienaufgaben –
+    // Direktion Mitte, … Liegenschaft Kaserne Nord“) ran under the
+    // „RECHNUNG“ title and lost its end — the recipient's full name is a
+    // § 14 Abs. 4 Nr. 1 UStG item. The Anschriftzone of DIN 5008 Form B is
+    // 85 mm wide from 20 mm: 80 mm from where writing starts, less if the
+    // title on the right comes closer.
+    doc.fontSize(20).font(fontFor('bold'))
+    const titleLeft = rightMargin - doc.widthOfString(invoiceTitle)
+    const addrW = Math.max(120, Math.min((80 / 25.4) * 72, titleLeft - 10 - addrX))
+    const addrLine = (text: string) => {
+      doc.text(text, addrX, custY, { width: addrW })
+      // 14 pt a line, as before; a wrapped line adds its further lines
+      custY += 14 + Math.max(0, doc.heightOfString(text, { width: addrW }) - doc.currentLineHeight(true))
+    }
     let custY = senderStartY + 8
     // Sender line ("Absenderzeile"). Per user request:
     //   - "sender 公司名+地址 只要一行" — single-line format
@@ -474,31 +525,25 @@ export async function generateInvoicePDF(
     // label down here — the sender block above acts as the
     // invoice-letterhead label.
     doc.fontSize(11).font(fontFor('regular'))
-    doc.text(invoice.customer.name, addrX, custY, { lineBreak: false })
-    custY += 14
+    addrLine(String(invoice.customer.name || ''))
     // Tier 731: the contact person below a business's name (DIN 5008) — it
     // was stored, and the reminder used it, but the invoice left it out
     const attention = String((invoice.customer as any).contact?.name || "").trim()
     if (attention && attention !== String(invoice.customer.name || "").trim() && (invoice.customer as any).type !== "individual") {
-      doc.text(attention, addrX, custY, { lineBreak: false })
-      custY += 14
+      addrLine(attention)
     }
     if (custAddr.street) {
-      doc.text(custAddr.street, addrX, custY, { lineBreak: false })
-      custY += 14
+      addrLine(custAddr.street)
     }
     if (custAddr.postalCode || custAddr.city) {
-      doc.text(`${custAddr.postalCode || ""} ${custAddr.city || ""}`.trim(), addrX, custY, { lineBreak: false })
-      custY += 14
+      addrLine(`${custAddr.postalCode || ""} ${custAddr.city || ""}`.trim())
     }
     if (showCountries) {
-      doc.text(countryLine(custAddr.country), addrX, custY, { lineBreak: false })
-      custY += 14
+      addrLine(countryLine(custAddr.country))
     }
     if (invoice.customer.vatId) {
       // Tier 691: "USt-IdNr." as the BZSt writes it (was "UST-IDNr." here, "USt-IDNr." in the header)
-      doc.text(`USt-IdNr.: ${invoice.customer.vatId}`, addrX, custY, { lineBreak: false })
-      custY += 14
+      addrLine(`USt-IdNr.: ${invoice.customer.vatId}`)
     }
 
     // RECHNUNG title + invoice number — right side of the middle
@@ -511,17 +556,6 @@ export async function generateInvoicePDF(
     // header block). The whole block is offset down 3 rows
     // (3 × 14pt = 42pt) from middleRowY so the title sits clearly
     // below the customer name on the left.
-    const invoiceTitle = (() => {
-      switch ((invoice as any).type) {
-        case "CN": return "GUTSCHRIFT"
-        case "PI": return "PROFORMARECHNUNG"
-        case "QU": return "ANGEBOT" // Tier 610
-        case "DN": return "LIEFERSCHEIN"
-        case "OC": return "AUFTRAGSBESTÄTIGUNG" // Tier 614
-        case "RCV": return "QUITTUNG"
-        default: return "RECHNUNG"
-      }
-    })()
     // Tier 610: a delivery note shows what was delivered, not what it costs;
     // neither it nor a quote asks for payment.
     const docType = String((invoice as any).type || "INV")

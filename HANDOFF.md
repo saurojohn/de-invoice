@@ -2673,6 +2673,25 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 885 — long names on the invoice and the Mahnung: the issuer's name ran off the page, the recipient's under the title; the Mahnung went to the contact person alone
+
+The owner: „继续“. Found by rendering a 35-line invoice (four pages) with ordinary German names and reading the PDF.
+
+**Measured.**
+- **Letterhead.** „Müller & Söhne Gebäudetechnik und Sanitärinstallationen GmbH“ was drawn at 18 pt (20 pt with a logo) on one line and ran off the page („… GmbI“).
+- **Recipient.** „Bundesanstalt für Immobilienaufgaben – Direktion Mitte, Sparte Facility Management Liegenschaft Kaserne Nord“ was one line. It ran under „RECHNUNG“ and lost „Nord“.
+- Both full names are § 14 Abs. 4 Nr. 1 UStG items. The page breaks, the repeated table header, the footer line and the totals on the last page were all in order.
+- **Mahnung** (`mahnung-pdf.service.ts`). The letter was addressed to `contact?.name || customer.name`: a business with a contact person got „Hans Schmidt, Hafenstr. 3, Bremen“, with no company on it. The Mahnung — the last one perhaps an Einschreiben — went to a private person, not to the debtor.
+
+**Change.**
+- `invoice-pdf.service.ts`, letterhead: `fittedName` sets the company's name from 20 / 18 pt down to 10 pt so it fits its room. Without a logo, that room excludes the contact lines top right. Below 10 pt the name wraps and the address lines move down. With a logo, its room is computed from the fitted size.
+- `invoice-pdf.service.ts`, address window: every line wraps inside it. The width is 80 mm (DIN 5008 Form B: 85 mm from 20 mm, writing from 25 mm), less if the document title on the right comes closer — the title is now computed before the address. A single line still advances 14 pt, as spec 448 measures.
+- `mahnung-pdf.service.ts`: the customer's name first, the contact person below it for a business (as the invoice does since Tier 731).
+
+**Specs.**
+- New `577-tier885-lange-namen-im-pdf.sh`: the letterhead's name is under 18 pt and at least 10 pt; the recipient's name runs on several lines from 25 mm, and „Liegenschaft Kaserne Nord“ is there; the Mahnung for a business with „Hans Schmidt“ reads the company, then him. On the old code 3 ✗.
+- The 61 specs that read PDFs pass, except 87 (local environment, as before).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 884b — CI green for Tier 884, no flaky
 
 - **Run 44735019924 (Tier 884, 303c9ded):** backend **575 passed / 0 failed / 1 skipped** (576 included), Playwright **1176 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

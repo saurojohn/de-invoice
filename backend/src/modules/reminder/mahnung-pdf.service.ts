@@ -202,10 +202,19 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
 
     // Empfänger block (left aligned, ~150pt from top)
     let y = 70
-    const empfaenger = input.customer.contact?.name || input.customer.name
-    doc.fontSize(11).font("Helvetica-Bold").text(empfaenger, PAGE_MARGIN, y)
+    // Tier 885: the debtor first, the contact person below — as the invoice
+    // (Tier 731, DIN 5008). The letter was addressed to the contact person
+    // alone („Hans Schmidt, Hafenstr. 3, Bremen“) with no company on it: the
+    // Mahnung — the last one perhaps an Einschreiben — went to a private
+    // person, not to the customer who owes the money.
+    const contactName = String(input.customer.contact?.name || "").trim()
+    doc.fontSize(11).font("Helvetica-Bold").text(input.customer.name, PAGE_MARGIN, y)
     y = doc.y + 2
     doc.fontSize(10).font("Helvetica")
+    if (contactName && contactName !== String(input.customer.name || "").trim() && input.customer.type !== "individual") {
+      doc.text(contactName, PAGE_MARGIN, y)
+      y = doc.y
+    }
     if (input.customer.address?.street) {
       doc.text(input.customer.address.street, PAGE_MARGIN, y)
       y = doc.y
