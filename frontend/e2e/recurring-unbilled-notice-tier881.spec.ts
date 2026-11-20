@@ -39,7 +39,11 @@ test("a start two months back: the form says what is not billed", async ({ page,
   await page.goto("/dashboard/recurring-invoices")
   await page.getByTestId("recurring-new-button").click({ timeout: 60_000 })
   await page.getByTestId("recurring-form-name").fill("Wartungsvertrag")
-  await expect(page.getByTestId("recurring-form-customer")).not.toHaveValue("")
+  // the customer list may load after the form opened (then nothing is
+  // preselected) — pick it, as a user does (CI run 44716709919: flaky)
+  const customerSelect = page.getByTestId("recurring-form-customer")
+  await expect(customerSelect.locator("option", { hasText: `Abo ${tag} GmbH` })).toHaveCount(1, { timeout: 30_000 })
+  await customerSelect.selectOption({ label: (await customerSelect.locator("option", { hasText: `Abo ${tag} GmbH` }).textContent())!.trim() })
   await page.getByTestId("recurring-form-day-of-month").fill("1")
   await page.getByTestId("recurring-form-start-date").fill(start)
   await page.getByTestId("recurring-item-description").first().fill("Wartung")

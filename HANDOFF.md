@@ -2673,6 +2673,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 882b — CI for Tier 882: green with 1 flaky, the Tier 881 spec; it picks its customer now
+
+- **Run 44716709919 (Tier 882, 5cdb9db4):** backend **573 passed / 0 failed / 1 skipped** (574 included), Playwright **1175 passed, 1 flaky**. No Traceback, no `REFUSED`. The dependency audit passed.
+- **The flaky one: `recurring-unbilled-notice-tier881` (Tier 881's own spec).**
+  - The first try failed at `not.toHaveValue("")` on the customer select.
+  - The form preselects the first customer only if the list has loaded when „Neue Vorlage“ is clicked. In CI the click came first, so the select stayed at „—“. The retry passed.
+  - This is not a defect: a user sees „—“ and picks a customer.
+  - The spec now waits for its customer's option and selects it. Locally it passed 5 of 5.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 882 — a CSV import reads a file as German Excel saves it: „taxExempt = false“ stored a tax-exempt customer, a rent of 1.500,00 € was 1,50 €
 
 The owner: „继续“. Found on the second walk on the production images: importing customers from Excel, a first-week task.
