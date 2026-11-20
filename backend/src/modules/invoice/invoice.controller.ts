@@ -661,6 +661,9 @@ export class InvoiceController {
       if (isNonFiscal(invoice.type)) { // Tier 610
         return res.status(400).json({ message: 'Zu einem Angebot, einer Auftragsbestätigung oder einem Lieferschein gibt es keinen GiroCode.' })
       }
+      if (invoice.type === 'CN') { // Tier 887: the money goes to the customer
+        return res.status(400).json({ message: 'Zu einer Gutschrift gibt es keinen GiroCode — hier zahlen Sie an den Kunden.' })
+      }
       // Reuse the same GiroCode payload builder the
       // PDF embeds — single source of truth. Falls
       // through to 404 when the company has no IBAN

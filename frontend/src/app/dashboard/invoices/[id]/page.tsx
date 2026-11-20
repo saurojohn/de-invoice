@@ -2020,7 +2020,8 @@ export default function InvoiceDetailPage() {
                 yet) or a cancelled one. */}
             {/* Tier 829: behind „Weitere Aktionen" on a phone (eleven buttons stood above the invoice) */}
             <div className={(moreActions ? "flex" : "hidden") + " md:contents w-full flex-wrap gap-2 items-center"} data-testid="invoice-more-actions">
-            {!nonFiscal && !["draft", "cancelled"].includes(invoice.status) && (
+            {/* Tier 887: a credit note is owed to the customer — no payment link */}
+            {!nonFiscal && invoice.type !== "CN" && !["draft", "cancelled"].includes(invoice.status) && (
               <Button
                 variant="outline"
                 onClick={generatePortalLink}
@@ -2075,6 +2076,7 @@ export default function InvoiceDetailPage() {
                 no IBAN — we surface that in a German
                 toast pointing the operator at the
                 company settings. */}
+            {invoice.type !== "CN" && ( // Tier 887: nothing to pay on a credit note
             <Button
               variant="outline"
               onClick={downloadGiroCode}
@@ -2083,6 +2085,7 @@ export default function InvoiceDetailPage() {
             >
               {t("invoicePage.giroCode")}
             </Button>
+            )}
             </>)}
             {/* Tier 610: the next document */}
             {canMake.OC && (

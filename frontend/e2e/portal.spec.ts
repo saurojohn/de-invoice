@@ -78,7 +78,8 @@ test.describe("Customer portal (Tier 33)", () => {
     // We need an invoice id. The seed list returns
     // the 50 most-recent invoices — pick the first.
     // Tier 496: an issued invoice — a draft has no payment link.
-    await page.goto("/dashboard/invoices?status=sent,overdue", {
+    // Tier 887: an invoice — a credit note (also „sent“) has none either
+    await page.goto("/dashboard/invoices?type=INV&status=sent,overdue", {
       waitUntil: "domcontentloaded",
     })
     const firstRow = page.locator('[data-testid="invoice-row"]').first()
@@ -142,7 +143,13 @@ test.describe("Customer portal (Tier 33)", () => {
     // Tier 829: an issued one — a draft has no payment link (Tier 496), and
     // the newest invoice of the shared seed company can be a draft another
     // spec left (seen in a local run of 114 specs)
+    // Tier 887: an invoice with money open first — a paid one, a credit note or
+    // a fully credited invoice has no „mark as paid“ on its page (a local run
+    // found only paid ones at the top)
     const invoice = items.find(
+      (i: any) => i.type === "INV" && /^INV-\d{4}-\d+$/.test(i.invoiceNumber) && ["sent", "overdue"].includes(i.status)
+        && !i.fullyCredited && Number(i.openAmount ?? i.total) > 0,
+    ) || items.find(
       (i: any) => /^INV-\d{4}-\d+$/.test(i.invoiceNumber) && ["sent", "overdue", "paid"].includes(i.status),
     ) || items.find((i: any) => ["sent", "overdue", "paid"].includes(i.status))
     // Tier 369: was a bare test.skip(). ci-seed.sh always seeds invoices for

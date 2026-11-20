@@ -2673,6 +2673,29 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 887 — a credit note asks for no payment: it carried a GiroCode for „EUR-500.00“, and a payment link asked the customer to pay -500,00 €
+
+The owner: „继续“. Found by reading a credit note PDF.
+
+**Measured.** A credit note of 500 € (CN-2026-000001, total −500):
+- **The PDF carried a GiroCode** encoding `EUR-500.00`. That is no valid EPC amount (0.01 … 999 999 999.99), and an app that reads it without the sign prefills a transfer of 500 € *to* the company that owes the money back.
+- **`GET …/girocode.png`** served the code (200).
+- **`POST …/generate-payment-link`** minted a link. The public page showed „-500,00 €“ and asked the customer to pay.
+- The title „GUTSCHRIFT“ for a correction by the seller is tolerated (BMF, 25.10.2013) and was left alone.
+- The reference to the corrected invoice („Bezug zu Rechnung“ / „Rechnung vom“) is there.
+
+**Change.**
+- `buildEpcQrPayload` returns no payload for a credit note or a total ≤ 0.
+- The PDF draws no code for a CN.
+- `girocode.png` answers 400 for a CN: „Zu einer Gutschrift gibt es keinen GiroCode — hier zahlen Sie an den Kunden.“
+- `generatePaymentLink` answers 400 for a CN: „… keinen Zahlungslink — der Betrag steht dem Kunden zu.“
+- The invoice page shows neither button on a credit note.
+
+**Specs.**
+- New `579-tier887-gutschrift-ohne-girocode.sh`: the invoice's PDF keeps one RGB image (its code), the credit note's has none, the PNG and the link are refused for the CN, and the invoice still gets a link. On the old code 3 ✗.
+- The 64 specs with GiroCode, payment links or credit notes pass.
+- Playwright `portal.spec.ts`: the admin test opened the first issued document of the list, a credit note when one is newest — in CI `credit-note.spec` runs before it on the same database. It opens `?type=INV&status=sent,overdue` now. The public-page test prefers an invoice with money open (a paid one has no „mark as paid“; a local run found only paid ones at the top).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 886 — a quote thanks for the enquiry, not for the order
 
 The owner: „继续“. Found by reading a quote and an order confirmation rendered for the long-named company of Tier 885.

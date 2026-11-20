@@ -565,7 +565,7 @@ export async function generateInvoicePDF(
     // Skonto) but asks for no money yet — no GiroCode
     // Tier 729: paid in cash, by card or PayPal — no transfer code to scan
     const paidOtherwise = paymentMethodLabel((invoice as any).paymentMethod)
-    const noGiroCode = noPayment || docType === "OC" || paidOtherwise != null
+    const noGiroCode = noPayment || docType === "OC" || docType === "CN" || paidOtherwise != null // Tier 887: CN
     const money = (n: number) => (hidePrices ? "" : formatCurrency(n))
     const titleOffsetY = 42  // 3 rows down
     const titleY = middleRowY + titleOffsetY
@@ -1513,6 +1513,11 @@ export function buildEpcQrPayload(
   // nothing at all when the advance covered it.
   const totalNum = round2(toFloat(invoice.total as any) - (invoice.advanceDeduction?.gross ?? 0))
   if (invoice.advanceDeduction && totalNum <= 0) return null
+  // Tier 887: nothing to pay, no code to pay with. A credit note (−500 €)
+  // carried „EUR-500.00“ — no valid EPC amount (0.01 … 999 999 999.99), and an
+  // app reading it without the sign prefills a transfer of 500 € TO the
+  // company that owes the money back.
+  if ((invoice as any).type === 'CN' || totalNum <= 0) return null
   const amountStr = totalNum.toFixed(2)
 
   // Use the invoice number as the Verwendungszweck

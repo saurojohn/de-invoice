@@ -78,6 +78,11 @@ export class PortalService {
     if (isNonFiscal(invoice.type)) {
       throw new BadRequestException('Zu einem Angebot, einer Auftragsbestätigung oder einem Lieferschein gibt es keinen Zahlungslink — wandeln Sie es in eine Rechnung um.')
     }
+    // Tier 887: a credit note is money owed TO the customer — its link showed
+    // „-500,00 €“ on a page that asks the customer to pay
+    if (invoice.type === 'CN') {
+      throw new BadRequestException('Zu einer Gutschrift gibt es keinen Zahlungslink — der Betrag steht dem Kunden zu.')
+    }
     if (invoice.status === 'draft' || invoice.status === 'cancelled') {
       throw new BadRequestException(
         invoice.status === 'draft'
