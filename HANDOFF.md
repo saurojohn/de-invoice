@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 887b — CI green for Tiers 886 and 887, no flaky
+
+- **Run 44791177024 (Tier 886, 2ec337db):** backend **577 passed / 0 failed / 1 skipped** (578 included), Playwright **1176 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`.
+- **Run 44798539726 (Tier 887, b8c7ccd8):** backend **578 passed / 0 failed / 1 skipped** (579 included), Playwright **1176 passed** (`portal.spec` with its new choice). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 887 — a credit note asks for no payment: it carried a GiroCode for „EUR-500.00“, and a payment link asked the customer to pay -500,00 €
 
 The owner: „继续“. Found by reading a credit note PDF.
