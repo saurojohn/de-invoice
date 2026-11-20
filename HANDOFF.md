@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 883b — CI green for Tier 883, no flaky
+
+- **Run 44729399789 (Tier 883, 37fb7602):** backend **574 passed / 0 failed / 1 skipped** (575 included), Playwright **1176 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 883 — a bank statement is read in its own encoding: an ISO-8859-1 MT940 stored „B�CKEREI M�LLER GMBH“
 
 The owner: „继续“. Found after Tier 882 by looking for the other uploads that read bytes as UTF-8.
