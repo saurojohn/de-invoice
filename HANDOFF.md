@@ -2673,6 +2673,21 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 891 — the statement's customer block keeps clear of the address: a long name ran across the page under it
+
+The owner: „继续“. Found by reading a statement for the long-named customer of Tier 885 (`customer-statement-pdf.service.ts`, its own PDF code).
+
+**Checked on the way** (no change): the dashboard's revenue and open receivables net a credit note (22 880,25 − 500 = 22 380,25 €); a customer's „bezahlt“ on the payment page is a report, not a booking (Tier 430); the DATEV export writes „?“ for a character outside Windows-1252; the invoice, product and dunning number fields are number inputs.
+
+**Measured.** The „Kunde“ value was drawn without a width: the name ran across the page on one line. The address block top right, without a width either, wrapped at the page edge to four lines and printed „Ellerstraße 56 …“ / „53119 Bonn“ over the name.
+
+**Change.**
+- The values of the customer block (name, customer number) end 12 pt before the address column.
+- The address block is 200 pt wide.
+- The table starts below whichever block ends lower.
+
+**Specs.** New `582-tier891-kontoauszug-langer-name.sh`: the „Kunde“ value's first line is „Bundesanstalt für Immobilienaufgaben –“ (it wraps); „53119 Bonn“ lies above the opening balance. On the old code 1 ✗. The 69 statement specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 890b — CI green for Tier 890, no flaky
 
 - **Run 44826901498 (Tier 890, 8b5bd723):** backend **580 passed / 0 failed / 1 skipped** (581 included), Playwright **1177 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

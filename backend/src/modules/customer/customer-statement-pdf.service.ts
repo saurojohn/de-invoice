@@ -81,25 +81,26 @@ function renderAddress(
   y: number,
   address: Record<string, any>,
   name: string,
+  width = 200,
 ) {
   doc.font('Helvetica').fontSize(10).fillColor('black')
-  doc.text(name, x, y)
+  doc.text(name, x, y, { width })
   let cursorY = doc.y + 2
 
   doc.font('Helvetica').fontSize(9)
   if (address?.street) {
-    doc.text(address.street, x, cursorY)
+    doc.text(address.street, x, cursorY, { width })
     cursorY = doc.y + 1
   }
   const plz = address?.postalCode || ''
   const city = address?.city || ''
   if (plz || city) {
-    doc.text(`${plz} ${city}`.trim(), x, cursorY)
+    doc.text(`${plz} ${city}`.trim(), x, cursorY, { width })
     cursorY = doc.y + 1
   }
   // Tier 728b: in full, in capitals (DIN 5008) — it printed the code („AT“)
   if (address?.country && countryCode(address.country) !== 'DE') {
-    doc.text(countryLine(address.country), x, cursorY)
+    doc.text(countryLine(address.country), x, cursorY, { width })
     cursorY = doc.y + 1
   }
   return cursorY
@@ -177,6 +178,12 @@ export async function generateStatementPdf(
     y = doc.y + 12
 
     // ── Customer block ───────────────────────────────
+    // Tier 891: the values end before the address column on the right. A
+    // long name („Bundesanstalt für Immobilienaufgaben – Direktion Mitte,
+    // Sparte Facility Management …“) ran across the page, and the address
+    // printed over it; the table now starts below whichever block ends lower.
+    const ADDR_X = PAGE_MARGIN + CONTENT_WIDTH - 200
+    const VALUE_W = ADDR_X - 12 - (PAGE_MARGIN + 72)
     doc.fillColor('black')
     doc.font('Helvetica-Bold').fontSize(9)
     doc.text('Kunde', PAGE_MARGIN, y)
@@ -185,6 +192,7 @@ export async function generateStatementPdf(
       data.customer.name + (data.customer.vatId ? `  ·  USt-IdNr. ${data.customer.vatId}` : ''),
       PAGE_MARGIN + 72,
       y,
+      { width: VALUE_W },
     )
     y = doc.y + 2
 
@@ -192,7 +200,7 @@ export async function generateStatementPdf(
       doc.font('Helvetica-Bold').fontSize(9)
       doc.text('Kundennr.', PAGE_MARGIN, y)
       doc.font('Helvetica').fontSize(10)
-      doc.text(data.customer.customerNumber, PAGE_MARGIN + 72, y)
+      doc.text(data.customer.customerNumber, PAGE_MARGIN + 72, y, { width: VALUE_W })
       y = doc.y + 2
     }
 
@@ -204,13 +212,14 @@ export async function generateStatementPdf(
 
     // ── Address block (right column) ────────────────
     // Render customer address in the top-right corner.
-    renderAddress(
+    const addressEnd = renderAddress(
       doc,
-      PAGE_MARGIN + CONTENT_WIDTH - 200,
+      ADDR_X,
       PAGE_MARGIN + 8,
       data.customer.address,
       data.customer.name,
     )
+    y = Math.max(y, addressEnd + 10) // Tier 891
 
     // Tier 653: which currency this statement is in, when the customer has
     // documents in more than one
