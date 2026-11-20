@@ -2673,6 +2673,20 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 889 — an imported date is a day that exists: „31.02.2026“ became an expense of 03.03.
+
+The owner: „继续“. Found after Tier 888 by looking at the import date readers.
+
+**Measured** on the old code:
+- **Expense import** (`parseDate`). It built a Date of „31.02.2026“ and „2026-04-31“, and JavaScript rolls them over: the expenses were stored on **03.03.2026** and **01.05.2026**. Their input VAT went into another UStVA month without a word.
+- **Anlage SO import** (`parseDeDate`). It allowed day 31 in every month and kept „2026-04-31“ as the acquisition date.
+- Short years („15.06.26“) were and are refused with the row's message — not guessed.
+- The OCR date is a suggestion in a date field and was left alone.
+
+**Change.** Both readers take „TT.MM.JJJJ“ or „JJJJ-MM-TT“ and accept it only if `isCalendarDay` (Tier 846) holds: the day read back is the day given. Otherwise the row is reported, as before for an unreadable date.
+
+**Specs.** New `580-tier889-import-datum-das-es-gibt.sh`: 31.02. and 2026-04-31 reported, 28.02. imported, no expense in March; Anlage SO 31.04. marked, 30.04. read. On the old code 3 ✗. The 18 expense-import and Anlage SO specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 888b — CI green for Tier 888, no flaky
 
 - **Run 44808390679 (Tier 888, 59aeb267):** backend **578 passed / 0 failed / 1 skipped**, Playwright **1177 passed** (`german-amount-entry-tier888` included). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

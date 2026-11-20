@@ -1,3 +1,4 @@
+import { isCalendarDay } from '../../common/calendar-day'
 import { parseImportAmount } from '../../common/import-number'
 import { freigrenzeFor, looksLikeCrypto, rowLine, splitRows, vgSummary, VgKind, VG_KINDS } from './anlage-so-rules'
 import { flowFromLeft } from '../../common/pdf-flow'
@@ -176,31 +177,12 @@ function round2(n: number): number {
 function parseDeDate(s: string): string | null {
   const trimmed = (s || '').trim()
   if (!trimmed) return null
-  // ISO yyyy-mm-dd
-  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
-  if (m) {
-    const y = Number(m[1])
-    const mo = Number(m[2])
-    const d = Number(m[3])
-    if (y >= 1900 && y <= 2200 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
-      return `${m[1]}-${m[2]}-${m[3]}`
-    }
-    return null
-  }
-  // dd.mm.yyyy
-  m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(trimmed)
-  if (m) {
-    const d = Number(m[1])
-    const mo = Number(m[2])
-    const y = Number(m[3])
-    if (y >= 1900 && y <= 2200 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
-      const dd = String(d).padStart(2, '0')
-      const mm = String(mo).padStart(2, '0')
-      return `${y}-${mm}-${dd}`
-    }
-    return null
-  }
-  return null
+  // yyyy-mm-dd or dd.mm.yyyy
+  const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(trimmed)
+  const day = de ? `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}` : trimmed
+  // Tier 889: a day that exists — „31.02.2026“ was kept as „2026-02-31“ (the
+  // check allowed day 31 in every month)
+  return isCalendarDay(day) ? day : null
 }
 
 /**

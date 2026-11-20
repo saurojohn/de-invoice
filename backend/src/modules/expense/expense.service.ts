@@ -1,3 +1,4 @@
+import { isCalendarDay } from '../../common/calendar-day'
 import { parseImportAmount, parseImportRate } from '../../common/import-number'
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { assertPeriodOpen, filedPeriodOf, filedPeriodMessage } from '../reports/filed-period';
@@ -529,21 +530,12 @@ export class ExpenseService {
   private parseDate(s: any): Date | null {
     if (!s) return null
     const str = String(s).trim()
-    // ISO YYYY-MM-DD
-    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str)
-    if (iso) {
-      const d = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00.000Z`)
-      return Number.isNaN(d.getTime()) ? null : d
-    }
-    // German DD.MM.YYYY
+    // ISO YYYY-MM-DD, or German DD.MM.YYYY
     const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(str)
-    if (de) {
-      const d = new Date(
-        `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}T00:00:00.000Z`,
-      )
-      return Number.isNaN(d.getTime()) ? null : d
-    }
-    return null
+    const day = de ? `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}` : str
+    // Tier 889: a day that exists — „31.02.2026“ was read as 03.03.2026 (the
+    // Date rolls over), an expense in the wrong UStVA month without a word
+    return isCalendarDay(day) ? new Date(`${day}T00:00:00.000Z`) : null
   }
 }
 
