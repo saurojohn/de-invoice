@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 881b — CI green for Tier 881, no flaky
+
+- **Run 44706939592 (Tier 881, 7ae9b145):** backend **572 passed / 0 failed / 1 skipped** (573 included), Playwright **1174 passed** (the new `recurring-unbilled-notice-tier881`). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 881 — a template with a start in the past says which time it will not bill
 
 The owner: „继续“. Found on the second walk on the production images: a monthly template „Wartungsvertrag 2026“ from 01.09., billed in advance, entered on 20.11.
