@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 880b — CI green for Tiers 879 and 880, no flaky
+
+- **Run 44634813638 (Tier 879, 5aedae71):** backend **570 passed / 0 failed / 1 skipped** (571 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`.
+- **Run 44641620740 (Tier 880, b9d38624):** backend **571 passed / 0 failed / 1 skipped** (572 included), Playwright **1173 passed** (the new `mahnung-als-brief-tier880`). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- **Local harness notes from these tiers.**
+  - The bundled Playwright browser is not installed locally; use `PW_CONFIG=$S/pw-chrome.config.ts` (system Chrome).
+  - A backend spec renames the shared seed customer `b3f7b274…` („Tier398 Portal Kunde“) in the local test DB. Then `invoice-duplicate-check-tier150` picks „BWA Test Kunde GmbH (duplicate)“ and fails locally. CI is not affected: its jobs use separate databases. Locally, reset the name as `ci-seed.sh` does.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 880 — a Mahnung as a letter by post: a customer without an e-mail address could not be dunned at all
 
 The owner: „继续“. Found on the second walk on the production images: the reminders page offered „Erinnerung per E-Mail senden“ only.
