@@ -2673,6 +2673,27 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 884 — the Anlage SO import: a broker export's „1500.00“ was 150 000, a gain of 250,50 € became 25 050 €
+
+The owner: „继续“. Found after Tier 882 by looking for the other number readers.
+
+**Measured** with the preview of `POST accounting/anlage-so/import-csv`:
+- **Amounts.** `parseDeDecimal` stripped every point and then turned the comma into one. A broker export's „1500.00“ / „1750.50“ (English format, as most broker CSVs) gave acquisition cost **150 000** and sale price **175 050**. A gain of 250,50 € became 25 050 € on the Anlage SO, far above the 1 000 € Freigrenze of § 23 Abs. 3 Satz 5 EStG. Its own comment said „also accepts plain 1500.00“.
+- **Separators.** The CSV reader split on „,“ only. A German Excel file („;“) and cells pasted from Excel into the text box (tabs) both gave „CSV-Spalte "description" fehlt“. German amounts had to be quoted.
+
+**Change** (`anlage-so-v2.service.ts`).
+- `parseDeDecimal` reads through `parseImportAmount` (Tier 882). „1.500“ is not guessed: the row is marked with its warning and not imported.
+- `parseCsvText` uses the separator of the header line („;“, tab or „,“) and drops a BOM.
+
+**Specs.** New `576-tier884-anlage-so-csv-zahlen.sh`:
+- a „,“ export with points → 1500 / 1750.5;
+- „;“ with German amounts;
+- tabs;
+- „1.500“ marked;
+- quoted German amounts in a „,“ file → as before.
+
+On the old code 4 ✗. The 10 other Anlage SO specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 883b — CI green for Tier 883, no flaky
 
 - **Run 44729399789 (Tier 883, 37fb7602):** backend **574 passed / 0 failed / 1 skipped** (575 included), Playwright **1176 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

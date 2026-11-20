@@ -1,3 +1,4 @@
+import { parseImportAmount } from '../../common/import-number'
 import { freigrenzeFor, looksLikeCrypto, rowLine, splitRows, vgSummary, VgKind, VG_KINDS } from './anlage-so-rules'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
@@ -203,25 +204,15 @@ function parseDeDate(s: string): string | null {
 }
 
 /**
- * Parse a German-style decimal string. German
- * numbers use `,` as the decimal separator and
- * `.` as the thousands separator (or no separator
- * at all). Examples: "1500,00", "1.500,00", "12,5",
- * "0,99". Also accepts plain "1500.00" for paste
- * convenience. Returns `null` on bad input.
+ * Tier 884: an amount as a German or an English spreadsheet writes it
+ * (common/import-number.ts). This stripped every point first: a broker
+ * export's „1500.00“ / „1750.50“ was 150 000 / 175 050 — a gain of 250,50 €
+ * became 25 050 € on the Anlage SO, far above the 1 000 € Freigrenze
+ * (§ 23 Abs. 3 Satz 5 EStG). „1.500“ (1 500 or 1,5?) is reported, not guessed.
  */
 function parseDeDecimal(s: string): number | null {
-  const trimmed = (s || '').trim()
-  if (!trimmed) return null
-  // Replace "X.XXX,XX" or "X.XXX.XXX,XX" with a
-  // single normalized form: strip dots (thousands
-  // sep), replace comma with dot.
-  const normalized = trimmed
-    .replace(/\./g, '')
-    .replace(',', '.')
-  const n = Number(normalized)
-  if (!Number.isFinite(n)) return null
-  return n
+  const r = parseImportAmount(s)
+  return 'value' in r ? r.value : null
 }
 
 /**
@@ -1125,6 +1116,14 @@ export class AnlageSOV2Service {
  * Returns: array-of-arrays, all as strings.
  */
 export function parseCsvText(text: string): string[][] {
+  // Tier 884: the separator of the header line — „;“ (German Excel), a tab
+  // (cells pasted from Excel into the text box), or „,“. Only „,“ was read:
+  // both of the others gave „CSV-Spalte "description" fehlt“.
+  const firstLine = (text.replace(/^\uFEFF/, '').split(/\r?\n/)[0] || '').replace(/"[^"]*"/g, '')
+  const counts: [string, number][] = [';', '\t', ','].map((c) => [c, firstLine.split(c).length - 1])
+  const best = counts.reduce((a, b) => (b[1] > a[1] ? b : a))
+  const sep = best[1] > 0 ? best[0] : ','
+  text = text.replace(/^\uFEFF/, '')
   const out: string[][] = []
   let row: string[] = []
   let field = ''
@@ -1148,7 +1147,7 @@ export function parseCsvText(text: string): string[][] {
       inQuotes = true
       continue
     }
-    if (c === ',') {
+    if (c === sep) {
       row.push(field)
       field = ''
       continue
