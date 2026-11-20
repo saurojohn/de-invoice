@@ -2673,6 +2673,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 885b — CI for Tier 885: green with 1 flaky, `kontoauszug-email-tier154`; its click waits for the send now
+
+- **Run 44742633033 (Tier 885, 557a261b):** backend **576 passed / 0 failed / 1 skipped** (577 included), Playwright **1175 passed, 1 flaky**. No Traceback, no `REFUSED`. The run was slow: 56 minutes, against 33–45.
+- **The flaky one: `kontoauszug-email-tier154` › „clicking the button shows the success state“.**
+  - The banner was not there within 10 s; the retry passed in 2.4 s.
+  - Not Tier 885's path: the statement has its own PDF service.
+  - The likely cause: a click before the page's handler was attached sends nothing.
+- **The fix.** The two tests that send now go through `sendStatement`: it clicks until the POST `…/statement.email` leaves (3 s per try, up to 30 s), then waits up to 30 s for the banner. Locally it passed 3 of 3.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 885 — long names on the invoice and the Mahnung: the issuer's name ran off the page, the recipient's under the title; the Mahnung went to the contact person alone
 
 The owner: „继续“. Found by rendering a 35-line invoice (four pages) with ordinary German names and reading the PDF.

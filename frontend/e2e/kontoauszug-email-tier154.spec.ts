@@ -32,7 +32,7 @@
  * seeded by earlier tiers, so the send path
  * doesn't trip the "no email" guard.
  */
-import { test, expect, request as playwrightRequest } from '@playwright/test'
+import { test, expect, request as playwrightRequest, type Locator, type Page } from '@playwright/test'
 import { getTestEnv } from './fixtures/test-env'
 
 const USER_ID = getTestEnv().userId
@@ -46,6 +46,24 @@ async function authedRequest() {
       'x-company-id': COMPANY_ID,
     },
   })
+}
+
+/**
+ * Click „Per E-Mail senden“ and wait for the send. A click before the page's
+ * handler is attached sends nothing (CI run 44742633033: no banner within
+ * 10 s, the retry passed in 2.4 s) — the click is repeated until the request
+ * leaves; the send itself (statement PDF + mail) gets 30 s.
+ */
+async function sendStatement(page: Page, btn: Locator) {
+  await expect(async () => {
+    const sent = page.waitForRequest(
+      (r) => r.url().includes('/statement.email') && r.method() === 'POST',
+      { timeout: 3_000 },
+    )
+    await btn.click()
+    await sent
+  }).toPass({ timeout: 30_000 })
+  await expect(page.getByTestId('statement-email-sent-ok')).toBeVisible({ timeout: 30_000 })
 }
 
 test.describe('Tier 154 — Kontoauszug email', () => {
@@ -73,10 +91,7 @@ test.describe('Tier 154 — Kontoauszug email', () => {
     const btn = page.getByTestId('statement-send-email-button')
     await expect(btn).toBeVisible({ timeout: 10_000 })
     // Click and wait for the success banner
-    await btn.click()
-    await expect(
-      page.getByTestId('statement-email-sent-ok'),
-    ).toBeVisible({ timeout: 10_000 })
+    await sendStatement(page, btn)
   })
 
   test('after the send, an EmailSend row exists with templateType=statement', async ({ page }) => {
@@ -84,10 +99,7 @@ test.describe('Tier 154 — Kontoauszug email', () => {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 30_000 })
     const btn = page.getByTestId('statement-send-email-button')
     await expect(btn).toBeVisible({ timeout: 10_000 })
-    await btn.click()
-    await expect(
-      page.getByTestId('statement-email-sent-ok'),
-    ).toBeVisible({ timeout: 10_000 })
+    await sendStatement(page, btn)
     // Verify the EmailSend row was written. The
     // customer detail email-Verlauf (Tier 144)
     // uses the same query we use here. The
