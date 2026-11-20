@@ -2673,6 +2673,23 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 886 — a quote thanks for the enquiry, not for the order
+
+The owner: „继续“. Found by reading a quote and an order confirmation rendered for the long-named company of Tier 885.
+
+**Measured.** The quote closed with the template's default line „Vielen Dank für Ihren Auftrag.“ — on an Angebot, where there is no order yet.
+
+**Checked on the way, in order:**
+- the layout of quote and order confirmation with Tier 885's long names — the address window narrows beside „AUFTRAGSBESTÄTIGUNG“, no overlap;
+- the quote's „Dieses Angebot ist gültig bis …“;
+- the order confirmation's payment terms and Skonto line;
+- a quote is issued with the status „offered“, not „sent“ (a 400 says so);
+- the portal lists no drafts and no non-fiscal documents (Tiers 496 and 612).
+
+**Change** (`invoice-pdf.service.ts`). Where the template's closing line is the default, a quote says „Vielen Dank für Ihre Anfrage. Wir freuen uns auf Ihren Auftrag.“. Every other document keeps the line, and a company's own text is left as it is.
+
+**Specs.** New `578-tier886-angebot-dankt-fuer-anfrage.sh`: the quote's PDF has the new line, an invoice's the old one. The old code has no such line on the quote. The quote and template specs (33, 34, 369, 372, 407, 416, 430, 441, 446) pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 885c — CI green for Tier 885b, no flaky
 
 - **Run 44751728649 (Tier 885b, 25c6a989):** backend **576 passed / 0 failed / 1 skipped**, Playwright **1176 passed** (`kontoauszug-email-tier154` included). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

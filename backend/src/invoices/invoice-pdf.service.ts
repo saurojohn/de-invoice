@@ -1127,8 +1127,14 @@ export async function generateInvoicePDF(
     // invoice row decides whether it's
     // shown.
     if (renderConfig?.footerText) {
+      // Tier 886: a quote is not an order yet — the default closing line
+      // thanked the customer „für Ihren Auftrag“ on an Angebot. A company's
+      // own text is left as it is.
+      const footerText = docType === "QU" && renderConfig.footerText.trim() === "Vielen Dank für Ihren Auftrag."
+        ? "Vielen Dank für Ihre Anfrage. Wir freuen uns auf Ihren Auftrag."
+        : renderConfig.footerText
       doc.font(fontFor('regular')).fontSize(9).fillColor(textColor)
-        .text(renderConfig.footerText, leftMargin, footerY - 56, { lineBreak: false })
+        .text(footerText, leftMargin, footerY - 56, { lineBreak: false })
     }
     if (docType === "QU" && (invoice as any).dueDate) {
       // Tier 610: a quote says how long it holds
