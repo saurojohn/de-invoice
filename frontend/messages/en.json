@@ -1711,7 +1711,8 @@
     "cloneError": "Clone failed",
     "customerLabel": "Customer",
     "nameLabel": "Name",
-    "startDateLabel": "Start date"
+    "startDateLabel": "Start date",
+    "unbilledNotice": "This template does not bill the time from {from} to {until} — its first invoice is made on {first}. Please invoice earlier periods separately, with their service period."
   },
   "reminder": {
     "ofInvoiceTotal": "of {total} invoiced",

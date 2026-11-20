@@ -197,8 +197,9 @@ export class RecurringService {
    * bill the time since then. Measured: a subscription that began in January,
    * entered in October — the scheduler made one invoice each morning for nine
    * days (February … October), e-mailed if the template says so. The next run
-   * is the first date of the schedule from today on; a period that should be
-   * billed after all is made with "Jetzt generieren" on an invoice of its own.
+   * is the first date of the schedule from today on. A period that should be
+   * billed after all is an invoice of its own, with its Leistungszeitraum —
+   * „Generieren“ bills the next period, not a skipped one (Tier 881).
    */
   private notBeforeToday(next: Date, interval: string, intervalCount: number, dayOfMonth: number): Date {
     return this.firstRunAfter(next, businessTodayDate(), { interval, intervalCount, dayOfMonth }, true)
@@ -439,7 +440,30 @@ export class RecurringService {
         },
       },
       include: { items: true, customer: { select: { id: true, name: true } } },
-    }).then((r) => ({ ...r, status: deriveRecurringStatus(r) }))
+    }).then((r) => ({ ...r, status: deriveRecurringStatus(r), unbilled: this.unbilledBefore(input, nextRunAt) }))
+  }
+
+  /**
+   * Tier 881 — the time a template entered with a start date in the past will
+   * not bill (Tier 535: no catch-up). The template was saved without a word;
+   * measured: a monthly template from 01.09., entered on 20.11., showed
+   * „Nächste: 01.12.“ — September to November were never invoiced, and
+   * „Generieren“ bills the next period (December), not a skipped one. The
+   * answer now carries that stretch, the form says it; null when nothing is
+   * skipped.
+   */
+  private unbilledBefore(input: RecurringInput, nextRunAt: Date): { from: string; until: string; firstRun: string } | null {
+    const start = new Date(input.startDate)
+    start.setUTCHours(0, 0, 0, 0)
+    const count = input.intervalCount ?? 1
+    const day = input.dayOfMonth ?? 1
+    const first = this.firstScheduleDate(start, input.interval, count, day, input.servicePeriod)
+    if (first.getTime() >= nextRunAt.getTime()) return null
+    const tpl = { servicePeriod: input.servicePeriod ?? 'none', interval: input.interval, intervalCount: count, dayOfMonth: day }
+    const billedFrom = this.servicePeriodFor(tpl, nextRunAt, this.advanceTo(nextRunAt, input.interval, count, day)).servicePeriodStart ?? nextRunAt
+    if (billedFrom.getTime() <= start.getTime()) return null
+    const iso = (d: Date) => d.toISOString().slice(0, 10)
+    return { from: iso(start), until: iso(new Date(billedFrom.getTime() - 86400000)), firstRun: iso(nextRunAt) }
   }
 
   /**

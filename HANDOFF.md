@@ -2673,6 +2673,26 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 881 — a template with a start in the past says which time it will not bill
+
+The owner: „继续“. Found on the second walk on the production images: a monthly template „Wartungsvertrag 2026“ from 01.09., billed in advance, entered on 20.11.
+
+**Measured.**
+- The template was saved without a word and showed „Nächste: 01.12.2026“.
+- September, October and November were never invoiced. This is Tier 535's rule — no catch-up, decided after a template billed nine months on nine mornings — but nothing told the user.
+- The code comment pointed to „Jetzt generieren“ for a period to be billed after all. Clicked, it made an invoice dated 20.11. for 01.12.–31.12. — the next period — and moved the next run to 01.01.2027. A skipped month cannot be billed from the template.
+
+**Change.**
+- `create` answers with `unbilled: { from, until, firstRun }` when the schedule skips time since the start. `until` is the day before the first run's Leistungszeitraum begins: in advance, the day before the first run; in arrears, the end of the month before the one the first run bills. Otherwise `unbilled` is null.
+- The schedule itself is unchanged.
+- The form shows the stretch for 20 s after saving: „Die Zeit vom … bis … wird von dieser Vorlage nicht berechnet — die erste Rechnung entsteht am … Frühere Zeiträume bitte als eigene Rechnung mit Leistungszeitraum erstellen.“ Texts in de/en/zh.
+- The Tier 535 comment no longer points to „Generieren“.
+- Not changed: a start inside a period (e.g. the 10th, billed on the 1st) leaves the rest of that month unbilled, as since Tier 800. That is a partial period, not a past start.
+
+**Specs.**
+- New `573-tier881-vorlage-nicht-berechnet.sh`: in advance from two months back → the stretch up to the day before the first run, schedule unchanged; in arrears → up to the end of the month before the billed one; a start from the next run on → none. On the old code 2 ✗.
+- New Playwright `recurring-unbilled-notice-tier881.spec.ts`: the form shows the notice.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 880b — CI green for Tiers 879 and 880, no flaky
 
 - **Run 44634813638 (Tier 879, 5aedae71):** backend **570 passed / 0 failed / 1 skipped** (571 included), Playwright **1172 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`.

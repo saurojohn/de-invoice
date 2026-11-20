@@ -478,7 +478,20 @@ export default function RecurringInvoicesPage() {
       if (editing) {
         await apiPut(`/api/v1/recurring-invoices/${editing.id}?companyId=${companyId}`, body)
       } else {
-        await apiPost(`/api/v1/recurring-invoices?companyId=${companyId}`, body)
+        const created = await apiPost<{ unbilled?: { from: string; until: string; firstRun: string } | null }>(
+          `/api/v1/recurring-invoices?companyId=${companyId}`,
+          body,
+        )
+        // Tier 881: a start in the past is not billed back (Tier 535) — say so
+        if (created?.unbilled) {
+          toast.warn(
+            t("recurring.unbilledNotice")
+              .replace("{from}", fmtDate(created.unbilled.from, getDateLocale()))
+              .replace("{until}", fmtDate(created.unbilled.until, getDateLocale()))
+              .replace("{first}", fmtDate(created.unbilled.firstRun, getDateLocale())),
+            20_000,
+          )
+        }
       }
       // Reload
       const list = await apiGet<RecurringTemplate[]>(`/api/v1/recurring-invoices?companyId=${companyId}`)
