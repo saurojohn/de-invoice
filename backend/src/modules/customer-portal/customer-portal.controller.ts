@@ -33,6 +33,7 @@
  *     Token-auth. Records a Payment + flips the
  *     invoice to 'paid'. Idempotent.
  */
+import { dispositionFilename } from '../../common/content-disposition'
 import {
   BadRequestException,
   ForbiddenException,
@@ -117,7 +118,7 @@ export class CustomerPortalController {
     const pdf = await this.svc.getInvoicePdf(token, id)
     res.setHeader(
       'Content-Disposition',
-      `inline; filename="${invoice.invoiceNumber}.pdf"`,
+      `inline; ${dispositionFilename(`${invoice.invoiceNumber}.pdf`)}` // Tier 890,
     )
     res.send(pdf)
   }

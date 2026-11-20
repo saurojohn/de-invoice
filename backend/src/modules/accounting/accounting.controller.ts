@@ -1,4 +1,4 @@
-import { contentDisposition } from '../../common/content-disposition';
+import { contentDisposition, dispositionFilename } from '../../common/content-disposition';
 import { VerfahrensdokuService } from './verfahrensdoku.service';
 import { queryDate, queryInt } from '../../common/query';
 import { Controller, Get, Post, Put, Param, Query, Body, Res, Header, Req, BadRequestException, UseGuards, HttpException, NotFoundException } from '@nestjs/common';
@@ -505,7 +505,7 @@ export class AccountingController {
 
       res.set({
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${voucher.voucherNumber}.pdf"`,
+        'Content-Disposition': `attachment; ${dispositionFilename(`${voucher.voucherNumber}.pdf`)}`, // Tier 890
         'Content-Length': pdfBuffer.length,
       });
       res.end(pdfBuffer);

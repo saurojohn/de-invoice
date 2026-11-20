@@ -2673,6 +2673,24 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 890 — a file name in a header, as RFC 6266 writes it: a customer number „K–1“ made the statement download answer 500
+
+The owner: „继续“. Found by downloading statements of customers whose number the company chose itself (the field is free text, up to 20 characters).
+
+**Measured** (statement PDF, `attachment; filename="Kontoauszug_<Kundennummer>_…"`):
+- „K–1“ (an en dash): **500**. Node refuses a character above U+00FF in a header.
+- „K"2“: the quote ended the name, and the browser saved „Kontoauszug_K“ without an extension.
+- „Müller 3“: „M�ller“.
+- `contentDisposition()` (Tier 573, attachments) wrote `filename="<percent-encoded>"`. The application's own `downloadApiFile` reads `filename*` first and the plain name verbatim, so an attachment „Rechnung Müller.pdf“ was saved as „Rechnung%20M%C3%BCller.pdf“.
+
+**Change** (`common/content-disposition.ts`).
+- `dispositionFilename(name)` writes an ASCII `filename="…"` and, when the name is not ASCII, `filename*=UTF-8''…` with the name as it is. In the ASCII name ä/ö/ü/ß become ae/oe/ue/ss, accents are dropped, and other non-ASCII characters, quotes and backslashes become „_“.
+- `contentDisposition()` uses it.
+- So do the data-derived names: the customer statement, the portal's invoice PDF, the journal for a voucher number given in the query, and a voucher's PDF.
+- The other headers carry years, dates and invoice numbers, whose prefix is letters only (Tier 692); an ASCII name keeps exactly the header it had.
+
+**Specs.** New `581-tier890-dateiname-im-header.sh`: „K–1“ 200 with both names, „K"2“ not ended early, „Müller 3“ with „ue“ and „ü“, an ASCII number with the header as before. On the old code 3 ✗.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 889b — CI green for Tier 889, no flaky
 
 - **Run 44816207047 (Tier 889, 01c78bf2):** backend **579 passed / 0 failed / 1 skipped** (580 included), Playwright **1177 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

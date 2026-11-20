@@ -1,3 +1,4 @@
+import { dispositionFilename } from '../../common/content-disposition'
 import { queryInt } from '../../common/query';
 import { strictFlag } from '../../common/strict-boolean'
 import { assertImportRows } from '../../common/import-rows';
@@ -724,7 +725,7 @@ export class CustomerController {
     const fname = `Kontoauszug_${customerNum}_${fromStr}_${toStr}${data.currency === 'EUR' ? '' : `_${data.currency}`}.pdf`
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${fname}"`,
+      'Content-Disposition': `attachment; ${dispositionFilename(fname)}`, // Tier 890: „K–1“ answered 500
       'Content-Length': String(pdf.length),
     })
     res.send(pdf)

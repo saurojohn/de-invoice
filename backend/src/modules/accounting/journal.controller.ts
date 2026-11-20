@@ -23,6 +23,7 @@
 // the Steuerberater uses when an
 // auditor asks for a specific receipt.
 
+import { dispositionFilename } from '../../common/content-disposition'
 import { isCalendarDay } from '../../common/calendar-day'
 import {
   Controller,
@@ -83,7 +84,7 @@ export class JournalController {
       : `Buchungsjournal_${dateFrom}_bis_${dateTo}.pdf`
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Disposition': `inline; ${dispositionFilename(filename)}`, // Tier 890: a voucher number from the query
       'Content-Length': buffer.length.toString(),
       // X-Journal-* headers carry
       // metadata the frontend can
