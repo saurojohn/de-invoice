@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 885c — CI green for Tier 885b, no flaky
+
+- **Run 44751728649 (Tier 885b, 25c6a989):** backend **576 passed / 0 failed / 1 skipped**, Playwright **1176 passed** (`kontoauszug-email-tier154` included). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+- Harness note: `gh run watch` returned while the Playwright job was still running (an API hiccup). The waiter now polls `gh run view --json status` until `completed`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 885b — CI for Tier 885: green with 1 flaky, `kontoauszug-email-tier154`; its click waits for the send now
 
 - **Run 44742633033 (Tier 885, 557a261b):** backend **576 passed / 0 failed / 1 skipped** (577 included), Playwright **1175 passed, 1 flaky**. No Traceback, no `REFUSED`. The run was slow: 56 minutes, against 33–45.
