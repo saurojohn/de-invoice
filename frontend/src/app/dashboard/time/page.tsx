@@ -14,6 +14,7 @@
  * keeps running on the server — stopping it writes the entry. Tier 618: the
  * time sheet of what is listed, as a PDF.
  */
+import { parseDecimal } from "@/lib/decimal" // Tier 888
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -110,7 +111,7 @@ const hhmmss = (seconds: number) =>
 const day = (iso: string) => String(iso).slice(0, 10).split("-").reverse().join(".")
 const decimal = (raw: string): number | null => {
   if (raw.trim() === "") return null
-  const n = Number(raw.replace(",", "."))
+  const n = parseDecimal(raw) ?? NaN // Tier 888
   return Number.isFinite(n) ? n : NaN
 }
 

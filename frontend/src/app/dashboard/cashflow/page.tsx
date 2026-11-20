@@ -1,5 +1,6 @@
 "use client"
 
+import { parseDecimal } from "@/lib/decimal" // Tier 888
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -108,7 +109,7 @@ export default function CashflowPage() {
     // Accept German decimal comma for the balance
     // input — same convention as everywhere else in
     // the app (steuerberater types "12.345,67").
-    const sb = Number((startingBalance || "0").replace(/\./g, "").replace(",", "."))
+    const sb = parseDecimal(startingBalance || "0") ?? NaN // Tier 888: „19.99“ was 1999
     const m = parseInt(months || "12", 10)
     if (!Number.isFinite(sb) || sb < 0) {
       toastRef.current.error(L("Anfangsbestand ungültig"))

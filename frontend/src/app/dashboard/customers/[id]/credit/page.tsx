@@ -16,6 +16,7 @@
  * URL: /dashboard/customers/[id]/credit?companyId=<id>
  */
 
+import { parseDecimal } from "@/lib/decimal" // Tier 888
 import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
@@ -185,7 +186,7 @@ export default function CustomerCreditPage() {
       setPayoutError(L("Bitte ein Bankkonto auswählen"))
       return
     }
-    const amount = parseFloat(payoutAmount.replace(",", "."))
+    const amount = parseDecimal(payoutAmount) ?? NaN // Tier 888: „1.500,00“ was 1.5
     if (!Number.isFinite(amount) || amount <= 0) {
       setPayoutError(L("Betrag muss eine positive Zahl sein"))
       return
@@ -242,7 +243,7 @@ export default function CustomerCreditPage() {
   async function handleAdjust(e: React.FormEvent) {
     e.preventDefault()
     if (!companyId || !id) return
-    const amount = parseFloat(adjustAmount.replace(",", "."))
+    const amount = parseDecimal(adjustAmount) ?? NaN // Tier 888
     if (!Number.isFinite(amount) || amount === 0) {
       setAdjustError(L("Betrag darf nicht 0 sein"))
       return

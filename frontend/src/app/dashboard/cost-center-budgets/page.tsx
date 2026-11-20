@@ -15,6 +15,7 @@
 // center is a free-form string (matches
 // Invoice.costCenter convention).
 
+import { parseDecimal } from "@/lib/decimal" // Tier 888
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -87,7 +88,7 @@ function BudgetRow({
     const next = [...targets]
     // Allow decimal entry — German "," and English
     // "." both accepted; we parseFloat below.
-    next[idx] = Number(value.replace(",", ".")) || 0
+    next[idx] = parseDecimal(value) || 0 // Tier 888: „1.200,00“ was NaN → 0
     setTargets(next)
   }
 

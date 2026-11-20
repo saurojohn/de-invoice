@@ -1,5 +1,6 @@
 "use client"
 
+import { parseDecimal } from "@/lib/decimal" // Tier 888
 import { KleinunternehmerNotice } from "@/components/KleinunternehmerNotice"
 import { printPdfBlob } from "@/lib/print-pdf"
 import { todayIso } from "@/lib/today"
@@ -1132,7 +1133,9 @@ function CreateInvoicePageInner() {
     // (1 EUR = … of the currency). Empty: the ECB reference rate of the
     // invoice's day — on an edit that is said with 0, so that a rate
     // entered before is given up.
-    const rateText = manualRate.trim().replace(",", ".")
+    // Tier 888: a rate — „1,0856“ and „1.0856“, no thousands
+    const rateNum = parseDecimal(manualRate, { thousands: false })
+    const rateText = rateNum == null ? "" : Number.isFinite(rateNum) ? String(rateNum) : manualRate.trim()
     return {
       ...form,
       exchangeRate: form.currency === "EUR" ? undefined : rateText ? Number(rateText) : isEdit ? 0 : undefined,

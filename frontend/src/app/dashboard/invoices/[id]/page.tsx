@@ -1,5 +1,6 @@
 "use client"
 
+import { parseDecimal } from "@/lib/decimal" // Tier 888
 import { printPdfBlob } from "@/lib/print-pdf"
 import { countryLine, namesCountries } from "@/lib/country"
 import { formatMoney } from "@/lib/money"
@@ -1364,7 +1365,7 @@ export default function InvoiceDetailPage() {
     const received = payments.reduce((s, p) => s + Number(p.amount), 0)
     const input = await askText(t("invoice.advanceRefundPrompt"), received.toFixed(2).replace(".", ","))
     if (input == null) return
-    const amount = Number(input.replace(",", "."))
+    const amount = parseDecimal(input) ?? NaN // Tier 888: „1.234,56“ was NaN
     if (!(amount > 0)) return
     setConvertError(null)
     try {
@@ -1733,7 +1734,7 @@ export default function InvoiceDetailPage() {
     })
   }
   const lineQuantity = (l: ConvertLine): number | null => {
-    const n = Number(l.now.replace(",", "."))
+    const n = parseDecimal(l.now) ?? NaN // Tier 888
     if (l.now.trim() === "" || !Number.isFinite(n)) return null
     // same sign as the line, not more than what is open
     if (n === 0) return 0

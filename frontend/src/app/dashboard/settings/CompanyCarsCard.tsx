@@ -7,6 +7,7 @@
  * unentgeltliche Wertabgabe at 19 % in the UStVA — computed by the backend
  * (company-car/private-use.ts). Not for a Kapitalgesellschaft (payroll).
  */
+import { parseDecimal } from "@/lib/decimal" // Tier 888
 import { todayIso } from "@/lib/today"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -73,7 +74,7 @@ export default function CompanyCarsCard() {
   }, [])
 
   const add = async () => {
-    const listPrice = Number(form.listPrice.replace(/\./g, "").replace(",", "."))
+    const listPrice = parseDecimal(form.listPrice) ?? 0 // Tier 888: „45999.99“ was 4 599 999
     if (!form.name.trim() || !listPrice || !form.fromDate) return
     setSaving(true)
     setError(null)

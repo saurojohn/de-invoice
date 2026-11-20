@@ -2673,6 +2673,25 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 888 — an amount typed as „1.500,00“: a credit adjustment of 1 500 € was booked as 1,50 €
+
+The owner: „继续“. Found after Tiers 882–884 by looking for the same number reading in the browser.
+
+**Measured.** The text fields (the number inputs normalise their value themselves) turned the first comma into a point and parsed the rest:
+- **customer credit, payout and adjustment** (`customers/[id]/credit`): `parseFloat("1.500.00")` = 1.5. The Playwright spec typed „1.500,00“ on the old page and the balance was **1.5**;
+- **refund of a Proforma's advance**, **quantities of a partial conversion** (invoice page) and **hours / rates** (time page): `Number(…)` = NaN — „not a number“ for the way people write it;
+- **budget months** (`cost-center-budgets`): NaN `|| 0` — „1.200,00“ became 0 without a word;
+- **cash-flow starting balance** and a **company car's list price**: every point stripped first, so „19.99“ / „45999.99“ became 1 999 / 4 599 999;
+- **the manual exchange rate** (invoice create): fine for „1,0856“, and now read by the same helper.
+
+**Change.** New `frontend/src/lib/decimal.ts`, `parseDecimal(raw, { thousands })`.
+- Amounts: „1.234,56“, „1234,56“, „1,234.56“, „1234.56“, „1.500“ (= 1 500 on a German screen), „€“ and spaces dropped.
+- `{ thousands: false }` (the exchange rate): a single „,“ or „.“ is the decimal mark.
+- Empty → null, anything else → NaN, which the forms already refuse.
+- Used at the nine call sites above. A Node check of 18 cases passes.
+
+**Specs.** New Playwright `german-amount-entry-tier888.spec.ts`: a credit adjustment typed „1.500,00“ gives a balance of 1500. On the old page it gave 1.5. The Playwright specs of the touched pages were run.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 887b — CI green for Tiers 886 and 887, no flaky
 
 - **Run 44791177024 (Tier 886, 2ec337db):** backend **577 passed / 0 failed / 1 skipped** (578 included), Playwright **1176 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`.
