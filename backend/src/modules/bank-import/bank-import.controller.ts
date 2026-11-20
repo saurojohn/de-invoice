@@ -1,3 +1,4 @@
+import { decodeStatement } from './statement-text'
 import { Controller, Get, Post, Delete, Body, Param, Query, UploadedFile, BadRequestException, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { BankImportService } from './bank-import.service';
@@ -38,7 +39,7 @@ export class BankImportController {
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     if (!companyId) throw new BadRequestException('companyId ist erforderlich');
-    const content = file.buffer.toString('utf-8');
+    const content = decodeStatement(file.buffer); // Tier 883: ISO-8859-1 MT940 too
     return this.svc.importStatement(companyId, userId, file.originalname, content);
   }
 
@@ -62,7 +63,7 @@ export class BankImportController {
     @Body('take') take?: string,
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
-    const content = file.buffer.toString('utf-8');
+    const content = decodeStatement(file.buffer); // Tier 883: ISO-8859-1 MT940 too
     return this.svc.previewStatement(
       content,
       take ? Math.min(200, Math.max(1, Number(take))) : 25,

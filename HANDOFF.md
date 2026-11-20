@@ -2673,6 +2673,28 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 883 — a bank statement is read in its own encoding: an ISO-8859-1 MT940 stored „B�CKEREI M�LLER GMBH“
+
+The owner: „继续“. Found after Tier 882 by looking for the other uploads that read bytes as UTF-8.
+
+**Measured** on the test backend with an MT940 saved in ISO-8859-1, as German banks often deliver it:
+- the counterparty „BÄCKEREI MÜLLER GMBH“ was stored as „B�CKEREI M�LLER GMBH“, the purpose „Rechnung RE-77 Bäckerei“ as „… B�ckerei“;
+- the text stays in the books for good, and a name the customer match cannot find;
+- the preview showed the same;
+- a CAMT.053 declaring `encoding="ISO-8859-1"` was read as UTF-8 too: „Frau M�ller“.
+
+**Change.**
+- New `bank-import/statement-text.ts`, `decodeStatement`. XML is read in the encoding it declares, through the e-invoice reader's `decodeXml` (Tier 573). An encoding it does not support is a 400 with its message. Anything else is read as UTF-8 when it is valid UTF-8, otherwise as Windows-1252.
+- Both routes use it: `import` and `preview`.
+- Not affected: the other `toString('utf8')` calls read the application's own files or decrypted data.
+
+**Specs.** New `575-tier883-kontoauszug-latin1.sh`:
+- an ISO-8859-1 MT940: the preview and the stored name and purpose keep their umlauts;
+- a UTF-8 MT940: as before;
+- an ISO-8859-1 CAMT: read in its declared encoding.
+
+On the old code 3 ✗. All 25 bank-import specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 882c — CI green for Tier 882b, no flaky
 
 - **Run 44723528783 (Tier 882b, 2db1ad20):** backend **573 passed / 0 failed / 1 skipped**, Playwright **1176 passed** (the Tier 881 spec included). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
