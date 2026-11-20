@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { parseCsv as parseCsvFile, readCsvFile } from "@/lib/csv"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -515,78 +516,38 @@ export default function CustomersPage() {
    *   taxExempt | steuerbefreit
    */
   const parseCsv = (text: string): Array<Record<string, string>> => {
-    // Strip BOM and normalise line endings
-    const clean = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n")
-    const lines = clean.split("\n").filter((l) => l.trim().length > 0)
-    if (lines.length < 2) return []
-
-    // CSV split that respects quoted fields with embedded commas/quotes.
-    const splitCsvLine = (line: string): string[] => {
-      const cells: string[] = []
-      let cur = ""
-      let inQuotes = false
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i]
-        if (c === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            cur += '"'
-            i++
-          } else {
-            inQuotes = !inQuotes
-          }
-        } else if (c === "," && !inQuotes) {
-          cells.push(cur)
-          cur = ""
-        } else {
-          cur += c
-        }
-      }
-      cells.push(cur)
-      return cells.map((c) => c.trim())
-    }
-
-    const header = splitCsvLine(lines[0]).map((h) => h.toLowerCase())
-    const col: Record<string, number> = {}
-    header.forEach((h, i) => { col[h] = i })
-
+    // Tier 882: the shared reader (lib/csv) — this one split on „,“ only,
+    // and the „;“ template the dialog offers came in as one column („Zeile 2:
+    // Name fehlt“, nothing imported). German Excel saves with „;“ too.
+    const parsed = parseCsvFile(text)
+    const lower = parsed.headers.map((h) => h.toLowerCase())
     // Build a synonym map
-    const pick = (...keys: string[]) => {
+    const pick = (...keys: string[]): string | null => {
       for (const k of keys) {
-        if (col[k] !== undefined) return col[k]
+        const i = lower.indexOf(k)
+        if (i >= 0) return parsed.headers[i]
       }
-      return -1
+      return null
     }
-    const nameIdx = pick("name", "firma", "company", "kunde")
-    const vatIdx = pick("vatid", "ust-idnr", "ustid", "ust", "ust-id", "vat")
-    const typeIdx = pick("type", "typ", "kind")
-    const streetIdx = pick("street", "strasse", "adresse", "anschrift")
-    const plzIdx = pick("postalcode", "plz", "postleitzahl")
-    const cityIdx = pick("city", "stadt", "ort")
-    const countryIdx = pick("country", "land")
-    const emailIdx = pick("email", "e-mail", "mail")
-    const phoneIdx = pick("phone", "telefon", "tel", "phone")
-    const ptIdx = pick("paymentterms", "zahlungsfrist", "zahlungsziel")
-    const teIdx = pick("taxexempt", "steuerbefreit")
-
-    const rows: Array<Record<string, string>> = []
-    for (let i = 1; i < lines.length; i++) {
-      const cells = splitCsvLine(lines[i])
-      if (cells.every((c) => c === "")) continue
+    const fields: Array<[string, string | null]> = [
+      ["name", pick("name", "firma", "company", "kunde")],
+      ["vatId", pick("vatid", "ust-idnr", "ustid", "ust", "ust-id", "vat")],
+      ["type", pick("type", "typ", "kind", "kundentyp")],
+      ["street", pick("street", "strasse", "straße", "adresse", "anschrift")],
+      ["postalCode", pick("postalcode", "plz", "postleitzahl")],
+      ["city", pick("city", "stadt", "ort")],
+      ["country", pick("country", "land")],
+      ["email", pick("email", "e-mail", "mail")],
+      ["phone", pick("phone", "telefon", "tel")],
+      ["paymentTerms", pick("paymentterms", "zahlungsfrist", "zahlungsziel")],
+      ["taxExempt", pick("taxexempt", "steuerbefreit")],
+      ["tags", pick("tags", "schlagworte", "stichworte")],
+    ]
+    return parsed.rows.map((r) => {
       const row: Record<string, string> = {}
-      if (nameIdx >= 0) row.name = cells[nameIdx] || ""
-      if (vatIdx >= 0) row.vatId = cells[vatIdx] || ""
-      if (typeIdx >= 0) row.type = cells[typeIdx] || ""
-      if (streetIdx >= 0) row.street = cells[streetIdx] || ""
-      if (plzIdx >= 0) row.postalCode = cells[plzIdx] || ""
-      if (cityIdx >= 0) row.city = cells[cityIdx] || ""
-      if (countryIdx >= 0) row.country = cells[countryIdx] || ""
-      if (emailIdx >= 0) row.email = cells[emailIdx] || ""
-      if (phoneIdx >= 0) row.phone = cells[phoneIdx] || ""
-      if (ptIdx >= 0) row.paymentTerms = cells[ptIdx] || ""
-      if (teIdx >= 0) row.taxExempt = cells[teIdx] || ""
-      rows.push(row)
-    }
-    return rows
+      for (const [key, header] of fields) if (header) row[key] = r[header] ?? ""
+      return row
+    })
   }
 
   // Tier 134: run VIES batch check for all customers
@@ -639,7 +600,7 @@ export default function CustomersPage() {
     setImporting(true)
     setImportResult(null)
     try {
-      const text = await importFile.text()
+      const text = await readCsvFile(importFile) // Tier 882: Windows-1252 too
       const rows = parseCsv(text)
       if (rows.length === 0) {
         toast.warn(L("CSV enthält keine Datenzeilen (oder Spaltenüberschriften fehlen)."))

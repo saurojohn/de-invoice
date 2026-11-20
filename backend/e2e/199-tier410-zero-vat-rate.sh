@@ -106,11 +106,12 @@ assert_eq "…not on the tax-free line" "$(EUR_LINE 4170)" "0"
 note "=== 5. the product import keeps a 0 % rate ==="
 AS POST "/api/v1/products/import?companyId=$C" \
   "{\"rows\":[{\"name\":\"$TAG Buch\",\"sku\":\"$TAG-0\",\"basePrice\":\"20\",\"vatRate\":\"0\"},{\"name\":\"$TAG Sonst\",\"sku\":\"$TAG-x\",\"basePrice\":\"20\",\"vatRate\":\"abc\"}]}"
-assert_eq "both rows imported" "$(json_field "$BODY" imported)" "2"
+# Tier 882: an unreadable rate is reported for its row, no longer taken as 19 %
+assert_eq "the 0 % row imported, the „abc“ row reported" "$(json_field "$BODY" imported)" "1"
 assert_eq "an explicit 0 stays 0 (was 0.19)" \
   "$(sql "SELECT \"vatRate\"::numeric FROM \"Product\" WHERE \"companyId\" = '$C' AND name = '$TAG Buch';")" "0.0000"
-assert_eq "an unparseable rate still falls back to 19 %" \
-  "$(sql "SELECT \"vatRate\"::numeric FROM \"Product\" WHERE \"companyId\" = '$C' AND name = '$TAG Sonst';")" "0.1900"
+assert_eq "an unparseable rate is not guessed (Tier 882; was 19 %)" \
+  "$(sql "SELECT count(*) FROM \"Product\" WHERE \"companyId\" = '$C' AND name = '$TAG Sonst';")" "0"
 
 note "=== 6. no falsy default on a VAT rate is left ==="
 # Comment lines are skipped — the explanation of the bug quotes the pattern.

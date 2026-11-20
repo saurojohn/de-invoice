@@ -8,7 +8,8 @@
  * of the BulkImport feature.
  *
  * Supports:
- *   - Comma OR semicolon as the field separator
+ *   - Comma, semicolon or tab as the field separator — the one of the
+ *     header line (Tier 882: it used to split on both)
  *     (German Excel defaults to ; — when you save as
  *     CSV from Excel in the de-DE locale, the separator
  *     is ;, not ,. We auto-detect by sniffing the
@@ -49,6 +50,10 @@ export interface ParsedCsv {
 export function parseCsv(text: string): ParsedCsv {
   // Strip BOM — Excel prepends one on UTF-8 save.
   const clean = text.replace(/^\uFEFF/, '')
+  // Tier 882: one separator, the one of the header line. Both „,“ and „;“
+  // split every row: a German Excel row „Schraube;1234,56“ became three
+  // cells and every column after the price moved one to the right.
+  const sep = detectSeparator(clean.split(/\r?\n/)[0] || '')
 
   // Split into rows using a state machine (rather than
   // a regex) because quoted fields can contain \n.
@@ -74,7 +79,7 @@ export function parseCsv(text: string): ParsedCsv {
     } else {
       if (c === '"') {
         inQuotes = true
-      } else if (c === ',' || c === ';') {
+      } else if (c === sep) {
         row.push(field)
         field = ''
       } else if (c === '\n' || c === '\r') {
@@ -99,22 +104,6 @@ export function parseCsv(text: string): ParsedCsv {
     return { headers: [], rows: [] }
   }
 
-  // Auto-detect separator from the header row — only
-  // matters for rows[0] which is the un-parsed header
-  // line. We can't distinguish after parsing since
-  // both separators get normalised away.
-  // Use the count of separator-like characters in the
-  // FIRST non-empty line BEFORE parsing — but we already
-  // parsed. So we count ; and , in the raw first row.
-  // (Simplification: most well-formed CSVs have the
-  // same separator on every line.)
-  const firstLine = clean.split(/\r?\n/)[0] || ''
-  const semis = (firstLine.match(/;/g) || []).length
-  const commas = (firstLine.match(/,/g) || []).length
-  // (We parsed with both; that gives the same rows
-  // unless the file mixes separators, which is rare.
-  // Documented limitation.)
-
   const headers = rows[0].map((h) => h.trim())
   const dataRows = rows
     .slice(1)
@@ -129,9 +118,30 @@ export function parseCsv(text: string): ParsedCsv {
       return obj
     })
 
-  // Suppress unused-var warning for the auto-detect
-  // counts — kept for future per-row separator display.
-  void semis
-  void commas
   return { headers, rows: dataRows }
+}
+
+/** Tier 882: the separator of a header line — „;“ (German Excel), tab, or „,“ */
+export function detectSeparator(headerLine: string): string {
+  const unquoted = headerLine.replace(/"[^"]*"/g, '')
+  const count = (c: string) => unquoted.split(c).length - 1
+  const counts: [string, number][] = [[';', count(';')], ['\t', count('\t')], [',', count(',')]]
+  const best = counts.reduce((a, b) => (b[1] > a[1] ? b : a))
+  return best[1] > 0 ? best[0] : ','
+}
+
+/**
+ * Tier 882 — the text of a CSV file, in the encoding it was saved in.
+ *
+ * `file.text()` reads UTF-8 only. German Excel's „CSV (Trennzeichen-
+ * getrennt)“ is Windows-1252: „Müller“ arrived as „M\uFFFDller“ and was
+ * stored that way. A file that is not valid UTF-8 is read as Windows-1252.
+ */
+export async function readCsvFile(file: Blob): Promise<string> {
+  const bytes = await file.arrayBuffer()
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes)
+  }
 }

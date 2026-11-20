@@ -33,7 +33,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { useI18n, L } from "@/components/useI18n"
 import { apiFetch, apiPost, ApiError } from "@/lib/api"
-import { parseCsv } from "@/lib/csv"
+import { parseCsv, readCsvFile } from "@/lib/csv"
 
 type EntityType = "customer" | "product" | "expense"
 
@@ -129,7 +129,7 @@ function BulkImportPageInner() {
     setResult(null)
     setSubmitError(null)
     try {
-      const text = await file.text()
+      const text = await readCsvFile(file) // Tier 882: Windows-1252 too
       const parsed = parseCsv(text)
       if (parsed.headers.length === 0) {
         setParseError(L("Die Datei enthält keine Kopfzeile."))

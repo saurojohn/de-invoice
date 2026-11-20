@@ -93,7 +93,9 @@ export class ExpenseController {
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="eingangsrechnungen-import.csv"')
   getTemplate(): string {
-    return [
+    // Tier 882: with the BOM the comment always promised — without it Excel
+    // showed „MusterstraÃŸe“, and a file saved back from there was mangled
+    return '\uFEFF' + [
       'description;invoiceDate;invoiceNumber;supplierName;supplierVatId;netAmount;vatRate;vatAmount;grossAmount;category;notes',
       'Büromaterial;15.06.2026;RE-2026-001;Staples GmbH;DE123456789;100.00;0.19;19.00;119.00;Bürobedarf;Q2 Sammelrechnung',
       'Miete Juni 2026;01.06.2026;M-2026-06;Vermieter GmbH;;1500.00;0.19;285.00;1785.00;Miete;',

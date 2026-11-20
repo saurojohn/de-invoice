@@ -1,3 +1,4 @@
+import { parseImportAmount, parseImportRate } from '../../common/import-number'
 import {
   BadRequestException,
   Injectable,
@@ -239,9 +240,11 @@ export class ProductService {
           result.errors.push({ row: rowNum, error: 'BasePrice fehlt', name })
           continue
         }
-        const basePrice = parseFloat(basePriceStr.replace(',', '.'))
-        if (Number.isNaN(basePrice) || basePrice < 0) {
-          result.errors.push({ row: rowNum, error: `Ungültiger Preis: ${basePriceStr}`, name })
+        // Tier 882: „1.234,56“ was 1,234 (common/import-number.ts)
+        const price = parseImportAmount(basePriceStr)
+        const basePrice = 'value' in price ? price.value : null
+        if (basePrice === null || basePrice < 0) {
+          result.errors.push({ row: rowNum, error: `Ungültiger Preis: ${'error' in price ? price.error : basePriceStr}`, name })
           continue
         }
         const sku = (row.sku || '').trim().toUpperCase() || null
@@ -266,10 +269,13 @@ export class ProductService {
 
         // Tier 410: only an unparseable value falls back to 19 % — `|| 0.19`
         // also turned a deliberate 0 (a tax-exempt product) into 19 %.
-        const parsedVatRate = parseFloat(
-          String(row.vatRate ?? '0.19').trim().replace(',', '.'),
-        )
-        const vatRate = Number.isFinite(parsedVatRate) ? parsedVatRate : 0.19
+        // Tier 882: „19 %“ and „19“ are 0.19; what is no rate is reported
+        const rate = parseImportRate(row.vatRate, 0.19)
+        if ('error' in rate) {
+          result.errors.push({ row: rowNum, error: rate.error, name })
+          continue
+        }
+        const vatRate = rate.value ?? 0.19
 
         await this.prisma.product.create({
           data: {

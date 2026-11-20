@@ -101,7 +101,9 @@ export class ProductController {
     // ImportProductRow + Product model — important
     // because some users map columns positionally
     // when their spreadsheet doesn't have header names.
-    return [
+    // Tier 882: with the BOM the comment always promised — without it Excel
+    // showed „MusterstraÃŸe“, and a file saved back from there was mangled
+    return '\uFEFF' + [
       'name;sku;description;type;unit;basePrice;vatRate',
       'Beispiel-Produkt;P-001;Beschreibung;good;piece;19.99;0.19',
       'Dienstleistung;DL-100;Beratung;service;hour;120.00;0.19',

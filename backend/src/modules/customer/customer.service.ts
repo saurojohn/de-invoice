@@ -28,9 +28,42 @@ export interface ImportCustomerRow {
   country?: string
   email?: string
   phone?: string
-  paymentTerms?: number
-  taxExempt?: boolean
-  tags?: string[]
+  paymentTerms?: number | string
+  taxExempt?: boolean | string
+  tags?: string[] | string
+}
+
+/** Tier 882: the customer type of an import row — the words people use too */
+export function importCustomerType(v: unknown): 'business' | 'individual' | null {
+  const t = String(v ?? '').trim().toLowerCase()
+  if (['', 'business', 'firma', 'unternehmen', 'geschäftskunde', 'geschaeftskunde', 'gewerblich', 'b2b'].includes(t)) return 'business'
+  if (['individual', 'private', 'privat', 'privatkunde', 'privatperson', 'consumer', 'verbraucher', 'b2c'].includes(t)) return 'individual'
+  return null
+}
+
+/** Tier 882: a yes/no cell — empty is no; anything unreadable is not guessed */
+export function importFlag(v: unknown): boolean | 'invalid' {
+  if (v === true || v === false) return v
+  if (v === undefined || v === null) return false
+  const t = String(v).trim().toLowerCase()
+  if (['', 'false', '0', 'nein', 'n', 'no', 'falsch'].includes(t)) return false
+  if (['true', '1', 'ja', 'j', 'yes', 'y', 'x', 'wahr'].includes(t)) return true
+  return 'invalid'
+}
+
+/** Tier 882: whole days 0–365; empty is the company's default (null) */
+export function importPaymentTerms(v: unknown): number | null | 'invalid' {
+  if (v === undefined || v === null || String(v).trim() === '') return null
+  const t = String(v).trim()
+  if (!/^\d{1,3}$/.test(t)) return 'invalid'
+  const n = Number(t)
+  return n <= 365 ? n : 'invalid'
+}
+
+/** Tier 882: tags as a list, or one cell „B2B, VIP“ */
+export function importTags(v: unknown): string[] {
+  const list = Array.isArray(v) ? v.map((x) => String(x ?? '')) : String(v ?? '').split(',')
+  return [...new Set(list.map((x) => x.trim()).filter(Boolean))].slice(0, 50).map((x) => x.slice(0, 50))
 }
 
 export interface ImportResult {
@@ -1677,10 +1710,29 @@ export class CustomerService {
           result.errors.push({ row: rowNum, error: vatProblem, name })
           continue
         }
-        const type = (row.type || 'business').trim() === 'individual' ? 'individual' : 'business'
+        // Tier 882: a CSV gives every value as text. Measured on the production
+        // image with the template the page offers: „taxExempt = false“ stored a
+        // tax-exempt customer (`!!"false"`), „type = private“ a business (only
+        // „individual“ was read — a consumer then got the B2B interest and
+        // the 40 € flat fee), „paymentTerms = abc“ 30 days, an empty one 30
+        // days instead of the company's default. Read as the form reads them;
+        // what cannot be read is reported for the row.
+        const type = importCustomerType(row.type)
+        if (!type) {
+          result.errors.push({ row: rowNum, error: `Kundentyp „${String(row.type).slice(0, 30)}“ unbekannt — „business“ (Firma) oder „individual“ (Privat)`, name })
+          continue
+        }
+        const taxExempt = importFlag(row.taxExempt)
+        if (taxExempt === 'invalid') {
+          result.errors.push({ row: rowNum, error: `Steuerbefreit „${String(row.taxExempt).slice(0, 30)}“ — bitte ja/nein oder true/false`, name })
+          continue
+        }
         const country = (row.country || 'DE').trim() || 'DE'
-        const paymentTermsRaw = Number(row.paymentTerms)
-        const paymentTerms = Number.isFinite(paymentTermsRaw) ? paymentTermsRaw : 30
+        const paymentTerms = importPaymentTerms(row.paymentTerms)
+        if (paymentTerms === 'invalid') {
+          result.errors.push({ row: rowNum, error: `Zahlungsfrist „${String(row.paymentTerms).slice(0, 30)}“ — ganze Tage von 0 bis 365, leer für den Firmenstandard`, name })
+          continue
+        }
 
         const customer = await this.prisma.customer.create({
           data: {
@@ -1688,7 +1740,7 @@ export class CustomerService {
             name,
             type,
             vatId,
-            taxExempt: !!row.taxExempt,
+            taxExempt,
             address: {
               street: (row.street || '').trim(),
               postalCode: (row.postalCode || '').trim(),
@@ -1700,7 +1752,7 @@ export class CustomerService {
               phone: (row.phone || '').trim() || undefined,
             },
             paymentTerms,
-            tags: Array.isArray(row.tags) ? row.tags : [],
+            tags: importTags(row.tags), // Tier 882: „B2B, VIP“ from a CSV cell too
           },
         })
         result.imported++

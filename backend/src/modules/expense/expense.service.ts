@@ -1,3 +1,4 @@
+import { parseImportAmount, parseImportRate } from '../../common/import-number'
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { assertPeriodOpen, filedPeriodOf, filedPeriodMessage } from '../reports/filed-period';
 import { signedExpenseAmounts } from './credit-note';
@@ -323,12 +324,23 @@ export class ExpenseService {
           }
         }
 
-        const netAmount = parseFloat(
-          String(row.netAmount ?? '').trim().replace(',', '.'),
-        )
+        // Tier 882: amounts as a German spreadsheet writes them — „1.500,00“
+        // was 1,50 € (common/import-number.ts)
+        const net = parseImportAmount(row.netAmount)
+        const vatIn = parseImportAmount(row.vatAmount)
+        const grossIn = parseImportAmount(row.grossAmount)
+        // an absent column is 19 %, an empty cell 0 % (as before)
+        const rateIn = row.vatRate === undefined ? { value: 0.19 } : parseImportRate(row.vatRate, 0)
+        const unreadable = [['Nettobetrag', net], ['USt-Betrag', vatIn], ['Bruttobetrag', grossIn], ['', rateIn]]
+          .find(([, r]) => 'error' in (r as object)) as [string, { error: string }] | undefined
+        if (unreadable) {
+          result.errors.push({ row: rowNum, error: `${unreadable[0] ? unreadable[0] + ': ' : ''}${unreadable[1].error}`, description })
+          continue
+        }
+        const netAmount = 'value' in net ? net.value : null
         // Tier 442: a negative row is a supplier credit note — all its amounts
         // are negative (expense/credit-note.ts). It used to be refused.
-        if (Number.isNaN(netAmount)) {
+        if (netAmount === null) {
           result.errors.push({
             row: rowNum,
             error: `Ungültiger Nettobetrag: ${row.netAmount || '(leer)'}`,
@@ -336,16 +348,13 @@ export class ExpenseService {
           })
           continue
         }
-        const vatRate = parseFloat(
-          String(row.vatRate ?? '0.19').trim().replace(',', '.'),
-        ) || 0
+        const vatRate = ('value' in rateIn ? rateIn.value : null) ?? 0
+        const vatGiven = 'value' in vatIn ? vatIn.value : null
+        const grossGiven = 'value' in grossIn ? grossIn.value : null
         // vatAmount: prefer explicit, otherwise compute
         // from rate × net (rounded to 4 decimals to match
         // Prisma @db.Decimal(12,4)).
-        const vatAmountRaw =
-          row.vatAmount !== undefined && row.vatAmount !== ''
-            ? parseFloat(String(row.vatAmount).trim().replace(',', '.'))
-            : Math.round(netAmount * vatRate * 10000) / 10000
+        const vatAmountRaw = vatGiven ?? Math.round(netAmount * vatRate * 10000) / 10000
         // Tier 442: a credit note's VAT is negative too, whichever sign the
         // row gave it — before the gross is derived from net + VAT.
         const vatAmount = signedExpenseAmounts(netAmount < 0, {
@@ -354,10 +363,7 @@ export class ExpenseService {
         const grossAmount = signedExpenseAmounts(netAmount < 0, {
           net: netAmount,
           vat: vatAmount,
-          gross:
-            row.grossAmount !== undefined && row.grossAmount !== ''
-              ? parseFloat(String(row.grossAmount).trim().replace(',', '.'))
-              : Math.round((netAmount + vatAmount) * 10000) / 10000,
+          gross: grossGiven ?? Math.round((netAmount + vatAmount) * 10000) / 10000,
         }).gross
 
         // Tier 537: a row dated into a submitted UStVA period — reported.

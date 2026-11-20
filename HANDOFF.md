@@ -2673,6 +2673,43 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 882 — a CSV import reads a file as German Excel saves it: „taxExempt = false“ stored a tax-exempt customer, a rent of 1.500,00 € was 1,50 €
+
+The owner: „继续“. Found on the second walk on the production images: importing customers from Excel, a first-week task.
+
+**Measured.**
+- **The customers page could not import its own template.** The template the dialog offers is „;“-separated, and the page's parser split on „,“ only. The production image answered „0 importiert … Zeile 2: Name fehlt“. German Excel saves with „;“ as well.
+- **Every file was read as UTF-8.** Excel's „CSV (Trennzeichen-getrennt)“ is Windows-1252, so „Müller“ was stored as „M�ller“. The templates had no BOM, although the code comment said they had, so Excel showed „MusterstraÃŸe“.
+- **The shared parser (`lib/csv.ts`, the import page) split on „,“ and „;“ alike.** It counted the separator of the header line and threw the count away. In a German row „1.500,00“ became two cells, and every column after it moved one to the right.
+- **Customers (`importBulk`):**
+  - `taxExempt: !!row.taxExempt` — „false“ stored a **tax-exempt** customer; Tier 606 had fixed the same for the form only;
+  - only „individual“ made a consumer. The template's own „private“ was stored as a business, and a consumer then got the B2B interest rate and the 40 € flat fee of § 288 Abs. 5 BGB;
+  - an empty payment term became 30 days instead of the company's default, „abc“ became 30 as well;
+  - tags given as a cell were dropped.
+- **Products and expenses** turned the first comma into a point. Products: „1.234,56“ → 1,234 €. Expenses: a rent of „1.500,00“ net became 1,50 € with 0,29 € input VAT and 1,79 € gross. An unreadable rate became 19 %.
+
+**Change.**
+- `backend/src/common/import-number.ts`:
+  - `parseImportAmount` reads „1.234,56“, „1234,56“, „1,234.56“, „19.99“ and groups of three, dropping „€“ and spaces;
+  - a single point before exactly three digits („1.500“) is reported, not guessed;
+  - `parseImportRate` reads „0,19“, „19“, „19 %“ and „7%“.
+  - Used by the product and expense imports. An unreadable amount or rate is reported for its row. Spec 199's „abc → 19 %“ is now „abc → reported“.
+- Customer import:
+  - `importFlag` (ja/nein, true/false, 1/0, x; empty = no; anything else reported);
+  - `importCustomerType` (Firma/business/B2B …, Privat/private/Verbraucher/B2C …; anything else reported);
+  - `importPaymentTerms` (0–365; empty = the company's default, `null`);
+  - `importTags` („B2B, VIP“).
+- The three templates start with a BOM. The customer template's tags cell is „B2B, Standard“; „B2C;Standard“ was two cells.
+- Frontend:
+  - `lib/csv.ts` splits on the header line's separator only („;“, tab or „,“);
+  - `readCsvFile` reads UTF-8, else Windows-1252;
+  - the customers page uses the shared parser, keeps its column synonyms and adds tags; both pages read files through `readCsvFile`.
+
+**Specs.**
+- New `574-tier882-import-wie-excel.sh` covers customers (false / ja / private / empty term / tags; „vielleicht“, „Behörde“, „abc“ reported), products („1.234,56“, „19 %“, „19.99“, „0,07“; „1.500“ reported), an expense of 1.500,00 / 285,00 / 1.785,00, and the BOM of the three templates. On the old code 12 ✗.
+- New Playwright `csv-import-german-excel-tier882.spec.ts` sends Windows-1252 „;“ files, with umlauts and decimal commas, through the customers page and the import page. On the old frontend both tests fail.
+- Spec 199 was updated (above).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 881b — CI green for Tier 881, no flaky
 
 - **Run 44706939592 (Tier 881, 7ae9b145):** backend **572 passed / 0 failed / 1 skipped** (573 included), Playwright **1174 passed** (the new `recurring-unbilled-notice-tier881`). 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

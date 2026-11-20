@@ -900,9 +900,13 @@ export class CustomerController {
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="kunden-import.csv"')
   getTemplate(): string {
-    return [
+    // Tier 882: with the BOM the comment always promised — without it Excel
+    // showed „MusterstraÃŸe“, and a file saved back from there was mangled
+    return '\uFEFF' + [
       'name;vatId;type;street;postalCode;city;country;email;phone;paymentTerms;taxExempt;tags',
-      'Beispiel GmbH;DE123456789;business;Beispielweg 1;12345;Berlin;DE;rechnung@beispiel.de;+49 30 12345;30;false;B2C;Standard',
+      // Tier 882: the tags of a row are one cell, comma-separated — „B2C;Standard“
+      // was two cells under the „;“ separator
+      'Beispiel GmbH;DE123456789;business;Beispielweg 1;12345;Berlin;DE;rechnung@beispiel.de;+49 30 12345;30;false;B2B, Standard',
       'Maria Mustermann;;private;Musterstraße 7;80331;München;DE;maria@example.org;;0;false;Privat',
       'Firma XYZ AG;DE987654321;business;Industriestraße 5;60311;Frankfurt;DE;info@xyz.de;+49 69 99999;14;true;Großkunde',
     ].join('\n')
