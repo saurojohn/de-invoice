@@ -477,12 +477,15 @@ jobs:
       # check the e-invoice PDF (417, 450) — from Maven Central, checked
       # against its SHA-1. Before, it ran only by hand (Tier 693): CI checked
       # the PDF/A-3 structure, not the profile.
+      # Tier 904: retried — run 44929767784 failed here on a 404 that Maven
+      # Central answered for a minute (the file was there before and after);
+      # the backend specs never ran. The SHA-1 check stays the guard.
       - name: Fetch Mustang (ZUGFeRD validator)
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/mustang"
           J="$RUNNER_TEMP/mustang/Mustang-CLI-2.26.0.jar"
-          curl -sSfL -o "$J" https://repo1.maven.org/maven2/org/mustangproject/Mustang-CLI/2.26.0/Mustang-CLI-2.26.0.jar
+          curl -sSfL --retry 5 --retry-delay 10 --retry-all-errors -o "$J" https://repo1.maven.org/maven2/org/mustangproject/Mustang-CLI/2.26.0/Mustang-CLI-2.26.0.jar
           echo "8755fc333032f802ad7dcf3930201edfe64014e2  $J" | sha1sum -c -
           echo "MUSTANG_JAR=$J" >> "$GITHUB_ENV"
       - name: Run e2e suite

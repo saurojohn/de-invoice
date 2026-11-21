@@ -29,6 +29,7 @@ import { assertExpenseAmounts, expenseAmountsError } from './amounts';
 import { checkTaxLines } from './tax-lines';
 import { notAnExpense } from '../accounting/expense-cost';
 import { assertInputTaxRate, inputTaxRateError } from './input-tax-rate';
+import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
 
 @Injectable()
 export class ExpenseService {
@@ -312,11 +313,17 @@ export class ExpenseService {
               // DB) — default to an empty object so the
               // INSERT doesn't blow up. The user can
               // edit it later from the Suppliers page.
+              // Tier 904: the USt-IdNr. checked and written as the suppliers page does (Tier 490)
+              const vatProblem = vatIdFormatProblem(row.supplierVatId)
+              if (vatProblem) {
+                result.errors.push({ row: rowNum, error: vatProblem, description })
+                continue
+              }
               const created = await this.prisma.supplier.create({
                 data: {
                   companyId,
                   name,
-                  vatId: (row.supplierVatId || '').trim() || null,
+                  vatId: normalizeVatId(row.supplierVatId),
                   address: {},
                 },
               })

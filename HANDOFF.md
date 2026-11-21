@@ -2673,6 +2673,27 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 904 — a scanned or imported USt-IdNr. is the one on file: OCR finds the supplier by the normalised number, a misread one is not stored, the CSV import checks it
+
+- **Measured:**
+  - A supplier was on file with DE123456789, and the scan read „DE 123 456 789“. `POST /ocr/match-supplier` compared the text as read, so it did not find the supplier and created a second one with the spaced number. Its expenses then went to a second Kreditor.
+  - A misread „DE12345“ was stored as read.
+  - The expense CSV import also stored „DE 999“ as is when it created a supplier.
+  - These two paths skipped the check the suppliers page has had since Tier 490 (`withCheckedVatId`).
+  - For an igE expense the supplier's number goes into the DATEV export as its EU-USt-IdNr. (`datev.service`).
+- **Now:**
+  - The OCR match compares `normalizeVatId` on both sides, so numbers already stored un-normalised are found too. It creates a supplier with the normalised number, or with none when the number fails `vatIdFormatProblem`. A non-EU number stays allowed, as everywhere.
+  - The CSV import reports such a row with the format message and does not import it. A valid number is stored normalised.
+- **Spec 592:** on the old code 7 assertions fail.
+  - OCR: „DE 123 456 789“ and „de123456789“ find the supplier on file. „DE12345“ creates a supplier without a number. „ATU 12345678“ is stored as ATU12345678.
+  - CSV: the „DE 999“ row is reported. „de 987 654 321“ is stored as DE987654321.
+  - The company ends up with four suppliers, none twice.
+- Locally: 592, 61 (OCR), 488, 05, every spec that touches OCR, the expense import or suppliers, and the guards — 73 ok, 0 fail. Backend tsc and ESLint clean.
+- **CI, in the same commit:**
+  - Run 44929767784 (Tier 900) failed before any backend spec ran. `curl` of the Mustang JAR got a 404 from Maven Central, although a HEAD request a few minutes later answered 200.
+  - Every other job was green, Playwright included: 1180 passed, 0 flaky.
+  - The download now retries (`--retry 5 --retry-delay 10 --retry-all-errors`), and the SHA-1 check stays.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 903 — the AfA method is the one computed: linear
 
 - **Measured:**

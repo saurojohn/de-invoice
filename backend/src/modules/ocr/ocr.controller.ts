@@ -13,6 +13,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { withKeyLock } from '../../common/key-lock'
 import { Require } from '../../auth/roles.decorator'
 import { CallerBoundUpload } from '../../auth/caller-bound-upload'
+import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id'
 
 /**
  * Tier 29: OCR endpoints for Eingangsrechnung scan ingestion.
@@ -180,13 +181,19 @@ export class OcrController {
     return withKeyLock(`supplier-match:${companyId}`, () => this.matchOrCreateSupplier(companyId, vatId, name, body.lookupOnly))
   }
 
-  private async matchOrCreateSupplier(companyId: string, vatId: string, name: string, lookupOnly: unknown) {
+  private async matchOrCreateSupplier(companyId: string, rawVatId: string, name: string, lookupOnly: unknown) {
+    // Tier 904: the number as the suppliers page stores it (Tier 490) — the
+    // scan reads "DE 123 456 789" or "de123456789". Measured: compared as
+    // read, the supplier on file was not found and a second one was created
+    // with the spaced number; a misread "DE12345" was stored as it was.
+    const vatId = vatIdFormatProblem(rawVatId) ? '' : normalizeVatId(rawVatId) ?? ''
     // 1) Match by VAT-ID — highest confidence.
     if (vatId) {
-      const hit = await this.prisma.supplier.findFirst({
-        where: { companyId, vatId: { equals: vatId } },
-        select: { id: true },
+      const withVat = await this.prisma.supplier.findMany({
+        where: { companyId, vatId: { not: null } },
+        select: { id: true, vatId: true },
       })
+      const hit = withVat.find((s) => normalizeVatId(s.vatId) === vatId)
       if (hit) return { supplierId: hit.id, created: false, matchedBy: 'vatId' }
     }
     // 2) Match by name (case-insensitive equality).
