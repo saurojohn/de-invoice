@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 899b — CI green for Tiers 897–899, no flaky
+
+- **Run 44913379860 (Tier 897, 1b767876):** backend **585 passed / 0 failed / 1 skipped**, Playwright **1179 passed** (+2: csv-formula-guard-tier897).
+- **Run 44916558270 (Tiers 898–899, 4774a2ed):** backend **586 passed / 0 failed / 1 skipped** (+1: 587), Playwright **1180 passed** (+1: report-csv-numbers-tier898).
+- Both: 0 flaky, no retry, no Traceback, no `REFUSED`; the dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 899 — an invoice is issued only with a rate German law has and with every line saying what was supplied
 
 Found by probing the invoice API with edge values.
