@@ -263,6 +263,21 @@ export class PaymentService {
         throw new BadRequestException('Der eingegangene Euro-Betrag muss größer als 0 sein.');
       }
       eurAmount = Math.round(Number(data.eurAmount) * 100) / 100
+      // Tier 902: the EUR received belongs to the amount paid. Measured: 100 USD
+      // (invoice rate 1,1 — 90,91 €) entered as 100 000 € received was taken,
+      // and the EÜR counted 100 000 € of income. A rate that moved, a bank's
+      // fee or margin stay well inside a factor of 5 either way; a slipped
+      // decimal point or a wrong field does not.
+      const rate = Number(invoice.exchangeRate)
+      if (rate > 0 && Number(data.amount) > 0) {
+        const atRate = Number(data.amount) / rate
+        if (eurAmount > atRate * 5 || eurAmount < atRate / 5) {
+          const eur = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          throw new BadRequestException(
+            `Der eingegangene Euro-Betrag (${eur(eurAmount)} €) passt nicht zu ${eur(Number(data.amount))} ${String(invoice.currency).toUpperCase()} — zum Kurs der Rechnung (${String(rate).replace('.', ',')}) wären es ${eur(atRate)} €. Bitte den Betrag prüfen.`,
+          );
+        }
+      }
     }
     const payment = await this.prisma.payment.create({
       data: {

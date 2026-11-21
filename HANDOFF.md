@@ -2673,6 +2673,23 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 902 — the euros received for a foreign-currency payment belong to the amount paid
+
+- **Measured:**
+  - A payment of 100 USD on an invoice at 1,1 USD / € (90,91 €) was entered with `eurAmount` 100 000 € and was recorded.
+  - The EÜR counted the difference as a Kursgewinn: Gewinn +100 000 €.
+  - The UStVA was not affected, because it reads the invoice's rate.
+  - The cause: Tier 540 only checked that `eurAmount` is above 0 and that the invoice is not in EUR.
+- **Now:** `PaymentService` refuses a euro amount more than 5× above or below `amount / exchangeRate` of the invoice.
+  - The bound leaves room for a rate that moved, a bank's fee or margin. It catches a slipped decimal point or a number typed into the wrong field.
+  - The message names the amount at the invoice's rate („… wären es 90,91 €“).
+  - The bank import is not checked here: there the euros are what the statement shows.
+- **Spec 590:** on the old code 5 assertions fail.
+  - Refused: 100 000 € and 9,09 € for 100 USD.
+  - Recorded: 85,50 €, 120 € for 110 USD, and 121 USD without euros.
+  - The EÜR Gewinn grows by 315,50 €.
+- Locally: 590, 325 / 390 / 393 (the specs with `eurAmount`), 08, every spec that pays a foreign-currency invoice, and the guards — 33 ok, 0 fail. Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 901 — a credit note's lines carry the rates of the invoice they reduce
 
 - **Measured:**
