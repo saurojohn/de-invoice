@@ -675,12 +675,24 @@ export class InvoiceController {
           message: `Ein GiroCode ist eine SEPA-Überweisung in Euro — für eine Rechnung in ${giroCurrency} gibt es keinen.`,
         })
       }
-      const qrPayload = buildEpcQrPayload(company as any, invoice as any)
+      // Tier 895: the code pays what is still open. It encoded the invoice's
+      // total after a payment too — 1 190 € for an invoice of which 190 € were
+      // paid: a scan overpays by what came in.
+      const paidSum = Number((await this.prisma.payment.aggregate({ where: { invoiceId: invoice.id }, _sum: { amount: true } }))._sum.amount ?? 0)
+      const openTotal = Math.round((Number(invoice.total) - paidSum) * 100) / 100
+      const advanceGross = Number((invoice as any).advanceDeduction?.gross ?? 0)
+      if (paidSum > 0 && openTotal - advanceGross <= 0) {
+        return res.status(400).json({ message: 'Die Rechnung ist bereits bezahlt — es gibt nichts mehr zu überweisen.' })
+      }
+      const qrPayload = buildEpcQrPayload(company as any, { ...(invoice as any), total: openTotal })
       if (!qrPayload) {
         return res.status(404).json({
           message: 'Keine IBAN hinterlegt — GiroCode nicht verfügbar',
         })
       }
+      // the amount the code carries (EPC line 8, „EUR1000.00“)
+      res.setHeader('X-GiroCode-Amount', (qrPayload.split('\n')[7] || '').replace(/^EUR/, ''))
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-GiroCode-Amount')
       // 566px = 2cm at 72dpi × 4x oversample.
       // PDFKit's :id/pdf uses 360 (4x of 90pt), but
       // the standalone download is meant to be

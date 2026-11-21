@@ -2673,6 +2673,22 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 895 — the GiroCode pays what is still open: after a payment of 190 € it still encoded 1 190 €
+
+The owner: „继续“. Found after Tier 894 by asking the same of the invoice page's „GiroCode“ button (`GET invoices/:id/girocode.png`).
+
+**Measured** on the old code:
+- the route built the code from the invoice as it was, so its total. An invoice of 1 190 € with 190 € paid got a code for 1 190 €: a scan overpays by what came in;
+- a paid invoice still got a code (200) for its full total.
+- The invoice PDF's code stays as issued — the PDF is the archived document (GoBD).
+
+**Change.**
+- `girocode.png` takes the payments off (credit notes are booked as payments) and encodes what is open. The advance of a final invoice is deducted as before.
+- A paid invoice: 400 „Die Rechnung ist bereits bezahlt — es gibt nichts mehr zu überweisen.“
+- The response carries `X-GiroCode-Amount` (the EPC amount line) and exposes it.
+
+**Specs.** New `586-tier895-girocode-offener-betrag.sh`: open → 1190.00, 190 paid → 1000.00, paid → 400. On the old code 3 ✗ (it answered 200 for the paid invoice). Specs 154, 155, 365, 368, 387 and 579 and the two Playwright GiroCode specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 894b — CI green for Tier 894, no flaky
 
 - **Run 44888138771 (Tier 894, 8baef2c8):** backend **584 passed / 0 failed / 1 skipped** (585 included), Playwright **1177 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
