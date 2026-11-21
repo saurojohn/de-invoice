@@ -23,7 +23,7 @@
  */
 import { greetingLine } from "../mail/templates/invoice-email.template" // Tier 705
 import PDFDocument from "pdfkit"
-import { countWerktage } from "./werktage"
+import { addWerktage, countWerktage } from "./werktage"
 import { businessLetterFooter, countryCode, countryLine } from '../../common/business-letter'
 import { businessDayIso } from '../../common/business-date'
 
@@ -641,30 +641,19 @@ function feeStageLabel(
 
 /**
  * Compute the new payment deadline (Frist) for a Mahnung
- * at a given level. Uses Werktage arithmetic so customers
- * don't get "5 days" that end on a Sunday.
+ * at a given level: 7 Werktage, 5 for the last Mahnung.
+ *
+ * Tier 893: in Werktage, as the letter says („innerhalb der nächsten 7
+ * Werktage“) — it added 7 calendar days and moved off a weekend: a letter of
+ * Saturday 21.11. named Monday 30.11., where seven Werktage end on 01.12.
+ * The Land's holidays count as in werktage.ts.
  */
 export function computeNeueFrist(
   fromDate: Date,
   level: "first" | "second" | "final",
+  land?: string | null,
 ): Date {
-  const werktage = level === "final" ? 5 : 7
-  const cur = new Date(fromDate)
-  // Use the Wochentag-aware addWerktage from werktage.ts
-  // (not adding a new one here to avoid circular import
-  // in case of an extension later).
-  const target = cur
-  target.setDate(target.getDate() + werktage)
-  // Walk forward until we land on a Werktag
-  // (conservative — if the 7-day offset happens to be
-  // a weekend, bump to the next Monday).
-  let safety = 0
-  while (safety++ < 10) {
-    const day = target.getDay()
-    if (day !== 0 && day !== 6) break
-    target.setDate(target.getDate() + 1)
-  }
-  return target
+  return addWerktage(fromDate, level === "final" ? 5 : 7, land)
 }
 
 /** Expose countWerktage so reminder.service can use it. */

@@ -367,7 +367,7 @@ export class BulkReminderService {
     // Tier 880: by post the Mahnung is recorded and its letter printed from
     // the Mahnhistorie (GET mahnungen/:id/pdf renders the same letter);
     // nothing is e-mailed and no EmailSend row is written
-    const neueFrist = computeNeueFrist(today, level)
+    const neueFrist = computeNeueFrist(today, level, (company as any).bundesland) // Tier 893: Werktage of the Land
     let emailSend: { id: string } | null = null
     if (channel === "email" && customerEmail) {
       // Render the email subject + body.

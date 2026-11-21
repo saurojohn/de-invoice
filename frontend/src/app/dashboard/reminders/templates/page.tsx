@@ -41,6 +41,7 @@ const PLACEHOLDERS = [
   { key: "issueDateFormatted", de: "Rechnungsdatum" },
   { key: "dueDateFormatted", de: "Fälligkeitsdatum" },
   { key: "daysOverdue", de: "Tage überfällig" },
+  { key: "neueFrist", de: "Neue Zahlungsfrist (wie im Mahnschreiben)" }, // Tier 893
   { key: "bankInfo", de: "Bankverbindung" },
   { key: "companyName", de: "Firmenname" },
 ]

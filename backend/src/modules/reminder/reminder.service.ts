@@ -1,3 +1,4 @@
+import { computeNeueFrist } from './mahnung-pdf.service'
 import { businessTodayDate } from '../../common/business-date';
 import { greetingLine } from '../mail/templates/invoice-email.template' // Tier 705
 import { NON_FISCAL_TYPES, isNonFiscal } from '../invoice/document-scope';
@@ -143,6 +144,14 @@ export interface ReminderTemplate {
   subject: string;
   body: string;
   level?: 'first' | 'second' | 'final';
+}
+
+/** Tier 893: the new deadline as the Mahnung letter sets it, „30.11.2026“ */
+function neueFristText(level: 'first' | 'second' | 'final', land?: string | null): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0) // as bulk-reminder.service sends the letter
+  const d = computeNeueFrist(today, level, land)
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
 }
 
 @Injectable()
@@ -496,7 +505,7 @@ hiermit möchten wir Sie freundlich daran erinnern, dass aus der Rechnung {{invo
 
 Die Zahlung ist seit {{daysOverdue}} Tag(en) überfällig.
 
-Bitte begleichen Sie den offenen Betrag innerhalb von 14 Tagen auf folgendes Konto:
+Bitte begleichen Sie den offenen Betrag bis zum {{neueFrist}} auf folgendes Konto:
 
 {{bankInfo}}
 
@@ -509,12 +518,12 @@ Mit freundlichen Grüßen,
         subject: '1. Mahnung: Rechnung {{invoiceNumber}} - Zahlung sofort erforderlich',
         body: `{{greeting}},
 
-leider mussten wir feststellen, dass die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, trotz unserer ersten Erinnerung noch nicht beglichen wurde.
+leider mussten wir feststellen, dass die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, noch nicht beglichen wurde.
 
 Offener Betrag: {{openAmount}} EUR
 Überfällig seit: {{daysOverdue}} Tag(en)
 
-Wir bitten Sie, den offenen Betrag unverzüglich, spätestens jedoch innerhalb von 7 Tagen, auf folgendes Konto zu überweisen:
+Wir bitten Sie, den offenen Betrag unverzüglich, spätestens jedoch bis zum {{neueFrist}}, auf folgendes Konto zu überweisen:
 
 {{bankInfo}}
 
@@ -527,12 +536,12 @@ Mit freundlichen Grüßen,
         subject: 'Letzte Mahnung: Rechnung {{invoiceNumber}} - Außergerichtliches Inkasso',
         body: `{{greeting}},
 
-trotz mehrfacher Aufforderung bleibt die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, weiterhin unbeglichen.
+die Rechnung {{invoiceNumber}} vom {{issueDateFormatted}}, fällig am {{dueDateFormatted}}, ist weiterhin unbeglichen.
 
 Offener Betrag: {{openAmount}} EUR
 Überfällig seit: {{daysOverdue}} Tag(en)
 
-Dies ist unsere LETZTE Mahnung. Wir fordern Sie auf, den offenen Betrag innerhalb von 5 Tagen auf folgendes Konto zu überweisen:
+Dies ist unsere LETZTE Mahnung. Wir fordern Sie auf, den offenen Betrag bis zum {{neueFrist}} auf folgendes Konto zu überweisen:
 
 {{bankInfo}}
 
@@ -632,6 +641,9 @@ Mit freundlichen Grüßen,
       daysOverdue,
       bankInfo: bankInfo || '(Bankverbindung fehlt — bitte unter Einstellungen ergänzen)',
       companyName: company.name,
+      // Tier 893: the deadline the attached letter sets. The texts said „innerhalb
+      // von 14 / 7 / 5 Tagen“ above a PDF that said 7 / 7 / 5 Werktage and a date.
+      neueFrist: neueFristText(level, (company as any).bundesland),
     }
 
     return {

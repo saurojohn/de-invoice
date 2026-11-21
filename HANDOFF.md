@@ -2673,6 +2673,26 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 893 — one deadline, in Werktage, in the Mahnung and the e-mail that carries it
+
+The owner: „继续“. Found after Tier 892 by reading the default reminder e-mails next to the letter.
+
+**Measured.**
+- **The letter contradicted itself.** It says „innerhalb der nächsten 7 Werktage“ and names a date. `computeNeueFrist` added 7 calendar days and moved off a weekend: from Saturday 21.11. it named Monday 30.11., where seven Werktage end on Wednesday 02.12.
+- **The e-mail gave another deadline than its attachment.** The default texts said „innerhalb von 14 Tagen“ (reminder), „7 Tagen“ (1. Mahnung), „5 Tagen“ (last) above a PDF with 7 / 7 / 5 Werktage and a date. With two deadlines in one dunning letter the customer may take the longer.
+- **The defaults claimed earlier letters.** They said „trotz unserer ersten Erinnerung“ / „trotz mehrfacher Aufforderung“, whatever had been sent (the letter's own sentence was fixed in Tier 892).
+
+**Change.**
+- `computeNeueFrist(from, level, land)` = `addWerktage(from, 7 | 5, land)`: Werktage with the Land's holidays (werktage.ts). The send passes the company's Bundesland.
+- New placeholder `{{neueFrist}}` (reminder.service `renderForInvoice`), the date the letter sets, computed the same way.
+- The three default texts say „bis zum {{neueFrist}}“ and no longer claim earlier letters.
+- Both template editors list the placeholder.
+- Templates a company already stored keep their text. „Auf Standard zurücksetzen“ takes the new one; the dev DB is untouched.
+
+**Specs.**
+- New `584-tier893-mahnfrist-in-werktagen.sh`: the letter's „Neue Zahlungsfrist“ is 7 Werktage on (computed in the spec with the nationwide holidays); the three e-mail previews say „bis zum <date>“ (5 Werktage for the last) and no „innerhalb von … Tagen“; no „trotz unserer ersten Erinnerung“. On the old code 5 ✗.
+- The 55 reminder specs and the Playwright template-editor specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 892b — CI green for Tier 892, no flaky
 
 - **Run 44841071882 (Tier 892, ceda2913):** backend **582 passed / 0 failed / 1 skipped** (583 included), Playwright **1177 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
