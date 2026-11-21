@@ -388,6 +388,7 @@ export class BulkReminderService {
         .filter(Boolean)
         .join(", ")
       const pdfBuffer = await generateMahnungPDF({
+        earlierLetters: sentBefore.length, // Tier 892
         level,
         invoiceNumber: invoice.invoiceNumber,
         invoiceDate: new Date(invoice.issueDate),

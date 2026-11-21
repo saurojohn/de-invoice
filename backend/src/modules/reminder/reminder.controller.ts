@@ -542,8 +542,13 @@ export class ReminderController {
     const dueDate = inv.dueDate ? new Date(inv.dueDate) : today;
     const werktageOverdue = Math.max(0, countWerktage(inv.dueDate ? germanDay(inv.dueDate) : today, today, company.bundesland)); // Tier 846: the Land's holidays
     const daysOverdue = mahnung.daysOverdue;
+    // Tier 892: the letters for this invoice before this one, for the opening sentence
+    const earlierLetters = await this.prisma.mahnung.count({
+      where: { companyId, invoiceId: mahnung.invoiceId, cancelledAt: null, sentAt: { lt: mahnung.sentAt }, id: { not: mahnung.id } },
+    });
 
     const pdfBuffer = await generateMahnungPDF({
+      earlierLetters,
       level: mahnung.level as 'first' | 'second' | 'final',
       invoiceNumber: inv.invoiceNumber,
       invoiceDate: new Date(inv.issueDate),

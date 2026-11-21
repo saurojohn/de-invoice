@@ -2673,6 +2673,41 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 892 — the Mahnung says what happened before it: a first letter at level 2 claimed „trotz unserer früheren Erinnerung“
+
+The owner: „继续“. Found by reading a Mahnung by post (Tier 880) for the long-named customer.
+
+**Checked, in order:**
+- the B2B interest at base rate + 9 points (§ 288 Abs. 2 BGB) on the gross amount;
+- the open amount;
+- the new deadline in Werktage;
+- the bank line.
+
+**Measured.**
+- A level-2 Mahnung sent as the first letter for its invoice — allowed, the levels only go up — opened with „trotz unserer früheren Erinnerung …“. That reminder never went out, in a letter that may be shown to a court.
+- The final level said „trotz mehrfacher Aufforderung“ after one letter.
+- The fee line read „Mahngebühr (Stufe 2 (1. Mahnung))“.
+- The long name ran right up to the date („… Facility Management 21.11.2026“).
+
+**Change** (`mahnung-pdf.service.ts`).
+- `earlierLetters` — the letters for the invoice before this one, not cancelled — chooses the opening sentence:
+  - level 2 without one: „… ist trotz Fälligkeit weiterhin unbeglichen. Wir fordern Sie hiermit zur Zahlung auf.“;
+  - final after one: „trotz unserer Aufforderung bleibt …“;
+  - final after none: „… trotz Fälligkeit …“;
+  - otherwise as before.
+- The send passes the count it already reads for the level check; the re-render (`GET mahnungen/:id/pdf`) counts the letters sent before this one.
+- The fee line: „Stufe 2 – 1. Mahnung“.
+- The address lines are 120 pt short of the right margin.
+
+**Specs.** New `583-tier892-mahnung-sagt-was-war.sh`:
+- level 2 first: the new sentence, the fee line;
+- final after one: „trotz unserer Aufforderung“;
+- after a reminder: level 2 „trotz unserer früheren Erinnerung“, final after two „trotz mehrfacher“.
+
+On the old code 3 ✗. The 34 reminder specs pass.
+
+Harness: the scratchpad's `up.sh`, `some.sh`, `pw.sh` and `pw-chrome.config.ts` were removed by the periodic /tmp cleanup again and were rebuilt.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 891b — CI green for Tier 891, no flaky
 
 - **Run 44834101903 (Tier 891, eccbdafe):** backend **581 passed / 0 failed / 1 skipped** (582 included), Playwright **1177 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

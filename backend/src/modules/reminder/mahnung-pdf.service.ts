@@ -102,6 +102,9 @@ export interface MahnungPdfInput {
    * Kalendertagen)“. Not given: now (a letter being sent).
    */
   letterDate?: Date
+  /** Tier 892: how many letters for this invoice went out before this one
+   *  (not cancelled). Absent: the level's sentence as before. */
+  earlierLetters?: number
   /**
    * Tier 40: optional DATEV Kostenstelle 1 + Kostenträger
    * stamps copied from the underlying Invoice. Pulled by
@@ -139,6 +142,27 @@ const LEVEL_INTRO: Record<MahnungPdfInput["level"], string> = {
     "trotz unserer früheren Erinnerung ist die nachfolgend aufgeführte Rechnung weiterhin unbeglichen. Wir fordern Sie hiermit erneut zur Zahlung auf.",
   final:
     "trotz mehrfacher Aufforderung bleibt die nachfolgend aufgeführte Rechnung weiterhin unbeglichen. Dies ist unsere letzte Mahnung vor Einleitung außergerichtlicher Inkassomaßnahmen.",
+}
+
+/**
+ * Tier 892 — the opening sentence says what happened. A Mahnung at level 2
+ * sent as the first letter for an invoice (the levels only go up; one may
+ * start at 2) said „trotz unserer früheren Erinnerung“ — a reminder that never
+ * went out, in a letter that may end up before a court. The final level said
+ * „trotz mehrfacher Aufforderung“ after one letter or none.
+ */
+function introFor(level: MahnungPdfInput["level"], earlier?: number): string {
+  if (earlier == null || level === "first") return LEVEL_INTRO[level]
+  if (level === "second") {
+    return earlier >= 1
+      ? LEVEL_INTRO.second
+      : "die nachfolgend aufgeführte Rechnung ist trotz Fälligkeit weiterhin unbeglichen. Wir fordern Sie hiermit zur Zahlung auf."
+  }
+  if (earlier >= 2) return LEVEL_INTRO.final
+  return (earlier === 1
+    ? "trotz unserer Aufforderung bleibt die nachfolgend aufgeführte Rechnung weiterhin unbeglichen."
+    : "die nachfolgend aufgeführte Rechnung ist trotz Fälligkeit weiterhin unbeglichen.") +
+    " Dies ist unsere letzte Mahnung vor Einleitung außergerichtlicher Inkassomaßnahmen."
 }
 
 const LEVEL_FRIST: Record<MahnungPdfInput["level"], string> = {
@@ -208,15 +232,18 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     // Mahnung — the last one perhaps an Einschreiben — went to a private
     // person, not to the customer who owes the money.
     const contactName = String(input.customer.contact?.name || "").trim()
-    doc.fontSize(11).font("Helvetica-Bold").text(input.customer.name, PAGE_MARGIN, y)
+    // Tier 892: the address keeps clear of the date on the right (a long name
+    // ran up to it: „… Facility Management 21.11.2026“)
+    const ADDR_W = PAGE_WIDTH - 2 * PAGE_MARGIN - 120
+    doc.fontSize(11).font("Helvetica-Bold").text(input.customer.name, PAGE_MARGIN, y, { width: ADDR_W })
     y = doc.y + 2
     doc.fontSize(10).font("Helvetica")
     if (contactName && contactName !== String(input.customer.name || "").trim() && input.customer.type !== "individual") {
-      doc.text(contactName, PAGE_MARGIN, y)
+      doc.text(contactName, PAGE_MARGIN, y, { width: ADDR_W })
       y = doc.y
     }
     if (input.customer.address?.street) {
-      doc.text(input.customer.address.street, PAGE_MARGIN, y)
+      doc.text(input.customer.address.street, PAGE_MARGIN, y, { width: ADDR_W })
       y = doc.y
     }
     if (input.customer.address?.postalCode || input.customer.address?.city) {
@@ -271,7 +298,7 @@ export async function generateMahnungPDF(input: MahnungPdfInput): Promise<Buffer
     )
     y = doc.y + 8
 
-    doc.text(LEVEL_INTRO[input.level], PAGE_MARGIN, y, { width: CONTENT_WIDTH })
+    doc.text(introFor(input.level, input.earlierLetters), PAGE_MARGIN, y, { width: CONTENT_WIDTH })
     y = doc.y + 12
 
     // ─── INVOICE TABLE ───
@@ -605,9 +632,11 @@ function formatAmount(n: number, currency: string): string {
 function feeStageLabel(
   level: "first" | "second" | "final",
 ): string {
-  if (level === "first") return "1 (Zahlungserinnerung)"
-  if (level === "second") return "2 (1. Mahnung)"
-  return "3 (Letzte Mahnung)"
+  // Tier 892: inside the fee line's own parentheses — „Mahngebühr (Stufe 2
+  // (1. Mahnung))“ nested them
+  if (level === "first") return "1 – Zahlungserinnerung"
+  if (level === "second") return "2 – 1. Mahnung"
+  return "3 – Letzte Mahnung"
 }
 
 /**
