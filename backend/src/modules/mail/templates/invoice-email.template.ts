@@ -47,6 +47,34 @@ export interface InvoiceEmailVars {
   dueDate: string;      // pre-formatted with the locale
   companyName: string;
   salutation: string;   // locale + gender (or empty)
+  /** Tier 894: what is still open, pre-formatted — with paymentState 'part' */
+  openAmount?: string;
+}
+
+/**
+ * Tier 894 — an invoice paid before it is e-mailed (a sale at the counter, a
+ * down payment, a credit note) said „Bitte begleichen Sie den Betrag bis zum
+ * …“ over its full total: an invitation to pay twice. 'paid': nothing is
+ * asked for; 'part': what is still open.
+ */
+export type InvoicePaymentState = 'open' | 'part' | 'paid'
+
+const PAYMENT_LINES: Record<Exclude<InvoicePaymentState, 'open'>, Record<EmailLang, string>> = {
+  paid: {
+    de: 'Der Betrag ist bereits beglichen — vielen Dank.',
+    en: 'The amount has already been paid — thank you.',
+    zh: '该款项已付清，谢谢。',
+  },
+  part: {
+    de: 'Nach Abzug der bereits geleisteten Zahlungen sind noch {openAmount} offen. Bitte begleichen Sie diesen Betrag bis zum {dueDate}.',
+    en: 'After the payments already made, {openAmount} remains open. Please pay this amount by {dueDate}.',
+    zh: '扣除已付款项后，尚有 {openAmount} 未付，请于 {dueDate} 前支付。',
+  },
+}
+const DUE_LINE: Record<EmailLang, string> = {
+  de: 'Bitte begleichen Sie den Betrag bis zum {dueDate}.',
+  en: 'The amount is due by {dueDate}.',
+  zh: '请于 {dueDate} 前支付。',
 }
 
 export interface RenderedInvoiceEmail {
@@ -307,9 +335,14 @@ export function renderInvoiceEmail(
   lang: EmailLang,
   vars: InvoiceEmailVars,
   documentType?: string,
+  paymentState: InvoicePaymentState = 'open',
 ): RenderedInvoiceEmail {
   const table = (documentType && DOCUMENT_TEMPLATES[documentType]) || TEMPLATES;
-  const tpl = table[lang] || table.de;
+  let tpl = table[lang] || table.de;
+  if (table === TEMPLATES && paymentState !== 'open') {
+    // Tier 894: the invoice's payment line, for what has been paid
+    tpl = { ...tpl, body: tpl.body.replace(DUE_LINE[lang] ?? DUE_LINE.de, PAYMENT_LINES[paymentState][lang] ?? PAYMENT_LINES[paymentState].de) }
+  }
   // Tier 689: the e-mail is plain text — the name was HTML-escaped, so
   // "Müller & Söhne" arrived as "Müller &amp; Söhne", "O'Brien" as "O&#39;Brien".
   const safeVars = {

@@ -200,6 +200,12 @@ export class InvoiceEmailService {
     // Tier 691: a company without a contact person — "Sehr geehrte Damen und Herren"
     const greeting = greetingFor(lang, customer, options.salutation);
 
+    // Tier 894: what has been paid (credit notes are booked as payments)
+    const paidSum = invoice.type === 'INV'
+      ? Number((await this.prisma.payment.aggregate({ where: { invoiceId: invoice.id }, _sum: { amount: true } }))._sum.amount ?? 0)
+      : 0;
+    const openAmount = Math.round((totalAmount - paidSum) * 100) / 100;
+    const paymentState = paidSum <= 0 ? 'open' : openAmount <= 0 ? 'paid' : 'part';
     const tpl = renderInvoiceEmail(lang, {
       invoiceNumber,
       customerName: greeting.customerName,
@@ -207,7 +213,8 @@ export class InvoiceEmailService {
       dueDate: fmtDate(invoice.dueDate ? new Date(invoice.dueDate) : null, lang),
       companyName: company?.name || '',
       salutation: greeting.salutation,
-    }, invoice.type);
+      openAmount: fmtAmount(Math.max(0, openAmount), lang),
+    }, invoice.type, paymentState);
 
     const subject = (options.overrideSubject || tpl.subject).slice(0, 250).trim();
     const text = (options.overrideBody || tpl.text).slice(0, 4000).trim();

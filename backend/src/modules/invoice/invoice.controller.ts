@@ -1261,14 +1261,21 @@ export class InvoiceController {
     // begleichen Sie den Betrag" for a credit note.
     const eur = (n: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: invoice.currency || 'EUR' }).format(n);
     const greeting = greetingFor('de', customer) // Tier 691
+    // Tier 894: the dialog's text is the one sent — paid / part-paid as the send says it
+    const gross = Math.abs(Number(invoice.total))
+    const paidSum = invoice.type === 'INV'
+      ? Number((await this.prisma.payment.aggregate({ where: { invoiceId: invoice.id }, _sum: { amount: true } }))._sum.amount ?? 0)
+      : 0
+    const openAmount = Math.round((gross - paidSum) * 100) / 100
     const { subject, text: body } = renderInvoiceEmail('de', {
       invoiceNumber,
       customerName: greeting.customerName,
-      amount: eur(Math.abs(Number(invoice.total))),
+      amount: eur(gross),
       dueDate: invoice.dueDate ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(invoice.dueDate)) : '—',
       companyName: company?.name || '',
       salutation: greeting.salutation,
-    }, invoice.type);
+      openAmount: eur(Math.max(0, openAmount)),
+    }, invoice.type, paidSum <= 0 ? 'open' : openAmount <= 0 ? 'paid' : 'part');
 
     return {
       recipientEmail,
