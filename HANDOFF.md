@@ -2673,6 +2673,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 908b — CI green for Tiers 905–908, no flaky
+
+| Run | Tier | Commit | Backend passed / failed / skipped | Playwright |
+|---|---|---|---|---|
+| 44938040297 | 905 | fb50751f | **592 / 0 / 1** | **1180 passed** |
+| 44942573581 | 906 | d05c283f | **593 / 0 / 1** | **1180 passed** |
+| 44946827519 | 907 | 502bd024 | **594 / 0 / 1** | **1180 passed** |
+| 44954805413 | 908 | f12d5075 | **595 / 0 / 1** | **1180 passed (45.5 m)** |
+
+- Every run: 0 flaky, no retry, no Traceback, no `REFUSED`, and the dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 908 — Soll- or Ist-Versteuerung by date: a change applies from the first of a month, and a sale is taxed once — at its issue under Soll, when paid under Ist
 
 - **Measured:**
