@@ -6,6 +6,7 @@ import { consumerAbroad, isGermanRate } from './oss-scope'
 import { ExchangeRateService } from '../exchange-rate/exchange-rate.service'
 import { invoiceEurFactor } from '../invoice/tax-breakdown'
 import { businessTodayIso } from '../../common/business-date'
+import { ossOn } from '../../common/oss-period'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -234,12 +235,14 @@ export class OssService {
     // regular UStVA.
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { address: true, ossVerfahren: true },
+      select: { address: true, ossVerfahren: true, settings: true },
     })
     // Tier 649: a company that is not in the OSS scheme charges German tax
     // on a sale to a consumer abroad at 19 % / 7 % — that sale is in the
     // UStVA and not here. One that is in it has every such sale here.
     const inOss = company?.ossVerfahren === true
+    // Tier 909: by the day of each sale (common/oss-period.ts)
+    const ossOnDay = ossOn(company)
     const homeCountryRaw = (company?.address as any)?.country || 'DE'
     const homeCountry = normaliseCountry(homeCountryRaw) || 'DE'
 
@@ -354,7 +357,7 @@ export class OssService {
       // in the OSS scheme — an invoice that has nothing else is not counted,
       // and its country gets no line.
       const own = invoiceTaxBreakdown(inv).byRate.filter((bucket) => {
-        const german = !inOss && bucket.rate > 0 && isGermanRate(bucket.rate, inv.issueDate)
+        const german = !ossOnDay(inv.issueDate) && bucket.rate > 0 && isGermanRate(bucket.rate, inv.issueDate)
         if (german) germanRate.add(inv.id)
         return !german
       })
@@ -411,7 +414,7 @@ export class OssService {
         ? await eurFactor(cn, year, quarter)
         : await eurFactor(cn, ref.issueDate.getUTCFullYear(), Math.floor(ref.issueDate.getUTCMonth() / 3) + 1)
       for (const bucket of invoiceTaxBreakdown(cn).byRate) {
-        if (!inOss && bucket.rate > 0 && isGermanRate(bucket.rate, ref.issueDate)) continue
+        if (!ossOnDay(ref.issueDate) && bucket.rate > 0 && isGermanRate(bucket.rate, ref.issueDate)) continue
         if (sameQuarter) {
           let items = countryItems.get(country)
           if (!items) {

@@ -11,6 +11,7 @@ import { refreshTaxOutOfPrice } from '../invoice/tax-out-of-price';
 import { assertPeriodOpen } from '../reports/filed-period';
 import { companySettingsTransaction } from '../../common/company-settings';
 import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
+import { OSS_SELECT, ossOn, ossWechselOf } from '../../common/oss-period';
 
 @Injectable()
 export class CompanyService {
@@ -117,6 +118,10 @@ export class CompanyService {
     if ('besteuerungsart' in data || 'besteuerungsartAb' in data) {
       data = await this.withBesteuerungsartWechsel(id, data);
     }
+    // Tier 909: so does joining or leaving the OSS
+    if ('ossVerfahren' in data || 'ossVerfahrenAb' in data) {
+      data = await this.withOssWechsel(id, data);
+    }
     const kuChanges = 'defaultVatMode' in data || 'kleinunternehmerAb' in data || 'kleinunternehmerBis' in data
     if (kuChanges) {
       data = await this.withKleinunternehmerPeriod(id, data);
@@ -162,6 +167,41 @@ export class CompanyService {
     const dayBefore = new Date(Date.parse(`${ab}T12:00:00Z`) - 86_400_000);
     const vorher = artOn(stored)(dayBefore);
     out.settings = { ...settings, besteuerungsartWechsel: [...kept, { ab, art: next, vorher }] };
+    return out;
+  }
+
+  /**
+   * Tier 909 — the OSS by date (common/oss-period.ts), as the Besteuerungsart
+   * (Tier 908): a change applies from the first of a month (`ossVerfahrenAb`,
+   * default the current one), not in a filed period; with nothing issued
+   * before that day the setting changes as a whole.
+   */
+  private async withOssWechsel(id: string, data: any) {
+    const out = { ...data };
+    delete out.ossVerfahrenAb;
+    const stored = await this.prisma.company.findUnique({ where: { id }, select: OSS_SELECT });
+    const before = stored?.ossVerfahren === true;
+    const next = 'ossVerfahren' in data ? data.ossVerfahren === true : before;
+    if (next === before) return out;
+    const thisMonth = `${businessTodayIso().slice(0, 7)}-01`;
+    const ab: string = data.ossVerfahrenAb ?? thisMonth;
+    if (!/^\d{4}-\d{2}-01$/.test(ab) || ab > thisMonth) {
+      throw new BadRequestException(
+        'Die Teilnahme am One-Stop-Shop beginnt oder endet am Ersten eines Monats, der nicht in der Zukunft liegt (ossVerfahrenAb: JJJJ-MM-01).',
+      );
+    }
+    await assertPeriodOpen(this.prisma, id, [ab], 'den Wechsel beim One-Stop-Shop');
+    const kept = ossWechselOf(stored).filter((w) => w.ab < ab);
+    const earlier = await this.prisma.invoice.count({
+      where: { companyId: id, issueDate: { lt: new Date(`${ab}T00:00:00Z`) }, status: { not: 'draft' } },
+    });
+    const settings = out.settings && typeof out.settings === 'object' && !Array.isArray(out.settings) ? out.settings : {};
+    if (earlier === 0 && kept.length === 0) {
+      out.settings = { ...settings, ossWechsel: [] };
+      return out;
+    }
+    const dayBefore = new Date(Date.parse(`${ab}T12:00:00Z`) - 86_400_000);
+    out.settings = { ...settings, ossWechsel: [...kept, { ab, on: next, vorher: ossOn(stored)(dayBefore) }] };
     return out;
   }
 

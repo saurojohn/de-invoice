@@ -1767,6 +1767,7 @@
     "ossVerfahrenNo": "Nicht angemeldet",
     "ossVerfahrenYes": "Angemeldet — Verkäufe an EU-Verbraucher über das OSS",
     "ossVerfahrenHelp": "Angemeldet: Jeder steuerpflichtige Verkauf an einen Verbraucher in einem anderen EU-Staat wird dort versteuert; die Steuer steht in der OSS-Meldung, in der Umsatzsteuer-Voranmeldung nur der Nettobetrag (Kz 45). Nicht angemeldet: Ein solcher Verkauf zu 19 % oder 7 % ist deutsche Umsatzsteuer (bis 10 000 € im Jahr, § 3c Abs. 4 UStG).",
+    "ossVerfahrenAbHelp": "Die Monate davor bleiben, wie sie erklärt wurden: Ein Verkauf an Verbraucher im EU-Ausland vor diesem Monat bleibt in der UStVA bzw. im OSS, wo er war. Ein Monat vor der ersten Rechnung ändert die Einstellung ganz (Korrektur).",
     "title": "Einstellungen",
     "companyLogo": "Firmenlogo",
     "companyInfo": "Firmeninformationen",

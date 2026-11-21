@@ -81,7 +81,8 @@ note "=== 4. OSS uses the discounted amounts ==="
 # Tier 649: the company says whether it is in the OSS scheme. Outside it, a
 # sale at a German rate to a consumer abroad is German tax and not in this
 # report at all — so the fixture registers.
-AS PUT "/api/v1/companies/$C?companyId=$C" '{"ossVerfahren":true}'
+# Tier 909: from August, the month of the first invoice — the setting as a whole
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"ossVerfahren":true,"ossVerfahrenAb":"2026-08-01"}'
 assert_eq "fixture: the company is in the OSS scheme" "$STATUS" "200"
 AS POST "/api/v1/customers?companyId=$C" \
   "{\"name\":\"$TAG AT\",\"type\":\"individual\",\"address\":{\"street\":\"1\",\"city\":\"Wien\",\"postalCode\":\"1010\",\"country\":\"Österreich\"}}"

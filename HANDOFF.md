@@ -2673,6 +2673,39 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 909 — the One-Stop-Shop by date: joining or leaving applies from the first of a month, and each sale to a consumer abroad is the OSS's by its own day
+
+This is the same kind of fault as Tier 908, for `Company.ossVerfahren` (Tier 649).
+
+- **Measured:**
+  - A company outside the OSS sold for 1 000 € at 19 % to a consumer in Paris in October. That was German tax, Kz 81, and it was filed.
+  - Turning OSS on in November moved the sale. October, computed anew, showed Kz 45 and no German tax.
+  - The OSS return of Q4 then declared the 190 € for France as well, so the same tax was paid twice.
+  - Leaving the OSS moved the past the other way.
+- **Now:**
+  - `common/oss-period.ts` reads `ossOn(company)(day)` from `Company.settings.ossWechsel` (`{ab, on, vorher}`). Without a change, the column answers for every day as before.
+  - Each document is judged by its own day:
+    - in the UStVA, `addTaxed` passes `ossOnDay(doc.referenceInvoice?.issueDate ?? doc.issueDate)` to `taxedAbroad`;
+    - in the OSS report, the German-rate exclusion asks `ossOnDay` of the invoice's day (a credit note: of the corrected invoice's day).
+  - `CompanyService.withOssWechsel` applies a change from `ossVerfahrenAb`, as in Tier 908:
+    - it is the first of a month, not in the future, and the current month by default;
+    - it is refused in a filed period;
+    - if nothing was issued before that day, the whole setting changes.
+  - The settings page shows „Gilt ab (Monat)“ under the OSS select, with help text in de / en / zh.
+- **Spec 198 (Tier 409):** it turned OSS on after its August invoices, as a fixture. It now sends `ossVerfahrenAb` = 2026-08-01.
+- **Spec 597:** on the old code 6 assertions fail.
+  1. Joining:
+     - joining from the filed last month is refused;
+     - after joining from this month, last month stays Kz 81 1 000 and this month's 20 % sale is in Kz 45;
+     - the quarter's OSS tax is 100 €, not 290.
+  2. Leaving: last month's OSS sale stays in Kz 45, and this month's sale is in Kz 81.
+  3. Nothing before the month: the whole setting changes, and no change is kept.
+- **Locally:**
+  - 597, 596, 198 and every spec that touches the OSS, the UStVA or the company settings, plus the guards: 331 ok. 87 fails as always locally.
+  - Playwright, every spec matching settings / oss / ustva (more than intended — „oss“ also matches „gross“): 410 passed, 4 failed. All 4 were `invoice-duplicate-check-tier150`, whose seed customer „BWA Test Kunde“ has no invoices left in the local tmp-ci-pg. That is the seed data, not this change; CI seeds it.
+  - The scratchpad harness (`env.sh`, `up.sh`, `some.sh`, `fe-up.sh`) was removed by the /tmp cleanup at midnight and was recreated. `pw.sh` refused to run without `env.sh`, as it should.
+  - Backend and frontend tsc / ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 908b — CI green for Tiers 905–908, no flaky
 
 | Run | Tier | Commit | Backend passed / failed / skipped | Playwright |

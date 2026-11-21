@@ -259,6 +259,12 @@ export class UpdateCompanyDto {
   @IsOptional()
   ossVerfahren?: boolean;
 
+  // Tier 909: from which month a changed ossVerfahren applies ("YYYY-MM-01";
+  // default the current month) — common/oss-period.ts.
+  @IsOptional()
+  @IsCalendarDay({ message: 'ossVerfahrenAb muss ein Datum (JJJJ-MM-TT) sein' })
+  ossVerfahrenAb?: string;
+
   // Tier 464: 'euer' | 'bilanz'; null = derived from the legal form.
   @IsString()
   @IsIn(['euer', 'bilanz'], { message: "gewinnermittlung muss 'euer' oder 'bilanz' sein" })

@@ -330,6 +330,9 @@ export default function SettingsPage() {
   const [artAb, setArtAb] = useState("")
   const storedArt = (savedSnapshot ? (JSON.parse(savedSnapshot) as CompanySettings).besteuerungsart : null) ?? "soll"
   const artChanged = savedSnapshot !== null && (form.besteuerungsart ?? "soll") !== storedArt
+  // Tier 909: the same for joining or leaving the One-Stop-Shop
+  const [ossAb, setOssAb] = useState("")
+  const ossChanged = savedSnapshot !== null && form.ossVerfahren !== (JSON.parse(savedSnapshot) as CompanySettings).ossVerfahren
   const fmtDay = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`
   const storedVatMode = savedSnapshot ? (JSON.parse(savedSnapshot) as CompanySettings).defaultVatMode : null
   const kuSwitch: "end" | "start" | null =
@@ -663,9 +666,11 @@ export default function SettingsPage() {
       }
       if (kuDate && kuSwitch === "start") payload.kleinunternehmerAb = kuDate
       if (artChanged && artAb) payload.besteuerungsartAb = `${artAb}-01`
+      if (ossChanged && ossAb) payload.ossVerfahrenAb = `${ossAb}-01`
       await apiPut(`/api/v1/companies/${companyId}`, payload)
       setKuDate("")
       setArtAb("")
+      setOssAb("")
       setNumberRefresh((n) => n + 1)
       // Refetch so the form reflects the canonical stored value —
       // without this, a user who just changed defaultPaymentDays from
@@ -1575,6 +1580,23 @@ export default function SettingsPage() {
                     <option value="nein">{t("settings.ossVerfahrenNo")}</option>
                     <option value="ja">{t("settings.ossVerfahrenYes")}</option>
                   </select>
+                  {ossChanged && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium mb-1" htmlFor="settings-oss-ab">
+                        {t("settings.besteuerungsartAb")}
+                      </label>
+                      <input
+                        id="settings-oss-ab"
+                        type="month"
+                        className="h-9 border rounded-md px-2"
+                        value={ossAb || todayIso().slice(0, 7)}
+                        max={todayIso().slice(0, 7)}
+                        onChange={(e) => setOssAb(e.target.value)}
+                        data-testid="settings-oss-ab"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">{t("settings.ossVerfahrenAbHelp")}</p>
+                    </div>
+                  )}
                   <p className="text-xs text-gray-600 mt-1">
                     {t("settings.ossVerfahrenHelp")}
                   </p>

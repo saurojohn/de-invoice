@@ -16,6 +16,7 @@ import { cashBookings } from '../cashbook/cash-bookings';
 import { istPaidDocuments } from './ustva-ist';
 import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
 import { taxedAbroad } from './oss-scope';
+import { OSS_SELECT, ossOn } from '../../common/oss-period';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
@@ -227,7 +228,8 @@ export class UstvaService {
       artOnDay(doc.referenceInvoice?.issueDate ?? doc.issueDate) === 'soll';
     // Tier 649: in the OSS scheme every taxed sale to a consumer in another
     // member state is that state's, whatever its rate.
-    const inOss = (await this.prisma.company.findUnique({ where: { id: companyId }, select: { ossVerfahren: true } }))?.ossVerfahren === true;
+    // Tier 909: by the day of each sale (common/oss-period.ts)
+    const ossOnDay = ossOn(await this.prisma.company.findUnique({ where: { id: companyId }, select: OSS_SELECT }));
 
     // ── OUTPUT SIDE ───────────────────────────────────────────────
     // Sales invoices (excl. cancelled, finalized only — draft is not part of Voranmeldung)
@@ -336,7 +338,7 @@ export class UstvaService {
     // Tier 641: another member state's tax is not in this return (oss-scope.ts).
     const oss = { net: 0, vat: 0 };
     const addTaxed = (doc: any, rate: number, net: number, vat: number) => {
-      if (taxedAbroad(doc, rate, 'DE', inOss)) {
+      if (taxedAbroad(doc, rate, 'DE', ossOnDay(doc.referenceInvoice?.issueDate ?? doc.issueDate))) {
         oss.net += net;
         oss.vat += vat;
       } else {
