@@ -2673,6 +2673,40 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 905 — a company car at 0,25 % / 0,5 % only where § 6 Abs. 1 Nr. 4 Satz 2 Nr. 3 EStG gives the rate
+
+- **Measured:** the method was checked only against the three words.
+  - A car with a list price of 150 000 € was taken at 0,25 %. Its private use was half of what the law gives (Entnahme in the EÜR / Anlage G).
+  - A car of 2017 was taken at 0,5 %.
+- **The law** (checked against public sources on 21.11.2026; the Investitionssofortprogramm 2025 raised the limit to 100 000 €):
+  - The reduced rates apply to electric / hybrid cars acquired or leased from 2019 to 2030.
+  - 0,25 % applies only to a purely electric car whose gross list price is at most:
+    - 60 000 € if acquired until 2023;
+    - 70 000 € if acquired from 1.1.2024 to 30.6.2025;
+    - 100 000 € if acquired from 1.7.2025.
+  - Above the limit the rate is 0,5 %.
+  - The reduction is an income-tax rule only. The VAT side (Tier 502) is unchanged.
+- **Now:**
+  - `reducedRateProblem` (`private-use.ts`) refuses the creation with a message that names the limit and the date.
+  - „Private Nutzung ab“ is taken as the day of acquisition, because the car records no separate date.
+  - Updates cannot change the price or the method, so only the creation is checked.
+- **Not modelled (as before):**
+  - the hybrid conditions (CO₂ ≤ 50 g/km or electric range);
+  - the 2019 special year;
+  - the Nachteilsausgleich for cars before 2019.
+- **Spec 593:** on the old code 6 assertions fail.
+  - Refused:
+    - 150 000 € at 0,25 % (2025);
+    - 95 000 € at 0,25 % (March 2025);
+    - 65 000 € at 0,25 % (2023);
+    - a 2017 car at 0,5 %.
+  - Taken:
+    - 95 000 € at 0,25 % (September 2025);
+    - 65 000 € at 0,25 % (2024);
+    - 150 000 € at 0,5 %;
+    - 1 % at any price and date.
+- Locally: 593, 288, 326 and the guards — 21 ok. Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 904b — CI green for Tiers 900–904, no flaky
 
 - **Run 44929767784 (Tier 900, e40783ec):** died in „Fetch Mustang“ on a 404 from Maven Central before any backend spec ran. All other jobs were green, Playwright **1180 passed**.

@@ -39,6 +39,30 @@ const INCOME_RATE: Record<CompanyCarMethod, number> = {
   electric_025: 0.0025,
   electric_05: 0.005,
 }
+/**
+ * Tier 905 — the reduced rates have conditions (§ 6 Abs. 1 Nr. 4 Satz 2
+ * Nr. 3 EStG). An electric or hybrid car acquired (or leased) from 2019 to
+ * 2030; 0,25 % only for a purely electric car whose gross list price is at
+ * most 60 000 € (acquired until 2023), 70 000 € (1.1.2024 – 30.6.2025),
+ * 100 000 € (from 1.7.2025) — above it 0,5 %. Measured: a 150 000 € car at
+ * 0,25 % was taken, its private use a half of the law's. The day the car is
+ * used privately from is taken as the day it was acquired.
+ */
+export function reducedRateProblem(method: string, listPrice: number, fromDate: Date | string): string | null {
+  if (method !== 'electric_025' && method !== 'electric_05') return null
+  const day = new Date(fromDate).toISOString().slice(0, 10)
+  if (day < '2019-01-01' || day > '2030-12-31') {
+    return 'Die Sätze 0,25 % / 0,5 % gelten nur für Elektro- und Hybridfahrzeuge, die 2019 bis 2030 angeschafft wurden (§ 6 Abs. 1 Nr. 4 Satz 2 EStG) — sonst 1 %.'
+  }
+  if (method === 'electric_025') {
+    const limit = day < '2024-01-01' ? 60000 : day <= '2025-06-30' ? 70000 : 100000
+    if (Number(listPrice) > limit) {
+      return `0,25 % gilt nur bis zu einem Bruttolistenpreis von ${limit.toLocaleString('de-DE')} € bei einem am ${new Date(fromDate).toLocaleDateString('de-DE', { timeZone: 'UTC' })} angeschafften Wagen (§ 6 Abs. 1 Nr. 4 Satz 2 Nr. 3 EStG) — darüber 0,5 %.`
+    }
+  }
+  return null
+}
+
 const VAT_SHARE = 0.8 // less 20 % for costs without input tax
 const VAT_RATE = 0.19
 /** Tier 541: days per month with a trip home – business, when none is given */

@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 import { CreateCompanyCarDto, EndCompanyCarDto } from './company-car.dto'
-import { DEFAULT_COMMUTE_DAYS, privateCarUse, roundedListPrice } from './private-use'
+import { DEFAULT_COMMUTE_DAYS, privateCarUse, reducedRateProblem, roundedListPrice } from './private-use'
 
 /** Tier 502 — company cars used privately (private-use.ts). */
 @Injectable()
@@ -28,6 +28,8 @@ export class CompanyCarService {
     const from = new Date(dto.fromDate)
     const until = dto.untilDate ? new Date(dto.untilDate) : null
     if (until && until < from) throw new BadRequestException('Das Ende liegt vor dem Beginn.')
+    const rateProblem = reducedRateProblem(dto.method, dto.listPrice, from) // Tier 905
+    if (rateProblem) throw new BadRequestException(rateProblem)
     return this.prisma.companyCar.create({
       data: {
         companyId,
