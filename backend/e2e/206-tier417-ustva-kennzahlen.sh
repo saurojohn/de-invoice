@@ -46,7 +46,8 @@ AS POST "/api/v1/invoices/$IGL/credit-note?companyId=$C" '{"amount":100}'
 expense() { AS POST "/api/v1/ustva/expenses?companyId=$C" "$1"; [[ "$STATUS" == 201 || "$STATUS" == 200 ]] || fail "expense: $STATUS $BODY"; }
 expense "{\"description\":\"Subunternehmer Bau\",\"invoiceDate\":\"$TODAY\",\"netAmount\":2000,\"vatRate\":0.19,\"vatAmount\":0,\"grossAmount\":2000,\"isReverseCharge\":true}"
 expense "{\"description\":\"Ware aus Irland\",\"invoiceDate\":\"$TODAY\",\"netAmount\":400,\"vatRate\":0.19,\"vatAmount\":0,\"grossAmount\":400,\"isIntraEU\":true}"
-expense "{\"description\":\"Rechnung 2020 mit 16 %\",\"invoiceDate\":\"$TODAY\",\"netAmount\":100,\"vatRate\":0.16,\"vatAmount\":16,\"grossAmount\":116}"
+# Tier 900: a rate that is neither 19 % nor 7 % but deductible today — a § 24 farmer's average rate
+expense "{\"description\":\"Landwirt nach § 24 mit 7,8 %\",\"invoiceDate\":\"$TODAY\",\"netAmount\":100,\"vatRate\":0.078,\"vatAmount\":7.8,\"grossAmount\":107.8}"
 pass "fixture: three sales, a refund, three purchases"
 
 note "=== 1. zero-rated sales on their own lines ==="
@@ -63,9 +64,9 @@ assert_eq "§ 13b purchase: 2000 / 380 (Kz 84 / 85)" "$(F "'%s/%s' % (d['reverse
 assert_eq "igE: 400 / 76 (Kz 89)" "$(F "'%s/%s' % (d['intraEuAcquisitions']['net'], d['intraEuAcquisitions']['vat'])")" "400/76"
 assert_eq "Vorsteuer § 13b 380 (Kz 67; was 0)" "$(F "d['vorsteuer']['fromReverseCharge']")" "380"
 assert_eq "Vorsteuer igE 76 (Kz 61; was 0)" "$(F "d['vorsteuer']['fromIgE']")" "76"
-assert_eq "Vorsteuer at 16 % counted (was dropped)" "$(F "d['vorsteuer']['fromOther']")" "16"
+assert_eq "Vorsteuer at 7,8 % counted (was dropped)" "$(F "d['vorsteuer']['fromOther']")" "7.8"
 assert_eq "Umsatzsteuer 456" "$(F "d['umsatzsteuer']")" "456"
-assert_eq "Differenz −16 (was +456)" "$(F "d['differenzbetrag']")" "-16"
+assert_eq "Differenz −7,8 (was +456)" "$(F "d['differenzbetrag']")" "-7.8"
 
 note "=== 3. the export writes the USt 1 A 2026 Kennzahlen ==="
 AS POST "/api/v1/ustva/filings?companyId=$C" "$(python3 -c "import sys,json;d=json.loads(sys.argv[1]);d['status']='draft';print(json.dumps(d))" "$UV")"
@@ -80,9 +81,9 @@ assert_eq "Kz 21 = 500 (§ 18b)" "$(KZ 21)" "500"
 assert_eq "Kz 41 = 200 (igL)" "$(KZ 41)" "200"
 assert_eq "Kz 89 = 400 (igE 19 %)" "$(KZ 89)" "400"
 assert_eq "Kz 84 / 85 = 2000 / 380.00" "$(KZ 84)/$(KZ 85)" "2000/380.00"
-assert_eq "Kz 66 = 16.00 (Vorsteuer aus Rechnungen)" "$(KZ 66)" "16.00"
+assert_eq "Kz 66 = 7.80 (Vorsteuer aus Rechnungen)" "$(KZ 66)" "7.80"
 assert_eq "Kz 61 = 76.00 / Kz 67 = 380.00" "$(KZ 61)/$(KZ 67)" "76.00/380.00"
-assert_eq "Kz 83 = −16.00 (the amount payable; it went out as Kz 081)" "$(KZ 83)" "-16.00"
+assert_eq "Kz 83 = −7.80 (the amount payable; it went out as Kz 081)" "$(KZ 83)" "-7.80"
 assert_eq "no Kz 81 — there are no 19 % sales" "$(KZ 81)" "-"
 AS GET "/api/v1/ustva/filings/$FID/elster-xml?companyId=$C&format=ascii"
 grep -q "Keine amtliche Upload-Datei" <<<"$BODY" && pass "the list says it is not an ELSTER upload" || fail "list header"
@@ -94,6 +95,6 @@ assert_eq "Kz 209 = 1000 (§ 13b sales)" "$(J 209 net)" "1000"
 assert_eq "Kz 721 = 500 (§ 18b)" "$(J 721 net)" "500"
 assert_eq "Kz 877 / 878 = 2000 / 380" "$(J 877 net)/$(J 878 vat)" "2000/380"
 assert_eq "Kz 467 = 380 (Vorsteuer § 13b)" "$(J 467 vat)" "380"
-assert_eq "zahllast −16" "$(python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['zahllast'])" "$BODY")" "-16"
+assert_eq "zahllast −7,8" "$(python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['zahllast'])" "$BODY")" "-7.8"
 
 summary; exit $?

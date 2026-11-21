@@ -2673,6 +2673,56 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 900 — input tax only from a rate German law has: an expense, the UStVA page's expense, the CSV import and the cash book refuse 50 %, 16 % today and foreign VAT
+This is the purchase side of Tier 899.
+
+- **Measured:** four 100 € bills were stored, and all of their tax went into **Kz 66** — 93,80 € Vorsteuer, of which only 7,80 € was deductible:
+  - one at 50 %;
+  - one at 16 % dated today;
+  - a hotel bill from Paris with 20 % French tax;
+  - a § 24 farmer at 7,8 % (the only deductible one).
+  
+  A § 13b purchase at 50 % put 50 € into Kz 84 / 85. The cash book took a purchase at 50 %.
+  
+  The DTOs check only 0 … 1. The UStVA sums every rate above 0 into `fromOther` (Tier 417). The expense form offers 19 / 7 / 0, but the OCR and e-invoice import take the rate on the bill.
+- **Decision (as an accountant):**
+  - § 15 Abs. 1 Satz 1 Nr. 1 UStG: only the tax owed by law is deductible. A wrong rate is § 14c tax: the supplier owes it, the buyer cannot deduct it.
+  - Another member state's VAT is no German Vorsteuer. It is refunded through the BZSt (§ 18g UStG), so the bill is entered with 0 % and its gross as cost — the message says so.
+  - A farmer taxed under § 24 UStG charges tax owed by law, and it is deductible:
+    - 5,5 % (forestry);
+    - 10,7 % until 2021;
+    - 9,5 % in 2022;
+    - 9,0 % in 2023–2024;
+    - 7,8 % since 2025.
+  - § 13b / igE: the company owes German tax at 19 % / 7 % (16 / 5 % in 2nd half 2020).
+- **Now** (`expense/input-tax-rate.ts`, by the bill's date):
+  - the checks run on:
+    - `ExpenseService.create` (manual, OCR and e-invoice imports, the bulk import of grouped rows);
+    - `updateExpense`, only when the amounts, rate, lines, date or § 13b flags change (notes stay editable);
+    - the CSV import (the row is reported, not imported);
+    - `UstvaService.createExpense`;
+    - cash-book entries without an invoice / expense, on create and update.
+  - A cash sale must be 19 / 7 %. A line with 0 € VAT passes whatever rate it names (foreign VAT entered as cost).
+  - The bank-import booking already allowed only 19 / 7 / 0 (Tier 809). The UStVA itself is unchanged.
+- **Spec 206 (Tier 417):** used „16 % dated today“ to show that another rate is counted. It now uses a § 24 farmer at 7,8 % (Kz 66 7,80, Kz 83 −7,80, Zahllast −7,8).
+- **Spec 588:** covers each case below; on the old code 18 assertions fail.
+  - Refused:
+    - Paris 20 %, 50 %, 16 % today, § 13b 50 %;
+    - a 20 % line next to 19 %;
+    - the UStVA page at 50 %;
+    - 7,8 % dated 2024;
+    - a 19 % expense changed to 20 %;
+    - the 2020 bill moved to today;
+    - the CSV row at 20 %;
+    - cash sale and purchase at 50 %, and an update to 50 %.
+  - Allowed:
+    - Paris with 0 € VAT;
+    - 7,8 % today, 9,0 % in 2024, 16 % on 16.11.2020;
+    - § 13b at 19 %.
+  - The UStVA then shows 19 % Vorsteuer 39,90, other rates 7,80 and § 13b 19.
+- Before the change, tmp-ci-pg's rows at rates German law does not have came from probes and fuzz runs of this session, apart from spec 206's 16 %.
+- Locally: 588, 206, the guards and every spec that touches expenses, the cash book, the UStVA or an import — 180 ok, 0 fail. Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 899b — CI green for Tiers 897–899, no flaky
 
 - **Run 44913379860 (Tier 897, 1b767876):** backend **585 passed / 0 failed / 1 skipped**, Playwright **1179 passed** (+2: csv-formula-guard-tier897).

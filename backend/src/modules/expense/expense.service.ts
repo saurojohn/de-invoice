@@ -28,6 +28,7 @@ import { assertNotFuture } from '../../common/business-date';
 import { assertExpenseAmounts, expenseAmountsError } from './amounts';
 import { checkTaxLines } from './tax-lines';
 import { notAnExpense } from '../accounting/expense-cost';
+import { assertInputTaxRate, inputTaxRateError } from './input-tax-rate';
 
 @Injectable()
 export class ExpenseService {
@@ -177,6 +178,12 @@ export class ExpenseService {
       }));
       assertExpenseAmounts({ net, vat, gross, rate }); // Tier 523
     }
+    // Tier 900: input tax only from a rate German law has
+    assertInputTaxRate(
+      taxRows.length ? taxRows.map((l) => ({ rate: l.vatRate, vat: Number(l.vatAmount) })) : [{ rate, vat }],
+      data.invoiceDate,
+      !!(data.isIntraEU || data.isReverseCharge),
+    );
     await assertPeriodOpen(this.prisma, companyId, [data.invoiceDate], 'das Erfassen einer Eingangsrechnung'); // Tier 537
     return this.prisma.expense.create({
       data: {
@@ -383,6 +390,12 @@ export class ExpenseService {
         const amountsError = expenseAmountsError({ net: netAmount, vat: vatAmount, gross: grossAmount, rate: Number(vatRate) })
         if (amountsError) {
           result.errors.push({ row: rowNum, error: amountsError, description })
+          continue
+        }
+        // Tier 900: input tax only from a rate German law has
+        const rateError = inputTaxRateError([{ rate: Number(vatRate), vat: vatAmount }], invoiceDate, false)
+        if (rateError) {
+          result.errors.push({ row: rowNum, error: rateError, description })
           continue
         }
         prepared.push({

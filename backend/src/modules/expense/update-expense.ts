@@ -25,6 +25,7 @@ import { expenseLockReason } from './expense-lock'
 import type { UpdateExpenseDto } from './dto/expense.dto'
 import { assertNotFuture } from '../../common/business-date'
 import { assertExpenseAmounts } from './amounts'
+import { assertInputTaxRate } from './input-tax-rate'
 import { checkTaxLines } from './tax-lines'
 import { notAnExpense } from '../accounting/expense-cost'
 
@@ -148,6 +149,22 @@ export async function updateExpense(
     set('netAmount', signed.net.toFixed(4), !sameDecimal(exp.netAmount, signed.net))
     set('vatAmount', signed.vat.toFixed(4), !sameDecimal(exp.vatAmount, signed.vat))
     set('grossAmount', signed.gross.toFixed(4), !sameDecimal(exp.grossAmount, signed.gross))
+  }
+  // Tier 900: input tax only from a rate German law has — checked when the
+  // amounts, the rate, the date or the § 13b flags change (an expense from
+  // before stays editable otherwise).
+  if (scalarAmounts || data.taxLines != null || data.invoiceDate !== undefined || data.isIntraEU !== undefined || data.isReverseCharge !== undefined) {
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(changes, k)
+    const lines = newRows && newRows.length > 0
+      ? newRows.map((r) => ({ rate: Number(r.vatRate), vat: Number(r.vatAmount) }))
+      : newRows === null && exp.taxLines.length > 0
+        ? exp.taxLines.map((l) => ({ rate: Number(l.vatRate), vat: Number(l.vatAmount) }))
+        : [{ rate: Number(has('vatRate') ? changes.vatRate : exp.vatRate), vat: Number(has('vatAmount') ? changes.vatAmount : exp.vatAmount) }]
+    assertInputTaxRate(
+      lines,
+      (has('invoiceDate') ? changes.invoiceDate : exp.invoiceDate) as Date,
+      !!((data.isIntraEU ?? exp.isIntraEU) || (data.isReverseCharge ?? exp.isReverseCharge)),
+    )
   }
   // are the rows really different from what is stored?
   if (newRows) {

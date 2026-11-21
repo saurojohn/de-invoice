@@ -23,6 +23,7 @@ import { privateCarUse } from '../company-car/private-use';
 import { nonDeductibleGiftIds } from '../accounting/gifts';
 import { assertNotFuture, businessDayIso } from '../../common/business-date';
 import { assertExpenseAmounts } from '../expense/amounts';
+import { assertInputTaxRate } from '../expense/input-tax-rate';
 import { expenseTaxLines } from '../expense/tax-lines';
 import { shareWhileRunning } from '../../common/shared-while-running';
 
@@ -1327,6 +1328,12 @@ export class UstvaService {
     if (!data.taxRows?.length) {
       assertExpenseAmounts({ net: Number(data.netAmount), vat: Number(data.vatAmount), gross: Number(data.grossAmount), rate: Number(data.vatRate) });
     }
+    // Tier 900: input tax only from a rate German law has
+    assertInputTaxRate(
+      data.taxRows?.length ? data.taxRows.map((l) => ({ rate: Number(l.vatRate), vat: Number(l.vatAmount) })) : [{ rate: Number(data.vatRate), vat: Number(data.vatAmount) }],
+      data.invoiceDate,
+      !!(data.isIntraEU || data.isReverseCharge),
+    );
     // Tier 489: the same supplier invoice twice is refused (409)
     await assertNoDuplicateExpense(this.prisma, companyId, supplierId, data.invoiceNumber, Number(data.grossAmount) < 0, data.confirmDuplicate === true);
     return this.prisma.expense.create({

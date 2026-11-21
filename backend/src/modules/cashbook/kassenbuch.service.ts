@@ -6,6 +6,7 @@ import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PaymentService } from '../invoice/payment.service';
 import { assertNotFuture } from '../../common/business-date';
+import { cashRateError } from '../expense/input-tax-rate';
 
 // Tier 194 — GoBD § 146 AO integrity hash for the
 // Tagesabschluss. We sign over a stable, sorted
@@ -523,6 +524,9 @@ export class KassenbuchService {
     // Tier 537: a cash sale / purchase with VAT is in the UStVA of its day
     // (cash-bookings.ts) — not into a submitted period.
     if (data.vatRate != null && !data.invoiceId && !data.expenseId && (data.type === 'einnahme' || data.type === 'ausgabe')) {
+      // Tier 900: a rate German law has
+      const rateError = cashRateError(data.type, data.vatRate, data.businessDate)
+      if (rateError) throw new BadRequestException(rateError)
       await assertPeriodOpen(this.prisma, companyId, [data.businessDate], 'eine Kassenbuchung mit Umsatzsteuer')
     }
     // Normalise the date to midnight UTC so the DB @db.Date
@@ -642,6 +646,11 @@ export class KassenbuchService {
     if (!existing) throw new NotFoundException('Entry not found')
     assertNotKassendifferenz(existing)
     await this.assertDaysOpen(companyId, [existing.businessDate])
+    if (patch.vatRate != null && !existing.invoiceId && !existing.expenseId) {
+      // Tier 900: a rate German law has
+      const rateError = cashRateError(existing.type, patch.vatRate, existing.businessDate)
+      if (rateError) throw new BadRequestException(rateError)
+    }
     if (existing.paymentId && patch.amount !== undefined && patch.amount !== Number(existing.amount)) {
       throw new BadRequestException(
         'Der Betrag einer Rechnungszahlung kann nicht geändert werden — Buchung stornieren und neu erfassen.',
