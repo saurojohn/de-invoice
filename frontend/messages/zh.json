@@ -3147,7 +3147,7 @@
     "jahresueberschuss": "年度盈利/亏损（来自 G+V § 275 HGB）",
     "korrekturen": "KSt 修正（§ 8 KStG）",
     "zve": "应税所得（ZvE）",
-    "kst": "公司所得税（15%）",
+    "kst": "公司所得税（{pct}%）",
     "soli": "团结附加税（KSt 的 5.5%）",
     "gewst": "工商税（3.5% × Hebesatz）",
     "keineAnrechnung": "工商税不抵扣企业所得税：§ 35 EStG 的减免只适用于自然人（个体户、合伙人），不适用于资合公司。",

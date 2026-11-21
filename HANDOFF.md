@@ -2673,6 +2673,37 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 907 — the KSt rate of the year: 15 % until 2027, 14 % for 2028 … 10 % from 2032
+
+- **Measured:** KSt 1 (`kst1.service`) said and computed 15 % for every year:
+  - the computation (`kst`);
+  - the PDF („Steuersatz: 15 %“);
+  - the note („KSt 15% + Soli …“);
+  - the page's block („Körperschaftsteuer (15 %)“).
+- **The law:** § 23 Abs. 1 KStG as amended by the Gesetz für ein steuerliches Investitionssofortprogramm (passed by the Bundestag on 26.6.2025, agreed by the Bundesrat, published in the BGBl.; checked against public sources on 21.11.2026).
+  - 15 % for the Veranlagungszeiträume until 2027.
+  - Then 14 % (2028), 13 % (2029), 12 % (2030), 11 % (2031) and 10 % from 2032.
+  - A year to come only gets a preview now. A GmbH's first year at 14 % is filed in 2029.
+- **Now:**
+  - `kstProzent(year)` sets the rate.
+  - `totals.kstProzent` carries it to the page: `kst1.kst` takes `{pct}` in de / en / zh.
+  - The PDF and the note name the year's rate. The tax-forms dictionaries already had the note's numbers as parameters.
+- The degressive AfA of the same law (30 %, July 2025 – 2027) is still not built. See Tier 903 for that.
+- **Spec 595:** the invoice is issued today, then its date is moved in the test database, because a future issue date is refused. On the old code 7 assertions fail.
+
+  | Year | Rate | KSt |
+  |---|---|---|
+  | 2026 | 15 % | 15 007 € |
+  | 2028 | 14 % | 14 007 € (note and PDF say 14 %) |
+  | 2031 | 11 % | 11 005 € |
+  | 2032 | 10 % | 10 005 € |
+  | 2027 | 15 % | |
+
+- **Locally:**
+  - 595, 228 and every spec touching KSt, plus the guards: 53 ok.
+  - Playwright kst1 + company-cars: 7 passed.
+  - Backend and frontend tsc / ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 906 — the company car's trips home – business are set off against the Entfernungspauschale of their year: 0,38 € from the first km since 2026
 
 - **Measured:** `monthlyCommute` (Tier 541) set off the trips against 0,30 € per km for the first 20 km and 0,38 € beyond. These are the amounts of 2022–2025, and they were used for every year.

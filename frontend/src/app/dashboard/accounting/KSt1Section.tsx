@@ -36,6 +36,7 @@ interface KSt1Result {
     jahresueberschuss: number
     zve: number
     kst: number
+    kstProzent?: number // Tier 907
     soli: number
     gewstMessbetrag: number
     hebesatz: number
@@ -351,7 +352,7 @@ export function KSt1Section() {
                   data-testid="kst1-kst-block"
                 >
                   <div className="text-xs font-semibold text-emerald-800 dark:text-emerald-200 mb-1">
-                    {tRef.current("kst1.kst")}
+                    {tRef.current("kst1.kst", { pct: data.totals.kstProzent ?? 15 })}
                   </div>
                   <div className="text-xl font-bold text-emerald-900 dark:text-emerald-100">
                     {fmt(data.totals.kst)}

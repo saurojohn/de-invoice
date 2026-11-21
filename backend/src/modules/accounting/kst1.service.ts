@@ -100,7 +100,9 @@ export interface KSt1Result {
   totals: {
     jahresueberschuss: number
     zve: number // Zu versteuerndes Einkommen
-    kst: number // 15% × ZvE
+    kst: number // kstProzent(year) × ZvE (Tier 907)
+    /** Tier 907: the year's KSt rate in percent */
+    kstProzent: number
     soli: number // 5.5% × KSt
     gewstMessbetrag: number // 3.5% × ZvE
     hebesatz: number // default 400
@@ -132,6 +134,14 @@ export interface KSt1Result {
  * EStG), 60 % before and after. The note said 60 % for every year.
  */
 export const verlustProzent = (year: number): number => (year >= 2024 && year <= 2027 ? 70 : 60)
+
+/**
+ * Tier 907 — the KSt rate of the year (§ 23 Abs. 1 KStG as amended by the
+ * Gesetz für ein steuerliches Investitionssofortprogramm, BGBl. 2025): 15 %
+ * until 2027, then one point less a year — 14 % (2028), 13 %, 12 %, 11 %,
+ * 10 % from 2032. It was 15 % for every year.
+ */
+export const kstProzent = (year: number): number => (year <= 2027 ? 15 : year >= 2032 ? 10 : 15 - (year - 2027))
 
 const KORREKTUREN_LINES: Array<{
   kz: string
@@ -338,7 +348,7 @@ export class KSt1Service {
     // Tier 833: the KSt is rounded to full euros in the taxpayer's favour
     // (§ 31 Abs. 1 S. 2 KStG) — 15 % of 3 988,89 is 598, not 598,33. In cents,
     // so that no float puts 150,00 at 149,99.
-    const kst = Math.floor((Math.round(Math.max(0, zve) * 100) * 15) / 10000)
+    const kst = Math.floor((Math.round(Math.max(0, zve) * 100) * kstProzent(year)) / 10000)
     // Soli: 5.5% × the KSt as set (§ 3 Abs. 1 Nr. 1 SolZG; no Freigrenze for a
     // corporation), fractions of a cent dropped (§ 4 S. 3 SolZG).
     const soli = Math.floor((kst * 55) / 10) / 100
@@ -388,6 +398,7 @@ export class KSt1Service {
         jahresueberschuss: round2(jahresueberschuss),
         zve,
         kst,
+        kstProzent: kstProzent(year), // Tier 907
         soli,
         gewstMessbetrag,
         hebesatz,
@@ -405,7 +416,7 @@ export class KSt1Service {
       disclaimer:
         'Diese Vorschau wurde automatisch aus dem G+V Jahresüberschuss + den KSt-/GewSt-' +
         'Standardformeln generiert. KSt 1 ist für Körperschaften (GmbH, AG, KGaA, etc.) per ' +
-        '§ 1 Abs. 1 KStG. KSt 15% + Soli 5.5% (auf KSt) + GewSt (Hebesatz 400 %, solange unter ' +
+        `§ 1 Abs. 1 KStG. KSt ${kstProzent(year)}% + Soli 5.5% (auf KSt) + GewSt (Hebesatz 400 %` + ', solange unter ' +
         'Gewerbesteuer kein anderer eingetragen ist). Die Gewerbesteuer wird NICHT auf die KSt angerechnet (die ' +
         'Steuerermäßigung des § 35 EStG gilt nur für natürliche Personen). Im Gegensatz zur Einkommensteuer KEIN Freibetrag für GmbH/AG. Die KSt-Korrekturen ' +
         '(vGAs, Spendenabzug, ausländische Steuern, § 8b KStG) sind als Platzhalter ' +
@@ -519,7 +530,7 @@ export class KSt1Service {
     doc.fontSize(12).font('Helvetica-Bold').text('Körperschaftsteuer (KSt)')
     doc.moveDown(0.3)
     doc.fontSize(10).font('Helvetica')
-    doc.text(`Steuersatz: 15 % (§ 23 Abs. 1 KStG)`)
+    doc.text(`Steuersatz: ${data.totals.kstProzent} % (§ 23 Abs. 1 KStG)`)
     doc.text(`KSt: ${this.fmtEur(data.totals.kst)} €`)
     doc.moveDown(0.8)
 

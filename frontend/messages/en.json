@@ -3147,7 +3147,7 @@
     "jahresueberschuss": "Annual profit / loss (from G+V § 275 HGB)",
     "korrekturen": "KSt corrections (§ 8 KStG)",
     "zve": "Taxable income (ZvE)",
-    "kst": "Corporate tax (15%)",
+    "kst": "Corporate tax ({pct}%)",
     "soli": "Solidarity surcharge (5.5% on KSt)",
     "gewst": "Trade tax (3.5% × Hebesatz)",
     "keineAnrechnung": "No credit of the trade tax against the corporate tax: the § 35 EStG relief applies to natural persons (sole traders, partners) only, not to a corporation.",

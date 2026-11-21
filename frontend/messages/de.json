@@ -3147,7 +3147,7 @@
     "jahresueberschuss": "Jahresüberschuss / -fehlbetrag (aus G+V § 275 HGB)",
     "korrekturen": "KSt-Korrekturen (§ 8 KStG)",
     "zve": "Zu versteuerndes Einkommen (ZvE)",
-    "kst": "Körperschaftsteuer (15 %)",
+    "kst": "Körperschaftsteuer ({pct} %)",
     "soli": "Solidaritätszuschlag (5,5 % auf KSt)",
     "gewst": "Gewerbesteuer (3,5 % × Hebesatz)",
     "keineAnrechnung": "Keine Anrechnung der Gewerbesteuer auf die Körperschaftsteuer: die Steuerermäßigung des § 35 EStG gilt nur für natürliche Personen (Einzelunternehmer, Mitunternehmer), nicht für eine Kapitalgesellschaft.",
