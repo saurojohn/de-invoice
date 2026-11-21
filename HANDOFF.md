@@ -2673,6 +2673,10 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 893b — CI green for Tier 893, no flaky
+
+- **Run 44846272512 (Tier 893, 32ce1b35):** backend **583 passed / 0 failed / 1 skipped** (584 included), Playwright **1177 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 893 — one deadline, in Werktage, in the Mahnung and the e-mail that carries it
 
 The owner: „继续“. Found after Tier 892 by reading the default reminder e-mails next to the letter.
