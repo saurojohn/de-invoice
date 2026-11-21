@@ -2673,6 +2673,24 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 901 — a credit note's lines carry the rates of the invoice they reduce
+
+- **Measured:**
+  - A 19 % invoice of 1 000 € was credited with three lines of 100 € at 50 %, 7 % and 0 %, and all three credit notes were created.
+  - The UStVA then showed −100 in Kz 35 / 36 (with −50 € tax), −100 in Kz 86 and −100 in Kz 48. Kz 81 kept the full 1 000.
+  - The cause: `CreditNoteLineDto` checks a rate only for 0 … 1. `createCreditNoteLocked` used the rate the caller gave, and took the invoice's rate only when none was given (Tier 416).
+  - The page's credit-note dialog sends an amount and no lines, so only an API client could hit this.
+- **Decision:** a credit note reduces the price of a supply. It corrects the tax of that supply at the rate charged on it (§ 17 Abs. 1 UStG).
+- **Now:** a line's rate must be one of the invoice's rates (`invoiceTaxBreakdown(...).byRate`, compared to 4 decimals). Otherwise the request gets a 400 that names both rates, e.g. „die Rechnung hat 19 % / 7 %, nicht 16 %“.
+  - A § 13b invoice has only 0 %, so its credit note has only 0 %.
+  - The full and amount-based credit notes (Tier 416 / 708) and the bank-import Skonto credit note already take the invoice's rates.
+- **Spec 589:** on the old code 8 assertions fail.
+  - 19 % invoice: 50 %, 7 % and 0 % refused; 19 % created; no rate takes 19 %.
+  - 19 % + 7 % invoice: 7 % created; 16 % refused, listing both rates.
+  - § 13b invoice: 19 % refused; 0 % created.
+  - UStVA: Kz 81 1 300, Kz 86 100, nothing in Kz 35 / 48.
+- Locally: 589, 588, the guards and every spec that makes a credit note — 102 ok, 0 fail. Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 900 — input tax only from a rate German law has: an expense, the UStVA page's expense, the CSV import and the cash book refuse 50 %, 16 % today and foreign VAT
 This is the purchase side of Tier 899.
 

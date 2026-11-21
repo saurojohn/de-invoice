@@ -2375,6 +2375,17 @@ export class InvoiceService {
             'Die Originalrechnung hat mehrere Steuersätze — bitte für jede Gutschriftsposition den Steuersatz angeben.',
           )
         }
+        // Tier 901: a credit note reduces the invoice's own supply, at the
+        // rate it was charged (§ 17 Abs. 1 UStG). Measured: a 19 % invoice
+        // credited with lines at 50 %, 7 % and 0 % — the UStVA showed −100 in
+        // Kz 35 / 36, Kz 86 and Kz 48 while Kz 81 kept the full 1 000.
+        const r4 = (r: number) => Math.round(Number(r) * 10000) / 10000
+        if (l.vatRate != null && !origRates.some((o) => r4(o) === r4(l.vatRate!))) {
+          const pct = (r: number) => `${(r4(r) * 100).toLocaleString('de-DE')} %`
+          throw new BadRequestException(
+            `Eine Gutschrift mindert die Rechnung zu dem Steuersatz, mit dem sie abgerechnet wurde (§ 17 Abs. 1 UStG) — die Rechnung hat ${origRates.map(pct).join(' / ')}, nicht ${pct(l.vatRate)}.`,
+          )
+        }
         return {
           description: l.description,
           quantity: l.quantity ?? 1,
