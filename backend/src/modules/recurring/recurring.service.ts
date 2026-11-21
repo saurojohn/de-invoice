@@ -1173,7 +1173,7 @@ export class RecurringService {
           total: total4, eurTotal: toEur4(total4),
           // Tier 690: the run's rates and flags, and the template's remarks
           reverseCharge: vat.reverseCharge, euTransaction: vat.euTransaction,
-          items: items.map((it) => ({ vatRate: vat.rate(it.vatRate) })), notes: tpl.notes,
+          items: items.map((it) => ({ vatRate: vat.rate(it.vatRate), description: it.description })), notes: tpl.notes, // Tier 899: and what each line is
         }, co ?? {}, cu)
         const refusal = kuCheck?.(Number(toEur4(subtotal4)))
         if (refusal) throw new BadRequestException(refusal)

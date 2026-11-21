@@ -1929,7 +1929,7 @@ export class InvoiceService {
       const [company, customer, items] = await Promise.all([
         this.prisma.company.findUnique({ where: { id: companyId } }),
         this.prisma.customer.findFirst({ where: { id: before.customerId, companyId } }),
-        this.prisma.invoiceItem.findMany({ where: { invoiceId: before.id }, select: { vatRate: true } }), // Tier 690
+        this.prisma.invoiceItem.findMany({ where: { invoiceId: before.id }, select: { vatRate: true, description: true } }), // Tier 690 / 899
       ]);
       assertInvoiceDetails({ ...before, items }, company ?? {}, customer);
       // Tier 843: not under § 19 past its limits — a Proforma carries no tax of its own.

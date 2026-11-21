@@ -2673,6 +2673,19 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 899 — an invoice is issued only with a rate German law has and with every line saying what was supplied
+
+Found by probing the invoice API with edge values.
+
+- **Measured:** a line at **50 %** to a customer in Berlin was issued (and declared in the UStVA as Kz 35 / 36), so were 16 % and 5 % for a supply today, and a line whose description was empty or blank — also in a Kleinbetragsrechnung. The DTO checks a rate only for 0 … 1; the issue check (`mandatory-details.ts`, Tier 494 / 690) looked at neither.
+- **Now, when issuing** (`missingInvoiceDetails`, so the manual issue and a recurring run that issues):
+  - every line has a description (§ 14 Abs. 4 Nr. 5 UStG; § 33 Satz 1 Nr. 3 UStDV for a Kleinbetragsrechnung; BT-153) — checked where the caller gives the descriptions (both callers now do);
+  - a rate above 0 is one German law has on the issue date, the delivery date or a day of the Leistungszeitraum (`isGermanRate` from oss-scope.ts: 19 / 7 %, 16 / 5 % from 1.7. to 31.12.2020) — unless the customer is a consumer in another member state (`consumerAbroad`: no VAT id, an EU address abroad), whose rate the OSS sale carries. The message names the rate („50 % gibt es nicht …“).
+- Drafts are not checked — the form may hold an unfinished line. Credit notes take their rates from the invoice and are not checked here.
+- Before the change: tmp-ci-pg (data of ~494 of the 590 backend specs and the Playwright runs) has no issued invoice that the new rules refuse, apart from the probe's.
+- **Spec 587:** 50 % / 16 % today refused, 16 % for a supply on 16.11.2020 issued, 19 % / 7 % issued, 20 % to a consumer in Paris issued, a blank description refused, a Kleinbetragsrechnung with an empty line refused. On the old code 8 assertions fail.
+- Locally: 587, the guards and 276 specs that touch issuing, recurring runs, OSS, quotes and Kleinbetrag — 285 ok, 16 skip, 87 fails as always locally (the seed customer has no e-mail address for BT-49). Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 898 — the VAT report and the customer report write numbers in their CSV, not „1.234,56 €“
 
 Found while checking Tier 897's guard against every value it is given.
