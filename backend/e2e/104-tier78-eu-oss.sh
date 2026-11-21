@@ -315,7 +315,9 @@ assert_eq "CSV content-type" "$CT" "text/csv; charset=utf-8"
 CSV_ROWS=$(wc -l < /tmp/oss-test.csv | tr -d ' ')
 assert_eq "CSV line count = 1 header + 8 data + 1 blank + 1 summe = 11" "$CSV_ROWS" "11"
 
-HEADER=$(head -1 /tmp/oss-test.csv)
+# Tier 896: a UTF-8 BOM first, for Excel („Österreich“ read as „Ã–sterreich“ without one)
+assert_eq "CSV starts with the UTF-8 BOM" "$(head -c 3 /tmp/oss-test.csv | xxd -p)" "efbbbf"
+HEADER=$(head -1 /tmp/oss-test.csv | sed $'s/^\xef\xbb\xbf//')
 assert_eq "CSV header" "$HEADER" "Mitgliedstaat;USt-Satz;Netto (EUR);USt (EUR);Brutto (EUR);Rechnungen"
 
 # Last line is the Summe row

@@ -112,6 +112,8 @@ export class OssController {
     const filename = `OSS-Retourmeldung_${year}_Q${quarter}.csv`
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-    res.end(csv)
+    // Tier 896: with a BOM, as the other CSV exports — Excel read the UTF-8
+    // without one as Windows-1252: „Österreich“ became „Ã–sterreich“
+    res.end('\uFEFF' + csv)
   }
 }

@@ -2673,6 +2673,23 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 896 — the OSS export opens in Excel: it had no BOM, „Österreich“ became „Ã–sterreich“
+
+The owner: „继续“. Found by fetching every CSV export and looking at its first bytes.
+
+**Checked, no change:**
+- Skonto paid within its days: a credit note of the 2 % corrects the VAT, and the invoice is paid.
+- A cash payment on the invoice reaches the Kassenbuch for a company that keeps one here (Tier 851).
+- The payment page shows the open amount and no code.
+- These exports start with a BOM and use „;“ and decimal commas: invoices, the Kassenbuch, the audit log, the time report.
+- The ZM file is the BZSt format („#v3.0“ first) and must stay without a BOM.
+
+**Measured.** `reports/oss.csv` began with „Mitgliedstaat;…“ with no BOM. Its rows carry the member states' German names. Excel reads a UTF-8 file without a BOM as Windows-1252: „Österreich“ → „Ã–sterreich“, „Dänemark“ → „DÃ¤nemark“.
+
+**Change.** `oss.controller` writes `\uFEFF` before the CSV.
+
+**Specs.** `104-tier78-eu-oss.sh` asserts the BOM (1 ✗ on the old code) and compares the header without it. 378 and the two Playwright OSS specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 895b — CI green for Tier 895, no flaky
 
 - **Run 44893344828 (Tier 895, 30f1681a):** backend **585 passed / 0 failed / 1 skipped** (586 included), Playwright **1177 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.
