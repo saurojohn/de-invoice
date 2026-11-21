@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 904b — CI green for Tiers 900–904, no flaky
+
+- **Run 44929767784 (Tier 900, e40783ec):** died in „Fetch Mustang“ on a 404 from Maven Central before any backend spec ran. All other jobs were green, Playwright **1180 passed**.
+- **Run 44933042095 (Tiers 900–904, 71df6a93, Mustang download now retried):** backend **591 passed / 0 failed / 1 skipped** (+5: 588–592), Playwright **1180 passed (44.5 m)**. 0 flaky, no retry, no Traceback, no `REFUSED`, and the dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 904 — a scanned or imported USt-IdNr. is the one on file: OCR finds the supplier by the normalised number, a misread one is not stored, the CSV import checks it
 
 - **Measured:**
