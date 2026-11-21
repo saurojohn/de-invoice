@@ -2673,6 +2673,19 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 903 — the AfA method is the one computed: linear
+
+- **Measured:**
+  - `POST /assets` and `PATCH /assets/:id` took any word up to 20 characters as `afaMethode` („degressiv“, „abc“, …) and stored it.
+  - The AfA is computed linear whatever the field says: `afa.ts` knows no other method, and degressive AfA is listed as v2 work in `assets.service.ts`.
+  - The Steuerberater package (`berater-packager` Anlagenverzeichnis) wrote that word in its „AfA-Methode“ column, next to linear figures.
+- **Now:** both DTOs take only `linear` (`@IsIn`). Left out, the method stays linear.
+- **For later (a feature, not done here):** degressive AfA (§ 7 Abs. 2 EStG) would be allowed for movable assets bought from July 2025 to December 2027 (30 %, at most three times the linear rate). Until it is implemented, the method cannot claim it.
+- **Spec 591:** on the old code 4 assertions fail.
+  - Refused: „degressiv“, „abc“, and a change to „degressiv“.
+  - Accepted: „linear“, and no method (linear); a note can still be changed.
+- Locally: 591, 05, every spec that touches assets and the guards — 58 ok, 0 fail. Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 902 — the euros received for a foreign-currency payment belong to the amount paid
 
 - **Measured:**

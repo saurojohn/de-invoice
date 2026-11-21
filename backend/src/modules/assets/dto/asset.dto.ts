@@ -16,7 +16,13 @@ import { StrictNumber } from '../../../common/strict-number'
  * service keeps its German checks (Anlagentyp, Bezeichnung, AK > 0, ND > 0,
  * Restwert <= AK, dispose date >= acquisition) — e2e 160 asserts them.
  */
-import { IsDateString, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator'
+import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator'
+
+// Tier 903: the AfA computed is the linear one (§ 7 Abs. 1 EStG; afa.ts) —
+// any other word was stored and went into the Steuerberater package
+// (berater-packager) as the method beside linear figures.
+const AFA_METHODS = ['linear'] as const
+const AFA_METHOD_MESSAGE = 'afaMethode: berechnet wird die lineare AfA (§ 7 Abs. 1 EStG) — nur „linear“'
 
 // Asset.anschaffungsKosten / restwert / verkaufsPreis are Decimal(14,4).
 const DECIMAL_14_4_MAX = 9999999999.9999
@@ -44,7 +50,7 @@ export class CreateAssetDto {
   @Max(DECIMAL_14_4_MAX)
   restwert?: number
 
-  @IsOptional() @IsString() @MaxLength(20)
+  @IsOptional() @IsIn(AFA_METHODS, { message: AFA_METHOD_MESSAGE })
   afaMethode?: string
 
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(20)
@@ -80,7 +86,7 @@ export class UpdateAssetDto {
   @Max(DECIMAL_14_4_MAX)
   restwert?: number
 
-  @IsOptional() @IsString() @MaxLength(20)
+  @IsOptional() @IsIn(AFA_METHODS, { message: AFA_METHOD_MESSAGE })
   afaMethode?: string
 
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(20)
