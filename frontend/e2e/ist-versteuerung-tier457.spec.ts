@@ -56,6 +56,9 @@ test("Ist-Versteuerung is chosen in the settings and moves the output tax to the
   await page.waitForTimeout(500)
   await expect(select).toHaveValue("soll")
   await select.selectOption("ist")
+  // Tier 908: a change applies from a month on — from March, the month of the
+  // first invoice, it changes the setting as a whole
+  await page.getByTestId("settings-besteuerungsart-ab").fill("2026-03")
   const saved = page.waitForResponse(
     (r) => r.url().endsWith(`/api/v1/companies/${companyId}`) && r.request().method() === "PUT",
     { timeout: 60_000 },

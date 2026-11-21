@@ -2673,6 +2673,42 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 908 — Soll- or Ist-Versteuerung by date: a change applies from the first of a month, and a sale is taxed once — at its issue under Soll, when paid under Ist
+
+- **Measured:**
+  - Every report read `Company.besteuerungsart` as it is today, so a change turned the whole history over.
+  - Soll → Ist: a 1 000 € invoice of October was taxed and filed under Soll (Kz 81, 190 €). The company switched to Ist in November and was paid in November. The November UStVA declared the 190 € a second time, and October, computed again, showed nothing.
+  - Ist → Soll: an invoice issued under Ist and paid after the switch was in no return.
+  - A switch on 1 January is the usual case, after the Finanzamt approves Ist.
+- **The rule (decided as an accountant; § 13 Abs. 1 Nr. 1 a / b, § 20 UStG):** a sale is taxed once.
+  - If the company was a Soll-Versteuerer on the day of issue, it is taxed at issue.
+  - Otherwise it is taxed when paid, whenever that is, even after a switch back.
+  - A credit note follows the invoice it corrects.
+  - Advance payments on a Proforma (Tier 470 / 472) keep the period's mode. The transition of a Proforma across a switch is not modelled.
+- **Now:**
+  - `common/besteuerungsart-period.ts` reads the switches from `Company.settings.besteuerungsartWechsel` (`{ab: 'YYYY-MM-01', art, vorher}`). Without a switch, the column applies as before. No migration was needed.
+  - `CompanyService.withBesteuerungsartWechsel` handles a change of `besteuerungsart`:
+    - It applies from `besteuerungsartAb` (the first of a month, not in the future; the default is the current month).
+    - It is refused (400) when that month lies in a filed UStVA period.
+    - If nothing was issued before that day, the setting changes as a whole and no switch is kept. That is the correction of a wrong setting.
+  - The UStVA (`taxedAtIssue`) handles each document by its date:
+    - invoices and credit notes at issue when Soll;
+    - paid documents (`istPaidDocuments`, now with the corrected invoice's date) when Ist;
+    - after a switch, the payments of whatever was issued under Ist.
+  - The payment's period lock (Tier 537) asks the same question of the invoice.
+  - The settings page shows „Gilt ab (Monat)“ when the select changes, with help text in de / en / zh.
+- **Specs:**
+  - Spec 246 (Tier 457) switched after issuing, as a correction. It now sends `besteuerungsartAb` = March, the month of its first invoice, and its numbers are the same.
+  - The Playwright `ist-versteuerung-tier457` fills the month „2026-03“.
+- **Spec 596:** on the old code 8 assertions fail.
+  1. Soll → Ist:
+     - a switch into the filed last month is refused, and so is one into a month to come;
+     - after the switch from this month, this month has only the new invoice's 95 € (A's 190 € are not taxed again);
+     - last month still shows the 190 € filed.
+  2. Ist → Soll from last month: this month has D's 380 € (Ist, paid now) and E's 19 € (Soll, issued now).
+  3. Nothing issued before the month: the setting changes as a whole, and no switch is kept.
+- Locally: the whole backend suite (594 specs) — 592 ok. 87 fails as always locally (the seed customer has no e-mail for BT-49). 192 failed once in the batch („the run is visible to the admin dashboard“, a timing of the cleanup job) and passed alone. Playwright: every spec that saves the settings or opens the UStVA (40 files) — 158 passed. Backend and frontend tsc / ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 907 — the KSt rate of the year: 15 % until 2027, 14 % for 2028 … 10 % from 2032
 
 - **Measured:** KSt 1 (`kst1.service`) said and computed 15 % for every year:

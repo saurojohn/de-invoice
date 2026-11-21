@@ -16,6 +16,7 @@
  */
 import { PrismaService } from '../../prisma/prisma.service'
 import { euerInflows } from '../accounting/euer-zufluss'
+import { ART_SELECT, artOn } from '../../common/besteuerungsart-period'
 
 export type Besteuerungsart = 'soll' | 'ist'
 
@@ -24,13 +25,19 @@ export async function besteuerungsart(prisma: PrismaService, companyId: string):
   return row?.besteuerungsart === 'ist' ? 'ist' : 'soll'
 }
 
+/** Tier 908: Soll or Ist on a day (common/besteuerungsart-period.ts) */
+export async function besteuerungsartOn(prisma: PrismaService, companyId: string): Promise<(d: Date | string) => Besteuerungsart> {
+  return artOn(await prisma.company.findUnique({ where: { id: companyId }, select: ART_SELECT }))
+}
+
 /** The documents paid (or refunded) in the period, with the part paid. */
 export async function istPaidDocuments(prisma: PrismaService, companyId: string, start: Date, end: Date) {
   const { inflows } = await euerInflows(prisma, companyId, start, end)
   if (inflows.length === 0) return []
   const docs = await prisma.invoice.findMany({
     where: { companyId, id: { in: inflows.map((f) => f.invoice.id) } },
-    include: { items: true, customer: true },
+    // Tier 908: the corrected invoice's date decides a credit note's Soll / Ist
+    include: { items: true, customer: true, referenceInvoice: { select: { issueDate: true } } },
   })
   const byId = new Map(docs.map((d) => [d.id, d]))
   return inflows

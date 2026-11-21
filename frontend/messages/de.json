@@ -1909,6 +1909,8 @@
     "besteuerungsartSoll": "Soll-Versteuerung (nach Rechnungsdatum)",
     "besteuerungsartIst": "Ist-Versteuerung (nach Zahlungseingang, § 20 UStG)",
     "besteuerungsartHelp": "Nur mit Genehmigung des Finanzamts. Bei Ist-Versteuerung zählt die Umsatzsteuer in der Voranmeldung des Monats, in dem das Geld eingeht; steuerfreie Umsätze und die Vorsteuer bleiben beim Rechnungsdatum.",
+    "besteuerungsartAb": "Gilt ab (Monat)",
+    "besteuerungsartAbHelp": "Die Monate davor bleiben, wie sie versteuert wurden: Eine unter Soll versteuerte Rechnung wird bei Zahlung nicht noch einmal versteuert, eine unter Ist ausgestellte bei Zahlung auch nach dem Wechsel. Ein Monat vor der ersten Rechnung ändert die Einstellung ganz (Korrektur).",
     "gewinnermittlung": "Gewinnermittlung",
     "gewinnermittlungAuto": "Aus der Rechtsform ableiten",
     "gewinnermittlungEuer": "Einnahmen-Überschuss-Rechnung (§ 4 Abs. 3 EStG, nach Zahlung)",

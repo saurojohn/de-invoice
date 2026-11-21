@@ -2,6 +2,7 @@
 
 import { BUNDESLAENDER } from "@/lib/bundeslaender"
 import { apiBase } from "@/lib/apiBase"
+import { todayIso } from "@/lib/today"
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -324,6 +325,11 @@ export default function SettingsPage() {
   // today when it ends, 1 January when it begins).
   const [kuPeriod, setKuPeriod] = useState<{ ab: string | null; bis: string | null }>({ ab: null, bis: null })
   const [kuDate, setKuDate] = useState("")
+  // Tier 908: a change of Soll / Ist applies from a month on (empty: the
+  // backend's default, the current month); the months before keep theirs.
+  const [artAb, setArtAb] = useState("")
+  const storedArt = (savedSnapshot ? (JSON.parse(savedSnapshot) as CompanySettings).besteuerungsart : null) ?? "soll"
+  const artChanged = savedSnapshot !== null && (form.besteuerungsart ?? "soll") !== storedArt
   const fmtDay = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`
   const storedVatMode = savedSnapshot ? (JSON.parse(savedSnapshot) as CompanySettings).defaultVatMode : null
   const kuSwitch: "end" | "start" | null =
@@ -656,8 +662,10 @@ export default function SettingsPage() {
         payload.kleinunternehmerBis = d.toISOString().slice(0, 10)
       }
       if (kuDate && kuSwitch === "start") payload.kleinunternehmerAb = kuDate
+      if (artChanged && artAb) payload.besteuerungsartAb = `${artAb}-01`
       await apiPut(`/api/v1/companies/${companyId}`, payload)
       setKuDate("")
+      setArtAb("")
       setNumberRefresh((n) => n + 1)
       // Refetch so the form reflects the canonical stored value —
       // without this, a user who just changed defaultPaymentDays from
@@ -1513,6 +1521,23 @@ export default function SettingsPage() {
                     <option value="soll">{t("settings.besteuerungsartSoll")}</option>
                     <option value="ist">{t("settings.besteuerungsartIst")}</option>
                   </select>
+                  {artChanged && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium mb-1" htmlFor="settings-besteuerungsart-ab">
+                        {t("settings.besteuerungsartAb")}
+                      </label>
+                      <input
+                        id="settings-besteuerungsart-ab"
+                        type="month"
+                        className="h-9 border rounded-md px-2"
+                        value={artAb || todayIso().slice(0, 7)}
+                        max={todayIso().slice(0, 7)}
+                        onChange={(e) => setArtAb(e.target.value)}
+                        data-testid="settings-besteuerungsart-ab"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">{t("settings.besteuerungsartAbHelp")}</p>
+                    </div>
+                  )}
                   <p className="text-xs text-gray-600 mt-1">
                     {t("settings.besteuerungsartHelp")}
                   </p>

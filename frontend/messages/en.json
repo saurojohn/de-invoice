@@ -1909,6 +1909,8 @@
     "besteuerungsartSoll": "Accrual (by invoice date)",
     "besteuerungsartIst": "Cash basis (on receipt, § 20 UStG)",
     "besteuerungsartHelp": "Only with the tax office's approval. On the cash basis the output VAT is declared in the month the money arrives; exempt sales and input VAT stay at the invoice date.",
+    "besteuerungsartAb": "Applies from (month)",
+    "besteuerungsartAbHelp": "The months before stay as they were taxed: an invoice taxed under the accrual basis is not taxed again when paid; one issued under the cash basis is taxed when paid, also after the switch. A month before the first invoice changes the setting as a whole (a correction).",
     "gewinnermittlung": "Profit determination",
     "gewinnermittlungAuto": "Derive from the legal form",
     "gewinnermittlungEuer": "Cash-basis accounting (EÜR, § 4 Abs. 3 EStG, when paid)",

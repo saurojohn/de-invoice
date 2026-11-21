@@ -13,7 +13,8 @@ import { invoiceTaxBreakdown } from '../invoice/tax-breakdown';
 import { normaliseCountry } from '../invoice/ust-behandlung-detector';
 import { zeroRatedGround } from '../invoice/zero-rated';
 import { cashBookings } from '../cashbook/cash-bookings';
-import { besteuerungsart, istPaidDocuments } from './ustva-ist';
+import { istPaidDocuments } from './ustva-ist';
+import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
 import { taxedAbroad } from './oss-scope';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
@@ -216,7 +217,14 @@ export class UstvaService {
 
     const { start, end } = this.getDateRange(year, quarter, month);
     // Tier 457: Soll- or Ist-Versteuerung (ustva-ist.ts).
-    const art = await besteuerungsart(this.prisma, companyId);
+    // Tier 908: by date — a sale is taxed at its issue when the company was a
+    // Soll-Versteuerer on that day, else when paid (common/besteuerungsart-period.ts).
+    const artCompany = await this.prisma.company.findUnique({ where: { id: companyId }, select: ART_SELECT });
+    const artOnDay = artOn(artCompany);
+    const switched = wechselOf(artCompany).length > 0;
+    const art = artOnDay(start);
+    const taxedAtIssue = (doc: { issueDate: Date; referenceInvoice?: { issueDate: Date } | null }) =>
+      artOnDay(doc.referenceInvoice?.issueDate ?? doc.issueDate) === 'soll';
     // Tier 649: in the OSS scheme every taxed sale to a consumer in another
     // member state is that state's, whatever its rate.
     const inOss = (await this.prisma.company.findUnique({ where: { id: companyId }, select: { ossVerfahren: true } }))?.ossVerfahren === true;
@@ -375,7 +383,7 @@ export class UstvaService {
 
         if (rate > 0) {
           // Tier 457: an Ist-Versteuerer owes it when paid (below).
-          if (art === 'soll') addTaxed(inv, rate, net, vat);
+          if (taxedAtIssue(inv)) addTaxed(inv, rate, net, vat);
         } else {
           // Zero-rated — the invoice's own igL / § 13b flags are the user's
           // explicit statement and win over any inference.
@@ -395,7 +403,7 @@ export class UstvaService {
         const net = bucket.net * f;
         const vat = bucket.vat * f;
         if (rate > 0) {
-          if (art === 'soll') addTaxed(cn, rate, net, vat); // CN is already negative
+          if (taxedAtIssue(cn as any)) addTaxed(cn, rate, net, vat); // CN is already negative
         } else {
           // Tier 842: a Kleinunternehmer's credit note (§ 19) is in no line.
           // Tier 844: § 19 as on the day of the invoice it corrects — the
@@ -438,8 +446,11 @@ export class UstvaService {
     // Tier 457: Ist-Versteuerung — taxed sales in the period of their payment,
     // each document with the part of it paid (or, a credit note, refunded) in
     // the period.
-    if (art === 'ist') {
+    // Tier 908: and, after a switch, the payments of whatever was issued under
+    // Ist — never those of a sale taxed at its issue under Soll.
+    if (art === 'ist' || switched) {
       for (const { doc, fraction } of await istPaidDocuments(this.prisma, companyId, start, end)) {
+        if (doc.type === 'PI' ? art !== 'ist' : taxedAtIssue(doc as any)) continue;
         const f = eurFactor(doc)
         for (const bucket of invoiceTaxBreakdown(doc).byRate) {
           if (bucket.rate > 0) addTaxed(doc, bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)

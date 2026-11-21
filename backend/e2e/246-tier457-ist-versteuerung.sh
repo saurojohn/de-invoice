@@ -56,7 +56,9 @@ assert_eq "March: A, B in full, the exempt sale, input tax 38" "$(ustva 3)" "100
 assert_eq "April: nothing" "$(ustva 4)" "0/0 0/0 0 0"
 
 note "=== the setting ==="
-AS PUT "/api/v1/companies/$C?companyId=$C" '{"besteuerungsart":"ist"}'
+# Tier 908: a change applies from a month on (default: the current one) — from
+# March, the month of the first invoice, it is the setting as a whole
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"besteuerungsart":"ist","besteuerungsartAb":"2026-03-01"}'
 assert_eq "besteuerungsart 'ist' (was 400: no such setting)" "$STATUS" "200"
 AS GET "/api/v1/companies/$C?companyId=$C"
 assert_eq "…stored" "$(py 'print(d.get("besteuerungsart"))')" "ist"
@@ -70,7 +72,7 @@ AS GET "/api/v1/ustva/compute?companyId=$C&year=2026&month=3"
 assert_eq "the return says which" "$(py 'print(d.get("besteuerungsart"))')" "ist"
 
 note "=== back to Soll ==="
-AS PUT "/api/v1/companies/$C?companyId=$C" '{"besteuerungsart":"soll"}'
+AS PUT "/api/v1/companies/$C?companyId=$C" '{"besteuerungsart":"soll","besteuerungsartAb":"2026-03-01"}'
 assert_eq "March as before" "$(ustva 3)" "1000/190 100/7 500 38"
 
 summary

@@ -241,6 +241,12 @@ export class UpdateCompanyDto {
   @IsOptional()
   besteuerungsart?: string | null;
 
+  // Tier 908: from which month a changed besteuerungsart applies
+  // ("YYYY-MM-01"; default the current month) — common/besteuerungsart-period.ts.
+  @IsOptional()
+  @IsCalendarDay({ message: 'besteuerungsartAb muss ein Datum (JJJJ-MM-TT) sein' })
+  besteuerungsartAb?: string;
+
   // Tier 734: the Land of the Finanzamt (common/steuernummer.ts); null clears it.
   @IsString()
   @IsIn(BUNDESLAENDER as unknown as string[], { message: `bundesland muss eines von ${BUNDESLAENDER.join(', ')} sein` })

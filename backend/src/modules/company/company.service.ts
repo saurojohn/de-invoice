@@ -10,6 +10,7 @@ import { businessTodayIso } from '../../common/business-date';
 import { refreshTaxOutOfPrice } from '../invoice/tax-out-of-price';
 import { assertPeriodOpen } from '../reports/filed-period';
 import { companySettingsTransaction } from '../../common/company-settings';
+import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
 
 @Injectable()
 export class CompanyService {
@@ -112,6 +113,10 @@ export class CompanyService {
     // page does not send. Read and merged under the company's row lock, so a
     // writer of another key at the same time is not undone
     // (common/company-settings.ts).
+    // Tier 908: a change of the Besteuerungsart applies from a month on
+    if ('besteuerungsart' in data || 'besteuerungsartAb' in data) {
+      data = await this.withBesteuerungsartWechsel(id, data);
+    }
     const kuChanges = 'defaultVatMode' in data || 'kleinunternehmerAb' in data || 'kleinunternehmerBis' in data
     if (kuChanges) {
       data = await this.withKleinunternehmerPeriod(id, data);
@@ -120,6 +125,44 @@ export class CompanyService {
     const saved = await this.saveCompany(id, data);
     if (kuChanges) await refreshTaxOutOfPrice(this.prisma, id);
     return saved;
+  }
+
+  /**
+   * Tier 908 — Soll / Ist by date (common/besteuerungsart-period.ts). A change
+   * applies from the first of a month (`besteuerungsartAb`, default the
+   * current one); the months before keep the way they were taxed. A company
+   * with nothing issued before that day changes as a whole, as before.
+   */
+  private async withBesteuerungsartWechsel(id: string, data: any) {
+    const out = { ...data };
+    delete out.besteuerungsartAb;
+    const stored = await this.prisma.company.findUnique({ where: { id }, select: ART_SELECT });
+    const before = stored?.besteuerungsart === 'ist' ? 'ist' : 'soll';
+    const next = 'besteuerungsart' in data ? (data.besteuerungsart === 'ist' ? 'ist' : 'soll') : before;
+    if (next === before) return out;
+    const thisMonth = `${businessTodayIso().slice(0, 7)}-01`;
+    const ab: string = data.besteuerungsartAb ?? thisMonth;
+    if (!/^\d{4}-\d{2}-01$/.test(ab) || ab > thisMonth) {
+      throw new BadRequestException(
+        'Ein Wechsel der Besteuerungsart gilt ab dem Ersten eines Monats, der nicht in der Zukunft liegt (besteuerungsartAb: JJJJ-MM-01).',
+      );
+    }
+    // the months from `ab` on are computed anew — not a filed one (also when
+    // the setting changes as a whole)
+    await assertPeriodOpen(this.prisma, id, [ab], 'den Wechsel der Besteuerungsart');
+    const kept = wechselOf(stored).filter((w) => w.ab < ab);
+    const earlier = await this.prisma.invoice.count({
+      where: { companyId: id, issueDate: { lt: new Date(`${ab}T00:00:00Z`) }, status: { not: 'draft' } },
+    });
+    const settings = out.settings && typeof out.settings === 'object' && !Array.isArray(out.settings) ? out.settings : {};
+    if (earlier === 0 && kept.length === 0) {
+      out.settings = { ...settings, besteuerungsartWechsel: [] };
+      return out;
+    }
+    const dayBefore = new Date(Date.parse(`${ab}T12:00:00Z`) - 86_400_000);
+    const vorher = artOn(stored)(dayBefore);
+    out.settings = { ...settings, besteuerungsartWechsel: [...kept, { ab, art: next, vorher }] };
+    return out;
   }
 
   private async saveCompany(id: string, data: any) {
