@@ -13,7 +13,7 @@ import { PnlTab } from "./PnlTab"
 import { OssTab } from "./OssTab"
 import { BwaTab } from "./BwaTab"
 import { InvoiceStatsTab } from "./InvoiceStatsTab"
-import { csvCell } from "@/lib/csv"
+import { csvAmount, csvCell } from "@/lib/csv"
 
 type TabType = "invoiceStats" | "vat" | "customers" | "datev" | "pnl" | "oss" | "bwa"
 
@@ -252,11 +252,13 @@ export default function ReportsPage() {
 
   const getVatCSV = () => {
     if (!vatReport?.byRate) return
+    // Tier 898: numbers a spreadsheet can add up (Tier 648) — it wrote
+    // „1.234,56 €“ and „19.0%“, text in a German Excel
     const data = vatReport.byRate.map((r) => ({
-      "MwSt-Satz": `${(r.vatRate * 100).toFixed(1)}%`,
-      "Nettobetrag": formatCurrency(r.netAmount),
-      "MwSt-Betrag": formatCurrency(r.vatAmount),
-      "Bruttobetrag": formatCurrency(r.grossAmount),
+      "MwSt-Satz (%)": csvAmount(r.vatRate * 100, 1),
+      "Nettobetrag": csvAmount(r.netAmount),
+      "MwSt-Betrag": csvAmount(r.vatAmount),
+      "Bruttobetrag": csvAmount(r.grossAmount),
       "Anzahl Rechnungen": r.invoiceCount
     }))
     exportToCSV(data, "mwst_bericht", Object.keys(data[0] || {}))
@@ -267,10 +269,10 @@ export default function ReportsPage() {
     const data = customerReport.customers.map((c) => ({
       Kunde: c.customerName,
       "Anzahl Rechnungen": c.totalInvoices,
-      "Gesamtbetrag": formatCurrency(c.totalAmount),
-      "Bezahlt": formatCurrency(c.paidAmount),
-      "Ausstehend": formatCurrency(c.pendingAmount),
-      "Überfällig": formatCurrency(c.overdueAmount)
+      "Gesamtbetrag": csvAmount(c.totalAmount), // Tier 898: a number, not „1.234,56 €“
+      "Bezahlt": csvAmount(c.paidAmount),
+      "Ausstehend": csvAmount(c.pendingAmount),
+      "Überfällig": csvAmount(c.overdueAmount)
     }))
     exportToCSV(data, "kundenbericht", Object.keys(data[0] || {}))
   }

@@ -168,3 +168,8 @@ export function csvCell(v: unknown): string {
   const s = csvText(v)
   return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
+
+/** Tier 898 — an amount for a CSV cell: „1234,56“, „-12,50“ (no thousands separator, no „€“; Tier 648). */
+export function csvAmount(n: number, digits = 2): string {
+  return (Number.isFinite(n) ? n : 0).toFixed(digits).replace(".", ",")
+}

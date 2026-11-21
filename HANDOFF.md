@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 898 — the VAT report and the customer report write numbers in their CSV, not „1.234,56 €“
+
+Found while checking Tier 897's guard against every value it is given.
+
+- **Berichte → MwSt / Kunden, „CSV Export“** wrote the amounts as the page shows them: „1.234,56 €“ (with a non-breaking space) and the rate as „19.0%“ — text in a German Excel, nothing to add up, against Tier 648. Since Tier 897 a negative amount „-50,00 €“ (not a number to the guard) would also have begun with an apostrophe. Now `csvAmount` (lib/csv): „1234,56“, „-50,00“; the rate column is „MwSt-Satz (%)“ with „19,0“.
+- **Playwright `report-csv-numbers-tier898`** (a company of its own): the VAT CSV has „19,0;1234,56;234,57;1469,13;1“ and no „€“; the customer row is „Zahlenkunde 898 GmbH;1;1469,13;0,00;1469,13;0,00“. Fails on the old page (header „MwSt-Satz“, amounts with „€“).
+- Locally: the new spec, csv-formula-guard-tier897, csv-comma-tier648, field-labels-tier637 passed. Frontend tsc and ESLint clean. No backend change.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 897 — the CSV files the browser builds never carry a formula; the UStVA CSV writes decimal commas
 
 The owner: „继续“. Found by looking for CSV files that are not written by the server.
