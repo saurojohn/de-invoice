@@ -10,6 +10,7 @@ import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
 import { formatMoney } from "@/lib/money" // Tier 722: „2.866,82 €“ — it wrote „€ 2.866,82“
 import { todayIso } from "@/lib/today"
+import { csvCell } from "@/lib/csv"
 
 type Bucket = 'current' | '1-30' | '31-60' | '61-90' | '90+'
 
@@ -120,7 +121,7 @@ export default function AgingReportPage() {
       '',
     ]
     const csv = [header, ...rows, totals]
-      .map((r) => r.map((c) => /[";\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c).join(';'))
+      .map((r) => r.map(csvCell).join(';')) // Tier 897: never a formula
       .join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)

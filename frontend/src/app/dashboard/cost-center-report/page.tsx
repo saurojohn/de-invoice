@@ -23,6 +23,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useI18n } from "@/components/useI18n"
 import { apiGet } from "@/lib/api"
+import { csvCell } from "@/lib/csv"
 import CostCenterTrendChart from "./CostCenterTrendChart"
 
 const eur = (n: number): string =>
@@ -84,9 +85,8 @@ function buildCsv(report: CostCenterReport, monthShort: string[]): string {
     ...t.monthly.map((v) => v.toFixed(2).replace(".", ",")),
   ]
   const all = [headers, ...rows, totalRow]
-  const escape = (v: string) =>
-    /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
-  return all.map((row) => row.map(escape).join(";")).join("\n")
+  // Tier 897: never a formula (lib/csv)
+  return all.map((row) => row.map(csvCell).join(";")).join("\n")
 }
 
 interface CostCenterRow {

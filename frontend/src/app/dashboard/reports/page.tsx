@@ -13,6 +13,7 @@ import { PnlTab } from "./PnlTab"
 import { OssTab } from "./OssTab"
 import { BwaTab } from "./BwaTab"
 import { InvoiceStatsTab } from "./InvoiceStatsTab"
+import { csvCell } from "@/lib/csv"
 
 type TabType = "invoiceStats" | "vat" | "customers" | "datev" | "pnl" | "oss" | "bwa"
 
@@ -135,10 +136,7 @@ export default function ReportsPage() {
 
   const exportToCSV = (data: any[], filename: string, headers: string[]) => {
     // Tier 648: a customer's name with a semicolon in it split its row
-    const cell = (v: unknown) => {
-      const s = typeof v === "number" ? String(v).replace(".", ",") : String(v ?? "")
-      return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-    }
+    const cell = csvCell // Tier 897: never a formula
     const csvContent = [
       headers.map(cell).join(";"),
       ...data.map((row) => Object.values(row).map(cell).join(";"))

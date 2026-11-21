@@ -2673,6 +2673,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 897 — the CSV files the browser builds never carry a formula; the UStVA CSV writes decimal commas
+
+The owner: „继续“. Found by looking for CSV files that are not written by the server.
+
+- **Formula injection, the browser's half.** Tier 857 gave the files the server writes `csvText` / `csvCell` (an apostrophe before text that begins with = + - @). Five exports are built in the browser and wrote a customer called „=HYPERLINK("https://…";"…")“ as it is — Excel runs it as a formula: the customer and product lists (`ExportCSVButton`), the aging report, the reports page (MwSt-/Kundenbericht), the invoice statistics and the cost-centre report. `frontend/src/lib/csv.ts` has `csvText` / `csvCell` now, the same rule as `backend/src/common/csv.ts` (a number stays a number, „-12,50“ is not changed; a JS number is written with a decimal comma); all five use `csvCell`.
+- **UStVA CSV:** it wrote „1234.56“ — the only CSV left with decimal points (Tier 648); a German Excel reads that as text or as a date. Now „1234,56“.
+- **Playwright `csv-formula-guard-tier897`** (a company of its own per test): the customer list, the aging report (the amount „1469,13“ unchanged) and the UStVA CSV („;1234,56;234,57“, no „1234.56“), and the product list („'@SUM(1+1)“, the price „49,9“). On the old frontend both tests fail (the row began `"=HYPERLINK(`, the cell was `@SUM(1+1)`).
+- Locally: the new spec plus aging-german-amounts-tier722, aging-credit, cost-center-report, ustva-pdf-button-tier182, all-pages-quiet-tier564 — 64 passed. Frontend tsc and ESLint clean. No backend change.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 896b — CI green for Tier 896, no flaky
 
 - **Run 44897854696 (Tier 896, c51619d4):** backend **585 passed / 0 failed / 1 skipped**, Playwright **1177 passed**. 0 flaky, no retry, no Traceback, no `REFUSED`. The dependency audit passed.

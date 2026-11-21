@@ -1,6 +1,7 @@
 "use client"
 
 import { todayIso } from "@/lib/today"
+import { csvCell } from "@/lib/csv"
 import { Button } from "@/components/ui/button"
 
 export interface CsvColumn<T> {
@@ -30,19 +31,9 @@ export function ExportCSVButton<T>({
   const handleClick = () => {
     if (!data || data.length === 0) return
 
-    const escape = (v: unknown) => {
-      if (v === null || v === undefined) return ""
-      // Tier 648: a number with a comma, as a German spreadsheet reads it
-      // (the product list wrote "19.99").
-      const s = typeof v === "number" ? String(v).replace(".", ",") : String(v)
-      // The cells stand between semicolons: a cell with a quote, a semicolon
-      // or a line break is quoted, embedded quotes are doubled. (It quoted
-      // on a comma instead — a name with a semicolon in it split its row.)
-      if (/[";\n\r]/.test(s)) {
-        return `"${s.replace(/"/g, '""')}"`
-      }
-      return s
-    }
+    // Tier 648: a number with a comma, cells between semicolons, quoted for
+    // a quote / semicolon / line break. Tier 897: never a formula (lib/csv).
+    const escape = csvCell
 
     const header = columns.map((c) => escape(c.header)).join(";")
     const rows = data.map((row) =>

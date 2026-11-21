@@ -13,6 +13,7 @@ import { apiGet, ApiError } from "@/lib/api"
 import { useYearField } from "@/lib/year-field"
 import { formatMoney } from "@/lib/money"
 import { todayIso } from "@/lib/today"
+import { csvCell } from "@/lib/csv"
 
 interface Figures {
   invoiceCount: number
@@ -44,10 +45,7 @@ const qty = (n: number) => n.toLocaleString("de-DE", { maximumFractionDigits: 4 
 
 function downloadCsv(rows: Array<Record<string, string | number>>, filename: string) {
   if (!rows.length) return
-  const cell = (v: unknown) => {
-    const s = typeof v === "number" ? String(v).replace(".", ",") : String(v ?? "")
-    return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-  }
+  const cell = csvCell // Tier 897: never a formula
   const content = [Object.keys(rows[0]).map(cell).join(";"), ...rows.map((r) => Object.values(r).map(cell).join(";"))].join("\n")
   const url = URL.createObjectURL(new Blob(["﻿" + content], { type: "text/csv;charset=utf-8;" }))
   const a = document.createElement("a")

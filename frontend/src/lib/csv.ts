@@ -145,3 +145,26 @@ export async function readCsvFile(file: Blob): Promise<string> {
     return new TextDecoder('windows-1252').decode(bytes)
   }
 }
+
+/**
+ * Tier 897 — a cell of a CSV file the browser builds (the customer and
+ * product lists, the aging report, the statistics, the cost-centre report).
+ *
+ * Tier 857 kept the files the server writes from carrying a formula; the
+ * files built here did not: a customer called „=HYPERLINK("https://…";"…")“
+ * became a link — or a calculation — in the list the owner or the
+ * Steuerberater opens in Excel (CSV / formula injection, OWASP). Text that
+ * begins with = + - @ (or a tab / line break) gets a leading apostrophe, as
+ * on the server (backend/src/common/csv.ts); a number stays a number
+ * („-12,50“, „+3“). A number is written with a decimal comma (Tier 648).
+ * The cell is quoted when it holds a quote, a semicolon or a line break.
+ */
+export function csvText(v: unknown): string {
+  const s = v === null || v === undefined ? "" : typeof v === "number" ? String(v).replace(".", ",") : String(v)
+  return /^[=+\-@\t\r]/.test(s) && !/^[+-]?\d[\d.,]*$/.test(s) ? `'${s}` : s
+}
+
+export function csvCell(v: unknown): string {
+  const s = csvText(v)
+  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}

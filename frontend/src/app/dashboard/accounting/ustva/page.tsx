@@ -16,6 +16,7 @@ import { ApiError, apiDelete, apiFetch, apiGet, apiPost, apiPut, isDuplicateExpe
 import { FormNote } from "@/lib/tax-form-text" // Tier 791: the form-year notice in the interface language
 import { useYearField } from "@/lib/year-field"
 import { useHashAnchor } from "@/lib/hash-anchor"
+import { csvCell } from "@/lib/csv"
 import { askConfirm, askText } from "@/components/ConfirmDialog" // Tier 827
 
 interface UstvaData {
@@ -537,13 +538,16 @@ function UstvaPageInner() {
     // Tier 417: the official USt 1 A 2026 Kennzahlen, as the backend maps
     // them. This listed invented "Zeilen" (the payable amount as "Zeile 81",
     // which on the form is the 19 % tax base).
+    // Tier 897: amounts with a decimal comma, as the other CSV files (Tier
+    // 648) — a German Excel read „1234.56“ as text or as a date.
+    const num = (n: number) => n.toFixed(2).replace(".", ",")
     lines.push("Kennzahl;Bezeichnung;Betrag;Steuer lt. Rechnungen")
     for (const k of data.kennzahlen ?? []) {
       if (k.value === 0 && k.kz !== "83") continue
-      lines.push(`${k.kz};${k.label};${k.value.toFixed(2)};${k.tax != null ? k.tax.toFixed(2) : ""}`)
+      lines.push(`${k.kz};${csvCell(k.label)};${num(k.value)};${k.tax != null ? num(k.tax) : ""}`)
     }
-    lines.push(`;Summe Umsatzsteuer;${data.umsatzsteuer.toFixed(2)};`)
-    lines.push(`;Summe Vorsteuer;${data.vorsteuer.total.toFixed(2)};`)
+    lines.push(`;Summe Umsatzsteuer;${num(data.umsatzsteuer)};`)
+    lines.push(`;Summe Vorsteuer;${num(data.vorsteuer.total)};`)
 
     const csv = "\uFEFF" + lines.join("\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
