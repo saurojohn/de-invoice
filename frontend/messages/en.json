@@ -4093,7 +4093,7 @@
     "failed": "Company cars could not be loaded or saved.",
     "commuteKm": "Home–business (km)",
     "commuteDays": "Days / month",
-    "commuteHint": "One-way distance between home and the business premises. Per month 0.03 % of the list price per km is not deductible, less the commuting allowance (€0.30 / €0.38 from the 21st km per day) — § 4 Abs. 5 Nr. 6 EStG. Empty: no such trips.",
+    "commuteHint": "One-way distance between home and the business premises. Per month 0.03 % of the list price per km is not deductible, less the commuting allowance (per km and day: €0.38 from 2026; until 2025 €0.30, €0.38 from the 21st km) — § 4 Abs. 5 Nr. 6 EStG. Empty: no such trips.",
     "commuteRow": "{km} km, {days} days/month",
     "summaryCommute": "Of which trips home–business: {commute}."
   },

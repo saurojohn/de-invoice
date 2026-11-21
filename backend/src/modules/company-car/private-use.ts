@@ -23,8 +23,8 @@ import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
  * (§ 4 Abs. 5 Satz 1 Nr. 6 EStG): per month 0,03 % of the list price (for an
  * electric car a quarter / half of it) per kilometre of the one-way distance
  * is not a business expense — less the Entfernungspauschale the owner may
- * deduct like an employee (0,30 € per km for the first 20 km, 0,38 € from
- * the 21st, per day with the trip). The positive difference is added to the
+ * deduct like an employee (per km and day with the trip; the amount by year
+ * — Tier 906, `pauschalePerDay`). The positive difference is added to the
  * profit with the private use; it carries no VAT.
  *
  * Not covered: the Fahrtenbuch method, the Kostendeckelung, the 0,002 % per
@@ -68,8 +68,18 @@ const VAT_RATE = 0.19
 /** Tier 541: days per month with a trip home – business, when none is given */
 export const DEFAULT_COMMUTE_DAYS = 15
 const COMMUTE_RATE = 0.0003
-const PAUSCHALE_FIRST_20 = 0.3
-const PAUSCHALE_FROM_21 = 0.38
+/**
+ * Tier 906 — the Entfernungspauschale per km and day (§ 9 Abs. 1 Satz 3 Nr. 4
+ * EStG) by year: 0,30 € until 2020; from the 21st km 0,35 € in 2021, 0,38 €
+ * 2022 – 2025; 0,38 € from the first km since 2026 (Steueränderungsgesetz
+ * 2025). Measured: 2026 was computed at 0,30 € for the first 20 km — 1,60 €
+ * a day too little deducted for 20 km, the trips' addition to the profit too
+ * high.
+ */
+export function pauschalePerDay(km: number, year: number): number {
+  const [first20, from21] = year >= 2026 ? [0.38, 0.38] : year >= 2022 ? [0.3, 0.38] : year === 2021 ? [0.3, 0.35] : [0.3, 0.3]
+  return Math.min(km, 20) * first20 + Math.max(km - 20, 0) * from21
+}
 
 export interface CarLike {
   id: string
@@ -112,14 +122,14 @@ export function monthlyPrivateUse(car: CarLike, kleinunternehmer: boolean) {
  * Tier 541 — the month's non-deductible cost of the trips home – business:
  * 0,03 % × list price × km, less the Entfernungspauschale; never below 0.
  */
-export function monthlyCommute(car: CarLike) {
+export function monthlyCommute(car: CarLike, year: number) {
   const km = Number(car.commuteKm ?? 0)
   if (!(km > 0)) return { pauschal: 0, entfernungspauschale: 0, commute: 0 }
   const days = car.commuteDays ?? DEFAULT_COMMUTE_DAYS
   // The electric reduction applies to the list price here too.
   const factor = (INCOME_RATE[car.method as CompanyCarMethod] ?? INCOME_RATE.one_percent) / INCOME_RATE.one_percent
   const pauschal = r2(roundedListPrice(car.listPrice) * factor * COMMUTE_RATE * km)
-  const entfernungspauschale = r2(days * (Math.min(km, 20) * PAUSCHALE_FIRST_20 + Math.max(km - 20, 0) * PAUSCHALE_FROM_21))
+  const entfernungspauschale = r2(days * pauschalePerDay(km, year))
   return { pauschal, entfernungspauschale, commute: r2(Math.max(0, pauschal - entfernungspauschale)) }
 }
 
@@ -177,7 +187,7 @@ export async function privateCarUse(prisma: any, companyId: string, from: Date, 
     for (const car of cars) {
       if (!inMonth(car, y, m)) continue
       const use = monthlyPrivateUse(car, kleinunternehmer(new Date(mEnd)))
-      const { commute } = monthlyCommute(car)
+      const { commute } = monthlyCommute(car, y)
       // The trips home – business are added to the profit with the private use.
       months.push({ year: y, month: m, carId: car.id, carName: car.name, ...use, income: r2(use.income + commute), commute })
     }

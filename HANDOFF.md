@@ -2673,6 +2673,28 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 906 — the company car's trips home – business are set off against the Entfernungspauschale of their year: 0,38 € from the first km since 2026
+
+- **Measured:** `monthlyCommute` (Tier 541) set off the trips against 0,30 € per km for the first 20 km and 0,38 € beyond. These are the amounts of 2022–2025, and they were used for every year.
+  - For 2026, 25 km on 15 days added 223,50 € a month to the profit instead of 199,50 €.
+  - 10 km added 91,80 € instead of 79,80 €.
+  - The Anlage N has had the amounts by year since Tier 671.
+- **The law** (§ 9 Abs. 1 Satz 3 Nr. 4 EStG; Steueränderungsgesetz 2025, passed by Bundestag and Bundesrat in December 2025, checked against public sources on 21.11.2026) — per km and day:
+
+  | Year | km 1–20 | from km 21 |
+  |---|---|---|
+  | until 2020 | 0,30 € | 0,30 € |
+  | 2021 | 0,30 € | 0,35 € |
+  | 2022–2025 | 0,30 € | 0,38 € |
+  | since 2026 | 0,38 € | 0,38 € |
+
+- **Now:** `pauschalePerDay(km, year)` gives these amounts, and the year is the month's.
+- The settings card's hint (de / en / zh) names the 2026 amount and the one before.
+- **Spec 594:** on the old code 3 assertions fail.
+  - 25 km in March: 199,50 (2026), 223,50 (2025), 225,75 (2021).
+  - 10 km in March: 79,80 (2026), 91,80 (2025).
+- Locally: 594, 288, 326, 398 (Anlage N), 593 and the guards — all ok. Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 905 — a company car at 0,25 % / 0,5 % only where § 6 Abs. 1 Nr. 4 Satz 2 Nr. 3 EStG gives the rate
 
 - **Measured:** the method was checked only against the three words.

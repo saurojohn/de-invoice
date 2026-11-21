@@ -4093,7 +4093,7 @@
     "failed": "Firmenwagen konnten nicht geladen oder gespeichert werden.",
     "commuteKm": "Wohnung–Betrieb (km)",
     "commuteDays": "Tage / Monat",
-    "commuteHint": "Einfache Entfernung zwischen Wohnung und Betriebsstätte. Je Monat sind 0,03 % des Listenpreises je km nicht abziehbar, abzüglich der Entfernungspauschale (0,30 € / ab dem 21. km 0,38 € je Fahrtag) — § 4 Abs. 5 Nr. 6 EStG. Leer: keine solchen Fahrten.",
+    "commuteHint": "Einfache Entfernung zwischen Wohnung und Betriebsstätte. Je Monat sind 0,03 % des Listenpreises je km nicht abziehbar, abzüglich der Entfernungspauschale (je km und Fahrtag: ab 2026 0,38 €; bis 2025 0,30 €, ab dem 21. km 0,38 €) — § 4 Abs. 5 Nr. 6 EStG. Leer: keine solchen Fahrten.",
     "commuteRow": "{km} km, {days} Tage/Monat",
     "summaryCommute": "Darin Fahrten Wohnung–Betrieb: {commute}."
   },
