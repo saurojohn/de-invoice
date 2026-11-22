@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 926 — an issued invoice's supply is not moved into a submitted month
+
+- **Measured:** an issued invoice may still be edited on its issue day. The lock of a submitted UStVA period (Tiers 537 / 914) looked at its dates before the edit only. Last month submitted; an invoice of today (Leistungsdatum today) given a Leistungsdatum of last month — 200, and the submitted return changed under it (Kz 81 0 → 100). (A draft with such a date was refused when issued — Tier 914.)
+- `InvoiceService.updateLocked` now checks the dates the edit sets as well (`invoiceLockDates` of the invoice with the new Leistungsdatum / Leistungszeitraum).
+- **Spec 613:** on the Tier 925 code 3 assertions fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 925 — the settings and Anlage G say what they count by
 
 - Since Tiers 912 / 919 / 921 the returns and the books go by the date of supply, the texts still said „nach Rechnungsdatum“: Soll-Versteuerung („Soll-Versteuerung (nach Rechnungsdatum)“), Bilanzierung, the Anlage G note, and the help on Ist („steuerfreie Umsätze … bleiben beim Rechnungsdatum“ — they go by the supply since Tier 921).

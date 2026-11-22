@@ -1211,6 +1211,10 @@ export class InvoiceService {
     // Tier 537: an issued document of a submitted UStVA period
     if (existing.status !== 'draft' && existing.type !== 'PI' && !isNonFiscal(existing.type)) {
       await assertPeriodOpen(this.prisma, companyId, await invoiceLockDates(this.prisma, companyId, existing), 'das Ändern einer ausgestellten Rechnung'); // Tier 914
+      // Tier 926: …and the dates it is changed to — a Leistungsdatum moved into
+      // a submitted month changed that return (measured: 200, Kz 81 0 → 100)
+      const changed = { ...existing, ...(dto.deliveryDate ? { deliveryDate: new Date(dto.deliveryDate) } : {}), ...servicePeriodOf(dto) };
+      await assertPeriodOpen(this.prisma, companyId, await invoiceLockDates(this.prisma, companyId, changed), 'das Ändern einer ausgestellten Rechnung');
     }
     // Tier 610: the draft of a quote or delivery note is worked on for days
     if (!this.isToday(existing.issueDate) && !(isNonFiscal(existing.type) && existing.status === 'draft')) {
