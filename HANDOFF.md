@@ -2673,6 +2673,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 916 — Anlage G of a balance-sheet sole trader by the year of the supply; the Übergangsgewinn counts such a supply
+
+- **Measured:** Tier 913 put a GmbH's revenue into the year of its supply (GuV, Bilanz). The Anlage G of a sole trader who keeps books (§ 5 EStG — the same rule, § 252 Abs. 1 Nr. 4 HGB) still read the issue date.
+  - A supply of 15.12. last year, invoiced this year: GuV last year 1 000, Bilanz a claim of 1 190 — Anlage G last year 0, this year 1 000.
+- The Bilanz branch of Anlage G now selects by `revenueDay` (`supplyPeriodWhere` + `within`); a credit note by its own date. The EÜR branch (Zufluss) is unchanged.
+- **Tier 915 follows:**
+  - The receivables open at a change of the Gewinnermittlung are those supplied or invoiced before it (`LEAST(issueDate, supply)`), as the Bilanz has them.
+  - „Nothing booked before the change year“ (the setting changes as a whole) counts an invoice whose supply lies before that year.
+- **Spec 604:** on the Tier 915 code 3 assertions fail (Anlage G last year / this year, the receivable at the change).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 915 — the Gewinnermittlung by year, with the Übergangsgewinn (R 4.6 EStR)
 
 - **Measured:** `Company.gewinnermittlung` was one value read for every year (the same class as the Hebesatz, Tier 910).

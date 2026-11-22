@@ -21,6 +21,7 @@ import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 import { homeOfficeDeduction } from '../home-office/home-office'
 import { hebesatzOf } from './hebesatz'
 import { UstvaService } from '../reports/ustva.service'
+import { revenueDay, supplyPeriodWhere, within } from '../reports/supply-period'
 
 /**
  * Tier 438 — Anlage G counted costs as profit.
@@ -435,16 +436,19 @@ export class AnlageGService {
       const invoices = await this.prisma.invoice.findMany({
         where: {
           companyId,
-          issueDate: { gte: yearStart, lte: yearEnd },
+          // Tier 916: by the year of the supply, as the GuV and the Bilanz
+          // (Tier 913, § 252 Abs. 1 Nr. 4 HGB, § 5 EStG) — a credit note by its own date
+          ...supplyPeriodWhere(yearStart, yearEnd),
           status: { in: ['paid', 'sent', 'overdue'] },
           type: { in: SALES_TYPES }, // Tier 424: not a Proforma
         },
         select: {
           id: true, type: true, subtotal: true, totalVat: true, taxOutOfPrice: true, total: true,
           eurTotal: true, eurTotalVat: true, reverseCharge: true, euTransaction: true, issueDate: true,
+          deliveryDate: true, servicePeriodEnd: true,
           referenceInvoice: { select: { issueDate: true, reverseCharge: true, euTransaction: true } }, // Tier 844
         },
-      })
+      }).then((rows) => rows.filter((inv) => within(inv.type === 'CN' ? inv.issueDate : revenueDay(inv), yearStart, yearEnd)))
       // Tier 411: revenue after the discount and in EUR (was subtotal).
       revenueRows = invoices.map((inv) => ({ invoice: inv, amount: invoiceNetRevenue(inv) }))
       invoiceCount = invoices.length

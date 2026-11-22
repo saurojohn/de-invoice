@@ -245,7 +245,13 @@ export class CompanyService {
     await assertBooksOpen(this.prisma, id, [`${ab}-01-01`], 'den Wechsel der Gewinnermittlung');
     const before = new Date(`${ab}-01-01T00:00:00Z`);
     const [invoices, expenses] = await Promise.all([
-      this.prisma.invoice.count({ where: { companyId: id, issueDate: { lt: before }, status: { not: 'draft' } } }),
+      // Tier 916: supplied or invoiced before (supply-period.ts)
+      this.prisma.invoice.count({
+        where: {
+          companyId: id, status: { not: 'draft' },
+          OR: [{ issueDate: { lt: before } }, { deliveryDate: { lt: before } }, { servicePeriodEnd: { lt: before } }],
+        },
+      }),
       this.prisma.expense.count({ where: { companyId: id, invoiceDate: { lt: before } } }),
     ]);
     if (invoices + expenses === 0 && kept.length === 0) {

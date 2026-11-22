@@ -59,7 +59,8 @@ export async function uebergangsgewinn(db: Db, companyId: string, w: GewinnWechs
       AND i.status NOT IN ('draft', 'cancelled')
       AND i.type IN (${Prisma.join(CLAIM_TYPES)})
       AND i.total > 0
-      AND i."issueDate" < ${start}
+      -- Tier 916: supplied or invoiced before (the earlier of the two, as the Bilanz — Tier 913)
+      AND LEAST(i."issueDate", COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate")) < ${start}
       -- set to paid by hand, without a payment: settled, we know no date
       AND NOT (i.status = 'paid' AND p."invoiceId" IS NULL)`)
   const [pay] = await db.$queryRaw<{ open: unknown }[]>(Prisma.sql`
