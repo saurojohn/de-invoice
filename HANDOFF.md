@@ -2673,6 +2673,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 923b — CI green for Tiers 920–923, no flaky
+
+| Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |
+|---|---|---|---|---|
+| 45022658913 | 920 | a7bf43f7 | **607 / 0 / 1** | **1181 passed (46.1 m)** |
+| 45026931931 | 921–922 | b5f327b5 | **609 / 0 / 1** | **1181 passed (36.7 m)** |
+| 45030332136 | 923 | d0258bde | **610 / 0 / 1** | **1181 passed (46.0 m)** |
+
+- Every run: 0 flaky, no retry, and the dependency audit passed.
+- Checked and left as they are: the e-invoice of a Proforma says 380 (XRechnung allows no 386, BR-DE-17); FinTS real mode is a documented stub, its address goes through the SSRF guard; dunning fees carry no VAT (Tier 854); the UStJA adds the months, so it follows Tier 921.
+- For the user to decide: a Leistungsdatum on purchase invoices (input tax of a supplier's Vorausrechnung only when paid, § 15 Abs. 1 Nr. 1 Satz 3 UStG); the DATEV „Leistungsdatum“ column (format description needed); the write-off of an uncollectible receivable.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 923 — a credit note not before the supply of the invoice it corrects
 
 - **Measured:** since Tiers 919 / 921 a Vorausrechnung is in the period of its supply; its credit note stayed in the period of its own date. A Vorausrechnung for a delivery on 05.01. next year, cancelled in full today: UStVA this month −1 000 €, January +1 000 €; GuV this year −1 000, next year +1 000; the OSS the same by quarter (−200 / +200). The sale never took place.
