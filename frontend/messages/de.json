@@ -1415,7 +1415,8 @@
     "lostRestore": "Aus der Kopie wiederherstellen",
     "lostRestoring": "Wird wiederhergestellt…",
     "lostRestored": "{number} ist wieder in den Büchern.",
-    "lostRestoredNewCustomer": "{number} ist wieder in den Büchern; der Kunde wurde aus der Kopie neu angelegt."
+    "lostRestoredNewCustomer": "{number} ist wieder in den Büchern; der Kunde wurde aus der Kopie neu angelegt.",
+    "supplyFarHint": "Das Leistungsdatum liegt mehr als ein Jahr vom Rechnungsdatum entfernt — die Umsatzsteuer gehört dann in die Voranmeldung {period}. Bitte prüfen."
   },
   "invoiceTemplates": {
     "title": "Rechnungsvorlagen",

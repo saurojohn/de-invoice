@@ -1415,7 +1415,8 @@
     "lostRestore": "Restore from the copy",
     "lostRestoring": "Restoring…",
     "lostRestored": "{number} is in the books again.",
-    "lostRestoredNewCustomer": "{number} is in the books again; the customer was created from the copy."
+    "lostRestoredNewCustomer": "{number} is in the books again; the customer was created from the copy.",
+    "supplyFarHint": "The date of supply is more than a year from the invoice date — the VAT then belongs in the return for {period}. Please check."
   },
   "invoiceTemplates": {
     "title": "Invoice templates",

@@ -1415,7 +1415,8 @@
     "lostRestore": "从副本恢复",
     "lostRestoring": "正在恢复…",
     "lostRestored": "{number} 已重新记入账簿。",
-    "lostRestoredNewCustomer": "{number} 已重新记入账簿；客户已根据副本新建。"
+    "lostRestoredNewCustomer": "{number} 已重新记入账簿；客户已根据副本新建。",
+    "supplyFarHint": "交付日期与发票日期相差超过一年——增值税将计入 {period} 的预申报。请核对。"
   },
   "invoiceTemplates": {
     "title": "发票模板",

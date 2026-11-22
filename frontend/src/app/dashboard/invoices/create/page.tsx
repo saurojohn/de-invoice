@@ -1958,6 +1958,19 @@ function CreateInvoicePageInner() {
                   </div>
                 </div>
               </div>
+              {/* Tier 930: the supply decides the VAT period — a date more than a year
+                  from the invoice date is likely a typo */}
+              {(() => {
+                const supply = form.servicePeriodEnd || form.deliveryDate
+                if (!supply || !form.issueDate) return null
+                const days = Math.abs(Date.parse(supply) - Date.parse(form.issueDate)) / 86_400_000
+                if (!(days > 365)) return null
+                return (
+                  <p className="mt-2 text-sm rounded border border-amber-300 bg-amber-50 dark:bg-amber-950 p-2" data-testid="invoice-supply-far">
+                    {t("invoice.supplyFarHint", { period: `${supply.slice(5, 7)}/${supply.slice(0, 4)}` })}
+                  </p>
+                )
+              })()}
             </CardContent>
           </Card>
 

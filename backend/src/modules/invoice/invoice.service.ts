@@ -37,7 +37,7 @@ import { CLAIM_TYPES, DOCUMENT_NAMES, NON_FISCAL_STATUSES, NON_FISCAL_TRANSITION
 import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from './invoice-document';
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
-import { servicePeriodOf } from './service-period';
+import { assertSupplyInRange, servicePeriodOf } from './service-period';
 import { customerSnapshot } from './customer-as-issued';
 import { assertInvoiceDetails } from './mandatory-details';
 
@@ -747,6 +747,7 @@ export class InvoiceService {
     }
     const deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
     const servicePeriod = servicePeriodOf(dto);
+    assertSupplyInRange(issueDate, [deliveryDate, servicePeriod.servicePeriodStart, servicePeriod.servicePeriodEnd]); // Tier 930
 
     // ──────────────────────────────────────────────────────
     // Tier 118: multi-currency. Look up the ECB rate
@@ -1208,6 +1209,11 @@ export class InvoiceService {
     });
     if (!existing) {
       throw new NotFoundException('Rechnung nicht gefunden');
+    }
+    // Tier 930: a Leistungsdatum within reason
+    if (dto.deliveryDate || dto.servicePeriodStart || dto.servicePeriodEnd) {
+      const sp = servicePeriodOf(dto);
+      assertSupplyInRange(existing.issueDate, [dto.deliveryDate ? new Date(dto.deliveryDate) : null, sp.servicePeriodStart, sp.servicePeriodEnd]);
     }
     // Tier 537: an issued document of a submitted UStVA period
     if (existing.status !== 'draft' && existing.type !== 'PI' && !isNonFiscal(existing.type)) {

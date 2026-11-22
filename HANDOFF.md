@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 930 — a Leistungsdatum within reason
+
+- **Measured:** since Tier 912 the Leistungsdatum decides the VAT period. An invoice of today with the Leistungsdatum 1990-01-01, another with 2099-12-31 — created and issued without a word: the tax went into a period nobody files, or decades ahead. A typo (2016 for 2026) does the same.
+- `assertSupplyInRange` (invoice/service-period.ts), on create and edit (draft or issued): the Leistungsdatum and the Leistungszeitraum at most ten years before the invoice date (§ 147 Abs. 3, § 169 AO — nothing older is declared any more) and at most three after it; else 400 naming the date. A late invoice (two years back) and an advance invoice (next year) pass. Recurring runs derive their period themselves (not checked).
+- The invoice form says when the Leistungsdatum (or the period's end) is more than a year from the invoice date: „die Umsatzsteuer gehört dann in die Voranmeldung MM/JJJJ — bitte prüfen“ (de / en / zh), without blocking.
+- **Spec 617:** on the Tier 929 code 5 assertions fail. Playwright `leistungsdatum-hinweis-tier930`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 929b — CI green for Tiers 924–929, the Docker images again too, no flaky
 
 | Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |
