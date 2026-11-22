@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 925 — the settings and Anlage G say what they count by
+
+- Since Tiers 912 / 919 / 921 the returns and the books go by the date of supply, the texts still said „nach Rechnungsdatum“: Soll-Versteuerung („Soll-Versteuerung (nach Rechnungsdatum)“), Bilanzierung, the Anlage G note, and the help on Ist („steuerfreie Umsätze … bleiben beim Rechnungsdatum“ — they go by the supply since Tier 921).
+- Now „nach Leistungsdatum“; the help names the rule of each (Ist: the month the money arrives, tax-free sales by the supply, the input tax by the invoice date; Soll: the month of the supply, an advance before it when received). de / en / zh; the keys unchanged.
+- No spec asserted the old texts (grep of backend/e2e and frontend/e2e). Playwright ui-walk-tier590 (no raw key, every language), anlage-g, ist-versteuerung-tier457, gewinnermittlung-nach-jahr-tier915, company-details-tier728: 11 passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 924 — a paid Vorausrechnung cancelled before its supply
 
 - **Measured:** paid in full and cancelled before a delivery on 05.01. next year — UStVA this month +1 000 € (the payment, Tier 921), January −1 000 € (the credit note at the supply, Tier 923): the tax of the advance stayed declared until the date of a delivery that will not come. The Bilanz owed the money twice — as an Anzahlung (1 000) and as the customer's credit (1 190) — and the VAT (190) besides.
