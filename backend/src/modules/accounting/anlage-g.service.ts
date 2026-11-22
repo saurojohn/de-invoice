@@ -2,8 +2,8 @@ import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { kursdifferenzen } from './kursdifferenzen'
 import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
-import { gewinnermittlungOf, gewinnermittlungWechselIn } from '../company/gewinnermittlung'
-import { uebergangsgewinn, type Uebergang } from './uebergangsgewinn'
+import { gewinnermittlungOf } from '../company/gewinnermittlung'
+import { uebergangOfYear, type Uebergang } from './uebergangsgewinn'
 import { manualJournalLines, type ManualKind } from './manual-journal'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
@@ -364,20 +364,6 @@ export class AnlageGService {
   constructor(private prisma: PrismaService, private ustva: UstvaService) {}
 
   /**
-   * Tier 915: the Umsatzsteuer owed to the Finanzamt on 31.12. of a year — its
-   * UStVA less the payments recorded by then (as BilanzService.taxBalances).
-   */
-  private async ustOwedAtEndOf(companyId: string, year: number): Promise<number> {
-    let owed = 0
-    for (const m of await this.ustva.computeMonths(companyId, year)) owed += m.differenzbetrag
-    const paid = await this.prisma.uStvaFiling.aggregate({
-      where: { companyId, year, paidAt: { lte: new Date(year, 11, 31, 23, 59, 59, 999) } },
-      _sum: { paidAmount: true },
-    })
-    return owed - Number(paid._sum.paidAmount ?? 0)
-  }
-
-  /**
    * Compute the Anlage G for the year. Returns
    * the report JSON. The controller wraps this
    * in the year-defaults + auth handling.
@@ -412,8 +398,7 @@ export class AnlageGService {
     // Tier 915: the method of the year shown (company/gewinnermittlung.ts)
     const gewinnermittlung = gewinnermittlungOf(companyRow ?? {}, year)
     const zufluss = gewinnermittlung.art === 'euer'
-    const wechsel = companyRow ? gewinnermittlungWechselIn(companyRow, year) : null
-    const uebergang = wechsel ? await uebergangsgewinn(this.prisma, companyId, wechsel, await this.ustOwedAtEndOf(companyId, wechsel.ab - 1)) : null
+    const uebergang = await uebergangOfYear(this.prisma, this.ustva, companyRow, companyId, year)
 
     // Revenue: the document (Bilanz) or the payments' net share (EÜR), each
     // with the invoice it belongs to.

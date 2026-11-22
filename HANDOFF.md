@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 918 — the EÜR of the first year after a Bilanz carries the Übergangsergebnis
+
+- **Measured:** Tier 915 put the Übergangsgewinn into Anlage G only. The EÜR of the first EÜR year after a Bilanz (filed as Anlage EÜR beside Anlage G — the line „Hinzurechnungen und Abrechnungen bei Wechsel der Gewinnermittlungsart“) did not have it: a receivable of last year's Bilanz paid this year was this year's EÜR profit again (800 €, while Anlage G said 0).
+- `EuerService.compute` now adds it (`totals.uebergangsgewinn`, `uebergang`, in `gewinn`) when the year is the first of a change **to** the EÜR. A change to the Bilanz is the Bilanz's (Anlage G); the EÜR of that year has no such line.
+- The computation is shared (`uebergangOfYear`, `ustOwedAtEndOf` in accounting/uebergangsgewinn.ts) — Anlage G and the EÜR give the same figure. On the EÜR page and in its PDF.
+- Not done: Anlage S (a Freiberufler) always counts by payment, also in a year set to „Bilanz“ — a freelancer who keeps books is rare; left as it was.
+- **Spec 606:** on the Tier 917 code 3 assertions fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 917 — the UStVA rhythm of a calendar year
 
 - **The gap** (noted in Tier 913b as „still single-valued“): the Voranmeldungszeitraum is set for a calendar year (§ 18 Abs. 2 UStG). It was one value, `settings.ustvaRhythmus`, read for every period.

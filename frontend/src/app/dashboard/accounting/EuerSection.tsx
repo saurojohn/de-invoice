@@ -25,6 +25,8 @@ interface EuerResult {
     ausgabenTotal: number
     gewinn: number
   }
+  // Tier 918: the change from the Bilanz to the EÜR that takes effect this year
+  uebergang?: { ab: number; forderungen: number; verbindlichkeiten: number; umsatzsteuer: number; betrag: number } | null
   // Tier 454: unbezahlt — issued / dated in the year, counted when paid
   counts: { invoices: number; expenses: number; unbezahlt?: { invoices: number; expenses: number } }
   generatedAt: string
@@ -225,6 +227,17 @@ export function EuerSection() {
                 </div>
               </div>
 
+              {data.uebergang && (
+                <p className="mt-4 text-sm rounded border border-amber-300 bg-amber-50 dark:bg-amber-950 p-2" data-testid="euer-uebergang">
+                  {tRef.current("anlageG.uebergangZurEuer", {
+                    betrag: fmt(data.uebergang.betrag),
+                    forderungen: fmt(data.uebergang.forderungen),
+                    verbindlichkeiten: fmt(data.uebergang.verbindlichkeiten),
+                    umsatzsteuer: fmt(data.uebergang.umsatzsteuer),
+                    jahr: data.uebergang.ab,
+                  })}
+                </p>
+              )}
               {/* Gewinn / Verlust total */}
               <div
                 className={`mt-4 p-3 rounded text-center text-lg font-bold ${

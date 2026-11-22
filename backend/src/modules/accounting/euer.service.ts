@@ -15,6 +15,8 @@ import { afaOfYear } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 import { homeOfficeDeduction } from '../home-office/home-office'
+import { UstvaService } from '../reports/ustva.service'
+import { uebergangOfYear, type Uebergang } from './uebergangsgewinn'
 
 /**
  * Tier 76: Anlage EÜR (Einnahmen-Überschuss-Rechnung).
@@ -78,8 +80,12 @@ export interface EuerResult {
   totals: {
     einnahmenTotal: number;
     ausgabenTotal: number;
-    gewinn: number; // einnahmenTotal - ausgabenTotal (positive = profit, negative = loss)
+    gewinn: number; // einnahmenTotal - ausgabenTotal (+ uebergangsgewinn) (positive = profit, negative = loss)
+    /** Tier 918: the Übergangsverlust / -gewinn of a change from the Bilanz to the EÜR in this year (0 otherwise) */
+    uebergangsgewinn: number;
   };
+  /** Tier 918: the change from the Bilanz to the EÜR that takes effect in this year (R 4.6 EStR) */
+  uebergang: Uebergang | null;
   /** Tier 454: § 11 EStG — counted when paid */
   prinzip: 'zufluss';
   /** Tier 485: the non-deductible 30 % of the entertainment expenses (not in the Gewinn) */
@@ -268,7 +274,7 @@ const EXPENSE_LINES: Array<{ kz: string; label: string; matcher: (exp: any) => b
 
 @Injectable()
 export class EuerService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private ustva: UstvaService) {}
 
   async compute(companyId: string, year: number): Promise<EuerResult> {
     // Tier 410: whether zero-VAT revenue is §19 revenue depends on the
@@ -396,7 +402,16 @@ export class EuerService {
 
     const einnahmenTotal = einnahmen.reduce((s, l) => s + l.amount, 0)
     const ausgabenTotal = ausgaben.reduce((s, l) => s + l.amount, 0)
-    const gewinn = Math.round((einnahmenTotal - ausgabenTotal) * 100) / 100
+    // Tier 918: the first EÜR year after a Bilanz carries the Übergangsergebnis
+    // (R 4.6 EStR — accounting/uebergangsgewinn.ts), as its Anlage G does: the
+    // receivables of the Bilanz were profit already and count again when paid.
+    const uebergangRow = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { settings: true, rechtsform: true, legalName: true, name: true },
+    })
+    const uebergangAll = await uebergangOfYear(this.prisma, this.ustva, uebergangRow, companyId, year)
+    const uebergang = uebergangAll && uebergangAll.nach === 'euer' ? uebergangAll : null
+    const gewinn = Math.round((einnahmenTotal - ausgabenTotal + (uebergang?.betrag ?? 0)) * 100) / 100
 
     return {
       year,
@@ -407,7 +422,9 @@ export class EuerService {
         einnahmenTotal: Math.round(einnahmenTotal * 100) / 100,
         ausgabenTotal: Math.round(ausgabenTotal * 100) / 100,
         gewinn,
+        uebergangsgewinn: uebergang?.betrag ?? 0,
       },
+      uebergang,
       prinzip: 'zufluss',
       nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, revenueCtx.kleinunternehmer),
       nichtAbziehbareGeschenke: nichtAbziehbareGeschenke(allExpenses, badGifts),
@@ -531,6 +548,15 @@ export class EuerService {
     doc.text(this.fmtEur(data.totals.ausgabenTotal), 420, doc.y, { width: 125, align: 'right' })
     doc.moveDown(0.5)
 
+    // Tier 918: the Übergangsergebnis of a change from the Bilanz
+    if (data.uebergang) {
+      doc.fontSize(10).text(
+        `Hinzurechnungen und Abrechnungen bei Wechsel der Gewinnermittlungsart (R 4.6 EStR): ${this.fmtEur(data.uebergang.betrag)} EUR — ` +
+        `offene Forderungen ${this.fmtEur(data.uebergang.forderungen)}, unbezahlte Ausgaben ${this.fmtEur(data.uebergang.verbindlichkeiten)}, ` +
+        `Umsatzsteuer-Schuld ${this.fmtEur(data.uebergang.umsatzsteuer)} EUR zum 01.01.${data.uebergang.ab}`,
+      )
+      doc.moveDown(0.5)
+    }
     // Gewinn/Verlust
     const isProfit = data.totals.gewinn >= 0
     doc.fontSize(12)

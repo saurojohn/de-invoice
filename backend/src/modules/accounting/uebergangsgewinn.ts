@@ -21,7 +21,7 @@
  */
 import { Prisma } from '@prisma/client'
 import { CLAIM_TYPES } from '../invoice/document-scope'
-import type { GewinnWechsel } from '../company/gewinnermittlung'
+import { gewinnermittlungWechselIn, type GewinnWechsel } from '../company/gewinnermittlung'
 
 type Db = { $queryRaw: <T>(q: TemplateStringsArray | Prisma.Sql, ...v: unknown[]) => Promise<T> }
 
@@ -80,4 +80,31 @@ export async function uebergangsgewinn(db: Db, companyId: string, w: GewinnWechs
     ab: w.ab, von: w.vorher, nach: w.art, forderungen, verbindlichkeiten, umsatzsteuer: ust,
     betrag: r2(sign * (forderungen - verbindlichkeiten - ust)),
   }
+}
+
+type UstvaLike = { computeMonths: (companyId: string, year: number) => Promise<Array<{ differenzbetrag: number }>> }
+type FilingDb = Db & { uStvaFiling: { aggregate: (a: any) => Promise<any> } }
+
+/** the Umsatzsteuer owed to the Finanzamt on 31.12. of a year — its UStVA less the payments recorded by then (as BilanzService.taxBalances) */
+export async function ustOwedAtEndOf(db: FilingDb, ustva: UstvaLike, companyId: string, year: number): Promise<number> {
+  let owed = 0
+  for (const m of await ustva.computeMonths(companyId, year)) owed += m.differenzbetrag
+  const paid = await db.uStvaFiling.aggregate({
+    where: { companyId, year, paidAt: { lte: new Date(year, 11, 31, 23, 59, 59, 999) } },
+    _sum: { paidAmount: true },
+  })
+  return owed - Number(paid._sum.paidAmount ?? 0)
+}
+
+/** the Übergangsgewinn of `year`, when a change of the Gewinnermittlung takes effect in it */
+export async function uebergangOfYear(
+  db: FilingDb,
+  ustva: UstvaLike,
+  company: Parameters<typeof gewinnermittlungWechselIn>[0] | null,
+  companyId: string,
+  year: number,
+): Promise<Uebergang | null> {
+  const w = company ? gewinnermittlungWechselIn(company, year) : null
+  if (!w) return null
+  return uebergangsgewinn(db, companyId, w, await ustOwedAtEndOf(db, ustva, companyId, w.ab - 1))
 }
