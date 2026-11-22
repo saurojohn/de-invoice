@@ -2673,6 +2673,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 913b — CI green for Tiers 909–913, no flaky
+
+| Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |
+|---|---|---|---|---|
+| 44963362884 | 909 | 84ed5606 | **596 / 0 / 1** | **1180 passed** |
+| 44967260150 | 910–911 | 0106172d | **598 / 0 / 1** | **1180 passed** |
+| 44973822797 | 912 | e9a54453 | **599 / 0 / 1** | **1180 passed** |
+| 44976664712 | 913 | 746ddd41 | **600 / 0 / 1** | **1180 passed (31.1 m)** |
+
+- Every run: 0 flaky, no retry, no Traceback, no `REFUSED`, and the dependency audit passed.
+- The specs that failed only locally because of seed data passed in CI: `invoice-duplicate-check-tier150` and `recurring-invoices` „run-now“.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 913 — the earlier of the supply and the invoice: a Vorausrechnung stays in its own UStVA month; a GmbH's revenue and claim follow the supply
 
 - **UStVA:** Tier 912 put every invoice in the period of its supply. That included an invoice written *before* its supply, such as a shop's prepayment shipped next month, whose tax moved to the later month. But a payment received on it is owed when received (Mindest-Ist, § 13 Abs. 1 Nr. 1 a Satz 4 UStG).
