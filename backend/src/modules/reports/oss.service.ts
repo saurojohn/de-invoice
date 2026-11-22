@@ -7,7 +7,8 @@ import { ExchangeRateService } from '../exchange-rate/exchange-rate.service'
 import { invoiceEurFactor } from '../invoice/tax-breakdown'
 import { businessTodayIso } from '../../common/business-date'
 import { ossOn } from '../../common/oss-period'
-import { supplyPeriodWhere, ustvaDay, within } from './supply-period'
+import { isVorausrechnung, supplyPeriodWhere, ustvaDay, within } from './supply-period'
+import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -308,6 +309,63 @@ export class OssService {
       },
     }).then((rows) => rows.filter((inv) => within(ustvaDay(inv), start, end)))
 
+    // Tier 921: Mindest-Ist (§ 13 Abs. 1 Nr. 1 a Satz 4 UStG) — a sale paid
+    // before its supply (a shop's order, paid at once, shipped after the
+    // quarter's end) is this quarter's for the part received; in the quarter
+    // of the supply only what was not paid before. Without it a web shop's
+    // orders paid on 30.12. and shipped on 02.01. moved to the next quarter.
+    const vorauIds = invoices.filter((inv) => inv.status !== 'draft' && isVorausrechnung(inv)).map((inv) => inv.id)
+    const paidBefore = new Map<string, number>()
+    if (vorauIds.length) {
+      for (const r of await this.prisma.payment.groupBy({
+        by: ['invoiceId'],
+        where: { invoiceId: { in: vorauIds }, paymentDate: { lt: start }, paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS } },
+        _sum: { amount: true },
+      })) paidBefore.set(r.invoiceId, Number(r._sum.amount ?? 0))
+    }
+    const prepaidRows = await this.prisma.payment.findMany({
+      where: {
+        paymentDate: { gte: start, lte: end },
+        paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
+        invoice: {
+          companyId, type: { in: ['INV', 'RCV'] }, status: { in: ['paid', 'sent', 'overdue'] }, euTransaction: false,
+          OR: [{ deliveryDate: { gt: end } }, { servicePeriodEnd: { gt: end } }],
+        },
+      },
+      select: { invoiceId: true, amount: true },
+    })
+    const paidIn = new Map<string, number>()
+    for (const r of prepaidRows) paidIn.set(r.invoiceId, (paidIn.get(r.invoiceId) ?? 0) + Number(r.amount))
+    const prepaidInvoices = paidIn.size
+      ? (await this.prisma.invoice.findMany({
+        where: { companyId, id: { in: [...paidIn.keys()] } },
+        include: {
+          customer: {
+            select: { id: true, vatId: true, address: true },
+          },
+          items: {
+            select: {
+              vatRate: true,
+              netAmount: true,
+              vatAmount: true,
+              grossAmount: true,
+              // Tier 409: the per-rate split is weighted by quantity × price.
+              quantity: true,
+              unitPrice: true,
+            },
+          },
+        },
+      })).filter((inv) => ustvaDay(inv).getTime() > end.getTime() && Number(inv.total) > 0)
+      : []
+    const share = (inv: { id: string; total: unknown }, paid: number | undefined) => {
+      const total = Number(inv.total)
+      return paid && total > 0 ? Math.min(1, paid / total) : 0
+    }
+    const entries = [
+      ...invoices.map((inv) => ({ inv, k: paidBefore.has(inv.id) ? 1 - share(inv, paidBefore.get(inv.id)) : 1 })),
+      ...prepaidInvoices.map((inv) => ({ inv, k: share(inv, paidIn.get(inv.id)) })),
+    ].filter((e) => e.k > 0)
+
     // Filter into buckets. We count every category
     // of exclusion so the UI / CSV can surface
     // "you had 12 non-EU invoices this quarter" —
@@ -326,7 +384,7 @@ export class OssService {
     let excludedDraft = 0
     const germanRate = new Set<string>()
 
-    for (const inv of invoices) {
+    for (const { inv, k } of entries) {
       // Drafts: separate counter; never in any bucket.
       if (inv.status === 'draft') {
         excludedDraft++
@@ -380,9 +438,9 @@ export class OssService {
         items.push({
           invoiceId: inv.id,
           vatRate: bucket.rate,
-          net: bucket.net * f,
-          vat: bucket.vat * f,
-          gross: (bucket.net + bucket.vat) * f,
+          net: bucket.net * f * k, // Tier 921: the part of the sale in this quarter
+          vat: bucket.vat * f * k,
+          gross: (bucket.net + bucket.vat) * f * k,
         })
       }
     }
