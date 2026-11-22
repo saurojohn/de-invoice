@@ -2673,6 +2673,27 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 911 — Zusammenveranlagung by year: chosen on a year's page, it holds from that year on
+
+This is the same kind of fault as Tier 910, for `settings.zusammenveranlagung` (Tier 670 / 672).
+
+- **Measured:**
+  - Ticking „zusammen veranlagt“ on the 2026 page of Anlage KAP doubled the 2025 Sparer-Pauschbetrag too (1 000 → 2 000 €).
+  - The 2025 Anlage Kind counted the doubled child allowances.
+  - The choice is made for each Veranlagungsjahr (§ 26 EStG).
+- **Now:**
+  - The two pages send the year shown.
+  - `PUT /accounting/zusammenveranlagung` with `year` writes `settings.zusammenveranlagungAb[year]`. Without `year` it writes the old flag, as before.
+  - `accounting/zusammenveranlagung.ts` `zusammenveranlagungOf(settings, year)` reads the latest choice not after the year. A year before the first choice keeps the old flag.
+  - Anlage KAP and Anlage Kind read it by their year.
+- **Spec 599:** on the old code 6 assertions fail.
+  - Together from 2026: 2026 / 2027 at 2 000 €, 2025 at 1 000 €.
+  - Kind: 2026 together, 2025 not.
+  - Apart from 2028: 2028 at 1 000 €, 2027 still 2 000 €.
+  - A non-boolean and the year 1999 are refused.
+  - An old flag holds for 2024–2026 until a choice for 2026; 2025 then keeps it.
+- Locally: 599, 123, 130, 397, 399 and the guards all ok. Playwright anlage-kap-tier670 and anlage-kind-tier672: 2 passed. Backend and frontend tsc / ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 910 — the Hebesatz of a year: entered for a year, it holds from then on, and the years before keep theirs
 
 - **Measured:**

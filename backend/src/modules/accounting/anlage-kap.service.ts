@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { zusammenveranlagungOf } from './zusammenveranlagung'
 
 /**
  * Anlage KAP — Einkünfte aus Kapitalvermögen (§ 20 EStG): a preview from the
@@ -326,7 +327,7 @@ export class AnlageKAPService {
       select: { settings: true },
     })
     const settings = (company?.settings as any) || {}
-    const zusammenveranlagung = settings.zusammenveranlagung === true
+    const zusammenveranlagung = zusammenveranlagungOf(settings, year) // Tier 911: the year's
     const voll = sparerPauschbetragFor(year, zusammenveranlagung)
     const sparerPauschbetrag = Math.min(voll, Math.max(0, round2(einnahmenTotal)))
     const eur = (n: number): string => new Intl.NumberFormat('de-DE').format(n)

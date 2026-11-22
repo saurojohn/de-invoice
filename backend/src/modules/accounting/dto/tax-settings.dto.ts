@@ -243,6 +243,12 @@ export class AnlageAusSettingsDto extends YearDto {
 export class ZusammenveranlagungDto {
   @StrictBoolean() @IsBoolean({ message: 'zusammenveranlagung muss true oder false sein' })
   zusammenveranlagung!: boolean
+
+  // Tier 911: the year the choice is made for (it holds until a later one);
+  // without it, the flag for every year as before
+  @IsOptional()
+  @StrictNumber() @IsInt({ message: YEAR_MESSAGE }) @Min(2000, { message: YEAR_MESSAGE }) @Max(2100, { message: YEAR_MESSAGE })
+  year?: number
 }
 
 export class GewstSettingsDto extends YearDto {

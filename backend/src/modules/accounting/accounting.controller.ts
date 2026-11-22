@@ -767,11 +767,15 @@ export class AccountingController {
       const company = await tx.company.findUnique({ where: { id: companyId } })
       if (!company) throw new BadRequestException('Firma nicht gefunden')
       const settings = ((company as any).settings ?? {}) as Record<string, any>
+      // Tier 911: for a year (accounting/zusammenveranlagung.ts) — the years before keep theirs
+      const next = body.year !== undefined
+        ? { ...settings, zusammenveranlagungAb: { ...(settings.zusammenveranlagungAb ?? {}), [String(body.year)]: body.zusammenveranlagung } }
+        : { ...settings, zusammenveranlagung: body.zusammenveranlagung }
       await tx.company.update({
         where: { id: companyId },
-        data: { settings: { ...settings, zusammenveranlagung: body.zusammenveranlagung } } as any,
+        data: { settings: next } as any,
       })
-      return { ok: true, zusammenveranlagung: body.zusammenveranlagung }
+      return { ok: true, zusammenveranlagung: body.zusammenveranlagung, ...(body.year !== undefined ? { year: body.year } : {}) }
     })
   }
 

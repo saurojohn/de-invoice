@@ -3,6 +3,7 @@ import { Injectable, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { zusammenveranlagungOf } from './zusammenveranlagung'
 
 /**
  * Anlage Kind — the children of a year, what Kindergeld they are entitled
@@ -187,7 +188,7 @@ export class AnlageKindService {
 
     // § 32 Abs. 6 Satz 2: doubled for spouses assessed together (the same
     // choice as on Anlage KAP)
-    const zusammenveranlagung = settings.zusammenveranlagung === true
+    const zusammenveranlagung = zusammenveranlagungOf(settings, year) // Tier 911: the year's
     const faktor = zusammenveranlagung ? 2 : 1
     const saetze = kindSaetzeFor(year)
 
