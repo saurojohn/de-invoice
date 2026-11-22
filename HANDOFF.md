@@ -2673,6 +2673,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 914 — an igL at its invoice, at the latest for the month after the delivery; the lock of a submitted period follows the supply
+
+- **igL:** the UStVA (Kz 41) and the ZM took an innergemeinschaftliche Lieferung by its issue date only (Tier 912 kept it so).
+  - § 13 Abs. 1 Nr. 6, § 18b Satz 2, § 18a Abs. 8 UStG: the tax period is the one of the invoice, but at the latest the month after the delivery.
+  - Measured: delivered 10.09., invoiced 22.11. — Kz 41 and the ZM line stood in November. The law puts them in October.
+  - `ustvaDay` of an igL is now the earlier of the issue date and the last day of the month after the supply day (`iglDeadline`, reports/supply-period.ts). `supplyPeriodWhere` also fetches igL delivered in the month before the period.
+- **Lock (Tier 537):** since Tier 912 the UStVA assigns an invoice by its supply, but issuing, changing, deleting and cancelling checked only the issue date against a submitted period.
+  - Measured: last month submitted, an invoice for a supply of last month issued today — 200, and the submitted return changed under it (Kz 81 0 → 100).
+  - `invoiceLockDates` (reports/filed-period.ts): the issue date and, for a Soll-Versteuerer on the issue day, the UStVA day. A credit note keeps its own date (§ 17); under Ist the payment counts, as before.
+  - The message is the Tier 537 one: correct in the current period, or release the period and submit a corrected return (§ 13 Abs. 1 Nr. 1 a — the tax of a supply of a filed month belongs to that month).
+- **Spec 602:** on the Tier 913 code 6 assertions fail (Kz 41 and ZM October / November, the second igL, the lock, the unchanged return).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 913b — CI green for Tiers 909–913, no flaky
 
 | Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |

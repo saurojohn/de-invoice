@@ -1,5 +1,7 @@
 import { BadRequestException } from '@nestjs/common'
 import { businessDayIso } from '../../common/business-date'
+import { ART_SELECT, artOn } from '../../common/besteuerungsart-period'
+import { ustvaDay } from './supply-period'
 
 /**
  * Tier 537 — a submitted UStVA locks its period (decided by the user,
@@ -107,4 +109,24 @@ export async function assertPeriodOpen(
     const filed = await filedPeriodOf(db, companyId, date)
     if (filed) throw new BadRequestException(filedPeriodMessage(filed, what))
   }
+}
+
+/**
+ * Tier 914 — the days that put an issued invoice into a UStVA. Since Tier 912
+ * the return assigns an invoice by the day of its supply (supply-period.ts),
+ * the lock looked at the issue date only. Measured: October submitted, an
+ * invoice for a supply of 15.10. issued on 22.11. — accepted, and the
+ * submitted October return changed under it. A credit note is in the period
+ * of its own date (§ 17); under Ist-Versteuerung the payment counts
+ * (PaymentService), not the supply.
+ */
+export async function invoiceLockDates(
+  db: Db,
+  companyId: string,
+  inv: { type?: string | null; issueDate: Date; deliveryDate?: Date | null; servicePeriodEnd?: Date | null; euTransaction?: boolean | null },
+): Promise<Date[]> {
+  if (inv.type === 'CN') return [inv.issueDate]
+  const company = await db.company.findUnique({ where: { id: companyId }, select: ART_SELECT })
+  if (artOn(company)(inv.issueDate) !== 'soll') return [inv.issueDate]
+  return [inv.issueDate, ustvaDay(inv)]
 }

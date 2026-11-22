@@ -1,7 +1,7 @@
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
 import { refreshOpenStatus } from './open-status'
 import { KleinunternehmerService } from '../accounting/kleinunternehmer.service';
-import { assertPeriodOpen } from '../reports/filed-period';
+import { assertPeriodOpen, invoiceLockDates } from '../reports/filed-period';
 import { storedPaymentMethod } from './payment-method'
 import { withKeyLock } from '../../common/key-lock';
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
@@ -1210,7 +1210,7 @@ export class InvoiceService {
     }
     // Tier 537: an issued document of a submitted UStVA period
     if (existing.status !== 'draft' && existing.type !== 'PI' && !isNonFiscal(existing.type)) {
-      await assertPeriodOpen(this.prisma, companyId, [existing.issueDate], 'das Ändern einer ausgestellten Rechnung');
+      await assertPeriodOpen(this.prisma, companyId, await invoiceLockDates(this.prisma, companyId, existing), 'das Ändern einer ausgestellten Rechnung'); // Tier 914
     }
     // Tier 610: the draft of a quote or delivery note is worked on for days
     if (!this.isToday(existing.issueDate) && !(isNonFiscal(existing.type) && existing.status === 'draft')) {
@@ -1475,7 +1475,7 @@ export class InvoiceService {
       throw new NotFoundException('Rechnung nicht gefunden');
     }
     if (existing.status !== 'draft' && existing.type !== 'PI' && !isNonFiscal(existing.type)) { // Tier 537
-      await assertPeriodOpen(this.prisma, companyId, [existing.issueDate], 'das Löschen einer ausgestellten Rechnung');
+      await assertPeriodOpen(this.prisma, companyId, await invoiceLockDates(this.prisma, companyId, existing), 'das Löschen einer ausgestellten Rechnung'); // Tier 914
     }
     // Same-day rule applies to delete too. After the calendar
     // flips, the customer may have already received the PDF/email;
@@ -1912,9 +1912,9 @@ export class InvoiceService {
     // (A Proforma carries no VAT of its own — its payments do, see PaymentService.)
     if (before.type !== 'PI') {
       if (issuing) {
-        await assertPeriodOpen(this.prisma, companyId, [before.issueDate], 'das Ausstellen einer Rechnung');
+        await assertPeriodOpen(this.prisma, companyId, await invoiceLockDates(this.prisma, companyId, before), 'das Ausstellen einer Rechnung'); // Tier 914
       } else if (status === 'cancelled' && before.status !== 'cancelled' && before.status !== 'draft') {
-        await assertPeriodOpen(this.prisma, companyId, [before.issueDate], 'das Stornieren einer Rechnung');
+        await assertPeriodOpen(this.prisma, companyId, await invoiceLockDates(this.prisma, companyId, before), 'das Stornieren einer Rechnung'); // Tier 914
       }
     }
     // Tier 511: a draft credit note is issued — against an issued invoice,

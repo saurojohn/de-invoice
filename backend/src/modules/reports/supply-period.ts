@@ -12,10 +12,13 @@
  * The day of the supply: the end of the Leistungszeitraum, else the
  * Leistungsdatum, else the issue date (which the invoice then states as the
  * Leistungsdatum, Tier 492). An innergemeinschaftliche Lieferung is declared
- * in the period the invoice is issued (§ 18b Satz 2 UStG, as the ZM), and a
+ * in the period the invoice is issued — at the latest the month after the
+ * delivery (§ 18b Satz 2 UStG, as the ZM; Tier 914, `iglDeadline`), and a
  * credit note in the period of the change it records (§ 17 Abs. 1 Satz 7
  * UStG) — both by their issue date.
  */
+import { businessDayIso } from '../../common/business-date'
+
 type Dated = {
   issueDate: Date
   deliveryDate?: Date | null
@@ -42,15 +45,36 @@ export function revenueDay(inv: Dated): Date {
   return s.getTime() < inv.issueDate.getTime() ? s : inv.issueDate
 }
 
+/**
+ * Tier 914 — an innergemeinschaftliche Lieferung is declared with its
+ * invoice, but at the latest for the month after the delivery (§ 13 Abs. 1
+ * Nr. 6, § 18b Satz 2, § 18a Abs. 8 UStG). Measured: delivered 10.09.,
+ * invoiced 22.11. — in the UStVA (Kz 41) and the ZM of November; the law
+ * puts it in October. The last day of the month after the delivery.
+ */
+export function iglDeadline(inv: Dated): Date {
+  const [y, m] = businessDayIso(supplyDay(inv)).split('-').map(Number)
+  return new Date(Date.UTC(y, m + 1, 0))
+}
+
 /** the day that puts an invoice into a UStVA period */
 export function ustvaDay(inv: Dated): Date {
-  return inv.euTransaction ? inv.issueDate : revenueDay(inv)
+  if (!inv.euTransaction) return revenueDay(inv)
+  const deadline = iglDeadline(inv)
+  return deadline.getTime() < inv.issueDate.getTime() ? deadline : inv.issueDate
 }
 
 /** a where clause for the invoices that may belong to [start, end] — filter with `within` after */
 export function supplyPeriodWhere(start: Date, end: Date) {
   const range = { gte: start, lte: end }
-  return { OR: [{ issueDate: range }, { deliveryDate: range }, { servicePeriodEnd: range }] }
+  // Tier 914: an igL delivered in the month before, invoiced later, is the period's too
+  const iglRange = { gte: new Date(start.getFullYear(), start.getMonth() - 1, 1), lte: end }
+  return {
+    OR: [
+      { issueDate: range }, { deliveryDate: range }, { servicePeriodEnd: range },
+      { euTransaction: true, deliveryDate: iglRange }, { euTransaction: true, servicePeriodEnd: iglRange },
+    ],
+  }
 }
 
 export const within = (d: Date, start: Date, end: Date) => d.getTime() >= start.getTime() && d.getTime() <= end.getTime()
