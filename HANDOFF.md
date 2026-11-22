@@ -2673,6 +2673,27 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 910 — the Hebesatz of a year: entered for a year, it holds from then on, and the years before keep theirs
+
+- **Measured:**
+  - The Hebesatz was one number (`settings.hebesatz`, Tier 651), read for every year.
+  - A GmbH entered its municipality's new 470 % with the 2026 GewSt settings.
+  - Its 2025 KSt 1 was then computed anew at 470 %: GewSt 14 000 € became 16 450 €. The same went for the amount to pay and the tax provision of a year already closed. The Anlage G and the GewSt 1A of earlier years moved the same way.
+  - The page said „Der Hebesatz gilt für alle Jahre“.
+- **Now:**
+  - `PUT /accounting/gewst/settings` names a year, and the Hebesatz goes into `settings.hebesatzAb[year]`.
+  - `accounting/hebesatz.ts` `hebesatzOf(settings, year)` reads the latest entry not after the year. A year before the first entry keeps the old single number, else 400.
+  - KSt 1 and Anlage G (and the GewSt 1A through it) read it by their year.
+  - The hint (de / en / zh) says it holds from the year shown until a later one.
+  - No migration. A stored `settings.hebesatz` is left as it is.
+- **Specs 396 / 497:** they read `settings->>'hebesatz'` from the database to check that a write was not lost. They now read `settings->'hebesatzAb'->>'2026'`.
+- **Spec 598:** on the old code 3 assertions fail.
+  - 2025 stays at 400 % / 14 000 after 470 % is entered for 2026.
+  - 2026 and 2027 are at 470 %.
+  - 450 % entered for 2025 gives GewSt 15 750 and leaves 2026 at 470.
+  - An old single 480 % holds for 2024–2026 until 490 % is entered for 2026; 2025 then keeps 480.
+- Locally: 598, 396, 497, 385 (Tier 651) and every spec touching the Hebesatz, GewSt, KSt 1, Anlage G, GuV or Bilanz, plus the guards: 100 ok. Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 909 — the One-Stop-Shop by date: joining or leaving applies from the first of a month, and each sale to a consumer abroad is the OSS's by its own day
 
 This is the same kind of fault as Tier 908, for `Company.ossVerfahren` (Tier 649).

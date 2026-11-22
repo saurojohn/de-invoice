@@ -45,7 +45,8 @@ for i in $(seq 1 10); do
   send PUT "/api/v1/accounting/kst1/vorauszahlungen?companyId=$C" "$KST" > "$D/st.6" &
   wait
   [ "$(cat "$D"/st.* | tr -d '\n')" = "200200200200200200" ] || bad=$((bad + 1))
-  got=$(q "select concat_ws('/', settings->>'anlageV', settings->'datev'->>'beraterNr', settings->>'hebesatz', settings->'timeRounding'->>'minutes', settings->'dunning'->>'level1Days', settings->'kstVorauszahlungen'->'2026'->>'q1') from \"Company\" where id='$C'")
+  # (Tier 910: the Hebesatz is kept per year, settings.hebesatzAb)
+  got=$(q "select concat_ws('/', settings->>'anlageV', settings->'datev'->>'beraterNr', settings->'hebesatzAb'->>'2026', settings->'timeRounding'->>'minutes', settings->'dunning'->>'level1Days', settings->'kstVorauszahlungen'->'2026'->>'q1') from \"Company\" where id='$C'")
   [ "$got" = "true/12345/450/15/14/200" ] || { lost=$((lost + 1)); note "round $i: $got"; }
 done
 assert_eq "every save answered 200" "$bad" "0"

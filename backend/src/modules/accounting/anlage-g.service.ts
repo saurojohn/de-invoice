@@ -18,6 +18,7 @@ import { afaOfYear, NOT_AFA_BOOKING } from './booked-afa'
 import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 import { homeOfficeDeduction } from '../home-office/home-office'
+import { hebesatzOf } from './hebesatz'
 
 /**
  * Tier 438 — Anlage G counted costs as profit.
@@ -669,10 +670,7 @@ export class AnlageGService {
       select: { settings: true },
     })
     const settings = (company?.settings as any) || {}
-    const hebesatz =
-      typeof settings.hebesatz === 'number' && settings.hebesatz > 0
-        ? settings.hebesatz
-        : 400
+    const hebesatz = hebesatzOf(settings, year) // Tier 910: the year's
     const gewerbesteuerMesszahl = 0.035
     // Tier 438: the Hebesatz is a percentage (was × 400).
     const gewerbesteuerSchaetzung = round2(

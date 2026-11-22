@@ -81,6 +81,7 @@ import { Require } from '../../auth/roles.decorator';
 import { cleanRow as cleanSoRow } from './anlage-so-rules';
 import { AnlageSOV2Service } from './anlage-so-v2.service';
 import { companySettingsTransaction } from '../../common/company-settings'
+import { hebesatzOf } from './hebesatz'
 
 const WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -1668,9 +1669,13 @@ export class AccountingController {
         ...settings,
         gewstVorauszahlungen: vorauszahlungenAll,
       }
-      // Tier 651: the Hebesatz is the municipality's and holds for every year
-      // until it is changed; a body without it leaves it as it is.
-      if (body.hebesatz !== undefined) next.hebesatz = body.hebesatz
+      // Tier 651: the Hebesatz is the municipality's; a body without it leaves it as it is.
+      // Tier 910: it holds from the year it is entered for until a later one
+      // (accounting/hebesatz.ts) — the years before keep theirs.
+      if (body.hebesatz !== undefined) {
+        const byYear = settings.hebesatzAb && typeof settings.hebesatzAb === 'object' ? settings.hebesatzAb : {}
+        next.hebesatzAb = { ...byYear, [String(body.year)]: body.hebesatz }
+      }
       await tx.company.update({
         where: { id: companyId },
         data: { settings: next } as any,
@@ -1679,7 +1684,7 @@ export class AccountingController {
         ok: true,
         year: body.year,
         vorauszahlungen: vorauszahlungenAll[body.year],
-        hebesatz: typeof next.hebesatz === 'number' ? next.hebesatz : 400,
+        hebesatz: hebesatzOf(next, body.year),
       }
     })
   }

@@ -3547,7 +3547,7 @@
     "totals": "汇总",
     "generatedAt": "生成于",
     "hebesatzLabel": "所在市镇的 Hebesatz（营业税征收率）",
-    "hebesatzHint": "见营业税核定通知书。未填写时按 400 % 计算。该数值对所有年度有效，也用于 Anlage G 和 KSt 1。",
+    "hebesatzHint": "见营业税核定通知书。未填写时按 400 % 计算。该数值从当前显示的年度起生效，直到为之后某一年度填写新的数值；之前的年度保持原值。也用于 Anlage G 和 KSt 1。",
     "hebesatzInvalid": "Hebesatz 须为 200 到 1000 之间的整数。",
     "fehlbetrag": "营业收益 {ertrag} 欧元 — 扣除以前年度的亏损（Fehlbetrag，§ 10a GewStG）：{anfang} 欧元中的 {abzug} 欧元（{quelle}）；截至 {year} 年 12 月 31 日结转：{ende} 欧元。"
   },

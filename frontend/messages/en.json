@@ -3547,7 +3547,7 @@
     "totals": "Summary",
     "generatedAt": "Generated",
     "hebesatzLabel": "Hebesatz of the municipality",
-    "hebesatzHint": "It is stated in the trade tax assessment. While nothing is entered, 400 % is used. The Hebesatz holds for every year and for Anlage G and KSt 1 as well.",
+    "hebesatzHint": "It is stated in the trade tax assessment. While nothing is entered, 400 % is used. It holds from the year shown until another is entered for a later year — the years before keep theirs. It also applies to Anlage G and KSt 1.",
     "hebesatzInvalid": "The Hebesatz is a whole number between 200 and 1000.",
     "fehlbetrag": "Trade income {ertrag} € — less the Fehlbetrag of the years before (§ 10a GewStG): {abzug} € of {anfang} € ({quelle}); carried forward at 31.12.{year}: {ende} €."
   },

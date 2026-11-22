@@ -79,8 +79,9 @@ AS PUT "/api/v1/accounting/gewst/settings?companyId=$C" '{"year":2026,"q1":0,"q2
 assert_eq "fixture: a Hebesatz saved" "$STATUS" "200"
 put 2026 "$(tx 'ETH Verlust' 2026-01-10 3000 2026-06-10 1000)"
 assert_eq "the carryforward stored" "$(stored)" '{"2026":2000}'
+# (Tier 910: the Hebesatz is kept per year, settings.hebesatzAb)
 assert_eq "… and the Hebesatz, and the rows, are where they were" \
-  "$(SQL "SELECT (settings->>'hebesatz') || '|' || jsonb_array_length(settings->'anlageSO'->'2026'->'transactions') FROM \"Company\" WHERE id = '$C'")" "410|1"
+  "$(SQL "SELECT (settings->'hebesatzAb'->>'2026') || '|' || jsonb_array_length(settings->'anlageSO'->'2026'->'transactions') FROM \"Company\" WHERE id = '$C'")" "410|1"
 
 # entries left from the time when a look at an empty year stored what it carried
 SQL "UPDATE \"Company\" SET settings = jsonb_set(settings, '{anlageSOLossCarryforward}', '{\"2026\":2000,\"2027\":4000,\"2028\":4000}'::jsonb) WHERE id = '$C'" >/dev/null

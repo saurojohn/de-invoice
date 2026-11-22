@@ -3547,7 +3547,7 @@
     "totals": "Zusammenfassung",
     "generatedAt": "Erstellt",
     "hebesatzLabel": "Hebesatz der Gemeinde",
-    "hebesatzHint": "Er steht im Gewerbesteuerbescheid. Solange nichts eingetragen ist, wird mit 400 % gerechnet. Der Hebesatz gilt für alle Jahre und auch für Anlage G und KSt 1.",
+    "hebesatzHint": "Er steht im Gewerbesteuerbescheid. Solange nichts eingetragen ist, wird mit 400 % gerechnet. Er gilt ab dem angezeigten Jahr, bis für ein späteres Jahr ein anderer eingetragen wird — die Jahre davor behalten ihren. Er gilt auch für Anlage G und KSt 1.",
     "hebesatzInvalid": "Der Hebesatz ist eine ganze Zahl zwischen 200 und 1000.",
     "fehlbetrag": "Gewerbeertrag {ertrag} € — davon abgezogen der Fehlbetrag aus den Vorjahren (§ 10a GewStG): {abzug} € von {anfang} € ({quelle}); vorzutragen zum 31.12.{year}: {ende} €."
   },

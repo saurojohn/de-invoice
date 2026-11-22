@@ -11,6 +11,7 @@ import { GuVService } from './guv.service'
 import { shareWhileRunning } from '../../common/shared-while-running'
 import { Response } from 'express'
 import PDFDocument from 'pdfkit'
+import { hebesatzOf } from './hebesatz'
 
 /**
  * Tier 102: KSt 1 (Körperschaftsteuererklärung).
@@ -260,10 +261,7 @@ export class KSt1Service {
     // User adjusts via Company.settings.hebesatz
     // — Köln 470, München 490, etc.
     const settings = (company.settings as any) || {}
-    const hebesatz =
-      typeof settings.hebesatz === 'number' && settings.hebesatz > 0
-        ? settings.hebesatz
-        : 400
+    const hebesatz = hebesatzOf(settings, year) // Tier 910: the year's
 
     // KSt-Korrekturen: v1 all placeholder (Berater
     // ergänzt aus den Verträgen / Verlustvorträgen
