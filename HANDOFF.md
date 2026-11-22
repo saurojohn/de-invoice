@@ -2673,6 +2673,19 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 929b — CI green for Tiers 924–929, the Docker images again too, no flaky
+
+| Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |
+|---|---|---|---|---|
+| 45037414855 | 924 | 44b3ee81 | **611 / 0 / 1** | **1181 passed (45.0 m)** |
+| 45041734842 | 925–927 | e9338aee | **613 / 0 / 1** | **1181 passed (31.8 m)** |
+| 45045128012 | 928 | b28a295a | **614 / 0 / 1** | **1181 passed (34.6 m)** — „Docker images" failed (Trivy, Tier 929) |
+| 45049488139 | 929 | 5b24e423 | **615 / 0 / 1** | **1181 passed (47.2 m)** — „Docker images" green |
+
+- Every run: 0 flaky, no retry, and the dependency audit passed.
+- The CI waiter (`ci-wait.sh`) now reports every workflow of a commit, not ci.yml alone.
+- The dev database (`de-invoice-postgres`) has not had the Tier 928 migration — it comes with the next start (migrate deploy) and fills the two columns of every issued invoice from its customer.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 929 — the images' Debian packages are never older than a day
 
 - **Measured:** the „Docker images" workflow failed on Tier 919 (440e331d) and Tier 928 (b28a295a) — unnoticed for two runs, the CI waiter read ci.yml only. Trivy: the backend image held `openjdk-17-jre-headless` 17.0.21+9-1~deb12u1 with three CRITICAL CVEs (CVE-2026-114820, -114938, -91403) whose fixes Debian has released. The workflows build with the GitHub Actions cache (`cache-from: type=gha`): the runtime stage's apt layer was the one of the day it was first built. `release.yml` builds the production images the same way — they would have shipped it.
