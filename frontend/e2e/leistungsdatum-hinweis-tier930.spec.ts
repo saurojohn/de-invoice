@@ -28,6 +28,11 @@ test("a Leistungsdatum two years back is pointed out, one of this month is not",
   await expect(delivery).toBeVisible({ timeout: 90_000 })
   await expect(page.getByTestId("invoice-supply-far")).toHaveCount(0)
   const year = new Date().getFullYear() - 2
-  await delivery.fill(`${year}-06-15`)
-  await expect(page.getByTestId("invoice-supply-far")).toContainText(`06/${year}`)
+  // the form sets its defaults (Leistungsdatum today) once it has loaded — a
+  // value typed before that is overwritten (CI, run 45055259681: flaky), so
+  // the date is entered until it stays
+  await expect(async () => {
+    await delivery.fill(`${year}-06-15`)
+    await expect(page.getByTestId("invoice-supply-far")).toContainText(`06/${year}`, { timeout: 1_000 })
+  }).toPass({ timeout: 30_000 })
 })
