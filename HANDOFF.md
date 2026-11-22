@@ -2673,6 +2673,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 931b — CI green for Tiers 930–931, no flaky
+
+| Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |
+|---|---|---|---|---|
+| 45055259681 | 930 | 74cd8e05 | **616 / 0 / 1** | **1181 passed, 1 flaky** (the new spec, Tier 930b) |
+| 45058948427 | 930b | a76652d2 | **616 / 0 / 1** | **1182 passed (40.8 m)** |
+| 45063662338 | 928b | 96a131f9 | **617 / 0 / 1** | **1182 passed (47.8 m)** |
+| 45068934162 | 931 | b1ccf27a | **618 / 0 / 1** | **1182 passed (47.0 m)** |
+
+- From 930b on: 0 flaky, no retry; the dependency audit passed; the Docker images green since Tier 929 (run 45049488227, no finding in either image).
+- The advance invoice / Mindest-Ist / Storno cluster (Tiers 919–924, 931) and the kept customer data (928, 928b) are closed; what is left are the user's decisions (HANDOFF 923b).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 931 — a prepaid shop order to a consumer abroad, cancelled before shipping (OSS)
 
 - **Measured:** paid today, to be shipped next quarter, cancelled today — OSS this quarter +200 € (the payment, Tier 922), next quarter −200 € (the credit note at the supply, Tier 923): a negative line of France in the quarter of a supply that will not come, the tax of the advance declared meanwhile.
