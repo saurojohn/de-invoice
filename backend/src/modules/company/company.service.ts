@@ -223,6 +223,10 @@ export class CompanyService {
       where: { id },
       select: { gewinnermittlung: true, rechtsform: true, settings: true, legalName: true, name: true },
     });
+    // Review of Tier 915: the settings page sends the whole form — the method
+    // unchanged and no year given is no change (an unrelated save pulled a switch
+    // planned for next year into this one)
+    if (!('gewinnermittlungAb' in data) && (data.gewinnermittlung ?? null) === (stored?.gewinnermittlung ?? null)) return out;
     const nextCompany = { ...(stored ?? {}), ...data, settings: stored?.settings };
     if (euerNotAllowedFor(resolveRechtsform(nextCompany).rechtsform)) return out; // a Kaufmann keeps books every year
     const thisYear = Number(businessTodayIso().slice(0, 4));

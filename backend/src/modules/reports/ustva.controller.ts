@@ -154,7 +154,9 @@ export class UstvaController {
         delete s.ustvaRhythmusAb
       } else if (body.ustvaRhythmus !== undefined) {
         const y = body.year ?? thisYear
-        if (!rhythmOfYear(s, y)) s.ustvaRhythmus = body.ustvaRhythmus
+        // the first one set for this year is every year's; one set for next
+        // year only is next year's (review of Tier 917 — it changed this year too)
+        if (!rhythmOfYear(s, y) && y <= thisYear) s.ustvaRhythmus = body.ustvaRhythmus
         else if (rhythmOfYear(s, y) !== body.ustvaRhythmus) {
           const map = s.ustvaRhythmusAb && typeof s.ustvaRhythmusAb === 'object' && !Array.isArray(s.ustvaRhythmusAb) ? { ...s.ustvaRhythmusAb } : {}
           map[String(y)] = body.ustvaRhythmus

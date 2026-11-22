@@ -2673,6 +2673,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 932 — what the review of Tiers 914–931 found
+
+A review of the diff 25a641a1..931b (four angles: line by line, removed behaviour, callers, conventions) — 7 findings; fixed:
+- **Tier 915:** a change of the Gewinnermittlung planned for next year was pulled into this year by the next save of the settings page (it sends the whole form, `gewinnermittlung` included). Measured: wechsel [{2027, bilanz}] → [] and Anlage G 2026 „bilanz“. `withGewinnermittlungWechsel` returns at once when no year is given and the method sent is the stored one.
+- **Tier 917:** the first UStVA rhythm set — for next year — was stored as the single value, every year's: this year's deadlines changed at once. One set for next year with nothing stored goes into `ustvaRhythmusAb` only.
+- **Tier 921:** the Mindest-Ist lock refused a payment that carries no VAT (a Kleinunternehmer's or a § 13b / export advance invoice) in a submitted month — only an invoice with VAT, not reverse charge, now.
+- **Tier 917:** in a year set to „none“ after a filing one, last year's December return disappeared once its due date passed — it stays overdue until filed.
+
+Left, as found: a credit note without a reference and with a later Leistungsdatum is in the UStVA by its date, in the GuV by the Leistungsdatum (rare: a manual credit note); a recurring run that issues does not check the submitted-period lock (pre-existing, a catch-up after days of downtime); the frontend edits did not consult the bundled Next.js docs (frontend/AGENTS.md) — plain React state, nothing version-specific.
+
+**Spec 620:** on the Tier 931b code 5 assertions fail. 603, 605, 609, 612, the deadline specs 502–508, 596 / 597 and the guards pass; Playwright gewinnermittlung-nach-jahr-tier915 and filing-deadlines-tier801 pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 931b — CI green for Tiers 930–931, no flaky
 
 | Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |

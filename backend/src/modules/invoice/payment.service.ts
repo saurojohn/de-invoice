@@ -187,7 +187,7 @@ export class PaymentService {
     // advance on a Proforma (§ 13 Abs. 1 Nr. 1 a Satz 4). A credit note
     // settling its invoice / applied credit is no receipt.
     if (!['Gutschrift', 'Guthaben', ADVANCE_SETTLEMENT_METHOD].includes(data.paymentMethod)
-      && (invoice.type === 'PI' || taxedOnReceipt(invoice, data.paymentDate) // Tier 921: before the supply (Mindest-Ist)
+      && (invoice.type === 'PI' || (Number(invoice.totalVat) > 0 && !invoice.reverseCharge && taxedOnReceipt(invoice, data.paymentDate)) // Tier 921: before the supply (Mindest-Ist), where it carries VAT
         || (await besteuerungsartOn(this.prisma, companyId))(invoice.issueDate) === 'ist')) { // Tier 908: taxed on receipt
       await assertPeriodOpen(this.prisma, companyId, [data.paymentDate], 'das Buchen einer Zahlung');
     }
@@ -588,7 +588,7 @@ export class PaymentService {
   async delete(paymentId: string, companyId: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { invoice: { select: { companyId: true, total: true, type: true, customerId: true, invoiceNumber: true, issueDate: true, deliveryDate: true, servicePeriodEnd: true, euTransaction: true } } },
+      include: { invoice: { select: { companyId: true, total: true, type: true, customerId: true, invoiceNumber: true, issueDate: true, deliveryDate: true, servicePeriodEnd: true, euTransaction: true, totalVat: true, reverseCharge: true } } },
     });
     if (!payment || payment.invoice.companyId !== companyId) {
       throw new NotFoundException('Zahlung nicht gefunden');
@@ -626,7 +626,7 @@ export class PaymentService {
       }
     }
     if (!['Gutschrift', 'Guthaben'].includes(payment.paymentMethod)
-      && (payment.invoice.type === 'PI' || taxedOnReceipt(payment.invoice, payment.paymentDate) // Tier 921
+      && (payment.invoice.type === 'PI' || (Number(payment.invoice.totalVat) > 0 && !payment.invoice.reverseCharge && taxedOnReceipt(payment.invoice, payment.paymentDate)) // Tier 921
         || (await besteuerungsartOn(this.prisma, companyId))(payment.invoice.issueDate) === 'ist')) { // Tier 908
       await assertPeriodOpen(this.prisma, companyId, [payment.paymentDate], 'das Löschen einer Zahlung'); // Tier 537
     }

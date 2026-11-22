@@ -188,7 +188,7 @@ export class FilingDeadlinesService {
         } else if (due >= today) {
           out.push(item('ustva', per, end, due, 'open'))
           ustvaDefault ??= per
-        } else if (firstFiled && end > firstFiled && rhythm !== 'none') {
+        } else if (firstFiled && end > firstFiled) { // (a year of 'none' after a filing one: its last returns stay overdue until filed)
           out.push(item('ustva', per, end, due, 'overdue'))
           ustvaDefault ??= per
         }
