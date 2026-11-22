@@ -464,7 +464,26 @@ export class OssService {
         referenceInvoice: { select: { id: true, issueDate: true, euTransaction: true } },
         items: { select: { vatRate: true, netAmount: true, vatAmount: true, grossAmount: true, quantity: true, unitPrice: true } },
       },
-    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end)).map(asIssued))
+    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end) || within(cn.issueDate, start, end)).map(asIssued))
+    // Tier 931: a credit note before the supply of a sale paid in advance (a
+    // cancelled shop order, Tier 922 declared its payment) corrects the part
+    // paid in its own quarter — against the payment's quarter; the rest goes
+    // with the supply (Tier 923), as the UStVA (Tier 924). It stood as a
+    // negative line of the supply's quarter.
+    const preSupply = creditNotes.filter((cn) => creditNoteDay(cn).getTime() > cn.issueDate.getTime() && cn.referenceInvoiceId)
+    const refPayments = preSupply.length
+      ? await this.prisma.payment.findMany({
+        where: { invoiceId: { in: preSupply.map((cn) => cn.referenceInvoiceId!) }, paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS } },
+        select: { invoiceId: true, amount: true, paymentDate: true },
+        orderBy: { paymentDate: 'asc' },
+      })
+      : []
+    const refTotals = new Map(
+      preSupply.length
+        ? (await this.prisma.invoice.findMany({ where: { id: { in: preSupply.map((cn) => cn.referenceInvoiceId!) } }, select: { id: true, total: true } }))
+          .map((r) => [r.id, Number(r.total)] as [string, number])
+        : [],
+    )
     const corrections = new Map<string, { country: string; year: number; quarter: number; net: number; vat: number }>()
     for (const cn of creditNotes) {
       const country = consumerAbroad(cn.customer, homeCountry)
@@ -472,30 +491,42 @@ export class OssService {
       if (!country || !ref) continue
       // Tier 923: the sale's quarter is its supply's (Tier 912) — a credit note
       // carries its sale's supply dates
-      const saleDay = supplyDay(cn)
-      const sameQuarter = within(saleDay, start, end)
-      // a correction of an earlier quarter at that quarter's rate
-      const f = sameQuarter
-        ? await eurFactor(cn, year, quarter)
-        : await eurFactor(cn, saleDay.getUTCFullYear(), Math.floor(saleDay.getUTCMonth() / 3) + 1)
-      for (const bucket of invoiceTaxBreakdown(cn).byRate) {
-        if (!ossOnDay(ref.issueDate) && bucket.rate > 0 && isGermanRate(bucket.rate, ref.issueDate)) continue
-        if (sameQuarter) {
-          let items = countryItems.get(country)
-          if (!items) {
-            items = []
-            countryItems.set(country, items)
+      const supply = supplyDay(cn)
+      const parts: Array<{ k: number; saleDay: Date }> = []
+      if (creditNoteDay(cn).getTime() > cn.issueDate.getTime()) {
+        const paid = refPayments.filter((p) => p.invoiceId === ref.id && p.paymentDate.getTime() <= cn.issueDate.getTime())
+        const total = refTotals.get(ref.id) ?? 0
+        const prepaid = total > 0 ? Math.min(1, paid.reduce((sum, p) => sum + Number(p.amount), 0) / total) : 0
+        if (prepaid > 0 && within(cn.issueDate, start, end)) parts.push({ k: prepaid, saleDay: paid[paid.length - 1].paymentDate })
+        if (prepaid < 1 && within(supply, start, end)) parts.push({ k: 1 - prepaid, saleDay: supply })
+      } else if (within(cn.issueDate, start, end)) {
+        parts.push({ k: 1, saleDay: supply })
+      }
+      for (const { k, saleDay } of parts) {
+        const sameQuarter = within(saleDay, start, end)
+        // a correction of an earlier quarter at that quarter's rate
+        const f = sameQuarter
+          ? await eurFactor(cn, year, quarter)
+          : await eurFactor(cn, saleDay.getUTCFullYear(), Math.floor(saleDay.getUTCMonth() / 3) + 1)
+        for (const bucket of invoiceTaxBreakdown(cn).byRate) {
+          if (!ossOnDay(ref.issueDate) && bucket.rate > 0 && isGermanRate(bucket.rate, ref.issueDate)) continue
+          if (sameQuarter) {
+            let items = countryItems.get(country)
+            if (!items) {
+              items = []
+              countryItems.set(country, items)
+            }
+            // under the sale's id: the line's count stays the number of sales
+            items.push({ invoiceId: ref.id, vatRate: bucket.rate, net: bucket.net * f * k, vat: bucket.vat * f * k, gross: (bucket.net + bucket.vat) * f * k })
+          } else {
+            const y = saleDay.getUTCFullYear()
+            const qu = Math.floor(saleDay.getUTCMonth() / 3) + 1
+            const key = `${country}|${y}|${qu}`
+            const c = corrections.get(key) ?? { country, year: y, quarter: qu, net: 0, vat: 0 }
+            c.net += bucket.net * f * k
+            c.vat += bucket.vat * f * k
+            corrections.set(key, c)
           }
-          // under the sale's id: the line's count stays the number of sales
-          items.push({ invoiceId: ref.id, vatRate: bucket.rate, net: bucket.net * f, vat: bucket.vat * f, gross: (bucket.net + bucket.vat) * f })
-        } else {
-          const y = saleDay.getUTCFullYear()
-          const qu = Math.floor(saleDay.getUTCMonth() / 3) + 1
-          const key = `${country}|${y}|${qu}`
-          const c = corrections.get(key) ?? { country, year: y, quarter: qu, net: 0, vat: 0 }
-          c.net += bucket.net * f
-          c.vat += bucket.vat * f
-          corrections.set(key, c)
         }
       }
     }
