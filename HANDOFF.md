@@ -2673,6 +2673,19 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 917 — the UStVA rhythm of a calendar year
+
+- **The gap** (noted in Tier 913b as „still single-valued“): the Voranmeldungszeitraum is set for a calendar year (§ 18 Abs. 2 UStG). It was one value, `settings.ustvaRhythmus`, read for every period.
+  - A company that went from monthly to quarterly with the new year was told on 5 January that Q3 last year was overdue and Q4 due on 10 February — and not that December's return was due on the 10th.
+  - The calendar feed listed next year's returns in this year's rhythm.
+- **Now** (filing-deadlines.ts):
+  - `rhythmOfYear(settings, year)`: `settings.ustvaRhythmusAb` (`{ "2027": "quarterly" }`) holds from its year until a later one; the years before the first keep the single value.
+  - `endedUstvaPeriods(today, rhythmOf)`: the ended periods looked at, each in the rhythm of its own year — across the turn of the year, and a year with „none“ after a monthly one still shows December.
+  - The calendar continues into next year with `rhythmNextYear`.
+- **Setting** (`PUT /ustva/filing-settings`): `year` (this one or the next; else 400). The first rhythm ever set applies to every year, as before; a change goes into `ustvaRhythmusAb`; null clears both (the books decide again).
+- **UStVA page:** the rhythm card has a year select (this year / next year), de / en / zh.
+- **Spec 605:** on the Tier 916 code 8 assertions fail (the periods, the setting, the calendar). The January cases are run through `endedUstvaPeriods` directly (there is no clock to set in the backend).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 916 — Anlage G of a balance-sheet sole trader by the year of the supply; the Übergangsgewinn counts such a supply
 
 - **Measured:** Tier 913 put a GmbH's revenue into the year of its supply (GuV, Bilanz). The Anlage G of a sole trader who keeps books (§ 5 EStG — the same rule, § 252 Abs. 1 Nr. 4 HGB) still read the issue date.

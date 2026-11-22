@@ -4688,7 +4688,9 @@
     "markFiled": "标记为已申报",
     "unmarkFiled": "取消“已申报”标记",
     "markedFiled": "已标记为已申报——不再提醒",
-    "unmarkedFiled": "标记已取消"
+    "unmarkedFiled": "标记已取消",
+    "settingsRhythmYear": "预申报周期所属年度",
+    "settingsRhythmFor": "{year} 年"
   },
   "abstimmung": {
     "title": "凭证库与报表对账",

@@ -8,7 +8,7 @@ import {
   Period, UstvaRhythm, daysBetween, lastEndedPeriod, ossDeadline, periodContaining, periodEnd, periodName, previousPeriod,
   ustvaDeadline, zmDeadline, annualReturnDeadline, sondervorauszahlungDeadline, isoDay,
   prepaymentDeadline, prepaymentTaxOf, addDaysIso, allocatePrepayments, PREPAYMENT_EARLY_DAYS, type PrepaymentTax,
-  zmMonthly, filedKey, ZM_MONTHLY_THRESHOLD,
+  zmMonthly, filedKey, ZM_MONTHLY_THRESHOLD, rhythmOfYear, endedUstvaPeriods,
 } from './filing-deadlines'
 
 /**
@@ -47,10 +47,7 @@ export interface FilingDeadline {
   amount?: number
 }
 
-const RHYTHMS: UstvaRhythm[] = ['monthly', 'quarterly', 'none']
 const SUBMITTED = ['submitted', 'accepted']
-/** How many ended periods are looked at for a missing UStVA. */
-const LOOKBACK = { monthly: 3, quarterly: 2 } as const
 
 export const NOTES = {
   'zm-monthly': `Innergemeinschaftliche Warenlieferungen über ${ZM_MONTHLY_THRESHOLD.toLocaleString('de-DE')} € im laufenden Quartal oder in einem der vier davor — die ZM ist monatlich abzugeben (§ 18a Abs. 1 UStG).`,
@@ -98,8 +95,10 @@ export class FilingDeadlinesService {
 
     let rhythm: UstvaRhythm
     let rhythmSource: 'setting' | 'filings' | 'kleinunternehmer' | 'default'
-    if (RHYTHMS.includes(s.ustvaRhythmus as UstvaRhythm)) {
-      rhythm = s.ustvaRhythmus as UstvaRhythm
+    // Tier 917: the rhythm of this year (rhythmOfYear)
+    const setRhythm = rhythmOfYear(s, year)
+    if (setRhythm) {
+      rhythm = setRhythm
       rhythmSource = 'setting'
     } else {
       const last = await this.prisma.uStvaFiling.findFirst({
@@ -141,6 +140,8 @@ export class FilingDeadlinesService {
       kleinunternehmer: company?.defaultVatMode === 'kleinunternehmer',
       rhythm,
       rhythmSource,
+      // Tier 917: next year's, when a change is set for it
+      rhythmNextYear: rhythmOfYear(s, year + 1) ?? rhythm,
       dauerfrist,
       dauerfristSource,
       bundesland: company?.bundesland ?? null,
@@ -161,7 +162,11 @@ export class FilingDeadlinesService {
 
     // UStVA — the ended periods still to be filed, then the running one
     let ustvaDefault: Period | null = null
-    if (rhythm !== 'none') {
+    // Tier 917: each period in the rhythm of its year (endedUstvaPeriods)
+    const thisYear = Number(today.slice(0, 4))
+    const rhythmOf = (y: number): UstvaRhythm => (y === thisYear ? rhythm : rhythmOfYear(raw, y) ?? rhythm)
+    const ended = endedUstvaPeriods(today, rhythmOf)
+    if (ended.length > 0 || rhythm !== 'none') {
       const filings = await this.prisma.uStvaFiling.findMany({
         where: { companyId, status: { in: SUBMITTED } },
         select: { year: true, month: true, quarter: true, submittedAt: true },
@@ -174,9 +179,6 @@ export class FilingDeadlinesService {
         .filter((f) => f.month != null || f.quarter != null)
         .map((f) => endOf({ year: f.year, month: f.month ?? undefined, quarter: f.month == null ? f.quarter ?? undefined : undefined }))
         .sort()[0]
-      const ended: Period[] = []
-      let p = lastEndedPeriod(today, rhythm)
-      for (let i = 0; i < LOOKBACK[rhythm]; i++) { ended.unshift(p); p = previousPeriod(p) }
       for (const per of ended) {
         const due = ustvaDeadline(per, dauerfrist, land)
         const end = endOf(per)
@@ -186,14 +188,16 @@ export class FilingDeadlinesService {
         } else if (due >= today) {
           out.push(item('ustva', per, end, due, 'open'))
           ustvaDefault ??= per
-        } else if (firstFiled && end > firstFiled) {
+        } else if (firstFiled && end > firstFiled && rhythm !== 'none') {
           out.push(item('ustva', per, end, due, 'overdue'))
           ustvaDefault ??= per
         }
       }
-      const running = periodContaining(today, rhythm)
-      out.push(item('ustva', running, endOf(running), ustvaDeadline(running, dauerfrist, land), 'running'))
-      ustvaDefault ??= lastEndedPeriod(today, rhythm)
+      if (rhythm !== 'none') {
+        const running = periodContaining(today, rhythm)
+        out.push(item('ustva', running, endOf(running), ustvaDeadline(running, dauerfrist, land), 'running'))
+      }
+      ustvaDefault ??= ended[ended.length - 1] ?? null
     }
 
     // ZM (Tier 807: monthly or quarterly by § 18a Abs. 1 Sätze 2, 3 UStG) —

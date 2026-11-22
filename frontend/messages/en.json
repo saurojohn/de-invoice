@@ -4688,7 +4688,9 @@
     "markFiled": "Mark as filed",
     "unmarkFiled": "Remove the “filed” mark",
     "markedFiled": "Marked as filed — no more reminders",
-    "unmarkedFiled": "Mark removed"
+    "unmarkedFiled": "Mark removed",
+    "settingsRhythmYear": "Calendar year of the VAT return rhythm",
+    "settingsRhythmFor": "for {year}"
   },
   "abstimmung": {
     "title": "Journal ↔ reports reconciliation",

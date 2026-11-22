@@ -7,6 +7,8 @@ import type { Response } from 'express';
 import { UstvaService } from './ustva.service';
 import { SaveUstvaFilingDto, RecordUstvaPaymentDto, CreateUstPaymentDto, ReleaseFilingDto, UstvaFilingSettingsDto, MarkReturnFiledDto } from './dto/ustva.dto';
 import { FilingDeadlinesService } from './filing-deadlines.service';
+import { rhythmOfYear } from './filing-deadlines';
+import { businessTodayIso } from '../../common/business-date';
 import { FilingDeadlineMailService } from './filing-deadline-mail.service';
 import { FilingCalendarService } from './filing-calendar.service';
 import { AuditService } from '../audit/audit.service';
@@ -132,14 +134,34 @@ export class UstvaController {
   @Require('company.update')
   async putFilingSettings(@Query('companyId') companyId: string, @Body() body: UstvaFilingSettingsDto, @Req() req: any) {
     if (!companyId) throw new BadRequestException('companyId ist erforderlich')
+    const thisYear = Number(businessTodayIso().slice(0, 4))
+    if (body.year !== undefined && body.year !== thisYear && body.year !== thisYear + 1) {
+      throw new BadRequestException(`Der Voranmeldungszeitraum gilt für ein Kalenderjahr — dieses oder das nächste (year: ${thisYear} oder ${thisYear + 1}).`)
+    }
     const prev = await updateCompanySettings(this.prisma, companyId, (s) => {
       const old = {
         ustvaRhythmus: s.ustvaRhythmus ?? null,
+        ustvaRhythmusAb: s.ustvaRhythmusAb ?? null,
         dauerfristverlaengerung: s.dauerfristverlaengerung ?? null,
         jahreserklaerungDurchBerater: s.jahreserklaerungDurchBerater ?? null,
         fristErinnerungMail: s.fristErinnerungMail ?? null,
       }
-      for (const key of ['ustvaRhythmus', 'dauerfristverlaengerung', 'jahreserklaerungDurchBerater', 'fristErinnerungMail'] as const) {
+      // Tier 917: the rhythm is a year's (filing-deadlines.ts rhythmOfYear). The
+      // first one set applies to every year, as before; a change from a year
+      // on, the years before keep theirs; null clears both (the books decide).
+      if (body.ustvaRhythmus === null) {
+        delete s.ustvaRhythmus
+        delete s.ustvaRhythmusAb
+      } else if (body.ustvaRhythmus !== undefined) {
+        const y = body.year ?? thisYear
+        if (!rhythmOfYear(s, y)) s.ustvaRhythmus = body.ustvaRhythmus
+        else if (rhythmOfYear(s, y) !== body.ustvaRhythmus) {
+          const map = s.ustvaRhythmusAb && typeof s.ustvaRhythmusAb === 'object' && !Array.isArray(s.ustvaRhythmusAb) ? { ...s.ustvaRhythmusAb } : {}
+          map[String(y)] = body.ustvaRhythmus
+          s.ustvaRhythmusAb = map
+        }
+      }
+      for (const key of ['dauerfristverlaengerung', 'jahreserklaerungDurchBerater', 'fristErinnerungMail'] as const) {
         if (body[key] === undefined) continue
         if (body[key] === null) delete s[key]
         else s[key] = body[key]

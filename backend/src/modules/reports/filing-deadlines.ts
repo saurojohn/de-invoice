@@ -370,3 +370,60 @@ export function dueReminders<T extends RemindableRow>(rows: T[], sent: Set<strin
   }
   return out
 }
+
+/**
+ * Tier 917 — the UStVA rhythm of a year.
+ *
+ * The Voranmeldungszeitraum is set for a calendar year (§ 18 Abs. 2 UStG: the
+ * quarter, the month when last year's tax was over 7 500 €). It was one value,
+ * `settings.ustvaRhythmus`, read for every period: a company that went from
+ * monthly to quarterly with the new year was told in January that the
+ * quarters of last year were overdue, and not that December's return was due
+ * on the 10th.
+ *
+ * A change is kept in `settings.ustvaRhythmusAb` ({ "2027": "quarterly" }):
+ * it holds from its year until a later one; the years before the first keep
+ * the single value. null when nothing is set (the books decide).
+ */
+const RHYTHM_VALUES: UstvaRhythm[] = ['monthly', 'quarterly', 'none']
+export function rhythmOfYear(settings: Record<string, unknown>, year: number): UstvaRhythm | null {
+  const raw = settings.ustvaRhythmusAb
+  const byYear = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
+  let best: { y: number; r: UstvaRhythm } | null = null
+  for (const [k, v] of Object.entries(byYear)) {
+    const y = Number(k)
+    if (!Number.isInteger(y) || y > year || !RHYTHM_VALUES.includes(v as UstvaRhythm)) continue
+    if (!best || y > best.y) best = { y, r: v as UstvaRhythm }
+  }
+  if (best) return best.r
+  return RHYTHM_VALUES.includes(settings.ustvaRhythmus as UstvaRhythm) ? (settings.ustvaRhythmus as UstvaRhythm) : null
+}
+
+/**
+ * Tier 917 — the ended UStVA periods to look at on a day, oldest first, each
+ * in the rhythm of its own year: in January after a change from monthly to
+ * quarterly, October to December of last year (not its quarters).
+ */
+export function endedUstvaPeriods(today: string, rhythmOf: (year: number) => UstvaRhythm): Period[] {
+  const year = Number(today.slice(0, 4))
+  const lastOf = (y: number): Period | null => {
+    const r = rhythmOf(y)
+    return r === 'none' ? null : r === 'monthly' ? { year: y, month: 12 } : { year: y, quarter: 4 }
+  }
+  const current = rhythmOf(year)
+  let p: Period | null
+  if (current === 'none') p = lastOf(year - 1)
+  else {
+    const q = lastEndedPeriod(today, current)
+    p = q.year === year ? q : lastOf(q.year)
+  }
+  if (!p) return []
+  const out: Period[] = []
+  let n = p.month ? 3 : 2 // how many ended periods are looked at for a missing UStVA
+  while (p && n-- > 0) {
+    out.unshift(p)
+    const q: Period = previousPeriod(p)
+    p = q.year === p.year ? q : lastOf(q.year)
+  }
+  return out
+}

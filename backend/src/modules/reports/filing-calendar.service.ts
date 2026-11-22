@@ -120,12 +120,17 @@ export class FilingCalendarService {
       rows.push(row)
     }
 
-    // the UStVA periods after the running one
+    // the UStVA periods after the running one — next year's in next year's
+    // rhythm (Tier 917, filing-deadlines.ts rhythmOfYear)
     if (rhythm !== 'none') {
-      let p = periodContaining(today, rhythm)
-      for (let i = 0; i < 13; i++) {
-        p = nextPeriod(p)
-        add('ustva', p, ustvaDeadline(p, dauerfrist, land), null)
+      let p: Period | null = periodContaining(today, rhythm)
+      for (let i = 0; i < 13 && p; i++) {
+        const q: Period = nextPeriod(p)
+        if (q.year !== p.year) {
+          const r = d.rhythmNextYear
+          p = r === 'none' ? null : r === 'monthly' ? { year: q.year, month: 1 } : { year: q.year, quarter: 1 }
+        } else p = q
+        if (p) add('ustva', p, ustvaDeadline(p, dauerfrist, land), null)
       }
     }
     // OSS: the running quarter and those after it, for a company in the scheme

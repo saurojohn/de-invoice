@@ -26,9 +26,13 @@ export default function FilingSettingsCard({ initial, onSaved }: { initial: Fili
   const { t } = useI18n()
   const toast = useToast()
   const [saving, setSaving] = useState(false)
+  // Tier 917: the rhythm is set for a calendar year (§ 18 Abs. 2 UStG) — this one or the next
+  const [rhythmYear, setRhythmYear] = useState<"this" | "next">("this")
   if (!initial) return null
+  const thisYear = Number(initial.today.slice(0, 4))
+  const shownRhythm = rhythmYear === "next" ? initial.rhythmNextYear ?? initial.rhythm : initial.rhythm
 
-  const save = async (patch: { ustvaRhythmus?: UstvaRhythm; dauerfristverlaengerung?: boolean; jahreserklaerungDurchBerater?: boolean; fristErinnerungMail?: boolean }) => {
+  const save = async (patch: { ustvaRhythmus?: UstvaRhythm; year?: number; dauerfristverlaengerung?: boolean; jahreserklaerungDurchBerater?: boolean; fristErinnerungMail?: boolean }) => {
     const companyId = localStorage.getItem("companyId")
     if (!companyId) return
     setSaving(true)
@@ -51,15 +55,26 @@ export default function FilingSettingsCard({ initial, onSaved }: { initial: Fili
           <label className="flex flex-wrap items-center gap-2 min-w-0">
             <span>{t("deadlines.settingsRhythm")}</span>
             <select
-              value={initial.rhythm}
+              value={shownRhythm}
               disabled={saving}
-              onChange={(e) => save({ ustvaRhythmus: e.target.value as UstvaRhythm })}
+              onChange={(e) => save({ ustvaRhythmus: e.target.value as UstvaRhythm, year: rhythmYear === "next" ? thisYear + 1 : thisYear })}
               className="max-w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
               data-testid="ustva-rhythm"
             >
               <option value="monthly">{t("deadlines.settingsMonthly")}</option>
               <option value="quarterly">{t("deadlines.settingsQuarterly")}</option>
               <option value="none">{t("deadlines.settingsNone")}</option>
+            </select>
+            <select
+              value={rhythmYear}
+              disabled={saving}
+              onChange={(e) => setRhythmYear(e.target.value as "this" | "next")}
+              aria-label={t("deadlines.settingsRhythmYear")}
+              className="max-w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
+              data-testid="ustva-rhythm-year"
+            >
+              <option value="this">{t("deadlines.settingsRhythmFor", { year: thisYear })}</option>
+              <option value="next">{t("deadlines.settingsRhythmFor", { year: thisYear + 1 })}</option>
             </select>
             <span className="text-xs text-gray-500" data-testid="ustva-rhythm-source">{t(SOURCE_KEY[initial.rhythmSource])}</span>
           </label>

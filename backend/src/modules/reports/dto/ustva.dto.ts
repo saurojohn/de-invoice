@@ -287,6 +287,14 @@ export class UstvaFilingSettingsDto {
   @IsIn(['monthly', 'quarterly', 'none'])
   ustvaRhythmus?: 'monthly' | 'quarterly' | 'none' | null
 
+  // Tier 917: the year from which the rhythm applies (this one or the next;
+  // default this one) — filing-deadlines.ts rhythmOfYear
+  @IsOptional()
+  @StrictNumber() @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number
+
   @IsOptional()
   @StrictBoolean()
   @IsBoolean()

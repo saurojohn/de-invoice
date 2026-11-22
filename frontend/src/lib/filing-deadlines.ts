@@ -33,6 +33,8 @@ export interface FilingDeadlines {
   kleinunternehmer: boolean
   rhythm: UstvaRhythm
   rhythmSource: "setting" | "filings" | "kleinunternehmer" | "default"
+  /** Tier 917: next year's rhythm (a change set for it, else this year's) */
+  rhythmNextYear?: UstvaRhythm
   dauerfrist: boolean
   dauerfristSource: "setting" | "sondervorauszahlung" | "default"
   bundesland: string | null

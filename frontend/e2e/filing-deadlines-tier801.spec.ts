@@ -115,6 +115,18 @@ test("the rhythm and the Dauerfristverlängerung are set on the UStVA page", asy
   await expect(page.getByTestId("ustva-rhythm-source")).toHaveText("festgelegt", { timeout: 30_000 })
   await expect(rhythm).toHaveValue(other)
 
+  // Tier 917: a rhythm for next year — this year's stays
+  const year = Number(d.today.slice(0, 4))
+  await page.getByTestId("ustva-rhythm-year").selectOption("next")
+  const savedNext = page.waitForResponse((r) => r.url().includes("/api/v1/ustva/filing-settings") && r.request().method() === "PUT", { timeout: 60_000 })
+  await rhythm.selectOption(d.rhythm)
+  const next = await savedNext
+  expect(next.status()).toBe(200)
+  expect(next.request().postDataJSON()).toEqual({ ustvaRhythmus: d.rhythm, year: year + 1 })
+  await expect(rhythm).toHaveValue(d.rhythm, { timeout: 30_000 })
+  await page.getByTestId("ustva-rhythm-year").selectOption("this")
+  await expect(rhythm).toHaveValue(other)
+
   const dauerfrist = page.getByTestId("ustva-dauerfrist")
   const wasOn = await dauerfrist.isChecked()
   const saved2 = page.waitForResponse((r) => r.url().includes("/api/v1/ustva/filing-settings") && r.request().method() === "PUT", { timeout: 60_000 })
