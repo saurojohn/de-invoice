@@ -640,7 +640,9 @@ export class KassenbuchService {
     notes?: string | null
   }) {
     const existing = await this.prisma.cashBookEntry.findFirst({ where: { id, companyId } })
-    if (existing && existing.vatRate != null && !existing.invoiceId && !existing.expenseId) {
+    // Tier 927: …also one that gets a rate now — a cash sale without VAT of a
+    // submitted month given 19 % changed that return (measured: 200, Kz 81 0 → 100)
+    if (existing && (existing.vatRate != null || patch.vatRate != null) && !existing.invoiceId && !existing.expenseId) {
       await assertPeriodOpen(this.prisma, companyId, [existing.businessDate], 'das Ändern einer Kassenbuchung mit Umsatzsteuer') // Tier 537
     }
     if (!existing) throw new NotFoundException('Entry not found')

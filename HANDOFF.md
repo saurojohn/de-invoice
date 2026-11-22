@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 927 — a cash entry of a submitted month does not get a VAT rate
+
+- **Measured:** a Kassenbuch entry without VAT may be booked into a submitted month (it is in no line of the UStVA — Tier 537). Changing one locked only an entry that already had a rate: last month submitted, a cash sale of last month without VAT given 19 % — 200, and the submitted return changed under it (Kz 81 0 → 100).
+- `KassenbuchService.updateEntryLocked`: the lock applies to an entry that has a rate or gets one. (The date of an entry cannot be changed; an expense's edit checks the old and the new invoice date already.)
+- **Spec 614:** on the Tier 926 code 3 assertions fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 926 — an issued invoice's supply is not moved into a submitted month
 
 - **Measured:** an issued invoice may still be edited on its issue day. The lock of a submitted UStVA period (Tiers 537 / 914) looked at its dates before the edit only. Last month submitted; an invoice of today (Leistungsdatum today) given a Leistungsdatum of last month — 200, and the submitted return changed under it (Kz 81 0 → 100). (A draft with such a date was refused when issued — Tier 914.)
