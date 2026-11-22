@@ -7,6 +7,7 @@ import { ExchangeRateService } from '../exchange-rate/exchange-rate.service'
 import { invoiceEurFactor } from '../invoice/tax-breakdown'
 import { businessTodayIso } from '../../common/business-date'
 import { ossOn } from '../../common/oss-period'
+import { supplyPeriodWhere, ustvaDay, within } from './supply-period'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -278,7 +279,8 @@ export class OssService {
     const invoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
-        issueDate: { gte: start, lte: end },
+        // Tier 912: the quarter of the supply (supply-period.ts), filtered below
+        ...supplyPeriodWhere(start, end),
         // status filter excludes 'cancelled' but
         // we still pull 'draft' so we can count
         // them in the excludedDraft bucket.
@@ -304,7 +306,7 @@ export class OssService {
           },
         },
       },
-    })
+    }).then((rows) => rows.filter((inv) => within(ustvaDay(inv), start, end)))
 
     // Filter into buckets. We count every category
     // of exclusion so the UI / CSV can surface

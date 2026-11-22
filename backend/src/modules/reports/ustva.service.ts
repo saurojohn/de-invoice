@@ -16,6 +16,7 @@ import { cashBookings } from '../cashbook/cash-bookings';
 import { istPaidDocuments } from './ustva-ist';
 import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
 import { taxedAbroad } from './oss-scope';
+import { SUPPLY_SELECT, supplyPeriodWhere, ustvaDay, within } from './supply-period';
 import { OSS_SELECT, ossOn } from '../../common/oss-period';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
@@ -236,7 +237,8 @@ export class UstvaService {
     const salesInvoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
-        issueDate: { gte: start, lte: end },
+        // Tier 912: by the period of the supply (supply-period.ts), filtered below
+        ...supplyPeriodWhere(start, end),
         status: { in: ['paid', 'sent', 'overdue'] }, // finalized
         // Tier 424: invoices and Quittungen. A Proforma is no invoice and owes
         // no tax — it was declared, while a Quittung's VAT was not.
@@ -253,8 +255,8 @@ export class UstvaService {
       // and customer were read: twelve months took ~2,4 s at 700 invoices a
       // month, most of it in turning rows into objects, for the Bilanz, the
       // Anhang, the E-Bilanz and the UStJA each.
-      select: USTVA_DOC_SELECT,
-    });
+      select: { ...USTVA_DOC_SELECT, ...SUPPLY_SELECT },
+    }).then((rows) => rows.filter((inv) => within(ustvaDay(inv), start, end)));
 
     const creditNotes = await this.prisma.invoice.findMany({
       where: {

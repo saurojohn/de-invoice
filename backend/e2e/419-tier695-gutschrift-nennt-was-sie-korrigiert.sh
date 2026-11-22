@@ -62,7 +62,8 @@ assert_eq "the PDF: the account as Bankverbindung, no Zahlungsinformationen" "$(
 curl -sS "$API/api/v1/invoices/$CN_A/xrechnung?companyId=$C" -H "x-user-id: $U" -H "x-company-id: $C" -o "$WORK/a.xml"
 assert_eq "XRechnung: the period of the service is 28.05. (was the credit note's day)" \
   "$(python3 -c "import re,sys;x=open(sys.argv[1]).read();m=re.search(r'<cac:InvoicePeriod>\s*<cbc:StartDate>([^<]+)</cbc:StartDate>\s*<cbc:EndDate>([^<]+)<',x);print(m and m.group(1)+'/'+m.group(2))" "$WORK/a.xml")" "2026-05-28/2026-05-28"
-assert_eq "the correction stays in the month of the credit note (§ 17 UStG)" "$(ust 2026 6)/$(python3 -c "print('%g' % ($OCT_BEFORE - $(ust "$YEAR" "$MONTH")))")" "190/190"
+# Tier 912: the invoice is in the month of its supply (28.05.), not of its issue (01.06.)
+assert_eq "the invoice in May, its supply's month; the correction stays in the month of the credit note (§ 17 UStG)" "$(ust 2026 5)/$(ust 2026 6)/$(python3 -c "print('%g' % ($OCT_BEFORE - $(ust "$YEAR" "$MONTH")))")" "190/0/190"
 curl -sS "$API/api/v1/invoices/$A/pdf?companyId=$C" -H "x-user-id: $U" -H "x-company-id: $C" -o "$WORK/inv.pdf"
 assert_eq "the invoice itself still asks to be paid (Zahlungsinformationen)" "$(pdf_text "$WORK/inv.pdf" --lines | grep -c 'Zahlungsinformationen:')" "1"
 

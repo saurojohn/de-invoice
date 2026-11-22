@@ -2673,6 +2673,34 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 912 — an invoice is in the UStVA / UStJA / OSS of the period of its supply, not of its issue date
+
+- **Measured:** the returns read the issue date only. Tier 492 / 696 noted it: „nothing reads `deliveryDate` there“.
+  - A supply of last month (Leistungsdatum the 20th), invoiced today, was declared this month.
+  - A Leistungszeitraum that ended last month, invoiced today, was declared this month too.
+  - A supply of last December invoiced this year stood in this year's UStJA. That is the usual case at the turn of the year (the year-end dry run above noted „December goes in the Leistungsdatum“).
+- **The law (§ 13 Abs. 1 Nr. 1 a UStG):** under Soll-Versteuerung the tax arises with the end of the period in which the supply was made.
+  - Exception: an innergemeinschaftliche Lieferung is declared in the period of the invoice (§ 18b Satz 2 UStG, as in the ZM).
+  - Exception: a credit note belongs to the period of the change it records (§ 17 Abs. 1 Satz 7 UStG).
+- **Now:**
+  - `reports/supply-period.ts` defines the day of the supply: `servicePeriodEnd ?? deliveryDate ?? issueDate`. `ustvaDay` takes the issue date for an igL.
+  - The UStVA (and so the UStJA, which computes the year) and the OSS report select invoices by that day: a wide `OR` on the three dates, then filtered.
+  - Credit notes, Ist-Versteuerung (payments), the Proforma advances, the ZM and the DATEV export are unchanged.
+  - The „MwSt“ tab of Berichte stays a list of the invoices issued in the period.
+- **Consequence:** an invoice written after its supply period was filed changes that period. The UStVA page then shows it as needing a Berichtigung (Tier 449), which is what the Finanzamt expects.
+- **Spec 600:**
+  - Last month: 1 000 (Leistungsdatum) + 200 (Leistungszeitraum).
+  - This month: 50 (no date of supply), and Kz 41 300 (the igL with its invoice).
+  - Last December: 400, also in last year's UStJA and not in this year's.
+  - A credit note on the first invoice lands in this month.
+- **Spec 419 (Tier 695):** its 01.06. invoice for a supply of 28.05. is now in May. The assertion reads May 190, June 0, and the credit note still lands in the current month.
+- **Spec 600:** on the old code 5 assertions fail.
+- **Locally:**
+  - The whole backend suite (598): all ok but 87, which fails as always locally.
+  - 191 and 342 failed in the batch. The recreated `env.sh` lacked `BACKEND_PORT=3011`, so `_lib.sh`'s `kill_backend` looked at :3001 (another project, correctly left alone) and the restarts never took over :3011. Once the port was added, both passed. 192 passed alone.
+  - Playwright, every spec on UStVA / UStJA / OSS / Leistungsdatum (289): 288 passed. `recurring-invoices` „run-now“ failed because its seed template is re-created by tier136 / tier147, which were not in the selection; CI runs them in order.
+  - Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 911 — Zusammenveranlagung by year: chosen on a year's page, it holds from that year on
 
 This is the same kind of fault as Tier 910, for `settings.zusammenveranlagung` (Tier 670 / 672).
