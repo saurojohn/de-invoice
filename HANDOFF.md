@@ -2673,6 +2673,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 920 — erhaltene Anzahlungen net of their VAT (Nettomethode)
+
+- **Measured:** the Bilanz showed an advance received gross — a Proforma's payment (Tier 470) and, since Tier 919, a Vorausrechnung paid before its supply — while its VAT, declared when received, also stood in the Umsatzsteuer owed („Sonstige Verbindlichkeiten“). 1 190 € received were 1 380 € of debts; the Saldoposten took the difference.
+- Since BilMoG the net method is the only one (the gross one with an active RAP for the VAT, § 250 Abs. 1 Satz 2 Nr. 2 HGB a. F., is gone). DATEV books it so too (1718 net, the tax split off by its key). Decided as the accountant.
+- `BilanzService`: the Proforma payments, the settlements of a final invoice (Tier 472) and the Tier 919 prepayments are taken at their net share (EUR).
+- Spec 256 (Tier 470) expected the gross 1 190 → 1 000; spec 607 (Tier 919) 2 380 → 2 000.
+- **Spec 608:** on the Tier 919 code 2 assertions fail.
+- **Open, not built:** the DATEV export leaves the column „Leistungsdatum“ empty — DATEV then has the Belegdatum, while the UStVA here assigns by the supply (Tier 912). The field's format could not be read from DATEV's developer portal (its format pages need a sign-in); a community report says TTMMJJJJ. To be filled once the format description is at hand.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 919b — CI green for Tiers 914–919, no flaky
 
 | Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |

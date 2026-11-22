@@ -57,7 +57,8 @@ assert_eq "one row 1200 / 1718, 1190, H (money out of the bank)" \
 
 note "=== Bilanz ==="
 AS GET "/api/v1/accounting/bilanz?companyId=$C&year=2025"
-assert_eq "31.12.2025: 4200 owes 1190" "$(P "[l['amount'] for s in d['passiva'] for l in s['lines'] if l['position']=='4200'][0]")" "1190"
+# Tier 920: net — the 190 € VAT of the advance are in the Umsatzsteuer owed
+assert_eq "31.12.2025: 4200 owes 1000 net (1190 gross before Tier 920)" "$(P "[l['amount'] for s in d['passiva'] for l in s['lines'] if l['position']=='4200'][0]")" "1000"
 AS GET "/api/v1/accounting/bilanz?companyId=$C&year=2026"
 assert_eq "31.12.2026: nothing owed" "$(P "[l['amount'] for s in d['passiva'] for l in s['lines'] if l['position']=='4200'][0]")" "0"
 

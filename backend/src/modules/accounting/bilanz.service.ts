@@ -353,14 +353,14 @@ export class BilanzService {
 
     // Tier 470: payments received on a Proforma are advance payments — owed
     // to the customer (goods or services still to deliver) until the final
-    // invoice settles them. Gross, as received; in EUR per the Proforma's rate.
+    // invoice settles them. In EUR per the Proforma's rate; net (Tier 920, below).
     const advanceRows = await this.prisma.payment.findMany({
       where: {
         paymentDate: { lte: snapshot },
         paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
         invoice: { companyId, type: 'PI', status: { notIn: ['draft', 'cancelled'] } },
       },
-      select: { amount: true, invoice: { select: { total: true, eurTotal: true } } },
+      select: { amount: true, invoice: { select: { total: true, eurTotal: true, totalVat: true, eurTotalVat: true } } },
     })
     // Tier 472: …less what a final invoice has deducted by then (its
     // 'Anzahlung' payment; the receivable above is net of it).
@@ -370,24 +370,34 @@ export class BilanzService {
         paymentDate: { lte: snapshot },
         invoice: { companyId, status: { notIn: ['draft', 'cancelled'] }, advanceInvoiceId: { not: null } },
       },
-      select: { amount: true, invoice: { select: { advanceInvoice: { select: { total: true, eurTotal: true } } } } },
+      select: { amount: true, invoice: { select: { advanceInvoice: { select: { total: true, eurTotal: true, totalVat: true, eurTotalVat: true } } } } },
     })
-    const toEur = (amount: unknown, doc: { total: unknown; eurTotal: unknown } | null | undefined) => {
+    // Tier 920: net of its VAT (Nettomethode — the only one HGB allows since
+    // BilMoG): the VAT of an advance is declared when received and stands in
+    // the Umsatzsteuer owed (below); gross, it was on the Passiva twice.
+    // As DATEV books it (1718 netto, the tax split off by the key).
+    type Doc = { total: unknown; eurTotal: unknown; totalVat?: unknown; eurTotalVat?: unknown }
+    const toEur = (amount: unknown, doc: Doc | null | undefined) => {
       const total = Number(doc?.total ?? 0)
-      const f = doc?.eurTotal != null && total > 0 ? Number(doc.eurTotal) / total : 1
-      return Number(amount) * f
+      if (!(total > 0)) return Number(amount)
+      const net = doc?.eurTotal != null
+        ? Number(doc.eurTotal) - Number(doc.eurTotalVat ?? 0)
+        : total - Number(doc?.totalVat ?? 0)
+      return Number(amount) * (net / total)
     }
     // Tier 919: …and the payments received on an invoice whose supply is
     // after the snapshot (a Vorausrechnung paid in advance) — no revenue yet,
-    // owed to the customer until the supply (§ 266 Abs. 3 C. 3 HGB). Gross, in EUR.
+    // owed to the customer until the supply (§ 266 Abs. 3 C. 3 HGB). In EUR,
+    // net (Tier 920 — its VAT is in the Umsatzsteuer owed).
     const [prepaid] = await this.prisma.$queryRaw<{ amount: unknown }[]>`
-      SELECT COALESCE(SUM(y.amount * CASE WHEN i."eurTotal" IS NOT NULL AND i.total > 0 THEN i."eurTotal" / i.total ELSE 1 END), 0) AS amount
+      SELECT COALESCE(SUM(y.amount / i.total * (COALESCE(i."eurTotal", i.total) - COALESCE(i."eurTotalVat", i."totalVat"))), 0) AS amount
       FROM "Payment" y JOIN "Invoice" i ON i.id = y."invoiceId"
       WHERE i."companyId" = ${companyId}
         AND i.status NOT IN ('draft', 'cancelled')
         AND i.type IN (${Prisma.join(CLAIM_TYPES)})
         AND y."paymentDate" <= ${snapshot}
         AND y."paymentMethod" NOT IN (${Prisma.join(NON_CASH_PAYMENT_METHODS)})
+        AND i.total > 0
         AND COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate") > ${snapshot}`
     const erhalteneAnzahlungen =
       advanceRows.reduce((s, p) => s + toEur(p.amount, p.invoice), 0)

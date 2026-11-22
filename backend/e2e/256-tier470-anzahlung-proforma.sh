@@ -51,8 +51,9 @@ assert_eq "1200 an 1718, 1190 S, 10.12. (was no row)" \
 
 note "=== Bilanz: owed to the customer until the final invoice ==="
 AS GET "/api/v1/accounting/bilanz?companyId=$C&year=2025"
-assert_eq "4200 Erhaltene Anzahlungen 1190 (was null)" \
-  "$(P "[l['amount'] for s in d['passiva'] for l in s['lines'] if l['position']=='4200'][0]")" "1190"
+# Tier 920: net — the 190 € VAT of the advance are in the Umsatzsteuer owed
+assert_eq "4200 Erhaltene Anzahlungen 1000 (was null; gross 1190 before Tier 920)" \
+  "$(P "[l['amount'] for s in d['passiva'] for l in s['lines'] if l['position']=='4200'][0]")" "1000"
 
 note "=== Ist-Versteuerung: the same advance, taxed once ==="
 AS PUT "/api/v1/companies/$C?companyId=$C" '{"besteuerungsart":"ist"}'
