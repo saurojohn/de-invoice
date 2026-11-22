@@ -1,4 +1,5 @@
 import { customerSnapshot } from '../invoice/customer-as-issued'
+import { assertPeriodOpen, invoiceLockDates } from '../reports/filed-period'
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { KleinunternehmerService } from '../accounting/kleinunternehmer.service'
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
@@ -1178,6 +1179,11 @@ export class RecurringService {
         }, co ?? {}, cu)
         const refusal = kuCheck?.(Number(toEur4(subtotal4)))
         if (refusal) throw new BadRequestException(refusal)
+        // Tier 933: not into a submitted UStVA period — the issue day, and the
+        // supply (a period billed in arrears after a catch-up), as a manual issue
+        await assertPeriodOpen(tx, companyId, await invoiceLockDates(tx, companyId, {
+          type: 'INV', issueDate, euTransaction: vat.euTransaction, ...this.servicePeriodFor(tpl, periodStart, periodEnd),
+        }), 'das Ausstellen einer Rechnung')
       }
 
       // Tier 848: the lines of a template name their product by its number

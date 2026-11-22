@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 933 — an issuing recurring run respects a submitted UStVA period
+
+- From the review (Tier 932): a recurring template that issues its invoices (`invoiceStatus: 'sent'`) wrote them without the lock of a submitted period, which refuses a manual issue (Tiers 537 / 914). Measured: the current month submitted, „run now“ issued an invoice into it (201).
+- `RecurringService` checks `invoiceLockDates` (the issue day and the supply — a period billed in arrears after a catch-up) with the mandatory details; refused, the run fails with the Tier 537 message and is tried again on the next tick, as for missing details.
+- The review's other point (a credit note of no invoice, by its date in the UStVA, by the Leistungsdatum in the GuV) cannot arise: creating a credit note without the invoice it corrects is refused („Eine Gutschrift braucht die Rechnung, die sie berichtigt“). Nothing changed.
+- **Spec 621:** on the Tier 932 code 3 assertions fail. The recurring specs and the guards pass. CI of Tier 932 (run 45074355500): backend **619 / 0 / 1**, Playwright **1182 passed (39.9 m)**, 0 flaky.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 932 — what the review of Tiers 914–931 found
 
 A review of the diff 25a641a1..931b (four angles: line by line, removed behaviour, callers, conventions) — 7 findings; fixed:
