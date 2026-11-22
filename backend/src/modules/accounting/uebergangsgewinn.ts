@@ -79,17 +79,30 @@ export async function uebergangsgewinn(db: Db, companyId: string, w: GewinnWechs
       AND (e."paidAt" IS NULL OR e."paidAt" >= ${start})`)
   // Tier 919: paid in advance for a supply of the new year — counted as
   // income by the EÜR when received, by the Bilanz again with the supply
+  // (Tier 924: less what a credit note took back before the change — owed back, no Anzahlung)
   const [adv] = await db.$queryRaw<{ net: unknown }[]>(Prisma.sql`
     SELECT COALESCE(SUM(
-      y.amount / i.total * (COALESCE(i."eurTotal", i.total) - COALESCE(i."eurTotalVat", i."totalVat"))
+      GREATEST(p.paid - COALESCE(c.credited, 0), 0) / i.total * (COALESCE(i."eurTotal", i.total) - COALESCE(i."eurTotalVat", i."totalVat"))
     ), 0) AS net
-    FROM "Payment" y JOIN "Invoice" i ON i.id = y."invoiceId"
+    FROM "Invoice" i
+    JOIN (
+      SELECT y."invoiceId", SUM(y.amount) AS paid
+      FROM "Payment" y JOIN "Invoice" o ON o.id = y."invoiceId"
+      WHERE o."companyId" = ${companyId}
+        AND y."paymentDate" < ${start}
+        AND y."paymentMethod" NOT IN (${Prisma.join(NON_CASH_PAYMENT_METHODS)})
+      GROUP BY 1
+    ) p ON p."invoiceId" = i.id
+    LEFT JOIN (
+      SELECT n."referenceInvoiceId" AS rid, SUM(-n.total) AS credited
+      FROM "Invoice" n
+      WHERE n."companyId" = ${companyId} AND n.type = 'CN' AND n.status NOT IN ('draft', 'cancelled') AND n."issueDate" < ${start}
+      GROUP BY 1
+    ) c ON c.rid = i.id
     WHERE i."companyId" = ${companyId}
       AND i.status NOT IN ('draft', 'cancelled')
       AND i.type IN (${Prisma.join(CLAIM_TYPES)})
       AND i.total > 0
-      AND y."paymentDate" < ${start}
-      AND y."paymentMethod" NOT IN (${Prisma.join(NON_CASH_PAYMENT_METHODS)})
       AND COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate") >= ${start}`)
   const forderungen = r2(Number(recv.open))
   const verbindlichkeiten = r2(Number(pay.open))

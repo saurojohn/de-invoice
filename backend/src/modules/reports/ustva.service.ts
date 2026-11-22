@@ -320,8 +320,34 @@ export class UstvaService {
         status: { in: ['paid', 'sent', 'overdue'] },
         type: 'CN',
       },
-      select: { ...USTVA_DOC_SELECT, ...SUPPLY_SELECT, referenceInvoice: { select: { euTransaction: true, reverseCharge: true, issueDate: true } } },
-    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end)));
+      select: { ...USTVA_DOC_SELECT, ...SUPPLY_SELECT, referenceInvoiceId: true, referenceInvoice: { select: { euTransaction: true, reverseCharge: true, issueDate: true, total: true } } },
+    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end) || within(cn.issueDate, start, end)));
+    // Tier 924: a credit note before the supply of a Vorausrechnung that was
+    // paid (and so taxed when received, Tier 921) corrects that part in its
+    // own period (§ 17 Abs. 2 Nr. 2 UStG — the advance is to be given back);
+    // the rest goes with the supply (Tier 923).
+    const preSupply = creditNotes.filter((cn) => creditNoteDay(cn).getTime() > cn.issueDate.getTime() && cn.referenceInvoiceId);
+    const refPayments = preSupply.length
+      ? await this.prisma.payment.findMany({
+        where: {
+          invoiceId: { in: preSupply.map((cn) => cn.referenceInvoiceId!) },
+          paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
+        },
+        select: { invoiceId: true, amount: true, paymentDate: true },
+      })
+      : [];
+    const cnShare = (cn: (typeof creditNotes)[number]): { taxed: number; zero: number } => {
+      const day = creditNoteDay(cn);
+      const own = within(cn.issueDate, start, end) ? 1 : 0;
+      if (day.getTime() <= cn.issueDate.getTime() || !cn.referenceInvoiceId) return { taxed: own, zero: own };
+      const total = Number(cn.referenceInvoice?.total ?? 0);
+      const paid = refPayments
+        .filter((p) => p.invoiceId === cn.referenceInvoiceId && p.paymentDate.getTime() <= cn.issueDate.getTime())
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+      const prepaid = total > 0 ? Math.min(1, paid / total) : 0;
+      const atSupply = within(day, start, end) ? 1 : 0;
+      return { taxed: own * prepaid + atSupply * (1 - prepaid), zero: atSupply };
+    };
 
     // Sales by rate — output VAT
     const salesByRateMap = new Map<number, { net: number; vat: number; label: string }>();
@@ -457,11 +483,13 @@ export class UstvaService {
     // Credit notes — subtract from sales (CN items have negative net/vat)
     for (const cn of creditNotes) {
       const f = eurFactor(cn)
+      const k = cnShare(cn) // Tier 924
       // Tier 409: same breakdown; a credit note's buckets are negative.
       for (const bucket of invoiceTaxBreakdown(cn).byRate) {
         const rate = bucket.rate;
-        const net = bucket.net * f;
-        const vat = bucket.vat * f;
+        const net = bucket.net * f * (rate > 0 ? k.taxed : k.zero);
+        const vat = bucket.vat * f * (rate > 0 ? k.taxed : k.zero);
+        if (net === 0 && vat === 0) continue;
         if (rate > 0) {
           if (taxedAtIssue(cn as any)) addTaxed(cn, rate, net, vat); // CN is already negative
         } else {

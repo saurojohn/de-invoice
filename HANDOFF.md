@@ -2673,6 +2673,15 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 924 — a paid Vorausrechnung cancelled before its supply
+
+- **Measured:** paid in full and cancelled before a delivery on 05.01. next year — UStVA this month +1 000 € (the payment, Tier 921), January −1 000 € (the credit note at the supply, Tier 923): the tax of the advance stayed declared until the date of a delivery that will not come. The Bilanz owed the money twice — as an Anzahlung (1 000) and as the customer's credit (1 190) — and the VAT (190) besides.
+- § 17 Abs. 2 Nr. 2 UStG: an advance for a supply not made is to be given back; the tax on it is corrected.
+  - UStVA: a credit note before the supply of a Vorausrechnung corrects the part paid by its date in its own period, the rest with the supply (`cnShare`). A credit note after the supply, or of a sale not paid in advance, as Tier 923.
+  - Bilanz: the Anzahlung of a Vorausrechnung less the credit notes on it by the snapshot (the money is a customer credit then, 4500). The Übergangsgewinn's Anzahlungen likewise.
+- Not done: the OSS return keeps Tier 923 for such a credit note (the part paid is corrected with the supply quarter, not before) — a cancelled prepaid shop order to a consumer abroad.
+- **Spec 612:** on the Tier 923 code 3 assertions fail (full and half paid, the Bilanz).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 923b — CI green for Tiers 920–923, no flaky
 
 | Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |

@@ -389,14 +389,32 @@ export class BilanzService {
     // after the snapshot (a Vorausrechnung paid in advance) — no revenue yet,
     // owed to the customer until the supply (§ 266 Abs. 3 C. 3 HGB). In EUR,
     // net (Tier 920 — its VAT is in the Umsatzsteuer owed).
+    // Tier 924: less what a credit note has taken back by then — the order
+    // cancelled, the money is owed back as a customer credit (4500 above),
+    // no longer an Anzahlung (it stood on both).
     const [prepaid] = await this.prisma.$queryRaw<{ amount: unknown }[]>`
-      SELECT COALESCE(SUM(y.amount / i.total * (COALESCE(i."eurTotal", i.total) - COALESCE(i."eurTotalVat", i."totalVat"))), 0) AS amount
-      FROM "Payment" y JOIN "Invoice" i ON i.id = y."invoiceId"
+      SELECT COALESCE(SUM(
+        GREATEST(p.paid - COALESCE(c.credited, 0), 0) / i.total * (COALESCE(i."eurTotal", i.total) - COALESCE(i."eurTotalVat", i."totalVat"))
+      ), 0) AS amount
+      FROM "Invoice" i
+      JOIN (
+        SELECT y."invoiceId", SUM(y.amount) AS paid
+        FROM "Payment" y JOIN "Invoice" o ON o.id = y."invoiceId"
+        WHERE o."companyId" = ${companyId}
+          AND y."paymentDate" <= ${snapshot}
+          AND y."paymentMethod" NOT IN (${Prisma.join(NON_CASH_PAYMENT_METHODS)})
+        GROUP BY 1
+      ) p ON p."invoiceId" = i.id
+      LEFT JOIN (
+        SELECT n."referenceInvoiceId" AS rid, SUM(-n.total) AS credited
+        FROM "Invoice" n
+        WHERE n."companyId" = ${companyId} AND n.type = 'CN' AND n.status NOT IN ('draft', 'cancelled')
+          AND n."issueDate" <= ${snapshot}
+        GROUP BY 1
+      ) c ON c.rid = i.id
       WHERE i."companyId" = ${companyId}
         AND i.status NOT IN ('draft', 'cancelled')
         AND i.type IN (${Prisma.join(CLAIM_TYPES)})
-        AND y."paymentDate" <= ${snapshot}
-        AND y."paymentMethod" NOT IN (${Prisma.join(NON_CASH_PAYMENT_METHODS)})
         AND i.total > 0
         AND COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate") > ${snapshot}`
     const erhalteneAnzahlungen =
