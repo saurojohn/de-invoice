@@ -136,8 +136,16 @@ FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 WORKDIR /app
 # Tier 569: a Java runtime for the KoSIT validator (the man directory is
 # what the JRE's post-install step expects on a slim image).
-RUN mkdir -p /usr/share/man/man1 \
+# Tier 929: APT_REFRESH (the build day, set by the workflows) is part of this
+# layer, so a cached one is used for a day at most — the Java runtime and the
+# base packages are the current ones of Debian's security updates. Cached,
+# the image kept the JRE of the day the layer was first built (three critical
+# OpenJDK CVEs with fixes released — the image scan failed).
+ARG APT_REFRESH=
+RUN echo "Debian packages as of ${APT_REFRESH:-the build}" \
+  && mkdir -p /usr/share/man/man1 \
   && apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
   && apt-get install -y --no-install-recommends wget ca-certificates openjdk-17-jre-headless \
   && rm -rf /var/lib/apt/lists/* \
   && addgroup --system app && adduser --system --ingroup app app

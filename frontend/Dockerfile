@@ -76,7 +76,13 @@ FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 WORKDIR /app
 # Tier 869: npm leaves the image — `node server.js` never needs it, and its
 # own dependencies were the image's ten HIGH advisories (Trivy)
-RUN apt-get update \
+# Tier 929: the build day (set by the workflows) is part of this layer — a
+# cached one is used for a day at most, the base packages are Debian's
+# current security updates (as the backend image).
+ARG APT_REFRESH=
+RUN echo "Debian packages as of ${APT_REFRESH:-the build}" \
+  && apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
   && apt-get install -y --no-install-recommends wget ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
   && addgroup --system app && adduser --system --ingroup app app \

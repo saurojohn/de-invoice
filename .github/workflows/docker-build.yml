@@ -68,6 +68,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: The build day
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
       - name: Build (${{ matrix.name }})
         uses: docker/build-push-action@v6
         with:
@@ -75,7 +79,11 @@ jobs:
           file: ${{ matrix.dockerfile }}
           # the frontend refuses to build without its public URL (Tier 363);
           # any value will do for a build that is thrown away
-          build-args: ${{ matrix.name == 'frontend' && 'NEXT_PUBLIC_API_URL=https://ci.example.invalid' || '' }}
+          # Tier 929: the build day — the image's apt layer is built anew each day
+          # (cached, the JRE stayed as on the day the layer was first built)
+          build-args: |
+            APT_REFRESH=${{ steps.day.outputs.day }}
+            ${{ matrix.name == 'frontend' && 'NEXT_PUBLIC_API_URL=https://ci.example.invalid' || '' }}
           # the validator's files live outside ./backend (Tier 569)
           build-contexts: ${{ matrix.name == 'backend' && 'kosit=./infra/kosit' || '' }}
           push: false

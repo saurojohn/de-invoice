@@ -87,6 +87,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: The build day
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
       - name: Build & push (${{ matrix.name }})
         uses: docker/build-push-action@v6
         with:
@@ -97,7 +101,10 @@ jobs:
           # silent fallback baked http://localhost:3001 into every image).
           # Set the repository variable NEXT_PUBLIC_API_URL to the public URL
           # before pushing a v* tag; without it this build fails on purpose.
-          build-args: ${{ matrix.name == 'frontend' && format('NEXT_PUBLIC_API_URL={0}', vars.NEXT_PUBLIC_API_URL) || '' }}
+          # Tier 929: the build day — the apt layer is never older than a day
+          build-args: |
+            APT_REFRESH=${{ steps.day.outputs.day }}
+            ${{ matrix.name == 'frontend' && format('NEXT_PUBLIC_API_URL={0}', vars.NEXT_PUBLIC_API_URL) || '' }}
           # Tier 569: the backend image carries the official XRechnung
           # validator; its files live outside ./backend (infra/kosit).
           build-contexts: ${{ matrix.name == 'backend' && 'kosit=./infra/kosit' || '' }}

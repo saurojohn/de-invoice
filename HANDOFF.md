@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 929 — the images' Debian packages are never older than a day
+
+- **Measured:** the „Docker images" workflow failed on Tier 919 (440e331d) and Tier 928 (b28a295a) — unnoticed for two runs, the CI waiter read ci.yml only. Trivy: the backend image held `openjdk-17-jre-headless` 17.0.21+9-1~deb12u1 with three CRITICAL CVEs (CVE-2026-114820, -114938, -91403) whose fixes Debian has released. The workflows build with the GitHub Actions cache (`cache-from: type=gha`): the runtime stage's apt layer was the one of the day it was first built. `release.yml` builds the production images the same way — they would have shipped it.
+- Both Dockerfiles' runtime stage: `ARG APT_REFRESH=` used in the apt layer, which also runs `apt-get upgrade`. `docker-build.yml` and `release.yml` compute the build day (`date -u +%F`) and pass it: a cached apt layer serves a day at most. Without the argument (a local build) nothing changes.
+- **Spec 616** (static): the layer depends on APT_REFRESH and upgrades in both Dockerfiles, both workflows compute and pass the day; on the Tier 928 files 6 assertions fail. The Dockerfile / workflow specs (124, 341, 388, 438, 474, 477, 526, 548, 551, 561) pass.
+- The proof is the next „Docker images" run (this commit changes both Dockerfiles, so it runs).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 928 — the customer as on the day of issue: a move or a new VAT id does not rewrite a submitted return
 
 - **Measured:** the UStVA, the ZM, the OSS return and the DATEV export classify a sale by the customer's country and VAT id — read from the customer as it is today. A sale to a consumer in Paris (OSS, Kz 45), its month submitted; the customer moved to Köln: the month's return said Kz 35 / 36 (domestic tax), the OSS return 0. A business customer's new VAT id rewrote the ZM line of an igL already reported. (The documents were safe — an issued invoice is its kept copy since Tiers 684 / 685.)
