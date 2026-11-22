@@ -2673,6 +2673,18 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 919 — revenue with the supply in the books; an invoice before it is a pending contract, paid an erhaltene Anzahlung
+
+- **Measured:** Tier 913 put revenue at the earlier of the supply and the invoice — right for the UStVA (declared early is never declared late), not for the books. Two invoices of today for deliveries on 05.01. next year (1 000 and 2 000 net, the second paid): GuV this year 3 000, Bilanz a receivable of 1 190 and no Anzahlung.
+- § 252 Abs. 1 Nr. 4 HGB: the revenue is realised with the supply; until then the contract is pending, a payment received an erhaltene Anzahlung (§ 266 Abs. 3 C. 3 HGB). Decided as the accountant.
+  - `bookingDay` (reports/supply-period.ts): the supply day (servicePeriodEnd ?? deliveryDate ?? issueDate), a credit note its own date. GuV and Anlage G (Bilanz) select by it.
+  - Bilanz 1500: a claim only for what was supplied by the snapshot. Passiva „Erhaltene Anzahlungen“: also the payments received by then on invoices whose supply is later (gross, EUR).
+  - The UStVA / UStJA / OSS keep `revenueDay` (Tier 913).
+  - The Übergangsgewinn (Tier 915) takes receivables by their supply and subtracts the Anzahlungen received before the change for a supply after it (net — their VAT is in the VAT owed); shown on the pages and in the PDFs.
+- Not done: a service period across the year end (an annual subscription July–June) is revenue at its end, all of it; a pro-rata split (passive Rechnungsabgrenzung) is the Berater's.
+- Spec 601 (Tier 913) assumed next month is this year — from December it is not; its expectation follows the date now.
+- **Spec 607:** on the Tier 918 code 5 assertions fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 918 — the EÜR of the first year after a Bilanz carries the Übergangsergebnis
 
 - **Measured:** Tier 915 put the Übergangsgewinn into Anlage G only. The EÜR of the first EÜR year after a Bilanz (filed as Anlage EÜR beside Anlage G — the line „Hinzurechnungen und Abrechnungen bei Wechsel der Gewinnermittlungsart“) did not have it: a receivable of last year's Bilanz paid this year was this year's EÜR profit again (800 €, while Anlage G said 0).

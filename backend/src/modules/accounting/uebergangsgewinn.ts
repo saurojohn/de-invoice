@@ -14,13 +14,16 @@
  *   − the Umsatzsteuer still owed to the Finanzamt then (the year's UStVA less
  *     the payments recorded by 31.12., as the Bilanz has it — Tier 506); a
  *     refund due adds
+ *   − Tier 919: what was received before it for a supply after it (net — an
+ *     erhaltene Anzahlung; the EÜR counted it when received, the Bilanz counts
+ *     it with the supply)
  *
  * added on the way to the Bilanz, taken off on the way to the EÜR. An
  * application to spread a gain over three years (R 4.6 Abs. 1 Satz 4 EStR) is
  * the Berater's, as the hint says.
  */
 import { Prisma } from '@prisma/client'
-import { CLAIM_TYPES } from '../invoice/document-scope'
+import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
 import { gewinnermittlungWechselIn, type GewinnWechsel } from '../company/gewinnermittlung'
 
 type Db = { $queryRaw: <T>(q: TemplateStringsArray | Prisma.Sql, ...v: unknown[]) => Promise<T> }
@@ -35,6 +38,8 @@ export interface Uebergang {
   verbindlichkeiten: number
   /** the Umsatzsteuer owed to the Finanzamt at the start of the year `ab` (negative: a refund due) */
   umsatzsteuer: number
+  /** Tier 919: received before the start of the year `ab` for a supply after it (net — its VAT is in `umsatzsteuer`) */
+  anzahlungen: number
   /** added to the profit of the year `ab` (negative: a loss) */
   betrag: number
 }
@@ -59,8 +64,8 @@ export async function uebergangsgewinn(db: Db, companyId: string, w: GewinnWechs
       AND i.status NOT IN ('draft', 'cancelled')
       AND i.type IN (${Prisma.join(CLAIM_TYPES)})
       AND i.total > 0
-      -- Tier 916: supplied or invoiced before (the earlier of the two, as the Bilanz — Tier 913)
-      AND LEAST(i."issueDate", COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate")) < ${start}
+      -- Tier 916 / 919: supplied before (as the Bilanz has its receivables)
+      AND COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate") < ${start}
       -- set to paid by hand, without a payment: settled, we know no date
       AND NOT (i.status = 'paid' AND p."invoiceId" IS NULL)`)
   const [pay] = await db.$queryRaw<{ open: unknown }[]>(Prisma.sql`
@@ -72,13 +77,28 @@ export async function uebergangsgewinn(db: Db, companyId: string, w: GewinnWechs
       AND e."relatedAssetId" IS NULL
       AND e."invoiceDate" < ${start}
       AND (e."paidAt" IS NULL OR e."paidAt" >= ${start})`)
+  // Tier 919: paid in advance for a supply of the new year — counted as
+  // income by the EÜR when received, by the Bilanz again with the supply
+  const [adv] = await db.$queryRaw<{ net: unknown }[]>(Prisma.sql`
+    SELECT COALESCE(SUM(
+      y.amount / i.total * (COALESCE(i."eurTotal", i.total) - COALESCE(i."eurTotalVat", i."totalVat"))
+    ), 0) AS net
+    FROM "Payment" y JOIN "Invoice" i ON i.id = y."invoiceId"
+    WHERE i."companyId" = ${companyId}
+      AND i.status NOT IN ('draft', 'cancelled')
+      AND i.type IN (${Prisma.join(CLAIM_TYPES)})
+      AND i.total > 0
+      AND y."paymentDate" < ${start}
+      AND y."paymentMethod" NOT IN (${Prisma.join(NON_CASH_PAYMENT_METHODS)})
+      AND COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate") >= ${start}`)
   const forderungen = r2(Number(recv.open))
   const verbindlichkeiten = r2(Number(pay.open))
   const sign = w.art === 'bilanz' ? 1 : -1
   const ust = r2(umsatzsteuer)
+  const anzahlungen = r2(Number(adv.net))
   return {
-    ab: w.ab, von: w.vorher, nach: w.art, forderungen, verbindlichkeiten, umsatzsteuer: ust,
-    betrag: r2(sign * (forderungen - verbindlichkeiten - ust)),
+    ab: w.ab, von: w.vorher, nach: w.art, forderungen, verbindlichkeiten, umsatzsteuer: ust, anzahlungen,
+    betrag: r2(sign * (forderungen - verbindlichkeiten - ust - anzahlungen)),
   }
 }
 

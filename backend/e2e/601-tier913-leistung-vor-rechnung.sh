@@ -42,7 +42,9 @@ issue 400 ",\"deliveryDate\":\"$((Y - 1))-12-15\""
 AS GET "/api/v1/accounting/guv?companyId=$C&year=$((Y - 1))"
 assert_eq "GuV $((Y - 1)): Umsatzerlöse 400 (was 0)" "$(python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['umsatzerloese'])" "$BODY")" "400"
 AS GET "/api/v1/accounting/guv?companyId=$C&year=$Y"
-assert_eq "GuV $Y: only the 300 (was 700)" "$(python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['umsatzerloese'])" "$BODY")" "300"
+# Tier 919: the 300 are revenue with their supply (next month) — this year's unless that is January
+[ "${NEXT:0:4}" = "$Y" ] && EXP=300 || EXP=0
+assert_eq "GuV $Y: not the 400 of last year (was 700)" "$(python3 -c "import sys,json;print(json.loads(sys.argv[1])['totals']['umsatzerloese'])" "$BODY")" "$EXP"
 AS GET "/api/v1/accounting/bilanz?companyId=$C&year=$((Y - 1))"
 assert_eq "Bilanz 31.12.$((Y - 1)): a claim of 476 € (was 0)" \
   "$(python3 -c "

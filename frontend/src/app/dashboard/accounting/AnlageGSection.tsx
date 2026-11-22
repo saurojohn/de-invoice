@@ -45,7 +45,7 @@ interface AnlageGResult {
   // Tier 464
   gewinnermittlung?: "euer" | "bilanz"
   // Tier 915: the change of the Gewinnermittlung that takes effect this year
-  uebergang?: { ab: number; von: "euer" | "bilanz"; nach: "euer" | "bilanz"; forderungen: number; verbindlichkeiten: number; umsatzsteuer: number; betrag: number } | null
+  uebergang?: { ab: number; von: "euer" | "bilanz"; nach: "euer" | "bilanz"; forderungen: number; verbindlichkeiten: number; umsatzsteuer: number; anzahlungen?: number; betrag: number } | null
   generatedAt: string
   disclaimer: string
 }
@@ -230,6 +230,7 @@ export function AnlageGSection() {
                     forderungen: fmt(data.uebergang.forderungen),
                     verbindlichkeiten: fmt(data.uebergang.verbindlichkeiten),
                     umsatzsteuer: fmt(data.uebergang.umsatzsteuer),
+                    anzahlungen: fmt(data.uebergang.anzahlungen ?? 0),
                     jahr: data.uebergang.ab,
                   })}
                 </p>

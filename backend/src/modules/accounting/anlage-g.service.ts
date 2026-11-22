@@ -21,7 +21,7 @@ import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 import { homeOfficeDeduction } from '../home-office/home-office'
 import { hebesatzOf } from './hebesatz'
 import { UstvaService } from '../reports/ustva.service'
-import { revenueDay, supplyPeriodWhere, within } from '../reports/supply-period'
+import { bookingDay, supplyPeriodWhere, within } from '../reports/supply-period'
 
 /**
  * Tier 438 — Anlage G counted costs as profit.
@@ -433,7 +433,7 @@ export class AnlageGService {
           deliveryDate: true, servicePeriodEnd: true,
           referenceInvoice: { select: { issueDate: true, reverseCharge: true, euTransaction: true } }, // Tier 844
         },
-      }).then((rows) => rows.filter((inv) => within(inv.type === 'CN' ? inv.issueDate : revenueDay(inv), yearStart, yearEnd)))
+      }).then((rows) => rows.filter((inv) => within(bookingDay(inv), yearStart, yearEnd))) // Tier 919: by the supply
       // Tier 411: revenue after the discount and in EUR (was subtotal).
       revenueRows = invoices.map((inv) => ({ invoice: inv, amount: invoiceNetRevenue(inv) }))
       invoiceCount = invoices.length
@@ -803,7 +803,7 @@ export class AnlageGService {
       doc.fontSize(10).font('Helvetica').text(
         `Übergangsgewinn (Wechsel ${data.uebergang.von === 'euer' ? 'EÜR → Bilanz' : 'Bilanz → EÜR'}, R 4.6 EStR): ` +
         `${this.fmtEur(data.uebergang.betrag)} € — offene Forderungen ${this.fmtEur(data.uebergang.forderungen)} €, ` +
-        `unbezahlte Ausgaben ${this.fmtEur(data.uebergang.verbindlichkeiten)} €, Umsatzsteuer-Schuld ${this.fmtEur(data.uebergang.umsatzsteuer)} € zum 01.01.${data.uebergang.ab}`,
+        `unbezahlte Ausgaben ${this.fmtEur(data.uebergang.verbindlichkeiten)} €, Umsatzsteuer-Schuld ${this.fmtEur(data.uebergang.umsatzsteuer)} €, erhaltene Anzahlungen ${this.fmtEur(data.uebergang.anzahlungen)} € (netto) zum 01.01.${data.uebergang.ab}`,
       )
       doc.moveDown(0.6)
     }

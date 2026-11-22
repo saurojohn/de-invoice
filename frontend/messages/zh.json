@@ -3107,8 +3107,8 @@
     "nachRechnungsdatum": "按发票日期计入（资产负债表法）——利润计算方式见设置。",
     "matchedMiete": "租金/租赁账目",
     "generatedAt": "生成时间",
-    "uebergangZurBilanz": "自 {jahr} 年起改为资产负债表法：利润中已含过渡利润 {betrag}——{jahr} 年 1 月 1 日未收应收款 {forderungen}，减去未付支出 {verbindlichkeiten} 及应缴增值税 {umsatzsteuer}（R 4.6 EStR）。分三年摊销由税务顾问处理。",
-    "uebergangZurEuer": "自 {jahr} 年起改为收支盈余计算（EÜR）：利润中已含过渡亏损 {betrag}——{jahr} 年 1 月 1 日未收应收款 {forderungen} 已计入过利润，收款时不再计入；未付支出 {verbindlichkeiten} 及应缴增值税 {umsatzsteuer} 同理（R 4.6 EStR）。"
+    "uebergangZurBilanz": "自 {jahr} 年起改为资产负债表法：利润中已含过渡利润 {betrag}——{jahr} 年 1 月 1 日未收应收款 {forderungen}，减去未付支出 {verbindlichkeiten}、应缴增值税 {umsatzsteuer} 及已收预付款 {anzahlungen}（净额）（R 4.6 EStR）。分三年摊销由税务顾问处理。",
+    "uebergangZurEuer": "自 {jahr} 年起改为收支盈余计算（EÜR）：利润中已含过渡亏损 {betrag}——{jahr} 年 1 月 1 日未收应收款 {forderungen} 已计入过利润，收款时不再计入；未付支出 {verbindlichkeiten}、应缴增值税 {umsatzsteuer} 及已收预付款 {anzahlungen}（净额）同理（R 4.6 EStR）。"
   },
   "anlageN": {
     "title": "Anlage N 附件（预览）",

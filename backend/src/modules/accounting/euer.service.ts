@@ -553,7 +553,7 @@ export class EuerService {
       doc.fontSize(10).text(
         `Hinzurechnungen und Abrechnungen bei Wechsel der Gewinnermittlungsart (R 4.6 EStR): ${this.fmtEur(data.uebergang.betrag)} EUR — ` +
         `offene Forderungen ${this.fmtEur(data.uebergang.forderungen)}, unbezahlte Ausgaben ${this.fmtEur(data.uebergang.verbindlichkeiten)}, ` +
-        `Umsatzsteuer-Schuld ${this.fmtEur(data.uebergang.umsatzsteuer)} EUR zum 01.01.${data.uebergang.ab}`,
+        `Umsatzsteuer-Schuld ${this.fmtEur(data.uebergang.umsatzsteuer)} EUR, erhaltene Anzahlungen ${this.fmtEur(data.uebergang.anzahlungen)} EUR (netto) zum 01.01.${data.uebergang.ab}`,
       )
       doc.moveDown(0.5)
     }

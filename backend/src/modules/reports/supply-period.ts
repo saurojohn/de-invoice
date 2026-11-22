@@ -57,6 +57,17 @@ export function iglDeadline(inv: Dated): Date {
   return new Date(Date.UTC(y, m + 1, 0))
 }
 
+/**
+ * Tier 919 — the day revenue is realised in the books (GuV, Bilanz, Anlage G
+ * by Bilanz): the supply (§ 252 Abs. 1 Nr. 4 HGB), not an earlier invoice. An
+ * invoice written before the supply is a pending contract until then — paid,
+ * an erhaltene Anzahlung (Bilanz). A credit note by its own date. The UStVA
+ * keeps `revenueDay` (an early invoice is declared early, Tier 913).
+ */
+export function bookingDay(inv: Dated & { type?: string | null }): Date {
+  return inv.type === 'CN' ? inv.issueDate : supplyDay(inv)
+}
+
 /** the day that puts an invoice into a UStVA period */
 export function ustvaDay(inv: Dated): Date {
   if (!inv.euTransaction) return revenueDay(inv)

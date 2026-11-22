@@ -26,7 +26,7 @@ interface EuerResult {
     gewinn: number
   }
   // Tier 918: the change from the Bilanz to the EÜR that takes effect this year
-  uebergang?: { ab: number; forderungen: number; verbindlichkeiten: number; umsatzsteuer: number; betrag: number } | null
+  uebergang?: { ab: number; forderungen: number; verbindlichkeiten: number; umsatzsteuer: number; anzahlungen?: number; betrag: number } | null
   // Tier 454: unbezahlt — issued / dated in the year, counted when paid
   counts: { invoices: number; expenses: number; unbezahlt?: { invoices: number; expenses: number } }
   generatedAt: string
@@ -234,6 +234,7 @@ export function EuerSection() {
                     forderungen: fmt(data.uebergang.forderungen),
                     verbindlichkeiten: fmt(data.uebergang.verbindlichkeiten),
                     umsatzsteuer: fmt(data.uebergang.umsatzsteuer),
+                    anzahlungen: fmt(data.uebergang.anzahlungen ?? 0),
                     jahr: data.uebergang.ab,
                   })}
                 </p>

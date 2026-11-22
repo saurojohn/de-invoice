@@ -16,7 +16,7 @@ import { SALES_TYPES } from '../invoice/document-scope'
 import { ModuleRef } from '@nestjs/core'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 import { shareWhileRunning } from '../../common/shared-while-running'
-import { revenueDay, supplyPeriodWhere, within } from '../reports/supply-period'
+import { bookingDay, supplyPeriodWhere, within } from '../reports/supply-period'
 
 /**
  * Tier 82: Anlage G+V (Gewinn- und Verlustrechnung).
@@ -231,7 +231,7 @@ export class GuVService {
         eurTotal: true,
         type: true, issueDate: true, deliveryDate: true, servicePeriodEnd: true, // Tier 913
       },
-    }).then((rows) => rows.filter((inv) => within(inv.type === 'CN' ? inv.issueDate : revenueDay(inv), yearStart, yearEnd)))
+    }).then((rows) => rows.filter((inv) => within(bookingDay(inv), yearStart, yearEnd))) // Tier 919: by the supply
     // Tier 118.5: aggregate in EUR. Prefer
     // eurSubtotal (pre-computed at issue time from
     // the ECB rate); fall back to the original

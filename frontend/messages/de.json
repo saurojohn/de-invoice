@@ -3107,8 +3107,8 @@
     "nachRechnungsdatum": "Gezählt nach Rechnungsdatum (Bilanzierung) — Gewinnermittlung in den Einstellungen.",
     "matchedMiete": "Miete/Pacht-Buchungen",
     "generatedAt": "Erstellt",
-    "uebergangZurBilanz": "Wechsel zur Bilanz ab {jahr}: Übergangsgewinn {betrag} im Gewinn enthalten — zum 01.01.{jahr} offene Forderungen {forderungen} abzüglich unbezahlter Ausgaben {verbindlichkeiten} und der Umsatzsteuer-Schuld {umsatzsteuer} (R 4.6 EStR). Eine Verteilung auf drei Jahre klärt der Steuerberater.",
-    "uebergangZurEuer": "Wechsel zur Einnahmen-Überschuss-Rechnung ab {jahr}: Übergangsverlust {betrag} im Gewinn enthalten — die zum 01.01.{jahr} offenen Forderungen {forderungen} waren schon Gewinn und zählen bei Zahlung nicht noch einmal; ebenso unbezahlte Ausgaben {verbindlichkeiten} und die Umsatzsteuer-Schuld {umsatzsteuer} (R 4.6 EStR)."
+    "uebergangZurBilanz": "Wechsel zur Bilanz ab {jahr}: Übergangsgewinn {betrag} im Gewinn enthalten — zum 01.01.{jahr} offene Forderungen {forderungen} abzüglich unbezahlter Ausgaben {verbindlichkeiten}, der Umsatzsteuer-Schuld {umsatzsteuer} und erhaltener Anzahlungen {anzahlungen} (netto) (R 4.6 EStR). Eine Verteilung auf drei Jahre klärt der Steuerberater.",
+    "uebergangZurEuer": "Wechsel zur Einnahmen-Überschuss-Rechnung ab {jahr}: Übergangsverlust {betrag} im Gewinn enthalten — die zum 01.01.{jahr} offenen Forderungen {forderungen} waren schon Gewinn und zählen bei Zahlung nicht noch einmal; ebenso unbezahlte Ausgaben {verbindlichkeiten}, die Umsatzsteuer-Schuld {umsatzsteuer} und erhaltene Anzahlungen {anzahlungen} (netto) (R 4.6 EStR)."
   },
   "anlageN": {
     "title": "Anlage N (Vorschau)",

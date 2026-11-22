@@ -252,9 +252,10 @@ export class BilanzService {
       WHERE i."companyId" = ${companyId}
         AND i.status NOT IN ('draft', 'cancelled')
         AND i.type IN (${Prisma.join(CLAIM_TYPES)}) -- Tier 424: not a Proforma
-        -- Tier 913: a supply made by the snapshot is a claim, invoiced or not yet
-        -- (the earlier of the supply and the invoice — reports/supply-period.ts)
-        AND LEAST(i."issueDate", COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate")) <= ${snapshot}
+        -- Tier 913: a supply made by the snapshot is a claim, invoiced or not yet;
+        -- Tier 919: one invoiced before its supply is not (yet) — a pending
+        -- contract, paid an erhaltene Anzahlung (below; reports/supply-period.ts bookingDay)
+        AND COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate") <= ${snapshot}
         AND NOT (i.status = 'paid' AND p."invoiceId" IS NULL)`
     const forderungenLUL = Number(receivables.open)
 
@@ -376,9 +377,22 @@ export class BilanzService {
       const f = doc?.eurTotal != null && total > 0 ? Number(doc.eurTotal) / total : 1
       return Number(amount) * f
     }
+    // Tier 919: …and the payments received on an invoice whose supply is
+    // after the snapshot (a Vorausrechnung paid in advance) — no revenue yet,
+    // owed to the customer until the supply (§ 266 Abs. 3 C. 3 HGB). Gross, in EUR.
+    const [prepaid] = await this.prisma.$queryRaw<{ amount: unknown }[]>`
+      SELECT COALESCE(SUM(y.amount * CASE WHEN i."eurTotal" IS NOT NULL AND i.total > 0 THEN i."eurTotal" / i.total ELSE 1 END), 0) AS amount
+      FROM "Payment" y JOIN "Invoice" i ON i.id = y."invoiceId"
+      WHERE i."companyId" = ${companyId}
+        AND i.status NOT IN ('draft', 'cancelled')
+        AND i.type IN (${Prisma.join(CLAIM_TYPES)})
+        AND y."paymentDate" <= ${snapshot}
+        AND y."paymentMethod" NOT IN (${Prisma.join(NON_CASH_PAYMENT_METHODS)})
+        AND COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate") > ${snapshot}`
     const erhalteneAnzahlungen =
       advanceRows.reduce((s, p) => s + toEur(p.amount, p.invoice), 0)
       - settledRows.reduce((s, p) => s + toEur(p.amount, p.invoice.advanceInvoice), 0)
+      + Number(prepaid.amount)
 
     // ===== BUILD SECTIONS =====
 
