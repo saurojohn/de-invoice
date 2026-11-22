@@ -2673,6 +2673,25 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 915 — the Gewinnermittlung by year, with the Übergangsgewinn (R 4.6 EStR)
+
+- **Measured:** `Company.gewinnermittlung` was one value read for every year (the same class as the Hebesatz, Tier 910).
+  - A sole trader (EÜR) with an invoice of November last year, paid this year, set „Bilanzierung“ (books from this year on, § 141 Abs. 2 AO).
+  - Last year's Anlage G, an EÜR already filed, went from 0 to 800 € profit.
+  - This year's (now a Bilanz) did not have the invoice either: no year counted it.
+  - The other way (Bilanz → EÜR) the receivable counted twice: once by its date, once when paid.
+- **By year:** `settings.gewinnermittlungWechsel` = `[{ ab: year, art, vorher }]` (company/gewinnermittlung.ts `gewinnermittlungOf`).
+  - The company PUT takes `gewinnermittlungAb` (a year; default this one, at most the next). Refused (400) beyond that; refused where the books of that year are closed.
+  - With nothing booked before that year, the setting changes as a whole (as Tier 908). Changing back to the method of the year before drops a planned change.
+  - A Kaufmann by legal form keeps books every year (Tier 774), whatever is stored.
+- **Übergangsgewinn** (accounting/uebergangsgewinn.ts), in the first year of the new method, decided as the accountant:
+  - receivables open on 01.01. (gross) − expenses unpaid on 01.01. (gross) − the Umsatzsteuer still owed to the Finanzamt on 31.12. of the year before (its UStVA less the payments recorded, as the Bilanz has it, Tier 506);
+  - added on the way to the Bilanz, taken off on the way to the EÜR. Gross because the EÜR counts the VAT with the money; with the VAT balance it comes out the same whether the December return was paid before or after 01.01.
+  - In Anlage G (`totals.uebergangsgewinn`, `uebergang`, in `gewinnVorKorrektur` and so in the Gewerbeertrag), on the page and in the PDF. Spreading a gain over three years (R 4.6 Abs. 1 Satz 4 EStR) is left to the Berater (the hint says so).
+- **Forms:** after a change the accounting page lists both the EÜR and the Bilanz / G+V / E-Bilanz (a year of each).
+- **Settings page:** after the method is changed, a „Gilt ab (Jahr)“ select (this year / next year), de / en / zh.
+- **Spec 603:** on the Tier 914 code 8 assertions fail (both directions, the forms, a change announced for next year). Playwright `gewinnermittlung-nach-jahr-tier915`.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 914 — an igL at its invoice, at the latest for the month after the delivery; the lock of a submitted period follows the supply
 
 - **igL:** the UStVA (Kz 41) and the ZM took an innergemeinschaftliche Lieferung by its issue date only (Tier 912 kept it so).

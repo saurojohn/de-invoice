@@ -19,7 +19,8 @@
  * An unknown legal form says nothing: every form applies, as before.
  */
 import { isKapitalgesellschaft, resolveRechtsform } from './rechtsform'
-import { resolveGewinnermittlung } from './gewinnermittlung'
+import { euerNotAllowedFor, gewinnermittlungOf, gewinnermittlungWechselOf } from './gewinnermittlung'
+import { businessTodayIso } from '../../common/business-date'
 
 export const TAX_FORMS = [
   'beraterPackager', 'euer', 'anlageS', 'anlageV', 'anlageKAP', 'anlageG', 'anlageN', 'kst1',
@@ -38,7 +39,10 @@ export function applicableTaxForms(company: {
   name?: string | null
 }) {
   const { rechtsform, source } = resolveRechtsform(company)
-  const gewinnermittlung = resolveGewinnermittlung(company).art
+  // Tier 915: the method of this year; after a change both sets of forms (a
+  // year of each still to file or to look up)
+  const gewinnermittlung = gewinnermittlungOf(company, Number(businessTodayIso().slice(0, 4))).art
+  const arts = new Set([gewinnermittlung, ...(euerNotAllowedFor(rechtsform) ? [] : gewinnermittlungWechselOf(company.settings)).flatMap((w) => [w.art, w.vorher])])
   if (!rechtsform) {
     return { rechtsform: null, rechtsformSource: null, gewinnermittlung, forms: [...TAX_FORMS] as TaxForm[], other: [] as TaxForm[] }
   }
@@ -49,8 +53,8 @@ export function applicableTaxForms(company: {
   if (rechtsform === 'Freiberufler') add('anlageS', ...PERSONAL)
   if (['OHG', 'KG', 'GmbH & Co. KG'].includes(rechtsform)) add('gewst')
   if (rechtsform === 'GmbH & Co. KG') add('anhang')
-  if (gewinnermittlung === 'bilanz') add('bilanz', 'guv', 'ebilanz')
-  else add('euer')
+  if (arts.has('bilanz')) add('bilanz', 'guv', 'ebilanz')
+  if (arts.has('euer')) add('euer')
   return {
     rechtsform,
     rechtsformSource: source,

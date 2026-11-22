@@ -1945,7 +1945,9 @@
     "datevAccount_ustPrepayment": "VAT prepayments (1780)",
     "datevAccount_tradeTax": "Trade tax (4320)",
     "datevAccount_corporateTax": "Corporate income tax (2200)",
-    "unsavedChanges": "Company details changed — not saved yet. This “Save” stores them; the buttons of the single cards (dunning, DATEV, …) save only their card."
+    "unsavedChanges": "Company details changed — not saved yet. This “Save” stores them; the buttons of the single cards (dunning, DATEV, …) save only their card.",
+    "gewinnermittlungAb": "Applies from (year)",
+    "gewinnermittlungAbHelp": "The years before keep their profit determination. Who must keep books under § 141 AO chooses the year after the tax office's notice. In the first year of the new method Anlage G includes the transition profit (R 4.6 EStR). A year before the first booking changes the setting as a whole (a correction)."
   },
   "statement": {
     "title": "Customer Statement",
@@ -3104,7 +3106,9 @@
     "nachZahlung": "Counted by payment date (cash basis, § 11 EStG) — profit determination in the settings.",
     "nachRechnungsdatum": "Counted by invoice date (balance sheet) — profit determination in the settings.",
     "matchedMiete": "Rent/lease bookings",
-    "generatedAt": "Generated"
+    "generatedAt": "Generated",
+    "uebergangZurBilanz": "Change to the balance sheet from {jahr}: transition profit {betrag} included in the profit — receivables open on 1 Jan {jahr} {forderungen} less unpaid expenses {verbindlichkeiten} and the VAT owed {umsatzsteuer} (R 4.6 EStR). Spreading it over three years is for the tax advisor.",
+    "uebergangZurEuer": "Change to the cash-basis EÜR from {jahr}: transition loss {betrag} included in the profit — the receivables open on 1 Jan {jahr} {forderungen} were profit already and do not count again when paid; likewise unpaid expenses {verbindlichkeiten} and the VAT owed {umsatzsteuer} (R 4.6 EStR)."
   },
   "anlageN": {
     "title": "Anlage N (preview)",

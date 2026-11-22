@@ -44,6 +44,8 @@ interface AnlageGResult {
   }
   // Tier 464
   gewinnermittlung?: "euer" | "bilanz"
+  // Tier 915: the change of the Gewinnermittlung that takes effect this year
+  uebergang?: { ab: number; von: "euer" | "bilanz"; nach: "euer" | "bilanz"; forderungen: number; verbindlichkeiten: number; umsatzsteuer: number; betrag: number } | null
   generatedAt: string
   disclaimer: string
 }
@@ -219,6 +221,17 @@ export function AnlageGSection() {
               {data.gewinnermittlung && (
                 <p className="text-xs text-gray-600 dark:text-gray-300 mb-3" data-testid="anlage-g-gewinnermittlung">
                   {tRef.current(data.gewinnermittlung === "euer" ? "anlageG.nachZahlung" : "anlageG.nachRechnungsdatum")}
+                </p>
+              )}
+              {data.uebergang && (
+                <p className="text-sm mb-3 rounded border border-amber-300 bg-amber-50 dark:bg-amber-950 p-2" data-testid="anlage-g-uebergang">
+                  {tRef.current(data.uebergang.nach === "bilanz" ? "anlageG.uebergangZurBilanz" : "anlageG.uebergangZurEuer", {
+                    betrag: fmt(data.uebergang.betrag),
+                    forderungen: fmt(data.uebergang.forderungen),
+                    verbindlichkeiten: fmt(data.uebergang.verbindlichkeiten),
+                    umsatzsteuer: fmt(data.uebergang.umsatzsteuer),
+                    jahr: data.uebergang.ab,
+                  })}
                 </p>
               )}
               <div className="grid md:grid-cols-2 gap-4">

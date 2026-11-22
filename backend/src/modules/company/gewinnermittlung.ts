@@ -46,3 +46,51 @@ export function resolveGewinnermittlung(company: {
   }
   return { art: 'euer', source: 'rechtsform' }
 }
+
+/**
+ * Tier 915 — the way the profit is determined, by year.
+ *
+ * `gewinnermittlung` was one column read for every year. A sole trader who
+ * must keep books from next year on (§ 141 Abs. 2 AO — from the year after
+ * the Finanzamt's notice) and set 'bilanz' turned every year before over:
+ * measured, an invoice of November last year paid this year — last year's
+ * Anlage G (an EÜR, filed) went from 0 to 1 000 € profit.
+ *
+ * Each change is kept in `settings.gewinnermittlungWechsel` as
+ * { ab: year, art, vorher } — from `ab` on `art`, the years before `vorher`.
+ * Without one the column applies to every year, as before. A Kaufmann by
+ * legal form keeps books whatever was stored (Tier 774).
+ */
+export interface GewinnWechsel { ab: number; art: Gewinnermittlung; vorher: Gewinnermittlung }
+
+const art = (v: unknown): Gewinnermittlung => (v === 'bilanz' ? 'bilanz' : 'euer')
+
+export function gewinnermittlungWechselOf(settings: unknown): GewinnWechsel[] {
+  const raw = settings && typeof settings === 'object' && !Array.isArray(settings)
+    ? (settings as Record<string, unknown>).gewinnermittlungWechsel
+    : null
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((w): w is Record<string, unknown> => !!w && typeof w === 'object' && Number.isInteger((w as any).ab))
+    .map((w) => ({ ab: Number(w.ab), art: art(w.art), vorher: art(w.vorher) }))
+    .sort((a, b) => a.ab - b.ab)
+}
+
+export function gewinnermittlungOf(
+  company: Parameters<typeof resolveGewinnermittlung>[0],
+  year: number,
+): { art: Gewinnermittlung; source: 'gesetzt' | 'rechtsform' } {
+  const now = resolveGewinnermittlung(company)
+  if (euerNotAllowedFor(resolveRechtsform(company).rechtsform)) return now
+  const list = gewinnermittlungWechselOf(company.settings)
+  if (list.length === 0) return now
+  let a = list[0].vorher
+  for (const w of list) if (w.ab <= year) a = w.art
+  return { art: a, source: a === now.art ? now.source : 'gesetzt' }
+}
+
+/** the change that takes effect in `year`, if one does — its first year carries the Übergangsgewinn */
+export function gewinnermittlungWechselIn(company: { settings?: unknown; rechtsform?: string | null; legalName?: string | null; name?: string | null }, year: number): GewinnWechsel | null {
+  if (euerNotAllowedFor(resolveRechtsform(company).rechtsform)) return null
+  return gewinnermittlungWechselOf(company.settings).find((w) => w.ab === year && w.art !== w.vorher) ?? null
+}

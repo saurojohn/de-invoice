@@ -1945,7 +1945,9 @@
     "datevAccount_ustPrepayment": "Umsatzsteuer-Vorauszahlungen (1780)",
     "datevAccount_tradeTax": "Gewerbesteuer (4320)",
     "datevAccount_corporateTax": "Körperschaftsteuer (2200)",
-    "unsavedChanges": "Firmendaten geändert — noch nicht gespeichert. Dieses „Speichern“ sichert sie; die Schaltflächen der einzelnen Karten (Mahnungen, DATEV, …) speichern nur ihre Karte."
+    "unsavedChanges": "Firmendaten geändert — noch nicht gespeichert. Dieses „Speichern“ sichert sie; die Schaltflächen der einzelnen Karten (Mahnungen, DATEV, …) speichern nur ihre Karte.",
+    "gewinnermittlungAb": "Gilt ab (Jahr)",
+    "gewinnermittlungAbHelp": "Die Jahre davor behalten ihre Gewinnermittlung. Wer nach § 141 AO buchführungspflichtig wird, wählt das Jahr nach der Mitteilung des Finanzamts. Im ersten Jahr der neuen Methode rechnet Anlage G den Übergangsgewinn ein (R 4.6 EStR). Ein Jahr vor der ersten Buchung ändert die Einstellung ganz (Korrektur)."
   },
   "statement": {
     "title": "Kontoauszug",
@@ -3104,7 +3106,9 @@
     "nachZahlung": "Gezählt nach Zahlungsdatum (Einnahmen-Überschuss-Rechnung, § 11 EStG) — Gewinnermittlung in den Einstellungen.",
     "nachRechnungsdatum": "Gezählt nach Rechnungsdatum (Bilanzierung) — Gewinnermittlung in den Einstellungen.",
     "matchedMiete": "Miete/Pacht-Buchungen",
-    "generatedAt": "Erstellt"
+    "generatedAt": "Erstellt",
+    "uebergangZurBilanz": "Wechsel zur Bilanz ab {jahr}: Übergangsgewinn {betrag} im Gewinn enthalten — zum 01.01.{jahr} offene Forderungen {forderungen} abzüglich unbezahlter Ausgaben {verbindlichkeiten} und der Umsatzsteuer-Schuld {umsatzsteuer} (R 4.6 EStR). Eine Verteilung auf drei Jahre klärt der Steuerberater.",
+    "uebergangZurEuer": "Wechsel zur Einnahmen-Überschuss-Rechnung ab {jahr}: Übergangsverlust {betrag} im Gewinn enthalten — die zum 01.01.{jahr} offenen Forderungen {forderungen} waren schon Gewinn und zählen bei Zahlung nicht noch einmal; ebenso unbezahlte Ausgaben {verbindlichkeiten} und die Umsatzsteuer-Schuld {umsatzsteuer} (R 4.6 EStR)."
   },
   "anlageN": {
     "title": "Anlage N (Vorschau)",

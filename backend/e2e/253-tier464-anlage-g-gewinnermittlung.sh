@@ -59,13 +59,15 @@ AS GET "/api/v1/accounting/anlage-g?companyId=$C&year=2025"
 assert_eq "derived from the legal form" "$(py 'print(d["gewinnermittlungQuelle"])')" "rechtsform"
 
 note "=== set to Bilanz: by document date ==="
-AS PUT "/api/v1/companies/$C" '{"gewinnermittlung":"bilanz"}'
+# Tier 915: a change applies from a year on — from 2025, the first year with
+# a booking, it changes the setting as a whole (a correction)
+AS PUT "/api/v1/companies/$C" '{"gewinnermittlung":"bilanz","gewinnermittlungAb":2025}'
 assert_eq "setting accepted" "$STATUS" "200"
 assert_eq "2025: invoice + cash sale - bill - cash purchase" "$(g 2025)" "bilanz 1100 850"
 assert_eq "2026: nothing dated in 2026" "$(g 2026)" "bilanz 0 0"
 AS PUT "/api/v1/companies/$C" '{"gewinnermittlung":"cash"}'
 assert_eq "unknown value refused" "$STATUS" "400"
-AS PUT "/api/v1/companies/$C" '{"gewinnermittlung":null}'
+AS PUT "/api/v1/companies/$C" '{"gewinnermittlung":null,"gewinnermittlungAb":2025}'
 assert_eq "cleared: back to EÜR" "$(g 2025)" "euer 100 50"
 
 note "=== an OHG: Bilanz without being set ==="

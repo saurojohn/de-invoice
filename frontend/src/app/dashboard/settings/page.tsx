@@ -333,6 +333,11 @@ export default function SettingsPage() {
   // Tier 909: the same for joining or leaving the One-Stop-Shop
   const [ossAb, setOssAb] = useState("")
   const ossChanged = savedSnapshot !== null && form.ossVerfahren !== (JSON.parse(savedSnapshot) as CompanySettings).ossVerfahren
+  // Tier 915: a change of the Gewinnermittlung applies from a year on (empty:
+  // this one); the years before keep theirs
+  const [gwAb, setGwAb] = useState("")
+  const gwChanged = savedSnapshot !== null && (form.gewinnermittlung ?? null) !== ((JSON.parse(savedSnapshot) as CompanySettings).gewinnermittlung ?? null)
+  const thisYear = Number(todayIso().slice(0, 4))
   const fmtDay = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`
   const storedVatMode = savedSnapshot ? (JSON.parse(savedSnapshot) as CompanySettings).defaultVatMode : null
   const kuSwitch: "end" | "start" | null =
@@ -667,10 +672,12 @@ export default function SettingsPage() {
       if (kuDate && kuSwitch === "start") payload.kleinunternehmerAb = kuDate
       if (artChanged && artAb) payload.besteuerungsartAb = `${artAb}-01`
       if (ossChanged && ossAb) payload.ossVerfahrenAb = `${ossAb}-01`
+      if (gwChanged && gwAb) payload.gewinnermittlungAb = Number(gwAb)
       await apiPut(`/api/v1/companies/${companyId}`, payload)
       setKuDate("")
       setArtAb("")
       setOssAb("")
+      setGwAb("")
       setNumberRefresh((n) => n + 1)
       // Refetch so the form reflects the canonical stored value —
       // without this, a user who just changed defaultPaymentDays from
@@ -1563,6 +1570,24 @@ export default function SettingsPage() {
                     <option value="euer">{t("settings.gewinnermittlungEuer")}</option>
                     <option value="bilanz">{t("settings.gewinnermittlungBilanz")}</option>
                   </select>
+                  {gwChanged && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium mb-1" htmlFor="settings-gewinnermittlung-ab">
+                        {t("settings.gewinnermittlungAb")}
+                      </label>
+                      <select
+                        id="settings-gewinnermittlung-ab"
+                        className="h-9 border rounded-md px-2"
+                        value={gwAb || String(thisYear)}
+                        onChange={(e) => setGwAb(e.target.value)}
+                        data-testid="settings-gewinnermittlung-ab"
+                      >
+                        <option value={String(thisYear)}>{thisYear}</option>
+                        <option value={String(thisYear + 1)}>{thisYear + 1}</option>
+                      </select>
+                      <p className="text-xs text-gray-600 mt-1">{t("settings.gewinnermittlungAbHelp")}</p>
+                    </div>
+                  )}
                   <p className="text-xs text-gray-600 mt-1">
                     {t("settings.gewinnermittlungHelp")}
                   </p>

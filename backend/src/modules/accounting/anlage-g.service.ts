@@ -2,7 +2,8 @@ import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { kursdifferenzen } from './kursdifferenzen'
 import { resolveRechtsform, isKapitalgesellschaft } from '../company/rechtsform'
-import { resolveGewinnermittlung } from '../company/gewinnermittlung'
+import { gewinnermittlungOf, gewinnermittlungWechselIn } from '../company/gewinnermittlung'
+import { uebergangsgewinn, type Uebergang } from './uebergangsgewinn'
 import { manualJournalLines, type ManualKind } from './manual-journal'
 import { euerExpenses, euerInflows, euerVat, finanzamtVat } from './euer-zufluss'
 import { cashBookings } from '../cashbook/cash-bookings'
@@ -19,6 +20,7 @@ import { privateCarUse } from '../company-car/private-use'
 import { nichtAbziehbareGeschenke, nonDeductibleGiftIds } from './gifts'
 import { homeOfficeDeduction } from '../home-office/home-office'
 import { hebesatzOf } from './hebesatz'
+import { UstvaService } from '../reports/ustva.service'
 
 /**
  * Tier 438 — Anlage G counted costs as profit.
@@ -124,7 +126,9 @@ export interface AnlageGResult {
   totals: {
     einnahmenTotal: number
     betriebsausgabenTotal: number
-    gewinnVorKorrektur: number // einnahmen - betriebsausgaben
+    gewinnVorKorrektur: number // einnahmen - betriebsausgaben (+ Übergangsgewinn)
+    /** Tier 915: the Übergangsgewinn of a change of the Gewinnermittlung in this year (0 otherwise) */
+    uebergangsgewinn: number
     /** Tier 485: the non-deductible 30 % of entertainment (not in the Gewinn) */
     nichtAbziehbareBewirtung: number
     /** Tier 503: gifts above the 50 € limit (gross) */
@@ -146,6 +150,8 @@ export interface AnlageGResult {
   /** Tier 464: 'euer' = counted when paid (§ 11 EStG), 'bilanz' = by document date */
   gewinnermittlung: 'euer' | 'bilanz'
   gewinnermittlungQuelle: 'gesetzt' | 'rechtsform'
+  /** Tier 915: the change of the Gewinnermittlung that takes effect in this year */
+  uebergang: Uebergang | null
   generatedAt: string
   disclaimer: string
 }
@@ -354,7 +360,21 @@ function round2(n: number): number {
 
 @Injectable()
 export class AnlageGService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private ustva: UstvaService) {}
+
+  /**
+   * Tier 915: the Umsatzsteuer owed to the Finanzamt on 31.12. of a year — its
+   * UStVA less the payments recorded by then (as BilanzService.taxBalances).
+   */
+  private async ustOwedAtEndOf(companyId: string, year: number): Promise<number> {
+    let owed = 0
+    for (const m of await this.ustva.computeMonths(companyId, year)) owed += m.differenzbetrag
+    const paid = await this.prisma.uStvaFiling.aggregate({
+      where: { companyId, year, paidAt: { lte: new Date(year, 11, 31, 23, 59, 59, 999) } },
+      _sum: { paidAmount: true },
+    })
+    return owed - Number(paid._sum.paidAmount ?? 0)
+  }
 
   /**
    * Compute the Anlage G for the year. Returns
@@ -388,8 +408,11 @@ export class AnlageGService {
     // Tier 464: an EÜR company counts income and expenses when paid (§ 11
     // EStG, as its EÜR — euer-zufluss.ts); a balance-sheet company by
     // document date. Anlage G used the document date for both.
-    const gewinnermittlung = resolveGewinnermittlung(companyRow ?? {})
+    // Tier 915: the method of the year shown (company/gewinnermittlung.ts)
+    const gewinnermittlung = gewinnermittlungOf(companyRow ?? {}, year)
     const zufluss = gewinnermittlung.art === 'euer'
+    const wechsel = companyRow ? gewinnermittlungWechselIn(companyRow, year) : null
+    const uebergang = wechsel ? await uebergangsgewinn(this.prisma, companyId, wechsel, await this.ustOwedAtEndOf(companyId, wechsel.ab - 1)) : null
 
     // Revenue: the document (Bilanz) or the payments' net share (EÜR), each
     // with the invoice it belongs to.
@@ -591,7 +614,7 @@ export class AnlageGService {
       (s, l) => s + l.amount,
       0,
     )
-    const gewinnVorKorrektur = round2(einnahmenTotal + betriebsausgabenTotal)
+    const gewinnVorKorrektur = round2(einnahmenTotal + betriebsausgabenTotal + (uebergang?.betrag ?? 0))
 
     // Hinzurechnungen / Kürzungen — the § 8/9
     // GewStG Korrekturen. v1 computes 4100 + 5100
@@ -694,6 +717,7 @@ export class AnlageGService {
         einnahmenTotal: round2(einnahmenTotal),
         betriebsausgabenTotal: round2(betriebsausgabenTotal),
         gewinnVorKorrektur,
+        uebergangsgewinn: uebergang?.betrag ?? 0,
         nichtAbziehbareBewirtung: nichtAbziehbareBewirtung(expenses, kleinunternehmer),
         nichtAbziehbareGeschenke: nichtAbziehbareGeschenke(allExpenses, badGifts),
         hinzurechnungenTotal: round2(hinzurechnungenTotal),
@@ -713,6 +737,7 @@ export class AnlageGService {
       // Tier 464: which method the figures follow, and where it came from.
       gewinnermittlung: gewinnermittlung.art,
       gewinnermittlungQuelle: gewinnermittlung.source,
+      uebergang,
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus Ihren Buchungen generiert. ' +
@@ -784,6 +809,15 @@ export class AnlageGService {
     // Gewerbe is in the profit zone (positive
     // = Gewinn); loss is rare but happens in
     // Gründerjahren.
+    // Tier 915: the Übergangsgewinn of a change of the Gewinnermittlung
+    if (data.uebergang) {
+      doc.fontSize(10).font('Helvetica').text(
+        `Übergangsgewinn (Wechsel ${data.uebergang.von === 'euer' ? 'EÜR → Bilanz' : 'Bilanz → EÜR'}, R 4.6 EStR): ` +
+        `${this.fmtEur(data.uebergang.betrag)} € — offene Forderungen ${this.fmtEur(data.uebergang.forderungen)} €, ` +
+        `unbezahlte Ausgaben ${this.fmtEur(data.uebergang.verbindlichkeiten)} €, Umsatzsteuer-Schuld ${this.fmtEur(data.uebergang.umsatzsteuer)} € zum 01.01.${data.uebergang.ab}`,
+      )
+      doc.moveDown(0.6)
+    }
     doc.fontSize(13).font('Helvetica-Bold')
     const gewinn = data.totals.gewinnVorKorrektur
     doc

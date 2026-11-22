@@ -1,14 +1,14 @@
 import { withCheckedVatId } from '../../common/vat-id';
 import { elsterSteuernummerOrProblem } from '../../common/steuernummer';
 import { isBareLegalForm, resolveRechtsform } from './rechtsform';
-import { euerNotAllowedFor } from './gewinnermittlung';
+import { euerNotAllowedFor, gewinnermittlungOf, gewinnermittlungWechselOf, resolveGewinnermittlung } from './gewinnermittlung';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertIban } from '../../common/iban';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
 import { businessTodayIso } from '../../common/business-date';
 import { refreshTaxOutOfPrice } from '../invoice/tax-out-of-price';
-import { assertPeriodOpen } from '../reports/filed-period';
+import { assertBooksOpen, assertPeriodOpen } from '../reports/filed-period';
 import { companySettingsTransaction } from '../../common/company-settings';
 import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
 import { OSS_SELECT, ossOn, ossWechselOf } from '../../common/oss-period';
@@ -122,6 +122,10 @@ export class CompanyService {
     if ('ossVerfahren' in data || 'ossVerfahrenAb' in data) {
       data = await this.withOssWechsel(id, data);
     }
+    // Tier 915: so does the way the profit is determined — by year
+    if ('gewinnermittlung' in data || 'gewinnermittlungAb' in data) {
+      data = await this.withGewinnermittlungWechsel(id, data);
+    }
     const kuChanges = 'defaultVatMode' in data || 'kleinunternehmerAb' in data || 'kleinunternehmerBis' in data
     if (kuChanges) {
       data = await this.withKleinunternehmerPeriod(id, data);
@@ -202,6 +206,53 @@ export class CompanyService {
     }
     const dayBefore = new Date(Date.parse(`${ab}T12:00:00Z`) - 86_400_000);
     out.settings = { ...settings, ossWechsel: [...kept, { ab, on: next, vorher: ossOn(stored)(dayBefore) }] };
+    return out;
+  }
+
+  /**
+   * Tier 915 — the Gewinnermittlung by year (company/gewinnermittlung.ts). A
+   * change applies from the first day of a year (`gewinnermittlungAb`,
+   * default this one; at most the next — § 141 Abs. 2 AO: books from the year
+   * after the Finanzamt's notice). The years before keep their method. With
+   * nothing booked before that year the setting changes as a whole.
+   */
+  private async withGewinnermittlungWechsel(id: string, data: any) {
+    const out = { ...data };
+    delete out.gewinnermittlungAb;
+    const stored = await this.prisma.company.findUnique({
+      where: { id },
+      select: { gewinnermittlung: true, rechtsform: true, settings: true, legalName: true, name: true },
+    });
+    const nextCompany = { ...(stored ?? {}), ...data, settings: stored?.settings };
+    if (euerNotAllowedFor(resolveRechtsform(nextCompany).rechtsform)) return out; // a Kaufmann keeps books every year
+    const thisYear = Number(businessTodayIso().slice(0, 4));
+    const ab = data.gewinnermittlungAb ?? thisYear;
+    if (!Number.isInteger(ab) || ab < 2000 || ab > thisYear + 1) {
+      throw new BadRequestException(
+        `Ein Wechsel der Gewinnermittlung gilt ab einem Wirtschaftsjahr — diesem oder dem nächsten (gewinnermittlungAb: ${thisYear} oder ${thisYear + 1}).`,
+      );
+    }
+    const next = resolveGewinnermittlung(nextCompany).art;
+    const vorher = gewinnermittlungOf(stored ?? {}, ab - 1).art;
+    const kept = gewinnermittlungWechselOf(stored?.settings).filter((w) => w.ab < ab);
+    const settings = out.settings && typeof out.settings === 'object' && !Array.isArray(out.settings) ? out.settings : {};
+    if (next === vorher) {
+      // back to the method of the year before: a change planned from `ab` on is dropped
+      if (gewinnermittlungWechselOf(stored?.settings).length !== kept.length) out.settings = { ...settings, gewinnermittlungWechsel: kept };
+      return out;
+    }
+    // the years from `ab` on are computed anew — not one whose books are closed
+    await assertBooksOpen(this.prisma, id, [`${ab}-01-01`], 'den Wechsel der Gewinnermittlung');
+    const before = new Date(`${ab}-01-01T00:00:00Z`);
+    const [invoices, expenses] = await Promise.all([
+      this.prisma.invoice.count({ where: { companyId: id, issueDate: { lt: before }, status: { not: 'draft' } } }),
+      this.prisma.expense.count({ where: { companyId: id, invoiceDate: { lt: before } } }),
+    ]);
+    if (invoices + expenses === 0 && kept.length === 0) {
+      out.settings = { ...settings, gewinnermittlungWechsel: [] };
+      return out;
+    }
+    out.settings = { ...settings, gewinnermittlungWechsel: [...kept, { ab, art: next, vorher }] };
     return out;
   }
 

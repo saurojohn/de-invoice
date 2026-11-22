@@ -270,4 +270,11 @@ export class UpdateCompanyDto {
   @IsIn(['euer', 'bilanz'], { message: "gewinnermittlung muss 'euer' oder 'bilanz' sein" })
   @IsOptional()
   gewinnermittlung?: string | null;
+
+  // Tier 915: from which year a changed gewinnermittlung applies (default this
+  // one, at most the next) — company/gewinnermittlung.ts.
+  @IsOptional()
+  @StrictNumber() @IsInt({ message: 'gewinnermittlungAb muss ein Jahr sein' })
+  @Min(2000) @Max(2100)
+  gewinnermittlungAb?: number;
 }
