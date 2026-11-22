@@ -16,6 +16,7 @@ import { SALES_TYPES } from '../invoice/document-scope'
 import { ModuleRef } from '@nestjs/core'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 import { shareWhileRunning } from '../../common/shared-while-running'
+import { revenueDay, supplyPeriodWhere, within } from '../reports/supply-period'
 
 /**
  * Tier 82: Anlage G+V (Gewinn- und Verlustrechnung).
@@ -205,10 +206,13 @@ export class GuVService {
     // (a Gutschrift's subtotal is stored as
     // negative, see EuerService for the same
     // pattern).
+    // Tier 913: revenue of the year of the supply (§ 252 Abs. 1 Nr. 4 HGB) —
+    // a December supply invoiced in January is December's; a credit note by
+    // its own date (reports/supply-period.ts)
     const invoices = await this.prisma.invoice.findMany({
       where: {
         companyId,
-        issueDate: { gte: yearStart, lte: yearEnd },
+        ...supplyPeriodWhere(yearStart, yearEnd),
         status: { in: ['paid', 'sent', 'overdue'] },
         type: { in: SALES_TYPES }, // Tier 424: not a Proforma
       },
@@ -225,8 +229,9 @@ export class GuVService {
         // Tier 411: revenue is total − totalVat (after the discount).
         total: true,
         eurTotal: true,
+        type: true, issueDate: true, deliveryDate: true, servicePeriodEnd: true, // Tier 913
       },
-    })
+    }).then((rows) => rows.filter((inv) => within(inv.type === 'CN' ? inv.issueDate : revenueDay(inv), yearStart, yearEnd)))
     // Tier 118.5: aggregate in EUR. Prefer
     // eurSubtotal (pre-computed at issue time from
     // the ECB rate); fall back to the original

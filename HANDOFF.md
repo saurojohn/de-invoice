@@ -2673,6 +2673,25 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 913 — the earlier of the supply and the invoice: a Vorausrechnung stays in its own UStVA month; a GmbH's revenue and claim follow the supply
+
+- **UStVA:** Tier 912 put every invoice in the period of its supply. That included an invoice written *before* its supply, such as a shop's prepayment shipped next month, whose tax moved to the later month. But a payment received on it is owed when received (Mindest-Ist, § 13 Abs. 1 Nr. 1 a Satz 4 UStG).
+  - `revenueDay` is now the earlier of the supply and the invoice. A supply before its invoice still goes to its own period.
+  - A Vorausrechnung stays in the invoice's period. Declared early is never declared late.
+  - The igL rule and the credit-note rule are as in Tier 912.
+- **GuV / Bilanz** (and KSt 1, the Anhang and the E-Bilanz, which read them) counted revenue by the issue date.
+  - Measured: a supply of 15.12. last year, invoiced this year, was this year's revenue. Last year's balance sheet had no claim for it, and its KSt 1 had no profit.
+  - § 252 Abs. 1 Nr. 4 HGB: the revenue is realised with the supply.
+  - The GuV now selects by `revenueDay`; a credit note goes by its own date.
+  - The Bilanz claim (1500 Forderungen aus L+L) counts what was open on the snapshot day of everything supplied or invoiced by then (`LEAST(issueDate, COALESCE(servicePeriodEnd, deliveryDate, issueDate))`).
+  - The EÜR (Zufluss) and the BWA (document date, DATEV-like) are unchanged.
+- **Spec 601:** on the Tier 912 code 5 assertions fail.
+  - Invoiced today, delivered next month: this month 300, next month 0.
+  - Last December's supply: GuV last year 400, this year 300 (was 700).
+  - Bilanz 31.12.: a claim of 476 €, balanced.
+  - KSt 1 of last year: a profit.
+- Locally: 601, 600 and every spec on GuV, Bilanz, KSt 1, UStVA / UStJA, E-Bilanz, Anhang or a Leistungsdatum, plus the guards: 170 ok. Backend tsc and ESLint clean.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 912 — an invoice is in the UStVA / UStJA / OSS of the period of its supply, not of its issue date
 
 - **Measured:** the returns read the issue date only. Tier 492 / 696 noted it: „nothing reads `deliveryDate` there“.

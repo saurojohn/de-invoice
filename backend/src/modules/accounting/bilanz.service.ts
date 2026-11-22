@@ -252,7 +252,9 @@ export class BilanzService {
       WHERE i."companyId" = ${companyId}
         AND i.status NOT IN ('draft', 'cancelled')
         AND i.type IN (${Prisma.join(CLAIM_TYPES)}) -- Tier 424: not a Proforma
-        AND i."issueDate" <= ${snapshot}
+        -- Tier 913: a supply made by the snapshot is a claim, invoiced or not yet
+        -- (the earlier of the supply and the invoice — reports/supply-period.ts)
+        AND LEAST(i."issueDate", COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate")) <= ${snapshot}
         AND NOT (i.status = 'paid' AND p."invoiceId" IS NULL)`
     const forderungenLUL = Number(receivables.open)
 

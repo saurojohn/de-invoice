@@ -29,9 +29,22 @@ export function supplyDay(inv: Dated): Date {
   return inv.servicePeriodEnd ?? inv.deliveryDate ?? inv.issueDate
 }
 
+/**
+ * Tier 913 — the earlier of the supply and the invoice. A supply made before
+ * its invoice is in the period of the supply (above). An invoice written
+ * before the supply (a Vorausrechnung — a shop's prepayment, shipped the
+ * next day) stays in its own period: a payment received on it is owed when
+ * received (§ 13 Abs. 1 Nr. 1 a Satz 4 UStG), and a tax declared early is
+ * not one declared late. Tier 912 had moved it to the later month.
+ */
+export function revenueDay(inv: Dated): Date {
+  const s = supplyDay(inv)
+  return s.getTime() < inv.issueDate.getTime() ? s : inv.issueDate
+}
+
 /** the day that puts an invoice into a UStVA period */
 export function ustvaDay(inv: Dated): Date {
-  return inv.euTransaction ? inv.issueDate : supplyDay(inv)
+  return inv.euTransaction ? inv.issueDate : revenueDay(inv)
 }
 
 /** a where clause for the invoices that may belong to [start, end] — filter with `within` after */
