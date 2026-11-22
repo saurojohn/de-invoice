@@ -7,7 +7,7 @@ import { ExchangeRateService } from '../exchange-rate/exchange-rate.service'
 import { invoiceEurFactor } from '../invoice/tax-breakdown'
 import { businessTodayIso } from '../../common/business-date'
 import { ossOn } from '../../common/oss-period'
-import { isVorausrechnung, supplyPeriodWhere, ustvaDay, within } from './supply-period'
+import { creditNoteDay, isVorausrechnung, supplyDay, supplyPeriodWhere, ustvaDay, within } from './supply-period'
 import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
 
 /**
@@ -452,27 +452,31 @@ export class OssService {
     const creditNotes = await this.prisma.invoice.findMany({
       where: {
         companyId,
-        issueDate: { gte: start, lte: end },
+        // Tier 923: its own quarter, not before its sale's (supply-period.ts creditNoteDay)
+        ...supplyPeriodWhere(start, end),
         status: { in: ['paid', 'sent', 'overdue'] },
         type: 'CN',
         referenceInvoiceId: { not: null },
       },
       include: {
         customer: { select: { id: true, vatId: true, address: true } },
-        referenceInvoice: { select: { id: true, issueDate: true } },
+        referenceInvoice: { select: { id: true, issueDate: true, euTransaction: true } },
         items: { select: { vatRate: true, netAmount: true, vatAmount: true, grossAmount: true, quantity: true, unitPrice: true } },
       },
-    })
+    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end)))
     const corrections = new Map<string, { country: string; year: number; quarter: number; net: number; vat: number }>()
     for (const cn of creditNotes) {
       const country = consumerAbroad(cn.customer, homeCountry)
       const ref = cn.referenceInvoice
       if (!country || !ref) continue
-      const sameQuarter = ref.issueDate >= start && ref.issueDate <= end
+      // Tier 923: the sale's quarter is its supply's (Tier 912) — a credit note
+      // carries its sale's supply dates
+      const saleDay = supplyDay(cn)
+      const sameQuarter = within(saleDay, start, end)
       // a correction of an earlier quarter at that quarter's rate
       const f = sameQuarter
         ? await eurFactor(cn, year, quarter)
-        : await eurFactor(cn, ref.issueDate.getUTCFullYear(), Math.floor(ref.issueDate.getUTCMonth() / 3) + 1)
+        : await eurFactor(cn, saleDay.getUTCFullYear(), Math.floor(saleDay.getUTCMonth() / 3) + 1)
       for (const bucket of invoiceTaxBreakdown(cn).byRate) {
         if (!ossOnDay(ref.issueDate) && bucket.rate > 0 && isGermanRate(bucket.rate, ref.issueDate)) continue
         if (sameQuarter) {
@@ -484,8 +488,8 @@ export class OssService {
           // under the sale's id: the line's count stays the number of sales
           items.push({ invoiceId: ref.id, vatRate: bucket.rate, net: bucket.net * f, vat: bucket.vat * f, gross: (bucket.net + bucket.vat) * f })
         } else {
-          const y = ref.issueDate.getUTCFullYear()
-          const qu = Math.floor(ref.issueDate.getUTCMonth() / 3) + 1
+          const y = saleDay.getUTCFullYear()
+          const qu = Math.floor(saleDay.getUTCMonth() / 3) + 1
           const key = `${country}|${y}|${qu}`
           const c = corrections.get(key) ?? { country, year: y, quarter: qu, net: 0, vat: 0 }
           c.net += bucket.net * f

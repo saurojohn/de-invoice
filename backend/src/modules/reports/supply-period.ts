@@ -65,7 +65,25 @@ export function iglDeadline(inv: Dated): Date {
  * keeps `revenueDay` (an early invoice is declared early, Tier 913).
  */
 export function bookingDay(inv: Dated & { type?: string | null }): Date {
-  return inv.type === 'CN' ? inv.issueDate : supplyDay(inv)
+  if (inv.type !== 'CN') return supplyDay(inv)
+  // Tier 923: a credit note not before the supply of its invoice (below) — in the books an igL's too
+  const s = supplyDay(inv)
+  return s.getTime() > inv.issueDate.getTime() ? s : inv.issueDate
+}
+
+/**
+ * Tier 923 — the day of a credit note: its own (§ 17 Abs. 1 Satz 7 UStG, the
+ * period of the change), but never before the invoice it corrects is taxed.
+ * A credit note carries its invoice's supply dates (InvoiceService
+ * createCreditNote). Measured: a Vorausrechnung for a delivery on 05.01. next
+ * year, cancelled in full today — this month −1 000 €, January +1 000 € in
+ * the UStVA (and this year's / next year's GuV); the sale never took place.
+ * An igL's credit note keeps its own date (Tier 912).
+ */
+export function creditNoteDay(cn: Dated & { referenceInvoice?: { euTransaction?: boolean | null } | null }): Date {
+  if (cn.euTransaction || cn.referenceInvoice?.euTransaction) return cn.issueDate
+  const s = supplyDay(cn)
+  return s.getTime() > cn.issueDate.getTime() ? s : cn.issueDate
 }
 
 /**

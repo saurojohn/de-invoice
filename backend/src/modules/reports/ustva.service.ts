@@ -16,7 +16,7 @@ import { cashBookings } from '../cashbook/cash-bookings';
 import { istPaidDocuments } from './ustva-ist';
 import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
 import { taxedAbroad } from './oss-scope';
-import { SUPPLY_SELECT, isVorausrechnung, supplyPeriodWhere, ustvaDay, within } from './supply-period';
+import { SUPPLY_SELECT, creditNoteDay, isVorausrechnung, supplyPeriodWhere, ustvaDay, within } from './supply-period';
 import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { OSS_SELECT, ossOn } from '../../common/oss-period';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
@@ -315,12 +315,13 @@ export class UstvaService {
     const creditNotes = await this.prisma.invoice.findMany({
       where: {
         companyId,
-        issueDate: { gte: start, lte: end },
+        // Tier 923: its own period, not before its invoice's (supply-period.ts creditNoteDay)
+        ...supplyPeriodWhere(start, end),
         status: { in: ['paid', 'sent', 'overdue'] },
         type: 'CN',
       },
-      select: { ...USTVA_DOC_SELECT, referenceInvoice: { select: { euTransaction: true, reverseCharge: true, issueDate: true } } },
-    });
+      select: { ...USTVA_DOC_SELECT, ...SUPPLY_SELECT, referenceInvoice: { select: { euTransaction: true, reverseCharge: true, issueDate: true } } },
+    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end)));
 
     // Sales by rate — output VAT
     const salesByRateMap = new Map<number, { net: number; vat: number; label: string }>();

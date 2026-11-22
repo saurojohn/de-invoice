@@ -2673,6 +2673,16 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 923 — a credit note not before the supply of the invoice it corrects
+
+- **Measured:** since Tiers 919 / 921 a Vorausrechnung is in the period of its supply; its credit note stayed in the period of its own date. A Vorausrechnung for a delivery on 05.01. next year, cancelled in full today: UStVA this month −1 000 €, January +1 000 €; GuV this year −1 000, next year +1 000; the OSS the same by quarter (−200 / +200). The sale never took place.
+- § 17 Abs. 1 Satz 7 UStG: the correction in the period of the change — never before the period in which the corrected sale is taxed. A credit note carries its invoice's supply dates (createCreditNote copies the Leistungszeitraum or Leistungsdatum).
+  - `creditNoteDay` (reports/supply-period.ts): the later of the credit note's date and its supply day; an igL's credit note its own date (Tier 912). The UStVA selects credit notes by it.
+  - `bookingDay` of a credit note (GuV, Anlage G by Bilanz): the later of the two, an igL's too.
+  - OSS: the credit notes by `creditNoteDay`; „the same quarter as its sale“ and the quarter corrected are the sale's supply quarter (was the sale's issue date — since Tier 912 not the quarter the sale is in).
+- A credit note after the supply stays in its own period, as before.
+- **Spec 611:** on the Tier 922 code 4 assertions fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 922 — Mindest-Ist in the OSS return
 
 - **Measured:** after Tier 921 the OSS return took a Vorausrechnung with its supply quarter only. A web shop's order paid at once and shipped after the quarter's end (paid 30.12., shipped 02.01.) moved, tax and all, into the next quarter — until Tier 921 it had been in the quarter of the invoice. § 13 Abs. 1 Nr. 1 a Satz 4 UStG applies to the OSS sales too.
