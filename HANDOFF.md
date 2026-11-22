@@ -2673,6 +2673,20 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 919b — CI green for Tiers 914–919, no flaky
+
+| Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |
+|---|---|---|---|---|
+| 45001442565 | 914 | d92dcd25 | **601 / 0 / 1** | **1180 passed (32.5 m)** |
+| 45004294011 | 915 | 64fadb22 | **602 / 0 / 1** | **1181 passed (43.0 m)** |
+| 45007896230 | 916–917 | b0aaf5bf | **604 / 0 / 1** | **1181 passed (43.3 m)** |
+| 45011626899 | 918 | c4aa0678 | **605 / 0 / 1** | **1181 passed (44.1 m)** |
+| 45017425820 | 919 | 440e331d | **606 / 0 / 1** | **1181 passed (34.2 m)** |
+
+- Every run: 0 flaky, no retry, and the dependency audit passed.
+- Checked and left as they are (no tier): the Kleinunternehmer limits before 2025 (only invoices dated 2024 or earlier); a recurring invoice billed in arrears into a filed month (its period ends the day before the run — never in a filed month); the ELSTER whole-euro bases (Tier 734).
+- For the user to decide: a write-off of an uncollectible receivable (§ 17 Abs. 2 Nr. 1 UStG) — today only a credit note does it.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 919 — revenue with the supply in the books; an invoice before it is a pending contract, paid an erhaltene Anzahlung
 
 - **Measured:** Tier 913 put revenue at the earlier of the supply and the invoice — right for the UStVA (declared early is never declared late), not for the books. Two invoices of today for deliveries on 05.01. next year (1 000 and 2 000 net, the second paid): GuV this year 3 000, Bilanz a receivable of 1 190 and no Anzahlung.
