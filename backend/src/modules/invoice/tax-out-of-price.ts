@@ -20,6 +20,7 @@
  * changes. A credit note of such an invoice takes the same rate (Tier 844: a
  * correction follows what it corrects).
  */
+import { asIssued } from './customer-as-issued'
 import { businessDayIso } from '../../common/business-date'
 import { KU_SELECT, KuCompany, kuOn } from '../../common/kleinunternehmer-period'
 import { EXEMPTION_HINT } from './mandatory-details'
@@ -74,10 +75,12 @@ export async function untaxedOnTaxedDays(db: Db, companyId: string, co: KuCompan
       id: true, invoiceNumber: true, issueDate: true, total: true, eurTotal: true, notes: true,
       reverseCharge: true, euTransaction: true,
       customer: { select: { address: true, vatId: true } },
+      customerCountry: true, customerVatId: true, // Tier 928
     },
     orderBy: [{ issueDate: 'asc' }, { invoiceNumber: 'asc' }],
   })
-  return rows.filter(
+  // Tier 928: the customer as on the day of issue
+  return rows.map(asIssued).filter(
     (r: any) =>
       !on(r.issueDate) &&
       zeroRatedGround(r, (r.customer?.address as { country?: string } | null)?.country, r.customer?.vatId) === 'exempt' &&

@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 928b — the tax out of the price by the customer as on the day of issue
+
+- Found while checking every reader of the customer's country / VAT id after Tier 928: `untaxedOnTaxedDays` (invoice/tax-out-of-price.ts, Tier 850 — invoices issued without VAT on a day § 19 no longer covers, refreshed whenever the Kleinunternehmer setting changes) read the customer as it is. An export to a customer in Boston, issued without VAT; the customer moved to Köln; the next refresh set `taxOutOfPrice` 0.19 — a domestic sale owing its tax out of the price, in the UStVA.
+- It reads the invoice's kept data now (`asIssued`). No other reader of the customer's country / VAT id for tax is left (UStVA, ZM, OSS, DATEV, Ist / Mindest-Ist, advances, tax out of the price); the invoice PDF / e-invoice are kept copies.
+- **Spec 618:** on the Tier 930b code the assertion fails (0.1900). The Kleinunternehmer / taxOutOfPrice specs and the guards: 36 ok.
+- CI of Tier 930b (run 45058948427): backend **616 / 0 / 1**, Playwright **1182 passed (40.8 m)**, 0 flaky.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 930 — a Leistungsdatum within reason
 
 - **Measured:** since Tier 912 the Leistungsdatum decides the VAT period. An invoice of today with the Leistungsdatum 1990-01-01, another with 2099-12-31 — created and issued without a word: the tax went into a period nobody files, or decades ahead. A typo (2016 for 2026) does the same.
