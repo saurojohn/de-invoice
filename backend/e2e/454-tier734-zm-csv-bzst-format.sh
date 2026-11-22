@@ -54,7 +54,8 @@ inv "$GR" '"euTransaction":true,' 800 2026-08-05 >/dev/null
 inv "$AT" '"euTransaction":true,' 300 2026-09-01 >/dev/null
 inv "$ES" '"euTransaction":true,' 0.40 2026-09-02 >/dev/null
 # a number the customer list holds from before Tier 490's check
-docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qAtc "update \"Customer\" set \"vatId\"='ATU1' where id='$AT'" >/dev/null
+# Tier 928: an invoice keeps the VAT id it was issued with — the malformed one in both places
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qAtc "update \"Customer\" set \"vatId\"='ATU1' where id='$AT'; update \"Invoice\" set \"customerVatId\"='ATU1' where \"customerId\"='$AT' and status <> 'draft'" >/dev/null
 
 AS GET "/api/v1/ustva/zm?companyId=$C&year=2026&quarter=3"
 assert_eq "the preview: every line, the malformed number marked, the 0,40 € line not there (was: a line of 0)" \

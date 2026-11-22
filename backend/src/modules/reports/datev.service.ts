@@ -38,6 +38,7 @@
  * applies to — the layout of DATEV's sample.
  */
 
+import { asIssued } from '../invoice/customer-as-issued'
 import { KU_SELECT, kuDayOf, kuOn } from '../../common/kleinunternehmer-period';
 import { inferExpenseAccount } from './datev-sachkonto-inference'
 import { PrismaService } from '../../prisma/prisma.service';
@@ -456,7 +457,7 @@ export async function buildBuchungenFromDb(
       referenceInvoice: { select: { invoiceNumber: true, euTransaction: true, reverseCharge: true, issueDate: true } },
     },
     orderBy: [{ issueDate: 'asc' }, { invoiceNumber: 'asc' }],
-  })
+  }).then((rows) => rows.map(asIssued)) // Tier 928: the customer as on the day of issue
 
   // Payments in the period, on any invoice (the invoice may be older).
   const payments = await prisma.payment.findMany({

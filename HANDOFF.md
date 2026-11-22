@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 928 — the customer as on the day of issue: a move or a new VAT id does not rewrite a submitted return
+
+- **Measured:** the UStVA, the ZM, the OSS return and the DATEV export classify a sale by the customer's country and VAT id — read from the customer as it is today. A sale to a consumer in Paris (OSS, Kz 45), its month submitted; the customer moved to Köln: the month's return said Kz 35 / 36 (domestic tax), the OSS return 0. A business customer's new VAT id rewrote the ZM line of an igL already reported. (The documents were safe — an issued invoice is its kept copy since Tiers 684 / 685.)
+- **Schema:** `Invoice.customerCountry` / `customerVatId` (migration `20261122000001_invoice_customer_as_issued` — the columns, and for every issued invoice the customer's data as it stands, the best there is). Not applied to the dev database (`de-invoice-postgres`); the test database got it by psql, CI applies it.
+- Kept when an invoice is issued (`InvoiceService.updateStatus`), on a credit note (its sale's), on a recurring run that issues, and when an issued invoice is given another customer on its issue day. A draft keeps nothing; it reads the customer as it is.
+- `asIssued` (invoice/customer-as-issued.ts) lays them over the customer for the UStVA (sales, credit notes, Mindest-Ist payments, Ist payments, advances on a Proforma and their settlements), the ZM (from the UStVA), the OSS return and the DATEV export.
+- **Spec 615:** on the Tier 927 code 4 assertions fail (UStVA, ZM, OSS after the changes; the new sale keeps DE).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 927 — a cash entry of a submitted month does not get a VAT rate
 
 - **Measured:** a Kassenbuch entry without VAT may be booked into a submitted month (it is in no line of the UStVA — Tier 537). Changing one locked only an entry that already had a rate: last month submitted, a cash sale of last month without VAT given 19 % — 200, and the submitted return changed under it (Kz 81 0 → 100).

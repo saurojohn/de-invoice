@@ -9,6 +9,7 @@ import { businessTodayIso } from '../../common/business-date'
 import { ossOn } from '../../common/oss-period'
 import { creditNoteDay, isVorausrechnung, supplyDay, supplyPeriodWhere, ustvaDay, within } from './supply-period'
 import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
+import { asIssued } from '../invoice/customer-as-issued'
 
 /**
  * Tier 78: EU OSS (One-Stop-Shop) — quarterly
@@ -307,7 +308,7 @@ export class OssService {
           },
         },
       },
-    }).then((rows) => rows.filter((inv) => within(ustvaDay(inv), start, end)))
+    }).then((rows) => rows.filter((inv) => within(ustvaDay(inv), start, end)).map(asIssued)) // Tier 928: the customer as on the day of issue
 
     // Tier 921: Mindest-Ist (§ 13 Abs. 1 Nr. 1 a Satz 4 UStG) — a sale paid
     // before its supply (a shop's order, paid at once, shipped after the
@@ -355,7 +356,7 @@ export class OssService {
             },
           },
         },
-      })).filter((inv) => ustvaDay(inv).getTime() > end.getTime() && Number(inv.total) > 0)
+      })).filter((inv) => ustvaDay(inv).getTime() > end.getTime() && Number(inv.total) > 0).map(asIssued)
       : []
     const share = (inv: { id: string; total: unknown }, paid: number | undefined) => {
       const total = Number(inv.total)
@@ -463,7 +464,7 @@ export class OssService {
         referenceInvoice: { select: { id: true, issueDate: true, euTransaction: true } },
         items: { select: { vatRate: true, netAmount: true, vatAmount: true, grossAmount: true, quantity: true, unitPrice: true } },
       },
-    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end)))
+    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end)).map(asIssued))
     const corrections = new Map<string, { country: string; year: number; quarter: number; net: number; vat: number }>()
     for (const cn of creditNotes) {
       const country = consumerAbroad(cn.customer, homeCountry)

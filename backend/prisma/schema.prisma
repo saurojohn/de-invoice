@@ -953,6 +953,13 @@ model Invoice {
   // Customer.name for existing rows.
   customerName String @default("")
 
+  // Tier 928: the customer's country and VAT id as on the day of issue. The
+  // returns (UStVA, ZM, OSS, DATEV) classify a sale by them — read from the
+  // customer, a later move or a VAT id added changed a submitted return.
+  // Set when the invoice is issued (null on a draft; '' = no country then).
+  customerCountry String?
+  customerVatId   String?
+
   notes            String?
   internalNotes    String?
   // Tier 138: internal team notes. Never shown

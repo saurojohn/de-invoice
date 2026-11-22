@@ -29,6 +29,7 @@ import { Ku, kuAt, kuDayOf } from '../../common/kleinunternehmer-period'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CLAIM_TYPES, ISSUED_STATUSES } from '../invoice/document-scope'
+import { asIssued } from '../invoice/customer-as-issued'
 import { invoiceNetRevenue, owedEurVat, owedVat } from '../invoice/tax-breakdown'
 import { ADVANCE_SETTLEMENT_METHOD } from '../invoice/advance'
 
@@ -210,6 +211,7 @@ export async function advancePayments(prisma: PrismaService, companyId: string, 
   })
   const byId = new Map(docs.map((d) => [d.id, d]))
   return pis.map((f) => ({ doc: byId.get(f.invoice.id)!, fraction: f.fraction })).filter((x) => !!x.doc)
+    .map((x) => ({ ...x, doc: asIssued(x.doc) })) // Tier 928
 }
 
 /**
@@ -237,7 +239,7 @@ export async function advanceSettlements(prisma: PrismaService, companyId: strin
     const pi = p.invoice.advanceInvoice
     const total = Number(pi?.total ?? 0)
     if (!pi || !(total > 0)) return []
-    return [{ payment: p, finalInvoice: p.invoice, proforma: pi, fraction: Number(p.amount) / total }]
+    return [{ payment: p, finalInvoice: p.invoice, proforma: asIssued(pi), fraction: Number(p.amount) / total }] // Tier 928
   })
 }
 

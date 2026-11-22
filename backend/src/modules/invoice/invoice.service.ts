@@ -38,6 +38,7 @@ import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from 
 import { PaymentService } from './payment.service';
 import { ADVANCE_SETTLEMENT_METHOD, advanceReceived, advanceDeductionFor } from './advance';
 import { servicePeriodOf } from './service-period';
+import { customerSnapshot } from './customer-as-issued';
 import { assertInvoiceDetails } from './mandatory-details';
 
 /**
@@ -1370,6 +1371,8 @@ export class InvoiceService {
         // `customerId` directly throws "Unknown argument customerId.
         // Did you mean `customer`?".
         ...(dto.customerId ? { customer: { connect: { id: dto.customerId } } } : {}),
+        // Tier 928: an issued invoice given another customer (on its issue day) keeps that one's data
+        ...(dto.customerId && existing.status !== 'draft' ? await customerSnapshot(this.prisma, dto.customerId) : {}),
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
         deliveryDate: dto.deliveryDate ? new Date(dto.deliveryDate) : undefined,
         ...servicePeriodOf(dto),
@@ -1953,7 +1956,8 @@ export class InvoiceService {
       where: { id },
       // Tier 497: a copy stored while it was a draft (before this tier) is
       // not the issued invoice.
-      data: { status, ...(issuing ? { pdfPath: null } : {}) },
+      // Tier 928: the customer's country and VAT id as on the day of issue
+      data: { status, ...(issuing ? { pdfPath: null, ...(await customerSnapshot(this.prisma, before.customerId)) } : {}) },
     });
     // Tier 611: the hours billed with a cancelled invoice are open again —
     // they are invoiced anew. (A deleted draft opens them through the FK.)
@@ -2490,6 +2494,10 @@ export class InvoiceService {
           status: 'sent',
           issueDate: now,
           dueDate: now,
+          // Tier 928: its sale's customer as on the day that sale was issued
+          ...(original.customerCountry != null
+            ? { customerCountry: original.customerCountry, customerVatId: original.customerVatId }
+            : await customerSnapshot(tx, original.customerId)),
           subtotal,
           totalVat,
           // Tier 850: it takes back the tax its invoice owes out of the price

@@ -1,3 +1,4 @@
+import { customerSnapshot } from '../invoice/customer-as-issued'
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { KleinunternehmerService } from '../accounting/kleinunternehmer.service'
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
@@ -1203,6 +1204,8 @@ export class RecurringService {
           sequenceNumber,
           type: 'INV',
           status: tpl.invoiceStatus || 'draft',
+          // Tier 928: issued by the run — the customer as on this day
+          ...((tpl.invoiceStatus || 'draft') !== 'draft' ? await customerSnapshot(tx, tpl.customerId) : {}),
           issueDate,
           dueDate,
           reverseCharge: vat.reverseCharge, // Tier 513

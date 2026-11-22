@@ -16,6 +16,7 @@
  */
 import { PrismaService } from '../../prisma/prisma.service'
 import { euerInflows } from '../accounting/euer-zufluss'
+import { asIssued } from '../invoice/customer-as-issued'
 import { ART_SELECT, artOn } from '../../common/besteuerungsart-period'
 
 export type Besteuerungsart = 'soll' | 'ist'
@@ -43,4 +44,5 @@ export async function istPaidDocuments(prisma: PrismaService, companyId: string,
   return inflows
     .map((f) => ({ doc: byId.get(f.invoice.id)!, fraction: f.fraction }))
     .filter((x) => !!x.doc)
+    .map((x) => ({ ...x, doc: asIssued(x.doc) })) // Tier 928
 }

@@ -18,6 +18,7 @@ import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-perio
 import { taxedAbroad } from './oss-scope';
 import { SUPPLY_SELECT, creditNoteDay, isVorausrechnung, supplyPeriodWhere, ustvaDay, within } from './supply-period';
 import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
+import { AS_ISSUED_SELECT, asIssued } from '../invoice/customer-as-issued';
 import { OSS_SELECT, ossOn } from '../../common/oss-period';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
@@ -150,6 +151,7 @@ const USTVA_DOC_SELECT = {
   euTransaction: true, reverseCharge: true,
   items: { select: { quantity: true, unitPrice: true, vatRate: true } },
   customer: { select: { address: true, vatId: true } },
+  ...AS_ISSUED_SELECT, // Tier 928
 } as const;
 
 @Injectable()
@@ -205,7 +207,7 @@ export class UstvaService {
     });
     return docs
       .filter((d) => ustvaDay(d).getTime() > end.getTime() && Number(d.total) > 0)
-      .map((d) => ({ doc: d, fraction: Math.min(1, (paid.get(d.id) ?? 0) / Number(d.total)) }));
+      .map((d) => ({ doc: asIssued(d), fraction: Math.min(1, (paid.get(d.id) ?? 0) / Number(d.total)) }));
   }
 
   /** Tier 816: the VAT of the period's manual vouchers, which the return does not add. */
@@ -289,7 +291,7 @@ export class UstvaService {
       // month, most of it in turning rows into objects, for the Bilanz, the
       // Anhang, the E-Bilanz and the UStJA each.
       select: { ...USTVA_DOC_SELECT, ...SUPPLY_SELECT },
-    }).then((rows) => rows.filter((inv) => within(ustvaDay(inv), start, end)));
+    }).then((rows) => rows.filter((inv) => within(ustvaDay(inv), start, end)).map(asIssued)); // Tier 928: the customer as on the day of issue
     // Tier 921: a Vorausrechnung's taxed part in the period of its supply is
     // what was not paid before this period (that is declared when received —
     // `prepaidDocs` below; § 13 Abs. 1 Nr. 1 a Satz 4 UStG).
@@ -321,7 +323,7 @@ export class UstvaService {
         type: 'CN',
       },
       select: { ...USTVA_DOC_SELECT, ...SUPPLY_SELECT, referenceInvoiceId: true, referenceInvoice: { select: { euTransaction: true, reverseCharge: true, issueDate: true, total: true } } },
-    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end) || within(cn.issueDate, start, end)));
+    }).then((rows) => rows.filter((cn) => within(creditNoteDay(cn), start, end) || within(cn.issueDate, start, end)).map(asIssued));
     // Tier 924: a credit note before the supply of a Vorausrechnung that was
     // paid (and so taxed when received, Tier 921) corrects that part in its
     // own period (§ 17 Abs. 2 Nr. 2 UStG — the advance is to be given back);
