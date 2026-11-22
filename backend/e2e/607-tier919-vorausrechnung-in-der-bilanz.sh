@@ -46,7 +46,8 @@ AS GET "/api/v1/accounting/bilanz?companyId=$C&year=$Y"
 assert_eq "Bilanz 31.12.$Y: no receivable for the unpaid one (was 1 190)" "$(line aktiva 'Forderungen aus Lieferungen und Leistungen')" "0"
 assert_eq "…the paid one an erhaltene Anzahlung of 2 000 net (was 0; its 380 € VAT are in the Umsatzsteuer owed — Tier 920)" "$(line passiva 'Erhaltene Anzahlungen auf Bestellungen')" "2000"
 AS GET "/api/v1/ustva/compute?companyId=$C&year=$Y&month=$M"
-assert_eq "the UStVA keeps them in the month of the invoices (Tier 913)" "$(P "{k['kz']:k['value'] for k in d['kennzahlen'] if k.get('value')}.get('81')")" "3000"
+# Tier 921: the UStVA declares the paid one when received (Mindest-Ist), the unpaid one with its supply
+assert_eq "the UStVA this month: the 2 000 paid in advance, not the unpaid 1 000" "$(P "{k['kz']:k['value'] for k in d['kennzahlen'] if k.get('value')}.get('81')")" "2000"
 
 note "=== a sole trader who keeps books from $NY: the Anzahlung in the Übergangsgewinn ==="
 company b Einzelunternehmen euer

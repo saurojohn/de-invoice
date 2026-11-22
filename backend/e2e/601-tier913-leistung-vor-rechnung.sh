@@ -35,7 +35,9 @@ kz81() { AS GET "/api/v1/ustva/compute?companyId=$C&$1"; python3 -c "import sys,
 
 note "=== 1. an invoice before its supply stays in its own month ==="
 issue 300 ",\"deliveryDate\":\"$NEXT\""
-assert_eq "invoiced today, delivered next month: this month (Tier 912 had next month)" "$(kz81 "$(ym "$TODAY")")/$(kz81 "$(ym "$NEXT")")" "300/0"
+# Tier 921: unpaid, it is the next month's after all — the tax arises with the
+# supply; only a payment before it is owed earlier (Mindest-Ist, spec 609)
+assert_eq "invoiced today, delivered next month, unpaid: next month" "$(kz81 "$(ym "$TODAY")")/$(kz81 "$(ym "$NEXT")")" "0/300"
 
 note "=== 2. a supply of last December, invoiced this year: last year's revenue and claim ==="
 issue 400 ",\"deliveryDate\":\"$((Y - 1))-12-15\""

@@ -68,9 +68,30 @@ export function bookingDay(inv: Dated & { type?: string | null }): Date {
   return inv.type === 'CN' ? inv.issueDate : supplyDay(inv)
 }
 
+/**
+ * Tier 921 — Mindest-Ist instead of the invoice date. Tier 913 declared an
+ * invoice written before its supply (a Vorausrechnung) in its own period, in
+ * full, paid or not. § 13 Abs. 1 Nr. 1 a UStG: the tax arises with the supply;
+ * only a payment received before it is owed earlier, when received, and only
+ * for its amount (Satz 4). Measured: invoiced 22.11. for a delivery on 03.12.,
+ * unpaid — declared in November (and, at the year's end, in the wrong UStJA).
+ * Now an invoice is in the period of its supply; the UStVA declares the
+ * payments received before the supply in their periods and takes them off the
+ * supply's (UstvaService, `paidBeforeSupply`).
+ */
+export function isVorausrechnung(inv: Dated): boolean {
+  return !inv.euTransaction && supplyDay(inv).getTime() > inv.issueDate.getTime()
+}
+
+/** Tier 921: a payment on this day is taxed when received (Mindest-Ist) — it comes before the supply */
+export function taxedOnReceipt(inv: Dated, paymentDate: Date | string): boolean {
+  const day = typeof paymentDate === 'string' ? paymentDate.slice(0, 10) : businessDayIso(paymentDate)
+  return !inv.euTransaction && day < businessDayIso(supplyDay(inv))
+}
+
 /** the day that puts an invoice into a UStVA period */
 export function ustvaDay(inv: Dated): Date {
-  if (!inv.euTransaction) return revenueDay(inv)
+  if (!inv.euTransaction) return supplyDay(inv) // Tier 921 (Tier 913 had the earlier of supply and invoice)
   const deadline = iglDeadline(inv)
   return deadline.getTime() < inv.issueDate.getTime() ? deadline : inv.issueDate
 }

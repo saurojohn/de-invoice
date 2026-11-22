@@ -2673,6 +2673,17 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 921 — Mindest-Ist instead of the invoice date: a Vorausrechnung is declared with its supply, a payment before it when received
+
+- **Measured:** Tier 913 declared an invoice written before its supply in its own period, in full, paid or not. Invoices of today for deliveries on 05.01. next year: declared this month in full (also unpaid — and so in this year's UStJA); the Bilanz then owed the Finanzamt VAT on a supply neither made nor paid (570 € instead of 190 €).
+- § 13 Abs. 1 Nr. 1 a UStG: the tax arises with the end of the period of the supply; only a payment received before it is owed earlier, when received, and only for its amount (Satz 4, Mindest-Ist). Decided as the accountant (Tier 913 is corrected).
+  - `ustvaDay` is the supply day again (an igL keeps Tier 914's rule). `isVorausrechnung`, `taxedOnReceipt` (reports/supply-period.ts).
+  - UStVA: in the period of the supply a Vorausrechnung's taxed part less what was paid before the period; the payments received in a period on a Vorausrechnung whose supply comes later are declared there (`paidBeforeSupply`), for a Soll-Versteuerer. Zero-rated parts (§ 13b, export, Kz 21) go with the supply; under Ist nothing changes.
+  - Lock (Tier 537): a payment received before the supply is taxed when received — booking or deleting it in a submitted period is refused, as for an advance on a Proforma.
+- Not done: the OSS return takes such an invoice with its supply quarter; a prepayment received in an earlier quarter is not declared there separately.
+- Spec 601 (Tier 913) expected the unpaid Vorausrechnung in its own month → next month.
+- **Spec 609:** on the Tier 920 code 4 assertions fail (the unpaid one, the half paid, the Bilanz VAT, the lock).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 920 — erhaltene Anzahlungen net of their VAT (Nettomethode)
 
 - **Measured:** the Bilanz showed an advance received gross — a Proforma's payment (Tier 470) and, since Tier 919, a Vorausrechnung paid before its supply — while its VAT, declared when received, also stood in the Umsatzsteuer owed („Sonstige Verbindlichkeiten“). 1 190 € received were 1 380 € of debts; the Saldoposten took the difference.

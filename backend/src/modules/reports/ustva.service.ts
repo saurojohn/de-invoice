@@ -16,7 +16,8 @@ import { cashBookings } from '../cashbook/cash-bookings';
 import { istPaidDocuments } from './ustva-ist';
 import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
 import { taxedAbroad } from './oss-scope';
-import { SUPPLY_SELECT, supplyPeriodWhere, ustvaDay, within } from './supply-period';
+import { SUPPLY_SELECT, isVorausrechnung, supplyPeriodWhere, ustvaDay, within } from './supply-period';
+import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
 import { OSS_SELECT, ossOn } from '../../common/oss-period';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
@@ -175,6 +176,38 @@ export class UstvaService {
     };
   }
 
+  /**
+   * Tier 921: the payments received in [start, end] on invoices whose supply
+   * comes after the period (Vorausrechnungen; not an igL), each invoice with
+   * the part of it paid in the period.
+   */
+  private async paidBeforeSupply(companyId: string, start: Date, end: Date) {
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        paymentDate: { gte: start, lte: end },
+        paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
+        invoice: {
+          companyId,
+          type: { in: ['INV', 'RCV'] },
+          status: { notIn: ['draft', 'cancelled'] },
+          euTransaction: false,
+          OR: [{ deliveryDate: { gt: end } }, { servicePeriodEnd: { gt: end } }],
+        },
+      },
+      select: { invoiceId: true, amount: true },
+    });
+    if (rows.length === 0) return [];
+    const paid = new Map<string, number>();
+    for (const r of rows) paid.set(r.invoiceId, (paid.get(r.invoiceId) ?? 0) + Number(r.amount));
+    const docs = await this.prisma.invoice.findMany({
+      where: { companyId, id: { in: [...paid.keys()] } },
+      select: { ...USTVA_DOC_SELECT, ...SUPPLY_SELECT },
+    });
+    return docs
+      .filter((d) => ustvaDay(d).getTime() > end.getTime() && Number(d.total) > 0)
+      .map((d) => ({ doc: d, fraction: Math.min(1, (paid.get(d.id) ?? 0) / Number(d.total)) }));
+  }
+
   /** Tier 816: the VAT of the period's manual vouchers, which the return does not add. */
   async manualVatOf(companyId: string, year: number, quarter?: number, month?: number) {
     const { start, end } = this.getDateRange(year, quarter, month);
@@ -257,6 +290,27 @@ export class UstvaService {
       // Anhang, the E-Bilanz and the UStJA each.
       select: { ...USTVA_DOC_SELECT, ...SUPPLY_SELECT },
     }).then((rows) => rows.filter((inv) => within(ustvaDay(inv), start, end)));
+    // Tier 921: a Vorausrechnung's taxed part in the period of its supply is
+    // what was not paid before this period (that is declared when received —
+    // `prepaidDocs` below; § 13 Abs. 1 Nr. 1 a Satz 4 UStG).
+    const vorauIds = salesInvoices.filter((inv) => isVorausrechnung(inv) && taxedAtIssue(inv)).map((inv) => inv.id);
+    const paidBefore = new Map<string, number>();
+    if (vorauIds.length) {
+      const sums = await this.prisma.payment.groupBy({
+        by: ['invoiceId'],
+        where: { invoiceId: { in: vorauIds }, paymentDate: { lt: start }, paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS } },
+        _sum: { amount: true },
+      });
+      for (const r of sums) paidBefore.set(r.invoiceId, Number(r._sum.amount ?? 0));
+    }
+    const supplyShare = (inv: { id: string; total: unknown }) => {
+      const paid = paidBefore.get(inv.id);
+      const total = Number(inv.total);
+      return paid && total > 0 ? Math.max(0, 1 - paid / total) : 1;
+    };
+    // Tier 921: the payments received in the period on a Vorausrechnung whose
+    // supply comes after it — owed when received, for the part paid.
+    const prepaidDocs = await this.paidBeforeSupply(companyId, start, end);
 
     const creditNotes = await this.prisma.invoice.findMany({
       where: {
@@ -387,7 +441,8 @@ export class UstvaService {
 
         if (rate > 0) {
           // Tier 457: an Ist-Versteuerer owes it when paid (below).
-          if (taxedAtIssue(inv)) addTaxed(inv, rate, net, vat);
+          // Tier 921: less what was paid before (declared then)
+          if (taxedAtIssue(inv)) { const k = supplyShare(inv); addTaxed(inv, rate, net * k, vat * k); }
         } else {
           // Zero-rated — the invoice's own igL / § 13b flags are the user's
           // explicit statement and win over any inference.
@@ -444,6 +499,15 @@ export class UstvaService {
         for (const bucket of invoiceTaxBreakdown(proforma).byRate) {
           if (bucket.rate > 0) addTaxed(proforma, bucket.rate, -bucket.net * f * fraction, -bucket.vat * f * fraction)
         }
+      }
+    }
+
+    // Tier 921: Mindest-Ist — a Soll-Versteuerer's payments received before the supply
+    for (const { doc, fraction } of prepaidDocs) {
+      if (!taxedAtIssue(doc)) continue; // under Ist they are below
+      const f = eurFactor(doc)
+      for (const bucket of invoiceTaxBreakdown(doc).byRate) {
+        if (bucket.rate > 0) addTaxed(doc, bucket.rate, bucket.net * f * fraction, bucket.vat * f * fraction)
       }
     }
 
