@@ -1,6 +1,6 @@
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
 import { flowFromLeft } from '../../common/pdf-flow'
-import { assertPeriodOpen } from './filed-period';
+import { assertBooksOpen, assertPeriodOpen } from './filed-period';
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
 import { manualVat } from '../accounting/manual-journal'
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
@@ -22,7 +22,7 @@ import { AS_ISSUED_SELECT, asIssued } from '../invoice/customer-as-issued';
 import { OSS_SELECT, ossOn } from '../../common/oss-period';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
 import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
-import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
+import { expenseLockReason, expenseLockReasons, notesKeepingMarkers } from '../expense/expense-lock';
 import { formYearNotice, KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 import { privateCarUse } from '../company-car/private-use';
 import { giftInputTaxOfPeriod } from '../accounting/gifts';
@@ -1447,6 +1447,8 @@ export class UstvaService {
       if (!sup) throw new BadRequestException('Lieferant nicht gefunden');
     }
     await assertPeriodOpen(this.prisma, companyId, [data.invoiceDate], 'das Erfassen einer Eingangsrechnung'); // Tier 537
+    // Tier 944: paid on a day of closed books — the EÜR of that year (§ 11 EStG)
+    await assertBooksOpen(this.prisma, companyId, [data.paidAt], 'das Erfassen einer Zahlung');
     // Tier 523 (lines were each checked by checkTaxLines)
     if (!data.taxRows?.length) {
       assertExpenseAmounts({ net: Number(data.netAmount), vat: Number(data.vatAmount), gross: Number(data.grossAmount), rate: Number(data.vatRate) });
@@ -1477,7 +1479,7 @@ export class UstvaService {
         bewirtungTeilnehmer: data.bewirtungTeilnehmer?.trim() || null,
         isIntraEU: data.isIntraEU ?? false,
         isReverseCharge: data.isReverseCharge ?? false,
-        notes: data.notes,
+        notes: notesKeepingMarkers(data.notes, null), // Tier 944: no bookkeeping marker typed in
         paidAt: data.paidAt ?? null,
       },
       include: { supplier: true, taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true, position: true }, orderBy: { position: 'asc' } } },
@@ -1488,6 +1490,7 @@ export class UstvaService {
     const exp = await this.prisma.expense.findFirst({ where: { id: expenseId, companyId } });
     if (!exp) throw new BadRequestException('Ausgabe nicht gefunden');
     await assertPeriodOpen(this.prisma, companyId, [exp.invoiceDate], 'das Löschen einer Eingangsrechnung'); // Tier 537
+    await assertBooksOpen(this.prisma, companyId, [exp.paidAt], 'das Löschen einer bezahlten Eingangsrechnung'); // Tier 944: its payment is in the EÜR
     // Tier 443: a paid expense or an AfA row took its cost, input tax and
     // payment out of the books with it (the cash-book entry's link set to NULL).
     const reason = await expenseLockReason(this.prisma, companyId, exp);

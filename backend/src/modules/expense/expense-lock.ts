@@ -88,6 +88,26 @@ export async function expenseLockReasons(
   return reasons
 }
 
+/**
+ * Tier 944 — the markers a booking keeps in an expense's notes
+ * (`[skonto-voucher:…]` by the bank import's Skonto, `[bank-expense:…]` /
+ * `[bank-expense-storno:…]` by a bank booking and its Storno) belong to the
+ * bookkeeping: the lock above reads them, a voucher's Storno finds its Skonto
+ * by them. The notes are the user's — an edit replaced them whole: the marker
+ * went, and with it the lock (the Skonto could be deleted on its own, its
+ * input-tax correction gone while the bank voucher stayed) and the Storno's
+ * way to the Skonto. None can be typed in either (a forged one would lock an
+ * expense, or hand it to another voucher's Storno).
+ */
+export const SYSTEM_MARKER = /\[(?:skonto-voucher|bank-expense(?:-storno)?):[^\]\s]*\]/g
+
+/** The user's text without markers, followed by the markers the old notes had. */
+export function notesKeepingMarkers(userNotes: string | null | undefined, oldNotes: string | null | undefined): string | null {
+  const text = (userNotes ?? '').replace(SYSTEM_MARKER, '').replace(/\s{2,}/g, ' ').trim()
+  const markers = (oldNotes ?? '').match(SYSTEM_MARKER) ?? []
+  return [text, ...markers].filter(Boolean).join(' ') || null
+}
+
 export async function expenseLockReason(
   prisma: PrismaService,
   companyId: string,

@@ -17,11 +17,11 @@
  * Where the bank, SEPA or the cash book paid the expense, the lock refuses it
  * like any other change.
  */
-import { assertPeriodOpen } from '../reports/filed-period';
+import { assertBooksOpen, assertPeriodOpen } from '../reports/filed-period';
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { signedExpenseAmounts } from './credit-note'
-import { expenseLockReason } from './expense-lock'
+import { expenseLockReason, notesKeepingMarkers } from './expense-lock'
 import type { UpdateExpenseDto } from './dto/expense.dto'
 import { assertNotFuture } from '../../common/business-date'
 import { assertExpenseAmounts } from './amounts'
@@ -178,13 +178,28 @@ export async function updateExpense(
   }
   const linesChanged = newRows !== null
 
+  // Tier 944: the day of payment is no part of the UStVA (the input tax is
+  // the invoice's, § 15 UStG) — but of the EÜR (§ 11 EStG) and the balance
+  // sheet's payables, so of the closed books. A payment dated into a closed
+  // year changed its EÜR; a bill whose invoice month was submitted could not
+  // be marked paid at all.
+  const onlyPaidAt = Object.keys(changes).length === 1 && 'paidAt' in changes && !linesChanged
+  if ('paidAt' in changes) {
+    await assertBooksOpen(prisma, companyId, [exp.paidAt, changes.paidAt as Date | null], 'das Ändern des Zahldatums')
+  }
   if (Object.keys(changes).length > 0 || linesChanged) {
     // Tier 537: out of, or into, a submitted UStVA period
-    await assertPeriodOpen(prisma, companyId, [exp.invoiceDate, changes.invoiceDate as Date | undefined], 'das Ändern einer Eingangsrechnung')
+    if (!onlyPaidAt) {
+      await assertPeriodOpen(prisma, companyId, [exp.invoiceDate, changes.invoiceDate as Date | undefined], 'das Ändern einer Eingangsrechnung')
+    }
     const reason = await expenseLockReason(prisma, companyId, exp)
     if (reason) throw new BadRequestException(reason)
   }
-  if (data.notes !== undefined) set('notes', orNull(data.notes), orNull(data.notes) !== exp.notes)
+  if (data.notes !== undefined) {
+    // Tier 944: the bookkeeping's markers stay (expense-lock.ts)
+    const notes = notesKeepingMarkers(orNull(data.notes), exp.notes)
+    set('notes', notes, notes !== exp.notes)
+  }
 
   if (Object.keys(changes).length === 0 && !linesChanged) {
     return prisma.expense.findFirst({ where: { id, companyId }, include: withLines })

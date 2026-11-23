@@ -1,10 +1,10 @@
 import { isCalendarDay } from '../../common/calendar-day'
 import { parseImportAmount, parseImportRate } from '../../common/import-number'
 import { bewirtungNachweisFehlt } from '../accounting/expense-cost';
-import { assertPeriodOpen, filedPeriodOf, filedPeriodMessage } from '../reports/filed-period';
+import { assertBooksOpen, assertPeriodOpen, booksClosedMessage, booksClosedUntilOf, filedPeriodOf, filedPeriodMessage } from '../reports/filed-period';
 import { signedExpenseAmounts } from './credit-note';
 import { assertNoDuplicateExpense, duplicateExpenseMessage, findDuplicateExpense, withExpenseNumberLock } from './expense-duplicate'
-import { expenseLockReasons } from './expense-lock';
+import { expenseLockReasons, notesKeepingMarkers } from './expense-lock';
 /**
  * Expense (Eingangsrechnung) — vendor bills received.
  *
@@ -24,12 +24,15 @@ import { expenseLockReasons } from './expense-lock';
 
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { assertNotFuture } from '../../common/business-date';
+import { assertNotFuture, businessDayIso } from '../../common/business-date';
 import { assertExpenseAmounts, expenseAmountsError } from './amounts';
 import { checkTaxLines } from './tax-lines';
 import { notAnExpense } from '../accounting/expense-cost';
 import { assertInputTaxRate, inputTaxRateError } from './input-tax-rate';
 import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
+
+/** Tier 944: what an expense's status can be — the reports count booked and deductible */
+const EXPENSE_STATUSES = ['booked', 'deductible', 'blocked']
 
 @Injectable()
 export class ExpenseService {
@@ -186,6 +189,8 @@ export class ExpenseService {
       !!(data.isIntraEU || data.isReverseCharge),
     );
     await assertPeriodOpen(this.prisma, companyId, [data.invoiceDate], 'das Erfassen einer Eingangsrechnung'); // Tier 537
+    // Tier 944: paid on a day of closed books — the EÜR of that year (§ 11 EStG)
+    await assertBooksOpen(this.prisma, companyId, [data.paidAt], 'das Erfassen einer Zahlung');
     return this.prisma.expense.create({
       data: {
         companyId,
@@ -214,7 +219,7 @@ export class ExpenseService {
         isIntraEU: !!data.isIntraEU,
         isReverseCharge: !!data.isReverseCharge,
         status: data.status || 'booked',
-        notes: data.notes || null,
+        notes: notesKeepingMarkers(data.notes, null), // Tier 944: no bookkeeping marker typed in
         // Tier 454: paid by card / privately (CreateExpenseDto.paidAt).
         paidAt: data.paidAt ? new Date(data.paidAt) : null,
       },
@@ -261,6 +266,7 @@ export class ExpenseService {
     // Tier 739: every row is checked first, then the rows of one invoice are
     // booked together (see the grouping below the loop).
     const prepared: PreparedImportRow[] = []
+    const closedUntil = await booksClosedUntilOf(this.prisma, companyId) // Tier 944
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] || {}
       const rowNum = i + 2
@@ -387,6 +393,21 @@ export class ExpenseService {
           result.errors.push({ row: rowNum, error: filedPeriodMessage(filed, 'das Erfassen einer Eingangsrechnung'), description })
           continue
         }
+        // Tier 944: …or into closed books. A row on its own was written
+        // straight to the table — past the closing (rows of one invoice go
+        // through create(), which checked it).
+        if (closedUntil && businessDayIso(invoiceDate) <= closedUntil) {
+          result.errors.push({ row: rowNum, error: booksClosedMessage(closedUntil, 'das Erfassen einer Eingangsrechnung'), description })
+          continue
+        }
+        // Tier 944: the status decides whether a bill counts at all (the
+        // reports take booked / deductible). Free text — „bezahlt“, „offen“ —
+        // was stored, and the bill was in no report.
+        const status = (row.status || '').trim().toLowerCase() || 'booked'
+        if (!EXPENSE_STATUSES.includes(status)) {
+          result.errors.push({ row: rowNum, error: `Unbekannter Status „${(row.status || '').trim().slice(0, 40)}“ — erlaubt sind booked, deductible und blocked (leer: booked). Bezahlt-Sein ist kein Status, sondern ein Zahldatum.`, description })
+          continue
+        }
         // Tier 677 / 682: a loan's repayment, a tax on income — reported, not imported.
         const none = notAnExpense(row.category)
         if (none) {
@@ -416,8 +437,8 @@ export class ExpenseService {
           vat: vatAmount,
           gross: grossAmount,
           category: (row.category || '').trim() || null,
-          status: (row.status || 'booked').trim(),
-          notes: (row.notes || '').trim() || null,
+          status: (row.status || '').trim().toLowerCase() || 'booked', // Tier 944: checked above
+          notes: notesKeepingMarkers(row.notes, null), // Tier 944
         })
       } catch (e: any) {
         result.errors.push({
