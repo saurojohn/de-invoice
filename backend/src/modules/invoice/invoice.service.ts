@@ -5,6 +5,7 @@ import { assertBooksOpen, assertPeriodOpen, invoiceLockDates } from '../reports/
 import { besteuerungsartOn } from '../reports/ustva-ist';
 import { paidSoFar } from './paid-so-far';
 import { eurOfInvoiceAmount } from './eur-of-invoice';
+import { invoiceNetRevenue } from './tax-breakdown';
 import { storedPaymentMethod } from './payment-method'
 import { withKeyLock } from '../../common/key-lock';
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
@@ -1967,9 +1968,15 @@ export class InvoiceService {
       // issued then, the customer holds it, and the revenue received since
       // is no reason to keep it out of the books.
       if (before.type !== 'PI' && !opts?.restored) {
-        const refusal = await this.kleinunternehmer.refusalForIssue(
-          companyId, before.issueDate, Number(before.eurSubtotal ?? before.subtotal),
-        );
+        // Tier 962: what this invoice adds to the year's Gesamtumsatz — its net
+        // after the document's discount (eurSubtotal is before it), less an
+        // advance its Proforma received (in the revenue already, § 19 Abs. 1:
+        // vereinnahmte Entgelte). Measured: a final invoice of 60 000 € after
+        // 50 000 € received counted as 110 000 € and was refused; 104 000 €
+        // with 5 % off (98 800 €) refused at the 100 000 € limit.
+        const received = before.advanceInvoiceId ? await advanceReceived(this.prisma, before.advanceInvoiceId) : 0;
+        const adds = Math.max(0, invoiceNetRevenue(before) - eurOfInvoiceAmount(before, received));
+        const refusal = await this.kleinunternehmer.refusalForIssue(companyId, before.issueDate, adds);
         if (refusal) throw new BadRequestException(refusal);
       }
     }
