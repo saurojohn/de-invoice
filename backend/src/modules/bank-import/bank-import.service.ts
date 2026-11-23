@@ -51,11 +51,11 @@ type OpenInvoiceRow = {
   id: string
   invoiceNumber: string
   total: unknown
-  payments: Array<{ amount: unknown }>
+  payments: Array<{ amount: unknown; paymentMethod?: string | null }>
   customer: { name: string; customerNumber: string | null } | null
   dueDate: Date | null
 }
-type PreparedOpen<T> = { inv: T; total: number; open: number; numberKey: string; nameKey: string; dueTime: number | null }
+type PreparedOpen<T> = { inv: T; total: number; open: number; credited: number; numberKey: string; nameKey: string; dueTime: number | null }
 const PREPARED = new WeakMap<object, PreparedOpen<OpenInvoiceRow>[]>()
 
 /**
@@ -73,7 +73,9 @@ function preparedOpen<T extends OpenInvoiceRow>(list: T[]): PreparedOpen<T>[] {
     .map((inv) => {
       const total = Number(inv.total)
       const open = Math.round((total - inv.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)) * 100) / 100
-      return { inv, total, open, numberKey: inv.invoiceNumber.toLowerCase().replace(/\//g, '-'), nameKey: inv.customer?.name ? inv.customer.name.toLowerCase() : '', dueTime: inv.dueDate ? new Date(inv.dueDate).getTime() : null }
+      // Tier 957: what its credit notes settled — the Skonto is on the rest
+      const credited = Math.round(inv.payments.filter((p) => p.paymentMethod === 'Gutschrift').reduce((sum, p) => sum + Number(p.amount ?? 0), 0) * 100) / 100
+      return { inv, total, open, credited, numberKey: inv.invoiceNumber.toLowerCase().replace(/\//g, '-'), nameKey: inv.customer?.name ? inv.customer.name.toLowerCase() : '', dueTime: inv.dueDate ? new Date(inv.dueDate).getTime() : null }
     })
     .filter((r) => r.open > 0)
   PREPARED.set(list, rows)
@@ -425,7 +427,7 @@ export class BankImportService {
         id: true, invoiceNumber: true, total: true, issueDate: true, dueDate: true,
         skontoPercent: true, skontoDays: true,
         customer: { select: { name: true, customerNumber: true } },
-        payments: { select: { amount: true } },
+        payments: { select: { amount: true, paymentMethod: true } },
       },
       orderBy: { issueDate: 'desc' },
     });
@@ -505,7 +507,7 @@ export class BankImportService {
 
     const counterpartyKey = txn.counterpartyName ? txn.counterpartyName.toLowerCase() : '';
     const valueTime = valueDate.getTime();
-    for (const { inv, total, open, nameKey, dueTime } of rows) {
+    for (const { inv, total, open, credited, nameKey, dueTime } of rows) {
       const named = namedIds.has(inv.id);
       const amtDelta = Math.abs(open - amount);
       let amtScore = amtDelta < 0.01 ? 60
@@ -516,10 +518,13 @@ export class BankImportService {
       if (amtScore === 0) {
         // The amount is not what is open. Skonto: nothing paid yet, and the
         // amount is the total less the invoice's Skonto — inside its window
+        // (Tier 957: the total less its credit notes — after a credit note the
+        // customer pays the rest less the Skonto on it; it was no match)
         // the confirmation settles the invoice (Tier 52), after it the rest
         // stays open, and the suggestion says which it is.
         const pct = inv.skontoPercent != null ? Number(inv.skontoPercent) : 0;
-        const lessSkonto = pct > 0 && open === total ? Math.round(total * (100 - pct)) / 100 : null;
+        const base = Math.round((total - credited) * 100) / 100;
+        const lessSkonto = pct > 0 && open === base ? Math.round(base * (100 - pct)) / 100 : null;
         if (lessSkonto !== null && Math.abs(lessSkonto - amount) < 0.01) {
           const expiry = new Date(inv.issueDate);
           expiry.setDate(expiry.getDate() + (inv.skontoDays ?? 0));

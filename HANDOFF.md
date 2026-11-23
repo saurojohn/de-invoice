@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 957 — the bank match: a payment less Skonto after a credit note
+
+- **Measured:** the bank match suggests an invoice for a line of its total less its Skonto (Tier 52) — only when nothing was paid. After a credit note (goods returned) the customer pays the rest less the Skonto on it: 1 190 € invoice, 595 € credited, 583,10 € received without the number in the purpose — no suggestion at all.
+- `preparedOpen` keeps what the credit notes settled ('Gutschrift' payments); the Skonto amount is the total less that, less the Skonto. Confirming the match settles the invoice (Tier 951). The purchase side and the posting of a confirmed match were looked at — the voucher's Skonto amount there is only logged, PaymentService settles it.
+- Local batch (bank import, Skonto, guards; 76): spec 195 failed once on an `npm notice` line in its probe's output, green again alone.
+- **Spec 644:** on the Tier 956 code the assertion fails.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 956 — a company car and the submitted months
 
 - **Measured:** the private use of a company car is in each month's UStVA (an unpaid supply, § 3 Abs. 9a Nr. 1 UStG) and in the year's EÜR. A car used from August, September submitted: a second car from September was taken, the first ended on 31.08. and deleted — September's submitted return went from 320 to 240 €.
