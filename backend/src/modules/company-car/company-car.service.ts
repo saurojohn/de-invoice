@@ -3,8 +3,29 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 import { CreateCompanyCarDto, EndCompanyCarDto } from './company-car.dto'
 import { DEFAULT_COMMUTE_DAYS, privateCarUse, reducedRateProblem, roundedListPrice } from './private-use'
+import { assertPeriodOpen } from '../reports/filed-period'
+import { businessTodayDate } from '../../common/business-date'
 
 /** Tier 502 — company cars used privately (private-use.ts). */
+/**
+ * Tier 956 — the last day of every month from `from` to `to` (both included).
+ * The private use of a car is in each month's UStVA (an unpaid supply,
+ * § 3 Abs. 9a Nr. 1 UStG) and in its year's EÜR.
+ */
+function monthEnds(from: Date, to: Date): Date[] {
+  const out: Date[] = []
+  let y = from.getUTCFullYear()
+  let m = from.getUTCMonth()
+  const endY = to.getUTCFullYear()
+  const endM = to.getUTCMonth()
+  while ((y < endY || (y === endY && m <= endM)) && out.length < 600) {
+    out.push(new Date(Date.UTC(y, m + 1, 0)))
+    m++
+    if (m > 11) { m = 0; y++ }
+  }
+  return out
+}
+
 @Injectable()
 export class CompanyCarService {
   constructor(private prisma: PrismaService) {}
@@ -30,6 +51,8 @@ export class CompanyCarService {
     if (until && until < from) throw new BadRequestException('Das Ende liegt vor dem Beginn.')
     const rateProblem = reducedRateProblem(dto.method, dto.listPrice, from) // Tier 905
     if (rateProblem) throw new BadRequestException(rateProblem)
+    // Tier 956: its private use from its first month on — not into a submitted month or closed books
+    await assertPeriodOpen(this.prisma, companyId, monthEnds(from, until ?? businessTodayDate()), 'das Erfassen eines Firmenwagens')
     return this.prisma.companyCar.create({
       data: {
         companyId,
@@ -61,12 +84,26 @@ export class CompanyCarService {
     } else if (dto.commuteDays !== undefined && car.commuteKm) {
       data.commuteDays = dto.commuteDays ?? DEFAULT_COMMUTE_DAYS
     }
+    // Tier 956: a new end moves the private use of the months between the old
+    // and the new one; a new commute changes every month the car was used
+    const today = businessTodayDate()
+    const oldEnd = car.untilDate ?? today
+    if ('commuteKm' in data || 'commuteDays' in data) {
+      await assertPeriodOpen(this.prisma, companyId, monthEnds(car.fromDate, oldEnd), 'das Ändern eines Firmenwagens')
+    }
+    if ('untilDate' in data) {
+      const newEnd = (data.untilDate as Date | null) ?? today
+      const [a, b] = oldEnd < newEnd ? [oldEnd, newEnd] : [newEnd, oldEnd]
+      await assertPeriodOpen(this.prisma, companyId, monthEnds(a, b), 'das Ändern des Endes eines Firmenwagens')
+    }
     return this.prisma.companyCar.update({ where: { id }, data })
   }
 
   async remove(companyId: string, id: string) {
     const car = await this.prisma.companyCar.findFirst({ where: { id, companyId } })
     if (!car) throw new NotFoundException('Firmenwagen nicht gefunden')
+    // Tier 956: its private use leaves every month it was in
+    await assertPeriodOpen(this.prisma, companyId, monthEnds(car.fromDate, car.untilDate ?? businessTodayDate()), 'das Löschen eines Firmenwagens')
     await this.prisma.companyCar.delete({ where: { id } })
     return { ok: true }
   }
