@@ -146,14 +146,36 @@ export class BilanzService {
       // Tier 507: less the KSt and GewSt prepayments recorded (KSt 1).
       steuerRueckstellung = (await this.kst1.compute(companyId, year)).totals.verbleibend
     }
+    // Tier 961: the VAT of the earlier years that is still open on the
+    // balance-sheet date, too — a December return paid in January, a refund
+    // not yet received. Only the year's own returns counted: the balance
+    // sheet of the next year lost what the one before had (§ 252 Abs. 1 Nr. 1
+    // HGB, Bilanzidentität; measured: 4600 3 800 € instead of 11 400 €, the
+    // opening equity 19 530 € off; a claim of 114 € from the last EÜR year,
+    // counted by the Übergangsgewinn, gone). Back to the first year with a
+    // document, at most ten.
+    const first = await this.firstDocumentYear(companyId, year)
     let owed = 0
-    for (const m of await this.ustva.computeMonths(companyId, year)) owed += m.differenzbetrag // Tier 788: shared
+    for (let y = first; y <= year; y++) {
+      for (const m of await this.ustva.computeMonths(companyId, y)) owed += m.differenzbetrag // Tier 788: shared
+    }
     const paid = await this.prisma.uStvaFiling.aggregate({
-      where: { companyId, year, paidAt: { lte: snapshot } },
+      where: { companyId, year: { gte: first, lte: year }, paidAt: { lte: snapshot } },
       _sum: { paidAmount: true },
     })
     const ustSaldo = round2(owed - Number(paid._sum.paidAmount ?? 0))
     return { steuerRueckstellung, ustSaldo }
+  }
+
+  /** Tier 961: the first year with an invoice or a bill, not before `year` − 10. */
+  private async firstDocumentYear(companyId: string, year: number): Promise<number> {
+    const [inv, exp] = await Promise.all([
+      this.prisma.invoice.findFirst({ where: { companyId, status: { not: 'draft' } }, orderBy: { issueDate: 'asc' }, select: { issueDate: true } }),
+      this.prisma.expense.findFirst({ where: { companyId }, orderBy: { invoiceDate: 'asc' }, select: { invoiceDate: true } }),
+    ])
+    const years = [inv?.issueDate, exp?.invoiceDate].filter((d): d is Date => !!d).map((d) => new Date(d).getFullYear())
+    const firstYear = years.length ? Math.min(...years) : year
+    return Math.min(year, Math.max(firstYear, year - 10))
   }
 
   async compute(companyId: string, year: number): Promise<BilanzResult> {
