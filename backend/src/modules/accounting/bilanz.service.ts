@@ -244,7 +244,12 @@ export class BilanzService {
       SELECT COALESCE(SUM(GREATEST(i.total - COALESCE(p.paid, 0), 0)), 0) AS open
       FROM "Invoice" i
       LEFT JOIN (
-        SELECT y."invoiceId", COUNT(*) AS n, SUM(y.amount) FILTER (WHERE y."paymentDate" <= ${snapshot}) AS paid
+        -- Tier 936: the advance a final invoice deducts is settled with its supply
+        -- (counted only for an invoice supplied by the snapshot, below), whenever
+        -- the final invoice was written — paid in December, invoiced in January,
+        -- the claim stood at its whole amount beside the Anzahlung
+        SELECT y."invoiceId", COUNT(*) AS n,
+          SUM(y.amount) FILTER (WHERE y."paymentDate" <= ${snapshot} OR y."paymentMethod" = ${ADVANCE_SETTLEMENT_METHOD}) AS paid
         FROM "Payment" y JOIN "Invoice" o ON o.id = y."invoiceId"
         WHERE o."companyId" = ${companyId}
         GROUP BY 1
@@ -364,14 +369,22 @@ export class BilanzService {
     })
     // Tier 472: …less what a final invoice has deducted by then (its
     // 'Anzahlung' payment; the receivable above is net of it).
-    const settledRows = await this.prisma.payment.findMany({
+    // Tier 936: …by the final invoice's supply, not the day it was written (as the claim above)
+    const settledRows = (await this.prisma.payment.findMany({
       where: {
         paymentMethod: ADVANCE_SETTLEMENT_METHOD,
-        paymentDate: { lte: snapshot },
         invoice: { companyId, status: { notIn: ['draft', 'cancelled'] }, advanceInvoiceId: { not: null } },
       },
-      select: { amount: true, invoice: { select: { advanceInvoice: { select: { total: true, eurTotal: true, totalVat: true, eurTotalVat: true } } } } },
-    })
+      select: {
+        amount: true,
+        invoice: {
+          select: {
+            issueDate: true, deliveryDate: true, servicePeriodEnd: true,
+            advanceInvoice: { select: { total: true, eurTotal: true, totalVat: true, eurTotalVat: true } },
+          },
+        },
+      },
+    })).filter((p) => (p.invoice.servicePeriodEnd ?? p.invoice.deliveryDate ?? p.invoice.issueDate).getTime() <= snapshot.getTime())
     // Tier 920: net of its VAT (Nettomethode — the only one HGB allows since
     // BilMoG): the VAT of an advance is declared when received and stands in
     // the Umsatzsteuer owed (below); gross, it was on the Passiva twice.

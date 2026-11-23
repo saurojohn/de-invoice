@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 936 — at the year's end an advance is settled with the supply
+
+- **Measured:** a Proforma paid on 05.12. last year, supplied on 15.12., the final invoice (with its deduction of the advance, Tier 472) written on 10.01.: the Bilanz of 31.12. held the final invoice's whole claim (1 190 €) and the Anzahlung (1 000 €) beside it — the settlement counted by the day it was booked (the final invoice's issue date). The GuV already had the revenue in December (Tier 919).
+- `BilanzService`: the settlement payment (`ADVANCE_SETTLEMENT_METHOD`) counts against the claim of a final invoice supplied by the snapshot, whatever its date; the Anzahlung is reduced by the settlements of final invoices supplied by the snapshot. Bilanz 31.12.: no claim, no Anzahlung, the VAT owed 190.
+- **Spec 624:** on the Tier 935 code the assertion fails (1190/1000/190).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 935 — the advance comes off in the period of the final invoice's supply
 
 - **Measured:** a Proforma's payment is declared when received (Tier 470); the final invoice declares the whole delivery and takes the advance off (Tier 472) — the delivery, since Tier 921, in the period of its supply; the advance still on the day the final invoice was issued (its settlement payment). Proforma 1 000 paid on the 10th of last month, supplied on the 20th, the final invoice issued today: Kz 81 last month 2 000 (the advance declared twice), this month −1 000.
