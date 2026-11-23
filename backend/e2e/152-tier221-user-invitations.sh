@@ -73,15 +73,16 @@ fi
 # ========== Test 2: Resend regenerates token ==========
 api_post "/api/v1/users/invitations/$INVITE_ID/resend?companyId=$COMPANY_ID" "{}"
 assert_eq "resend HTTP" "$STATUS" "201"
-RESEND_TOKEN=$(echo "$BODY" | python3 -c "import sys,json;print(json.load(sys.stdin).get('tokenPlain',''))")
+# Tier 959: the new link goes by mail, not into the answer
+assert_eq "resend answers without the token" "$(echo "$BODY" | python3 -c "import sys,json;print('tokenPlain' in json.load(sys.stdin))")" "False"
+RESEND_TOKEN=$(invite_token "$INVITE_EMAIL")
 if [[ -n "$RESEND_TOKEN" && "$RESEND_TOKEN" != "$INVITE_TOKEN" ]]; then
   pass "resend generated a NEW token (length=${#RESEND_TOKEN})"
 else
   fail "resend did not regenerate token (got '$RESEND_TOKEN')"
 fi
-# Resend's tokenPlain in the response is the raw token
-# (unlike create which doesn't return it). Update the
-# test-side INVITE_TOKEN for the accept tests.
+# Tier 959: the resent link (from the dev log, as the mail would carry it)
+# for the accept tests.
 INVITE_TOKEN="$RESEND_TOKEN"
 
 # ========== Test 3: Accept invitation creates a User ==========

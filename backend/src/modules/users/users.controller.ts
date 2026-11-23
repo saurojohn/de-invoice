@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   Controller,
   Get,
   Post,
@@ -154,36 +155,8 @@ export class UsersController {
 
     // Build the invite link and email it (graceful: logs to console if SMTP not configured)
     try {
-      const origin = publicOrigin(req as any); // Tier 556
-      const link = `${origin.replace(/\/$/, '')}/register?invite=${inv.tokenPlain}`;
-
-      // Access private mailService via any-cast (kept internal to this module)
-      const mailService = (this.users as any).mailService;
-      if (mailService) {
-        await mailService.send(companyId, {
-          to: inv.email,
-          subject: 'Einladung zu de-invoice',
-          text:
-            `Sie wurden eingeladen, dem Team "${inv.companyName ?? 'Ihr Unternehmen'}" auf de-invoice beizutreten.\n\n` +
-            `Klicken Sie auf den folgenden Link, um die Einladung anzunehmen und ein Passwort festzulegen (gültig 7 Tage):\n` +
-            `${link}\n\n` +
-            `Falls Sie diese Einladung nicht erwartet haben, ignorieren Sie diese E-Mail.`,
-          html: `
-            <p>Sie wurden eingeladen, dem Team <strong>${escapeHtml(inv.companyName ?? 'Ihr Unternehmen')}</strong> auf de-invoice beizutreten.</p>
-            <p>Klicken Sie auf den folgenden Link, um die Einladung anzunehmen und ein Passwort festzulegen (gültig 7 Tage):</p>
-            <p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:6px;">Einladung annehmen</a></p>
-            <p>Oder kopieren Sie diesen Link:<br><code>${link}</code></p>
-          `,
-        });
-      }
-      if (process.env.NODE_ENV !== 'production') {
-         
-        console.warn(
-          `[DEV-INVITE-LINK] company=${companyId} email=${inv.email} role=${inv.role} link=${link}`
-        );
-      }
+      await this.sendInvitationMail(companyId, inv, req);
     } catch (err) {
-       
       console.error(`Failed to email invitation to ${inv.email}: ${(err as Error).message}`);
     }
 
@@ -197,6 +170,15 @@ export class UsersController {
 
   /**
    * Resend a pending invitation (regenerates token).
+   *
+   * Tier 959: it sent nothing — it answered the admin with the new token in
+   * plain text and made the mailed link invalid. Measured: the admin accepted
+   * the invitation of a tax adviser with a password of his own and logged in
+   * as him — an „active, verified“ account in someone else's name, every
+   * booking under it attributed to a person who never had it (GoBD,
+   * Nachvollziehbarkeit). Now the new link goes by mail to the invitee, and
+   * the answer carries no token; a mail that cannot go out leaves the old
+   * link valid.
    */
   @Post('invitations/:id/resend')
   async resend(
@@ -206,7 +188,55 @@ export class UsersController {
   ) {
     if (!companyId) throw new BadRequestException('companyId is required');
     UsersService.requireRole(req.user?.role, 'users.invite');
-    return this.users.resendInvitation(companyId, id);
+    await (this.users as any).mailService?.assertMaySend(companyId);
+    const inv = await this.users.resendInvitation(companyId, id);
+    try {
+      await this.sendInvitationMail(companyId, inv, req);
+    } catch (err) {
+      await this.users.restoreInvitationToken(inv.id, inv.previous);
+      throw new BadGatewayException(`Die Einladung konnte nicht versendet werden (${(err as Error).message}) — der bisherige Link gilt weiter.`);
+    }
+    return { id: inv.id, email: inv.email, role: inv.role, expiresAt: inv.expiresAt };
+  }
+
+  /**
+   * The invitation's link, by mail to the invitee (Tier 959: for the first
+   * invitation and for each resend; the token leaves the server only this
+   * way). In development the link is also written to the log.
+   */
+  private async sendInvitationMail(
+    companyId: string,
+    inv: { email: string; role: string; tokenPlain: string; companyName: string | null },
+    req: AuthedRequest,
+  ) {
+    const origin = publicOrigin(req as any); // Tier 556
+    const link = `${origin.replace(/\/$/, '')}/register?invite=${inv.tokenPlain}`;
+
+    // Access private mailService via any-cast (kept internal to this module)
+    const mailService = (this.users as any).mailService;
+    if (mailService) {
+      await mailService.send(companyId, {
+        to: inv.email,
+        subject: 'Einladung zu de-invoice',
+        text:
+          `Sie wurden eingeladen, dem Team "${inv.companyName ?? 'Ihr Unternehmen'}" auf de-invoice beizutreten.\n\n` +
+          `Klicken Sie auf den folgenden Link, um die Einladung anzunehmen und ein Passwort festzulegen (gültig 7 Tage):\n` +
+          `${link}\n\n` +
+          `Falls Sie diese Einladung nicht erwartet haben, ignorieren Sie diese E-Mail.`,
+        html: `
+          <p>Sie wurden eingeladen, dem Team <strong>${escapeHtml(inv.companyName ?? 'Ihr Unternehmen')}</strong> auf de-invoice beizutreten.</p>
+          <p>Klicken Sie auf den folgenden Link, um die Einladung anzunehmen und ein Passwort festzulegen (gültig 7 Tage):</p>
+          <p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:6px;">Einladung annehmen</a></p>
+          <p>Oder kopieren Sie diesen Link:<br><code>${link}</code></p>
+        `,
+      });
+    }
+    if (process.env.NODE_ENV !== 'production') {
+       
+      console.warn(
+        `[DEV-INVITE-LINK] company=${companyId} email=${inv.email} role=${inv.role} link=${link}`
+      );
+    }
   }
 
   /**

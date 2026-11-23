@@ -365,3 +365,16 @@ fixture_issuer() { # companyId [vatId]
     \"vatId\" = coalesce(\"vatId\", nullif('${2:-}', ''))
     where id = '$1'" >/dev/null
 }
+
+# Tier 959: an invitation's token reaches the invitee by mail only; in
+# development the backend writes the link to its log (/tmp/backend.log, as
+# CI and up.sh run it). The newest link for an address.
+invite_token() { # email
+  local t="" i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    t=$(grep -a "DEV-INVITE-LINK" "${BACKEND_LOG:-/tmp/backend.log}" 2>/dev/null | grep -a "email=$1 " | tail -1 | sed -n 's/.*invite=\([a-f0-9]*\).*/\1/p')
+    [[ -n "$t" ]] && break
+    sleep 0.3
+  done
+  echo "$t"
+}

@@ -36,7 +36,7 @@ req "$UA" POST "/api/v1/users/invitations?$Q" "{\"email\":\"$EMAIL\",\"role\":\"
 assert_status 201 "admin invites a viewer (settings/users page)"
 INV=$(json_field "$BODY" id)
 req "$UA" POST "/api/v1/users/invitations/$INV/resend?$Q" '{}'
-TOKEN=$(json_field "$BODY" tokenPlain)
+TOKEN=$(invite_token "$EMAIL") # Tier 959: by mail (the dev log), not in the answer
 ACCEPT=$(curl -s -w "\n%{http_code}" -X POST "$API/api/v1/invitations/accept" -H "Content-Type: application/json" \
   -d "{\"token\":\"$TOKEN\",\"password\":\"Tier387member1\"}")
 assert_eq "invitation accepted" "$(echo "$ACCEPT" | tail -n1)" "201"

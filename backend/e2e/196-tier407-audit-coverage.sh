@@ -62,7 +62,7 @@ note "=== 2. membership and role changes are on the company's record ==="
 AS POST "/api/v1/users/invitations?companyId=$C" "{\"email\":\"$TAG-m@example.test\",\"role\":\"viewer\"}"
 INV=$(json_field "$BODY" id)
 AS POST "/api/v1/users/invitations/$INV/resend?companyId=$C" "{}"
-TOK=$(json_field "$BODY" tokenPlain)
+TOK=$(invite_token "$TAG-m@example.test") # Tier 959: by mail (the dev log)
 M=$(curl -sS -X POST "$API/api/v1/invitations/accept" -H "Content-Type: application/json" \
   -d "{\"token\":\"$TOK\",\"password\":\"Tier407-member\"}" | python3 -c "import sys,json;print(json.load(sys.stdin).get('userId',''))")
 [[ -n "$M" ]] && pass "fixture: an invited member (viewer)" || fail "invitation accept"

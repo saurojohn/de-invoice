@@ -455,8 +455,21 @@ export class UsersService {
       where: { id: inv.id },
       data: { tokenHash, expiresAt },
     });
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { name: true } });
 
-    return { id: inv.id, email: inv.email, role: inv.role, tokenPlain, expiresAt };
+    // Tier 959: the token goes into the mail only (the controller); the old
+    // one is kept so that a mail that cannot go out does not kill the link
+    // the invitee already has
+    return {
+      id: inv.id, email: inv.email, role: inv.role, tokenPlain, expiresAt,
+      companyName: company?.name ?? null,
+      previous: { tokenHash: inv.tokenHash, expiresAt: inv.expiresAt },
+    };
+  }
+
+  /** Tier 959: the invitation's link as it was — its new mail did not go out. */
+  async restoreInvitationToken(invitationId: string, previous: { tokenHash: string; expiresAt: Date }) {
+    await this.prisma.userInvitation.update({ where: { id: invitationId }, data: previous });
   }
 
   /**

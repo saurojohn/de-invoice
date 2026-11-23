@@ -128,7 +128,7 @@ assert_status 200 "…the new company is usable with the cookie alone"
 api_post "/api/v1/users/invitations?companyId=$COMPANY_ID" "{\"email\":\"$TAG-inv@example.test\",\"role\":\"accountant\"}"
 INV_ID=$(json_field "$BODY" id)
 api_post "/api/v1/users/invitations/$INV_ID/resend?companyId=$COMPANY_ID" "{}"
-INV_TOKEN=$(json_field "$BODY" tokenPlain)
+INV_TOKEN=$(invite_token "$TAG-inv@example.test") # Tier 959: by mail (the dev log)
 [[ -n "$INV_TOKEN" ]] && pass "fixture: an invitation for this company" || fail "no invitation token — $BODY"
 ACC=$(curl -sS -X POST "$API/api/v1/invitations/accept" -H "Content-Type: application/json" \
   -d "{\"token\":\"$INV_TOKEN\",\"password\":\"Tier401-e2e\"}")
