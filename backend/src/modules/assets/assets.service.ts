@@ -217,6 +217,10 @@ export class AssetsService {
     this.validateCreate(dto)
     // Tier 516: an asset is recorded once it has been acquired.
     assertNotFuture(dto.anschaffungsDatum, 'Das Anschaffungsdatum')
+    // Tier 953: its AfA from the year of purchase on is in those years' books —
+    // an asset bought in a closed year changed its EÜR / GuV (measured: 2025's
+    // costs 1 000 → 2 583,33 € after the closing)
+    await assertBooksOpen(this.prisma, companyId, [dto.anschaffungsDatum], 'das Erfassen einer Anlage')
     return this.prisma.asset.create({
       data: {
         companyId,
@@ -256,6 +260,21 @@ export class AssetsService {
       throw new BadRequestException('Nutzungsdauer muss > 0 Monate sein')
     }
     assertNotFuture(dto.anschaffungsDatum, 'Das Anschaffungsdatum')
+    // Tier 953: what sets its AfA and its place in the balance sheet changes
+    // every year from its purchase on — not while one of them is closed
+    // (measured: the purchase price doubled after the closing, the closed
+    // EÜR 2025's AfA 1 000 → 2 000 €). Its name and note stay free.
+    const valueFields = ['type', 'anschaffungsDatum', 'anschaffungsKosten', 'nutzungsdauerMonate', 'restwert', 'afaMethode', 'bilanzKonto'] as const
+    const differs = (f: (typeof valueFields)[number]) => {
+      const was = (existing as any)[f]
+      const now = (dto as any)[f]
+      if (now === undefined) return false
+      if (was instanceof Date) return new Date(now).getTime() !== was.getTime()
+      return String(now ?? '') !== String(was ?? '') && !(Number.isFinite(Number(now)) && Number(now) === Number(was))
+    }
+    if (valueFields.some(differs)) {
+      await assertBooksOpen(this.prisma, companyId, [existing.anschaffungsDatum, dto.anschaffungsDatum], 'das Ändern einer Anlage')
+    }
     return this.prisma.asset.update({
       where: { id },
       data: {
@@ -312,6 +331,9 @@ export class AssetsService {
       throw new BadRequestException('verkauftAm ist erforderlich')
     }
     assertNotFuture(dto.verkauftAm, 'Das Verkaufsdatum')
+    // Tier 953: its Restbuchwert is a cost of the day it leaves (measured: a
+    // disposal of 15.12.2025 after the closing, the closed EÜR 2025 +2 416,67 €)
+    await assertBooksOpen(this.prisma, companyId, [dto.verkauftAm], 'das Ausbuchen einer Anlage')
     if (dto.verkauftAm < existing.anschaffungsDatum) {
       throw new BadRequestException(
         'Verkaufsdatum liegt vor dem Anschaffungsdatum',
