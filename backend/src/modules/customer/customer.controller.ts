@@ -1,3 +1,4 @@
+import { ModuleRef } from '@nestjs/core'
 import { dispositionFilename } from '../../common/content-disposition'
 import { queryInt } from '../../common/query';
 import { strictFlag } from '../../common/strict-boolean'
@@ -22,6 +23,7 @@ export class CustomerController {
     private batchStatementService: CustomerStatementBatchService,
     private statementEmailService: CustomerStatementEmailService,
     private creditBalanceService: CreditBalanceService,
+    private moduleRef: ModuleRef, // Tier 964
   ) {}
 
   @Get()
@@ -844,6 +846,17 @@ export class CustomerController {
   // (merge routes declared BEFORE :id, see
   // the earlier block — NestJS first-match-wins
   // means :id would otherwise swallow "merge".)
+
+  /** Tier 964: the customer's portal links end now (the company withdraws its access) */
+  @Delete(':id/portal-sessions')
+  @Require('customer.update')
+  async revokePortal(@Param('id') id: string, @Query('companyId') companyId: string) {
+    this.assertCompanyId(companyId)
+    await this.customerService.findOne(id, companyId)
+    const { CustomerPortalService } = require('../customer-portal/customer-portal.service') as typeof import('../customer-portal/customer-portal.service')
+    const portal = this.moduleRef.get(CustomerPortalService, { strict: false })
+    return { revoked: await portal.revokeSessions(companyId, id) }
+  }
 
   @Delete(':id')
   @Require('customer.delete')

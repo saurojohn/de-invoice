@@ -321,18 +321,15 @@ export class CustomerPortalService {
     if (session.expiresAt < new Date()) {
       throw new UnauthorizedException('Link abgelaufen')
     }
-    // Sliding expiry: every authenticated request
-    // extends the session by 30d. We update in the
-    // same call so the next request sees the new
-    // expiry. Fire-and-forget — failure here is
-    // not user-visible.
-    const newExpiresAt = new Date(
-      Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000,
-    )
+    // Tier 964: bound to the address it was sent to (see boundToContact)
+    await this.assertBoundToContact(session, session.customer)
+    // Tier 964: the link holds the 30 days its mail promises („Der Link ist 30
+    // Tage gültig“). Every request moved its end 30 days on: a link once sent
+    // never ended while it was used. Only the last use is noted.
     this.prisma.customerPortalSession
       .update({
         where: { id: session.id },
-        data: { lastUsedAt: new Date(), expiresAt: newExpiresAt },
+        data: { lastUsedAt: new Date() },
       })
       .catch((err) =>
         this.logger.warn(
@@ -454,7 +451,7 @@ export class CustomerPortalService {
       invoices,
       summary,
       session: {
-        expiresAt: newExpiresAt.toISOString(),
+        expiresAt: session.expiresAt.toISOString(), // Tier 964: its fixed end
         lastUsedAt: new Date().toISOString(),
       },
     }
@@ -656,7 +653,7 @@ export class CustomerPortalService {
       }
     },
   ) {
-    const { customer: c } = await this.resolveSessionAndCustomer(token)
+    const { session, customer: c } = await this.resolveSessionAndCustomer(token)
 
     // Validation
     if (patch.name !== undefined) {
@@ -732,6 +729,12 @@ export class CustomerPortalService {
       },
     })
 
+    // Tier 964: the customer changed its own address — its link moves with it
+    const newEmail = (updated.contact as { email?: string } | null)?.email
+    if (newEmail && newEmail.trim().toLowerCase() !== String(session.email).trim().toLowerCase()) {
+      await this.prisma.customerPortalSession.update({ where: { id: session.id }, data: { email: newEmail.trim().toLowerCase() } })
+    }
+
     this.logger.log(
       // Tier 208 — MED-002 from the code audit.
       // Pre-fix this log line included the
@@ -785,7 +788,35 @@ export class CustomerPortalService {
       // guard anyway.
       throw new NotFoundException('Customer not found')
     }
+    await this.assertBoundToContact(session, customer) // Tier 964
     return { session, customer }
+  }
+
+  /**
+   * Tier 964 — a portal link belongs to the address it was sent to. The
+   * company changed the customer's contact (the person left): the old link
+   * still read the invoices and their PDFs, and rewrote the customer's master
+   * data — the address later invoices are written to (§ 14 Abs. 4 Nr. 1 UStG;
+   * Art. 5 Abs. 1 lit. f, Art. 32 DSGVO). It ends when the contact's address
+   * is no longer the one it was sent to.
+   */
+  private async assertBoundToContact(session: { id: string; email: string }, customer: { contact: unknown }) {
+    const now = String((customer.contact as { email?: string } | null)?.email ?? '').trim().toLowerCase()
+    if (now && now === String(session.email ?? '').trim().toLowerCase()) return
+    await this.prisma.customerPortalSession.update({ where: { id: session.id }, data: { expiresAt: new Date() } }).catch(() => undefined)
+    throw new UnauthorizedException('Der Link gilt nicht mehr — die E-Mail-Adresse des Kunden wurde geändert. Fordern Sie einen neuen Link an.')
+  }
+
+  /**
+   * Tier 964 — the company withdraws the customer's portal access: every link
+   * still open ends now. Returns how many.
+   */
+  async revokeSessions(companyId: string, customerId: string): Promise<number> {
+    const r = await this.prisma.customerPortalSession.updateMany({
+      where: { companyId, customerId, expiresAt: { gt: new Date() } },
+      data: { expiresAt: new Date() },
+    })
+    return r.count
   }
 
   private async resolveSession(token: string) {
