@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 937 — a Proforma's advance in the Übergangsgewinn
+
+- **Measured:** Tier 919 subtracts, at a change from the EÜR to the Bilanz, what was paid in advance on an *invoice* whose supply comes after the change. An advance on a *Proforma* was left out: the EÜR counted it when received, the Bilanz counted the whole delivery again with the final invoice. A Proforma of 1 000 + 190 paid this year (EÜR), books from next year, supplied on 05.01.: EÜR this year 1 190, Anlage G next year 810 — 2 000 for a sale of 1 000.
+- `uebergangsgewinn`: `anzahlungen` also holds the Proforma payments received before the change less the settlements of final invoices supplied before it (net). The other way (Bilanz → EÜR) the same amount is added: the EÜR never sees an advance received in a Bilanz year.
+- **Spec 625:** on the Tier 936 code it fails (anzahlungen 0, 1 190 + 810).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 936 — at the year's end an advance is settled with the supply
 
 - **Measured:** a Proforma paid on 05.12. last year, supplied on 15.12., the final invoice (with its deduction of the advance, Tier 472) written on 10.01.: the Bilanz of 31.12. held the final invoice's whole claim (1 190 €) and the Anzahlung (1 000 €) beside it — the settlement counted by the day it was booked (the final invoice's issue date). The GuV already had the revenue in December (Tier 919).

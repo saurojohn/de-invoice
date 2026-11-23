@@ -24,6 +24,7 @@
  */
 import { Prisma } from '@prisma/client'
 import { CLAIM_TYPES, NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
+import { ADVANCE_SETTLEMENT_METHOD } from '../invoice/advance'
 import { gewinnermittlungWechselIn, type GewinnWechsel } from '../company/gewinnermittlung'
 
 type Db = { $queryRaw: <T>(q: TemplateStringsArray | Prisma.Sql, ...v: unknown[]) => Promise<T> }
@@ -38,7 +39,7 @@ export interface Uebergang {
   verbindlichkeiten: number
   /** the Umsatzsteuer owed to the Finanzamt at the start of the year `ab` (negative: a refund due) */
   umsatzsteuer: number
-  /** Tier 919: received before the start of the year `ab` for a supply after it (net — its VAT is in `umsatzsteuer`) */
+  /** Tier 919 / 937: received before the start of the year `ab` for a supply after it — on an invoice or a Proforma (net — its VAT is in `umsatzsteuer`) */
   anzahlungen: number
   /** added to the profit of the year `ab` (negative: a loss) */
   betrag: number
@@ -104,11 +105,33 @@ export async function uebergangsgewinn(db: Db, companyId: string, w: GewinnWechs
       AND i.type IN (${Prisma.join(CLAIM_TYPES)})
       AND i.total > 0
       AND COALESCE(i."servicePeriodEnd", i."deliveryDate", i."issueDate") >= ${start}`)
+  // Tier 937: …and the advances received on a Proforma before the change,
+  // not yet settled by a final invoice supplied before it — counted by the
+  // EÜR when received, by the Bilanz again with the final invoice's delivery
+  // (measured: 1 000 € twice). Net, as above.
+  const [piAdv] = await db.$queryRaw<{ net: unknown }[]>(Prisma.sql`
+    SELECT COALESCE(SUM(
+      y.amount / pi.total * (COALESCE(pi."eurTotal", pi.total) - COALESCE(pi."eurTotalVat", pi."totalVat"))
+    ), 0) AS net
+    FROM "Payment" y JOIN "Invoice" pi ON pi.id = y."invoiceId"
+    WHERE pi."companyId" = ${companyId} AND pi.type = 'PI' AND pi.status NOT IN ('draft', 'cancelled') AND pi.total > 0
+      AND y."paymentDate" < ${start}
+      AND y."paymentMethod" NOT IN (${Prisma.join(NON_CASH_PAYMENT_METHODS)})`)
+  const [piSettled] = await db.$queryRaw<{ net: unknown }[]>(Prisma.sql`
+    SELECT COALESCE(SUM(
+      s.amount / pi.total * (COALESCE(pi."eurTotal", pi.total) - COALESCE(pi."eurTotalVat", pi."totalVat"))
+    ), 0) AS net
+    FROM "Payment" s
+    JOIN "Invoice" f ON f.id = s."invoiceId"
+    JOIN "Invoice" pi ON pi.id = f."advanceInvoiceId"
+    WHERE f."companyId" = ${companyId} AND f.status NOT IN ('draft', 'cancelled') AND pi.total > 0
+      AND s."paymentMethod" = ${ADVANCE_SETTLEMENT_METHOD}
+      AND COALESCE(f."servicePeriodEnd", f."deliveryDate", f."issueDate") < ${start}`)
   const forderungen = r2(Number(recv.open))
   const verbindlichkeiten = r2(Number(pay.open))
   const sign = w.art === 'bilanz' ? 1 : -1
   const ust = r2(umsatzsteuer)
-  const anzahlungen = r2(Number(adv.net))
+  const anzahlungen = r2(Number(adv.net) + Math.max(0, Number(piAdv.net) - Number(piSettled.net)))
   return {
     ab: w.ab, von: w.vorher, nach: w.art, forderungen, verbindlichkeiten, umsatzsteuer: ust, anzahlungen,
     betrag: r2(sign * (forderungen - verbindlichkeiten - ust - anzahlungen)),
