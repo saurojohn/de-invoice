@@ -1,3 +1,4 @@
+import { nonDeductibleGiftIds } from './gifts'
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
@@ -273,6 +274,7 @@ export class GuVService {
         OR: [{ category: null }, { category: { not: 'AfA' } }],
       },
       select: {
+        id: true, // Tier 941
         netAmount: true,
         vatRate: true,
         vatAmount: true,
@@ -282,6 +284,12 @@ export class GuVService {
         invoiceDate: true, // Tier 842: § 19 on the bill's date
       },
     })
+    // Tier 941: a gift above the 50 € limit gives no input tax (§ 15 Abs. 1a
+    // UStG) — the tax is part of its cost (§ 9b EStG by analogy): gross. The
+    // GuV counted the net: the Jahresüberschuss 15,20 € too high on a 95,20 € gift.
+    const badGiftIds = await nonDeductibleGiftIds(this.prisma, companyId, expenses, kleinunternehmer)
+    const costOf = (e: (typeof expenses)[number]) =>
+      badGiftIds.has(e.id) ? Number(e.grossAmount) : expenseCost(e, kleinunternehmer)
 
     // Tier 87: AfA-Buchung rows. Pulled separately
     // because they go straight to 7a Abschreibungen
@@ -342,7 +350,7 @@ export class GuVService {
       new Prisma.Decimal(0),
     ).toNumber()
     let sonstigeAufwendungen = sonstigeExpenses.reduce(
-      (s, e) => s.plus(new Prisma.Decimal(expenseCost(e, kleinunternehmer))),
+      (s, e) => s.plus(new Prisma.Decimal(costOf(e))), // Tier 941
       new Prisma.Decimal(0),
     ).toNumber()
     // Tier 425: cash sales / purchases from the Kassenbuch (cash-bookings.ts).

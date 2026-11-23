@@ -38,6 +38,7 @@
  * applies to — the layout of DATEV's sample.
  */
 
+import { nonDeductibleGiftIds } from '../accounting/gifts'
 import { asIssued } from '../invoice/customer-as-issued'
 import { KU_SELECT, kuDayOf, kuOn } from '../../common/kleinunternehmer-period';
 import { inferExpenseAccount } from './datev-sachkonto-inference'
@@ -811,7 +812,28 @@ export async function buildBuchungenFromDb(
     return inferred.confidence > 0 ? inferred.accountNumber : a.expenseDefault
   }
 
+  // Tier 941: a gift above the 50 € limit gives no input tax (§ 15 Abs. 1a
+  // UStG) — booked gross without a tax key on 4635 „Geschenke nicht
+  // abzugsfähig" (SKR03), unless the bill has its own account. It went with
+  // the input-tax key: the adviser's DATEV deducted what the UStVA does not.
+  const badGiftIds = await nonDeductibleGiftIds(prisma, companyId, expenses, false)
+
   for (const exp of expenses) {
+    if (badGiftIds.has(exp.id)) {
+      out.push({
+        belegdatum: exp.invoiceDate,
+        belegfeld1: exp.invoiceNumber || `EXP-${exp.id.substring(0, 8)}`,
+        konto: kreditor(exp.supplierId),
+        gegenkonto: exp.accountNumber || '4635',
+        shVz: 'H' as const,
+        buchungstext: exp.description.substring(0, 60),
+        kost1: (exp as any).costCenter ?? undefined,
+        kost2: (exp as any).costObject ?? undefined,
+        currency: (exp as any).currency || 'EUR',
+        betrag: r2(Number(exp.grossAmount)),
+      })
+      continue
+    }
     if (exp.relatedAssetId) {
       const k = anlagenKonten(afaAssetType.get(exp.relatedAssetId))
       // The last day of the AfA month / year. Annual rows were stored at local

@@ -1,3 +1,4 @@
+import { nonDeductibleGiftIds } from '../accounting/gifts'
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { NOT_AFA_BOOKING, afaOfYear } from '../accounting/booked-afa'
 import { expenseCost, isIncomeTax } from '../accounting/expense-cost'
@@ -136,9 +137,11 @@ export class DashboardController {
       }),
       this.prisma.expense.findMany({
         where: { companyId, invoiceDate: { gte: spanStart, lte: todayEnd }, ...NOT_AFA_BOOKING },
-        select: { invoiceDate: true, netAmount: true, vatAmount: true },
+        select: { id: true, category: true, invoiceDate: true, netAmount: true, vatAmount: true },
       }),
     ])
+    // Tier 941: a gift above the 50 € limit gives no input tax — its tax is cost
+    const badGiftIds = await nonDeductibleGiftIds(this.prisma, companyId, expRows, false)
     const cents = (v: unknown) => Math.round(Number(v ?? 0) * 100)
     const aggregateInvoices = (start: Date, end: Date) => {
       let total = 0, vat = 0, count = 0
@@ -158,6 +161,7 @@ export class DashboardController {
       let net = 0, vat = 0, count = 0
       for (const r of expRows) {
         if (r.invoiceDate < start || r.invoiceDate > end) continue
+        if (badGiftIds.has(r.id)) { net += cents(r.netAmount) + cents(r.vatAmount); count++; continue } // Tier 941
         net += cents(r.netAmount); vat += cents(r.vatAmount); count++
       }
       return { expenses: net / 100, vorsteuer: vat / 100, count }

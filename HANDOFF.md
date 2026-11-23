@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 941 — a non-deductible gift in DATEV, GuV, KSt 1 and the dashboard
+
+- **Measured (team):** a gift of 80 € + 15,20 € VAT over the limit: the UStVA rightly drops the input tax; DATEV booked it with the input-tax key 9 (the adviser's DATEV deducts it), the GuV counted 80 € (the 15,20 € VAT is cost — § 15 Abs. 1a UStG, § 9b EStG by analogy), KSt 1 Kz 80 added back 80, the dashboard counted 15,20 € Vorsteuer.
+- DATEV: gross on 4635 „Geschenke nicht abzugsfähig" (SKR03) without a key, unless the bill has its own account; GuV and dashboard: gross as cost; KSt 1 Kz 80: gross. Judged by the year (as the EÜR).
+- Spec 289 (Tier 503) expected Kz 80 = 60 → 71,40. **Not yet done:** a dedicated regression spec, the full related batch and CI (usage limit reached 23.11.2026); run the DATEV / GuV / KSt 1 / dashboard specs before pushing.
+- **Team findings still open (fix in this order):** e-invoice advance invoice (386) input tax too early / twice; Skonto lock removable via expense notes; Festschreibung bypassed via expense paidAt and single-row CSV, and paidAt wrongly blocked by a submitted UStVA; CSV free-text expense status; deleting a payment after a credit note; „paid" status then payment in a submitted Ist period; deleting a Guthaben payment bypasses the lock; dashboard open payables count paid bills and miss the Restbuchwert. Probes: scratchpad/team/{input-tax,lifecycle,consistency}/.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 940 — a gift over the 50 € limit: the input tax is corrected in the period the limit is passed
 
 - **Measured:** the limit is judged per recipient over the year (Tier 503); the UStVA took that judgement into every period. A second gift in November that took the recipient over 50 € removed the input tax of his October gift — from October's return, submitted (Kz 66 7,60 € → 0).

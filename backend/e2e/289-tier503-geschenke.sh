@@ -71,6 +71,7 @@ note "=== KSt 1: a GmbH adds them back (Kz 80) ==="
 company GmbH GmbH
 gift 2025-05-05 60 "Herr Groß"
 AS GET "/api/v1/accounting/kst1?companyId=$C&year=2025"
-assert_eq "Kz 80: 60 € added back (was nothing)" "$(P "[(float(l['amount']), l['source']) for l in d['corrections'] if l['kennziffer']=='80'][0]")" "(60.0, 'computed')"
+# Tier 941: gross — its input tax is cost, not input tax
+assert_eq "Kz 80: 71,40 € added back (60 € + its 11,40 € VAT)" "$(P "[(float(l['amount']), l['source']) for l in d['corrections'] if l['kennziffer']=='80'][0]")" "(71.4, 'computed')"
 
 summary

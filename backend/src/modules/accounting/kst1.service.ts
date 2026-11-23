@@ -1,7 +1,7 @@
 import { kuOn } from '../../common/kleinunternehmer-period'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { resolveRechtsform, isKapitalgesellschaft as isKapitalgesellschaftFn } from '../company/rechtsform'
-import { expenseCost, nichtAbziehbareBewirtung } from './expense-cost'
+import { nichtAbziehbareBewirtung } from './expense-cost'
 import { nonDeductibleGifts } from './gifts'
 import { prepaymentsOfYear } from './prepayments-of-year'
 import { eingetragenerVortrag, ersterBuchjahr, eur, gewstVerlustProzent, verlustKonto, type VerlustKonto, type VerlustQuelle } from './verlustvortrag'
@@ -295,7 +295,8 @@ export class KSt1Service {
       select: { id: true, invoiceDate: true, netAmount: true, grossAmount: true, giftRecipient: true },
     })
     const badGifts = nonDeductibleGifts(gifts, ku)
-    const geschenkeHinzu = round2(gifts.filter((g) => badGifts.has(g.id)).reduce((s, g) => s + expenseCost(g, ku), 0))
+    // Tier 941: gross — their input tax is no input tax (§ 15 Abs. 1a UStG), the GuV counts it as cost
+    const geschenkeHinzu = round2(gifts.filter((g) => badGifts.has(g.id)).reduce((s, g) => s + Number(g.grossAmount), 0))
     const kz80 = round2(bewirtungHinzu + geschenkeHinzu)
     const kz80Note = [
       bewirtungHinzu ? `30 % der Bewirtungsaufwendungen (${bewirtungHinzu.toFixed(2).replace('.', ',')} €, § 4 Abs. 5 Nr. 2 EStG)` : '',
