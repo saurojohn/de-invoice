@@ -195,7 +195,7 @@ export class ExpenseService {
       data: {
         companyId,
         supplierId: data.supplierId || null,
-        invoiceNumber: data.invoiceNumber || null,
+        invoiceNumber: (typeof data.invoiceNumber === 'string' ? data.invoiceNumber.trim() : data.invoiceNumber) || null, // Tier 949
         description: data.description,
         invoiceDate: new Date(data.invoiceDate),
         netAmount: net.toFixed(4),

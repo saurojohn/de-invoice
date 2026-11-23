@@ -363,7 +363,11 @@ function parseCii(root: XmlElement): ParsedEInvoice {
     buyerReference: clip(textAt(agreement, 'BuyerReference'), 100),
     orderReference: clip(textAt(agreement, 'BuyerOrderReferencedDocument', 'IssuerAssignedID'), 100),
     precedingInvoice: clip(textAt(settlement, 'InvoiceReferencedDocument', 'IssuerAssignedID'), 50),
-    precedingInvoices: children(settlement, 'InvoiceReferencedDocument').map((r) => clip(textAt(r, 'IssuerAssignedID'), 50)).filter((n): n is string => !!n),
+    // Tier 949: ZUGFeRD EXTENDED names the advance invoices in SpecifiedAdvancePayment too
+    precedingInvoices: [
+      ...children(settlement, 'InvoiceReferencedDocument').map((r) => clip(textAt(r, 'IssuerAssignedID'), 50)),
+      ...children(settlement, 'SpecifiedAdvancePayment').flatMap((a) => children(a, 'InvoiceSpecifiedReferencedDocument').map((r) => clip(textAt(r, 'IssuerAssignedID'), 50))),
+    ].filter((n): n is string => !!n),
     notes: children(doc, 'IncludedNote').map((n) => clip(textAt(n, 'Content'), 1000)).filter((n): n is string => !!n),
     seller: ciiParty(child(agreement, 'SellerTradeParty')),
     buyer: ciiParty(child(agreement, 'BuyerTradeParty')),
@@ -480,7 +484,7 @@ function finish(inv: ParsedEInvoice): ParsedEInvoice {
   if (inv.typeCode === '386') {
     warnings.push(
       'Anzahlungsrechnung (Typ 386): ihre Vorsteuer ist erst abziehbar, wenn die Anzahlung gezahlt ist (§ 15 Abs. 1 Satz 1 Nr. 1 Satz 3 UStG); ' +
-        'gebucht wird sie zum Rechnungsdatum — erst nach der Zahlung einlesen. Die Schlussrechnung, die sie nennt, wird beim Einlesen um sie gekürzt.',
+        'gebucht wird sie zum Rechnungsdatum — nach der Zahlung einlesen, und vor der Schlussrechnung: eine danach eingelesene Schlussrechnung, die sie nennt, wird um sie gekürzt.',
     )
   }
   if (inv.creditNote) warnings.push('Das ist eine Gutschrift / Rechnungskorrektur des Lieferanten: sie mindert Aufwand und Vorsteuer.')

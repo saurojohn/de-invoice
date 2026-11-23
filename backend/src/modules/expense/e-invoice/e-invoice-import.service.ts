@@ -58,6 +58,8 @@ export interface PlannedExpense {
   isIntraEU: boolean
   /** Tier 581: the VAT lines, when the invoice has more than one rate */
   taxLines?: { vatRate: number; netAmount: number; vatAmount: number }[]
+  /** Tier 949: what was taken off a final invoice — written first into this expense's note */
+  advanceNote?: string
 }
 
 /**
@@ -369,11 +371,47 @@ export class EInvoiceImportService {
     // the invoice from being imported — the rest would be a guess.
     let advanceNote: string | null = null
     const prepaid = inv.totals.prepaid ?? 0
+    const named = [...new Set(inv.precedingInvoices.map((n) => n.trim()).filter(Boolean))]
+    // Tier 949: numbers as the duplicate check compares them — trimmed, any case
+    // (a number stored before with spaces around it, too)
+    const byNumber = (numbers: string[]) => numbers.map((n) => ({ invoiceNumber: { contains: n, mode: 'insensitive' as const } }))
+    const isNamed = (n: string | null) => !!n && named.some((x) => x.toLowerCase() === n.trim().toLowerCase())
+    if (inv.creditNote && Math.round(prepaid * 100) > 0) {
+      // Tier 949: a credit note that deducts advances (the Storno of a final
+      // invoice): booked with the whole supply it took back the advance's input
+      // tax with the final invoice's rest (190 + 380 − 570 = 0 for a paid advance)
+      blocking.push(
+        `Die Gutschrift / Rechnungskorrektur zieht ${eur(toEur(prepaid))} € Anzahlungen ab${named.length ? ` (zu ${named.join(', ')})` : ''}. ` +
+          'Bitte von Hand erfassen: nur was sie von der gebuchten Schlussrechnung zurücknimmt, ohne die Anzahlung und ihre Steuer (§ 14 Abs. 5, § 17 UStG).',
+      )
+    }
+    if (inv.typeCode === '386' && supplier && inv.number) {
+      // Tier 949: the final invoice that names this advance invoice is in the
+      // books already, booked whole — its tax holds the advance's: booked now,
+      // the advance's input tax counted twice (190 + 570 for 570)
+      const finals = await this.prisma.expense.findMany({
+        where: { companyId, supplierId: supplier.id, grossAmount: { gt: 0 }, notes: { contains: `zu Rechnung`, mode: 'insensitive' } },
+        select: { invoiceNumber: true, notes: true },
+        take: 500,
+        orderBy: { invoiceDate: 'desc' },
+      })
+      const own = inv.number.trim().toLowerCase()
+      const naming = finals.filter((f) => {
+        const m = /zu Rechnung ([^·]+)/i.exec(f.notes || '')
+        const refs = m ? m[1].split(',').map((x) => x.trim().toLowerCase()) : []
+        return refs.includes(own) && !(f.notes || '').toLowerCase().includes(`anzahlungsrechnung ${own} abgezogen`)
+      })
+      if (naming.length) {
+        blocking.push(
+          `Die Schlussrechnung ${naming.map((f) => f.invoiceNumber ?? '?').join(', ')} nennt diese Anzahlungsrechnung und ist ganz gebucht — ihre Steuer enthält die der Anzahlung. ` +
+            'Eingelesen würde die Vorsteuer der Anzahlung zweimal abgezogen. Kürzen Sie zuerst die Schlussrechnung um die Anzahlung und ihre Steuer, oder legen Sie diese Datei als Beleg zur Schlussrechnung ab.',
+        )
+      }
+    }
     if (!inv.creditNote && inv.typeCode !== '386' && Math.round(prepaid * 100) > 0) {
-      const named = [...new Set(inv.precedingInvoices)]
       const found = supplier && named.length
         ? await this.prisma.expense.findMany({
-            where: { companyId, supplierId: supplier.id, invoiceNumber: { in: named }, reversesExpenseId: null, status: { in: ['booked', 'deductible'] } },
+            where: { companyId, supplierId: supplier.id, OR: byNumber(named), grossAmount: { gt: 0 }, reversesExpenseId: null, status: { in: ['booked', 'deductible'] } }, // Tier 949: filtered below
             select: {
               id: true, invoiceNumber: true, netAmount: true, vatAmount: true, vatRate: true, isReverseCharge: true, isIntraEU: true,
               taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true } },
@@ -386,12 +424,12 @@ export class EInvoiceImportService {
           ? (await this.prisma.expense.findMany({ where: { companyId, reversesExpenseId: { in: found.map((a) => a.id) } }, select: { reversesExpenseId: true } })).map((r) => r.reversesExpenseId)
           : [],
       )
-      const advances = found.filter((a) => !reversed.has(a.id))
+      const advances = found.filter((a) => !reversed.has(a.id) && isNamed(a.invoiceNumber))
       const target = planned.find((p) => p.taxCategory === 'S')
       if (!advances.length) {
         warnings.push(
           `Laut Rechnung sind ${eur(toEur(prepaid))} € angezahlt${named.length ? ` (${named.join(', ')})` : ''}; eine Anzahlungsrechnung dazu ist nicht erfasst — gebucht wird die ganze Rechnung. ` +
-            'Ist die Vorsteuer der Anzahlung schon abgezogen, die Ausgabe um die Anzahlung und ihre Steuer kürzen (§ 14 Abs. 5 UStG).',
+            'Ist die Vorsteuer der Anzahlung schon abgezogen, die Ausgabe um die Anzahlung und ihre Steuer kürzen (§ 14 Abs. 5 UStG); kommt die Anzahlungsrechnung noch, sie nicht gesondert buchen.',
         )
       } else {
         const off = new Map<number, { net: number; vat: number }>()
@@ -403,6 +441,8 @@ export class EInvoiceImportService {
             off.set(r, { net: round2(m.net + Number(l.netAmount)), vat: round2(m.vat + Number(l.vatAmount)) })
           }
         }
+        const offNet = round2([...off.values()].reduce((sum, m) => sum + m.net, 0))
+        const offVat = round2([...off.values()].reduce((sum, m) => sum + m.vat, 0))
         const lines = target ? (target.taxLines ?? [{ vatRate: target.vatRate, netAmount: target.netAmount, vatAmount: target.vatAmount }]).map((l) => ({ ...l })) : []
         let fits = !!target && advances.every((a) => !a.isReverseCharge && !a.isIntraEU)
         for (const [r, m] of off) {
@@ -416,30 +456,35 @@ export class EInvoiceImportService {
         }
         const kept = lines.filter((l) => l.netAmount !== 0 || l.vatAmount !== 0)
         const nums = advances.map((a) => a.invoiceNumber).join(', ')
-        if (!fits || !target) {
+        // Tier 949: more taken off than the invoice says was paid in advance — an
+        // advance partly credited, or named by two final invoices: a guess
+        const tooMuch = Math.round((offNet + offVat) * 100) > Math.round(toEur(prepaid) * 100) + 1
+        if (!fits || !target || tooMuch) {
           blocking.push(
-            `Die Schlussrechnung zieht Anzahlungen ab; die erfasste Anzahlungsrechnung ${nums} passt nicht zu ihr (Steuersatz oder Betrag). ` +
+            `Die Schlussrechnung zieht ${eur(toEur(prepaid))} € Anzahlungen ab; die erfasste Anzahlungsrechnung ${nums} (${eur(round2(offNet + offVat))} €) passt nicht dazu (Steuersatz oder Betrag). ` +
               'Bitte von Hand erfassen: die Schlussrechnung abzüglich der Anzahlung und ihrer Steuer (§ 14 Abs. 5 UStG).',
           )
         } else if (!kept.length) {
-          blocking.push(`Die Anzahlungsrechnung ${nums} deckt die ganze Schlussrechnung — es bleibt nichts zu buchen.`)
+          // Tier 949: all paid in advance — the taxed part has nothing left;
+          // the rest of the invoice (§ 13b / igE) is still booked
+          planned.splice(planned.indexOf(target), 1)
+          warnings.push(`Die Anzahlungsrechnung ${nums} deckt den besteuerten Teil der Schlussrechnung ganz — er wird nicht noch einmal gebucht. Legen Sie die Datei als Beleg zur Anzahlungsrechnung ab.`)
+          if (!planned.length) blocking.push(`Die Anzahlungsrechnung ${nums} deckt die ganze Schlussrechnung — es bleibt nichts zu buchen. Legen Sie die Datei als Beleg zur Anzahlungsrechnung ab.`)
         } else {
           const net = round2(kept.reduce((sum, l) => sum + l.netAmount, 0))
           const vat = round2(kept.reduce((sum, l) => sum + l.vatAmount, 0))
-          const offNet = round2([...off.values()].reduce((sum, m) => sum + m.net, 0))
-          const offVat = round2([...off.values()].reduce((sum, m) => sum + m.vat, 0))
           target.netAmount = net
           target.vatAmount = vat
           target.grossAmount = round2(net + vat)
+          // Tier 949: the rate of the largest line left, as ExpenseService.create stores it
+          target.vatRate = [...kept].sort((x, y) => y.netAmount - x.netAmount)[0].vatRate
           if (kept.length > 1) target.taxLines = kept
-          else {
-            delete target.taxLines
-            target.vatRate = kept[0].vatRate
-          }
+          else delete target.taxLines
           advanceNote = `Schlussrechnung: Anzahlungsrechnung ${nums} abgezogen (${eur(offNet)} € netto, ${eur(offVat)} € USt; § 14 Abs. 5 UStG)`
+          target.advanceNote = advanceNote
           warnings.push(`${advanceNote} — gebucht wird der Rest: ${eur(net)} € netto, ${eur(vat)} € Umsatzsteuer.`)
-          if (Math.round((offNet + offVat) * 100) !== Math.round(toEur(prepaid) * 100)) {
-            warnings.push(`Die erfassten Anzahlungsrechnungen (${eur(round2(offNet + offVat))} €) weichen von der Anzahlung laut Rechnung (${eur(toEur(prepaid))} €) ab — bitte prüfen.`)
+          if (Math.round((offNet + offVat) * 100) < Math.round(toEur(prepaid) * 100) - 1) {
+            warnings.push(`Die erfassten Anzahlungsrechnungen (${eur(round2(offNet + offVat))} €) sind weniger als die Anzahlung laut Rechnung (${eur(toEur(prepaid))} €) — bitte prüfen.`)
           }
         }
       }
@@ -545,7 +590,7 @@ export class EInvoiceImportService {
       supplierCreated = true
     }
 
-    const notes = [noteFor(inv, read, opts.exchangeRate, plan.en16931), plan.advanceNote].filter(Boolean).join(' · ').slice(0, 2000) // Tier 943
+    const notes = noteFor(inv, read, opts.exchangeRate, plan.en16931)
     const created: { id: string }[] = []
     try {
       for (const p of plan.expenses) {
@@ -565,7 +610,7 @@ export class EInvoiceImportService {
           category: opts.category,
           accountNumber: opts.accountNumber,
           paidAt: opts.paidAt,
-          notes,
+          notes: p.advanceNote ? `${p.advanceNote} · ${notes}`.slice(0, 2000) : notes, // Tier 949: first, on its own expense
           // The duplicate question was answered above; a § 13b part beside
           // the taxed part of the same invoice is no duplicate of it.
           confirmDuplicate: true,
@@ -678,7 +723,9 @@ export function noteFor(inv: ParsedEInvoice, read: ReadEInvoice, exchangeRate?: 
   if (inv.periodStart || inv.periodEnd) parts.push(`Leistungszeitraum ${inv.periodStart ?? '?'} – ${inv.periodEnd ?? '?'}`)
   else if (inv.deliveryDate) parts.push(`Leistungsdatum ${inv.deliveryDate.split('-').reverse().join('.')}`)
   if (inv.orderReference) parts.push(`Bestellung ${inv.orderReference}`)
-  if (inv.precedingInvoice) parts.push(`zu Rechnung ${inv.precedingInvoice}`)
+  // Tier 949: every invoice it names — an advance invoice imported later looks for itself here
+  const refs = inv.precedingInvoices?.length ? inv.precedingInvoices : inv.precedingInvoice ? [inv.precedingInvoice] : []
+  if (refs.length) parts.push(`zu Rechnung ${refs.join(', ')}`)
   return parts.join(' · ').slice(0, 2000)
 }
 

@@ -102,8 +102,11 @@ export async function expenseLockReasons(
 export const SYSTEM_MARKER = /\[(?:skonto-voucher|bank-expense(?:-storno)?):[^\]\s]*\]/g
 
 /** The user's text without markers, followed by the markers the old notes had. */
+/** Tier 950: anything that reads as a marker to the lock or DATEV (they match loosely) */
+const MARKER_LIKE = /\[\s*(?:skonto-voucher|bank-expense)[^\]]*\]?/gi
+
 export function notesKeepingMarkers(userNotes: string | null | undefined, oldNotes: string | null | undefined): string | null {
-  const text = (userNotes ?? '').replace(SYSTEM_MARKER, '').replace(/\s{2,}/g, ' ').trim()
+  const text = (userNotes ?? '').replace(MARKER_LIKE, '').replace(/\s{2,}/g, ' ').trim()
   const markers = (oldNotes ?? '').match(SYSTEM_MARKER) ?? []
   return [text, ...markers].filter(Boolean).join(' ') || null
 }

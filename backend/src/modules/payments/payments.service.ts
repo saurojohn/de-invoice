@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ibanProblem } from '../../common/iban'
+import { assertBooksOpen } from '../reports/filed-period'
 
 /**
  * Tier 108: SEPA pain.001 batch payment generator.
@@ -116,6 +117,9 @@ export class PaymentsService {
     if (!params.executionDate || !/^\d{4}-\d{2}-\d{2}$/.test(params.executionDate)) {
       throw new BadRequestException('executionDate ist ungültig (YYYY-MM-DD)')
     }
+    // Tier 950: the bills are paid on the day of execution — the EÜR of that
+    // day's year (§ 11 EStG); a day in closed books was taken
+    await assertBooksOpen(this.prisma, companyId, [params.executionDate], 'das Bezahlen von Eingangsrechnungen per SEPA')
 
     // Load the company for the debtor info.
     const company = await this.prisma.company.findUnique({
@@ -404,6 +408,8 @@ export class PaymentsService {
     if (batch.status === 'cancelled') {
       throw new BadRequestException('Der Batch ist bereits storniert')
     }
+    // Tier 950: cancelled, its bills are unpaid again — out of the EÜR of the day it carried
+    await assertBooksOpen(this.prisma, companyId, [batch.executionDate], 'das Stornieren eines SEPA-Batches')
     const ids = batch.expenses.map((e) => e.id)
     const matched = ids.length
       ? await this.prisma.voucher.findMany({

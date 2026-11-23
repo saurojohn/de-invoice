@@ -54,7 +54,10 @@ export async function updateExpense(
     const d = new Date(data.invoiceDate)
     set('invoiceDate', d, d.getTime() !== exp.invoiceDate.getTime())
   }
-  if (data.invoiceNumber !== undefined) set('invoiceNumber', orNull(data.invoiceNumber), orNull(data.invoiceNumber) !== exp.invoiceNumber)
+  if (data.invoiceNumber !== undefined) { // Tier 949: trimmed
+    const n = orNull(typeof data.invoiceNumber === 'string' ? data.invoiceNumber.trim() : data.invoiceNumber)
+    set('invoiceNumber', n, n !== exp.invoiceNumber)
+  }
   if (data.supplierId !== undefined) {
     const supplierId = orNull(data.supplierId)
     if (supplierId && supplierId !== exp.supplierId) {
@@ -186,6 +189,10 @@ export async function updateExpense(
   const onlyPaidAt = Object.keys(changes).length === 1 && 'paidAt' in changes && !linesChanged
   if ('paidAt' in changes) {
     await assertBooksOpen(prisma, companyId, [exp.paidAt, changes.paidAt as Date | null], 'das Ändern des Zahldatums')
+  } else if (exp.paidAt && (Object.keys(changes).length > 0 || linesChanged)) {
+    // Tier 950: a bill paid on a day of closed books is in that year's EÜR —
+    // its amounts or category changed it (its deletion was refused already)
+    await assertBooksOpen(prisma, companyId, [exp.paidAt], 'das Ändern einer bezahlten Eingangsrechnung')
   }
   if (Object.keys(changes).length > 0 || linesChanged) {
     // Tier 537: out of, or into, a submitted UStVA period
