@@ -119,15 +119,20 @@ export function invoiceTaxBreakdown(inv: BreakdownInvoice): TaxBreakdown {
   const vat = r4(num(inv.totalVat))
   const net = r4(gross - vat)
 
-  // Undiscounted line value per rate. Absolute values: a credit note stores
-  // negative line amounts but positive quantity × price, and its sign comes
-  // from the invoice totals above.
+  // Undiscounted line value per rate, signed as the lines are — a discount
+  // line (-200 € at 7 %) lowers its rate. Tier 958: each line counted with
+  // its absolute value, so the -200 € added 200 € of weight to 7 %: 1 000 €
+  // at 19 % and 300 € at 7 % came out as 764,71 / 535,29 € on the PDF, in the
+  // UStVA (Kz 81 / 86) and in DATEV. The sign of the document comes from its
+  // totals above; a credit note whose lines all run negative is turned round.
   const perRate = new Map<number, number>()
   for (const item of inv.items ?? []) {
     const rate = r4(num(item.vatRate))
-    const value = Math.abs(num(item.quantity) * num(item.unitPrice))
+    const value = num(item.quantity) * num(item.unitPrice)
     perRate.set(rate, (perRate.get(rate) ?? 0) + value)
   }
+  const signed = [...perRate.values()].reduce((s, v) => s + v, 0)
+  if (signed < 0) for (const [r, v] of perRate) perRate.set(r, -v)
   if (perRate.size === 0) {
     const rate = net !== 0 ? r4(vat / net) : 0
     return { net, vat, gross, byRate: [{ rate, net, vat }] }

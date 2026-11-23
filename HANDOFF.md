@@ -2673,6 +2673,14 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 958 — a discount entered as a negative line, and the amounts per rate
+
+- **Found by the third team round** (3 probing agents — outgoing invoices, report consistency, access — every medium / high finding re-checked by a skeptic; findings in scratchpad/team3/FINDINGS.md).
+- **Measured:** `invoiceTaxBreakdown` weighted every line by its absolute value: a line „Rabatt“ of −200 € at 7 % added 200 € of weight to 7 %. 1 000 € at 19 %, 500 € at 7 %, −200 € at 7 % (stored correctly: 1 300 net, 211 VAT) — the PDF said „USt 19 % auf 764,71 €“, the UStVA Kz 81 764,71 / Kz 86 535,29 (ELSTER computes 182,61 € from them, 211 € are owed), DATEV 932,45 on 8400 and 578,55 on 8300, a credit note of half the gross −391,78 / −270,36 instead of −500 / −150. The XRechnung was right.
+- Signed line values per rate, the whole turned round when it runs negative (a credit note stored with negative lines). Documents without a negative line are unchanged. § 14 Abs. 4 Nr. 8 UStG.
+- The first batch run stopped with the test backend (an earlier batch was stopped while a spec had restarted it) — re-run after up.sh: 126 green (credit notes, Storno, negative lines, guards).
+- **Spec 645:** on the Tier 957 code 3 assertions fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 957 — the bank match: a payment less Skonto after a credit note
 
 - **Measured:** the bank match suggests an invoice for a line of its total less its Skonto (Tier 52) — only when nothing was paid. After a credit note (goods returned) the customer pays the rest less the Skonto on it: 1 190 € invoice, 595 € credited, 583,10 € received without the number in the purpose — no suggestion at all.
