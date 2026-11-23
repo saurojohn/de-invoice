@@ -1327,6 +1327,8 @@ export class UstvaService {
   ) {
     if (!data.amount) throw new BadRequestException('Betrag darf nicht 0 sein (positiv: gezahlt, negativ: erstattet).');
     assertNotFuture(data.paidAt, 'Das Zahldatum'); // Tier 515
+    // Tier 954: the EÜR counts it on its day (Zeilen 18 / 58)
+    await assertBooksOpen(this.prisma, companyId, [data.paidAt], 'das Erfassen einer Umsatzsteuer-Zahlung');
     return this.prisma.ustPayment.create({
       data: {
         companyId,
@@ -1362,6 +1364,7 @@ export class UstvaService {
   async deleteUstPayment(companyId: string, id: string) {
     const row = await this.prisma.ustPayment.findFirst({ where: { id, companyId } });
     if (!row) throw new NotFoundException('Zahlung nicht gefunden');
+    await assertBooksOpen(this.prisma, companyId, [row.paidAt], 'das Löschen einer Umsatzsteuer-Zahlung'); // Tier 954
     await this.prisma.ustPayment.delete({ where: { id } });
     return { ok: true };
   }
@@ -1375,6 +1378,9 @@ export class UstvaService {
     const filing = await this.prisma.uStvaFiling.findFirst({ where: { id: filingId, companyId } });
     if (!filing) throw new NotFoundException('Voranmeldung nicht gefunden');
     assertNotFuture(data.paidAt, 'Das Zahldatum'); // Tier 515
+    // Tier 954: the payment of a return is in the EÜR on its day — set, moved or
+    // removed, the old and the new day are in the books
+    await assertBooksOpen(this.prisma, companyId, [filing.paidAt, data.paidAt], 'das Erfassen der Zahlung einer Voranmeldung');
     if (!data.paidAt) {
       return this.prisma.uStvaFiling.update({ where: { id: filingId }, data: { paidAt: null, paidAmount: null } });
     }

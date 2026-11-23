@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 954 — VAT payments and the closed books
+
+- **Measured:** the EÜR counts what was paid to / refunded by the tax office on its day (Zeilen 18 / 58). After the books were closed to 31.12.2025, a VAT payment of 10.12.2025 could be entered, one of 10.11.2025 deleted (the closed EÜR 2025's costs 300 → 200 €) and December's return marked paid on 28.12.2025.
+- `createUstPayment` / `deleteUstPayment` / `recordFilingPayment`: the old and new day of payment meet the closed books.
+- **Spec 641:** on the Tier 953 code 4 assertions fail; the VAT-payment and closing specs and the guards pass (40).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 953 — the fixed assets and the closed books
 
 - **Measured:** books closed to 31.12.2025; a machine of 6 000 € bought 01.03.2025 (EÜR 2025 costs 1 000 €). After the closing: its purchase price doubled → 2 000 €; a drill bought 01.06.2025 entered → 2 583,33 €; the drill disposed of on 15.12.2025 → 5 000 €. Only the AfA bookings met the closing.
