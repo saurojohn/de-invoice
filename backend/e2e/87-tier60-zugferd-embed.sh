@@ -42,7 +42,9 @@ pass "wiped prior tier-60 fixtures"
 
 # ───── 1. Seed an invoice (use existing customer) ─────
 CUST_ID=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
-  "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name LIKE 'Müller%' LIMIT 1")
+  "SELECT id FROM \"Customer\" WHERE \"companyId\" = '$COMPANY_ID' AND name LIKE 'Müller%' AND coalesce(contact->>'email', '') <> '' ORDER BY \"createdAt\", id LIMIT 1")
+# Tier 950b: one with an e-mail (BT-49, needed by the XRechnung below), always the same — several
+# Müller GmbH of other specs share the company, one without an e-mail; LIMIT 1 took any of them
 if [[ -z "$CUST_ID" ]]; then
   # Polish #10: seed a self-sufficient Müller customer. Earlier
   # the 65 cleanup wiped all customers, so 87 saw 0 in batch runs.
