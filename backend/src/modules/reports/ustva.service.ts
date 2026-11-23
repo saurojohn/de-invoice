@@ -524,8 +524,8 @@ export class UstvaService {
       }
       // Tier 472: the final invoice above declares the whole delivery; the
       // advance it deducts was declared when received, so it comes off here
-      // (issue date = settlement date, so the same period).
-      for (const { proforma, fraction } of await advanceSettlements(this.prisma, companyId, start, end)) {
+      // (Tier 935: in the period of the final invoice's supply, where it declares the delivery).
+      for (const { proforma, fraction } of await advanceSettlements(this.prisma, companyId, start, end, { bySupply: true })) { // Tier 935
         const f = eurFactor(proforma)
         for (const bucket of invoiceTaxBreakdown(proforma).byRate) {
           if (bucket.rate > 0) addTaxed(proforma, bucket.rate, -bucket.net * f * fraction, -bucket.vat * f * fraction)

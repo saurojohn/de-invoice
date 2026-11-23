@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 935 — the advance comes off in the period of the final invoice's supply
+
+- **Measured:** a Proforma's payment is declared when received (Tier 470); the final invoice declares the whole delivery and takes the advance off (Tier 472) — the delivery, since Tier 921, in the period of its supply; the advance still on the day the final invoice was issued (its settlement payment). Proforma 1 000 paid on the 10th of last month, supplied on the 20th, the final invoice issued today: Kz 81 last month 2 000 (the advance declared twice), this month −1 000.
+- `advanceSettlements(…, { bySupply: true })` (accounting/euer-zufluss.ts) for the UStVA: the settlements of final invoices whose `ustvaDay` lies in the period. The DATEV export keeps the booking date.
+- CI of Tier 934 (run 45124498546): backend **621 / 0 / 1**, Playwright **1182 passed (37.2 m)**, 0 flaky.
+- **Spec 623:** on the Tier 934 code the assertion fails (2000/−1000). The Proforma / final invoice specs (256, 258, 261), 607 / 609 / 612 and the guards pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 934 — an invoice of time entries states when the hours were worked
 
 - **Measured:** the open hours of a customer become an invoice draft (`POST /time-entries/bill`, Tier 611). It had no Leistungsdatum: the PDF stated the day of the invoice (Tier 492) and the UStVA took it in that month (Tier 912). Hours of the 10th and the 20th of last month, billed today: Leistungsdatum today, Kz 81 in this month (200), last month 0.

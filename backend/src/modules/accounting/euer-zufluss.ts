@@ -30,6 +30,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CLAIM_TYPES, ISSUED_STATUSES } from '../invoice/document-scope'
 import { asIssued } from '../invoice/customer-as-issued'
+import { SUPPLY_SELECT, supplyPeriodWhere, ustvaDay, within } from '../reports/supply-period'
 import { invoiceNetRevenue, owedEurVat, owedVat } from '../invoice/tax-breakdown'
 import { ADVANCE_SETTLEMENT_METHOD } from '../invoice/advance'
 
@@ -221,21 +222,31 @@ export async function advancePayments(prisma: PrismaService, companyId: string, 
  * delivery with its tax; the tax already paid on the advance comes off again
  * in the same period (§ 14 Abs. 5 Satz 2 UStG).
  */
-export async function advanceSettlements(prisma: PrismaService, companyId: string, start: Date, end: Date) {
+export async function advanceSettlements(prisma: PrismaService, companyId: string, start: Date, end: Date, opts: { bySupply?: boolean } = {}) {
   const rows = await prisma.payment.findMany({
     where: {
       paymentMethod: ADVANCE_SETTLEMENT_METHOD,
-      paymentDate: { gte: start, lte: end },
-      invoice: { companyId, status: { notIn: ['draft', 'cancelled'] }, advanceInvoiceId: { not: null } },
+      // Tier 935: for the UStVA, in the period of the final invoice's supply —
+      // where it declares the whole delivery (Tier 921) — not on the day it
+      // was issued: supplied last month, invoiced today, the advance was
+      // declared twice last month and taken off this month
+      ...(opts.bySupply ? {} : { paymentDate: { gte: start, lte: end } }),
+      invoice: {
+        companyId, status: { notIn: ['draft', 'cancelled'] }, advanceInvoiceId: { not: null },
+        ...(opts.bySupply ? supplyPeriodWhere(start, end) : {}),
+      },
     },
     include: {
       invoice: {
-        select: { id: true, invoiceNumber: true, customerId: true, advanceInvoice: { include: { items: true, customer: true } } },
+        select: {
+          id: true, invoiceNumber: true, customerId: true, advanceInvoice: { include: { items: true, customer: true } },
+          ...SUPPLY_SELECT,
+        },
       },
     },
     orderBy: [{ paymentDate: 'asc' }, { createdAt: 'asc' }],
   })
-  return rows.flatMap((p) => {
+  return rows.filter((p) => !opts.bySupply || within(ustvaDay(p.invoice), start, end)).flatMap((p) => {
     const pi = p.invoice.advanceInvoice
     const total = Number(pi?.total ?? 0)
     if (!pi || !(total > 0)) return []
