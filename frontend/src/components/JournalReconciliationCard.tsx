@@ -13,7 +13,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useI18n } from "@/components/useI18n"
-import { apiGet } from "@/lib/api"
+import { apiGet, apiPut } from "@/lib/api"
 import { formatMoney } from "@/lib/money"
 
 type Kind = "aufwand" | "ertrag" | "steuer"
@@ -32,6 +32,7 @@ interface Result {
   truncated: boolean
   /** Tier 815: purchases on an Anlagekonto with no asset in the register */
   assetPurchases?: Array<{ id: string; date: string; description: string; accountNumber: string; net: number }>
+  assetsBookedAsCost?: Array<{ assetId: string; asset: string; account: string; expenseId: string; date: string; description: string; net: number }>
 }
 
 const day = (iso: string) => iso.split("-").reverse().join(".")
@@ -42,6 +43,21 @@ export function JournalReconciliationCard() {
   const [year, setYear] = useState(thisYear)
   const [data, setData] = useState<Result | null>(null)
   const [failed, setFailed] = useState(false)
+  const [reload, setReload] = useState(0)
+  const [fixError, setFixError] = useState<string | null>(null)
+
+  // Tier 960: the bill of an asset in the register is booked on its account
+  const bookAsAsset = async (expenseId: string, account: string) => {
+    const companyId = localStorage.getItem("companyId")
+    if (!companyId) return
+    setFixError(null)
+    try {
+      await apiPut(`/api/v1/expenses/${expenseId}?companyId=${companyId}`, { accountNumber: account })
+      setReload((n) => n + 1)
+    } catch (e) {
+      setFixError((e as Error)?.message || t("abstimmung.failed"))
+    }
+  }
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId")
@@ -52,7 +68,7 @@ export function JournalReconciliationCard() {
       .then((r) => { if (alive) setData(r) })
       .catch(() => { if (alive) setFailed(true) })
     return () => { alive = false }
-  }, [year])
+  }, [year, reload])
 
   return (
     <Card className="mb-4" data-testid="journal-reconciliation">
@@ -89,7 +105,29 @@ export function JournalReconciliationCard() {
             <Link href="/dashboard/assets" className="text-xs underline">{t("abstimmung.toAssets")}</Link>
           </div>
         )}
-        {data && data.entries.length === 0 && (data.assetPurchases?.length ?? 0) === 0 && (
+        {data && (data.assetsBookedAsCost?.length ?? 0) > 0 && (
+          <div className="rounded border border-amber-300 dark:border-amber-700 p-3" data-testid="abstimmung-assets-as-cost">
+            <p className="font-medium text-amber-800 dark:text-amber-300">{t("abstimmung.costAssetsTitle")}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t("abstimmung.costAssetsHint")}</p>
+            <ul className="mt-2 space-y-1">
+              {data.assetsBookedAsCost!.map((a) => (
+                <li key={a.expenseId} className="text-xs flex flex-wrap items-center gap-2" data-testid="abstimmung-asset-as-cost">
+                  <span className="font-mono">{day(a.date)} · {formatMoney(a.net)} · {a.description} → {a.asset}</span>
+                  <button
+                    type="button"
+                    className="underline text-blue-700 dark:text-blue-300"
+                    onClick={() => bookAsAsset(a.expenseId, a.account)}
+                    data-testid="abstimmung-book-as-asset"
+                  >
+                    {t("abstimmung.bookAsAsset").replace("{account}", a.account)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {fixError && <p className="text-xs text-red-700 dark:text-red-400 mt-1">{fixError}</p>}
+          </div>
+        )}
+        {data && data.entries.length === 0 && (data.assetPurchases?.length ?? 0) === 0 && (data.assetsBookedAsCost?.length ?? 0) === 0 && (
           <p className="text-emerald-700 dark:text-emerald-400" data-testid="abstimmung-ok">{t("abstimmung.ok").replace("{year}", String(data.year))}</p>
         )}
         {data && data.entries.length > 0 && (

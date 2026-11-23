@@ -159,7 +159,11 @@ export async function journalReconciliation(prisma: PrismaService, companyId: st
     })
     : []
   const roots = new Map(rootRows.map((r) => [r.voucherNumber, r]))
-  return { year, ...reconcile(vouchers, roots), truncated: vouchers.length === 2000, assetPurchases: await assetPurchasesWithoutAsset(prisma, companyId, year) }
+  return {
+    year, ...reconcile(vouchers, roots), truncated: vouchers.length === 2000,
+    assetPurchases: await assetPurchasesWithoutAsset(prisma, companyId, year),
+    assetsBookedAsCost: await assetsBookedAsCost(prisma, companyId, year), // Tier 960
+  }
 }
 
 /**
@@ -197,4 +201,51 @@ export async function assetPurchasesWithoutAsset(prisma: PrismaService, companyI
       return !hit
     })
     .map((e) => ({ id: e.id, date: businessDayIso(e.invoiceDate), description: e.description, accountNumber: e.accountNumber, net: r2(Number(e.netAmount)) }))
+}
+
+/**
+ * Tier 960 — the other way round: an asset in the register whose purchase is
+ * booked as a cost. The bill form has no Sachkonto, so a laptop entered there
+ * (3 000 €, „Computer“) stays a cost; put into the register as well, it was
+ * deducted twice — in full as a cost and through its AfA (measured: EÜR 2025
+ * 4 486,67 € instead of 1 486,67 €; GuV, BWA, Anlage G and KSt 1 alike), and
+ * nothing said so. § 6 Abs. 1 Nr. 1, § 7 Abs. 1 EStG: its cost reaches the
+ * profit through the AfA only. Listed: the year's assets with a bill of the
+ * same net cost within 120 days that is booked as a cost (each bill answers
+ * one asset); the page books it on the asset's account (a change of the bill,
+ * with all its locks).
+ */
+export async function assetsBookedAsCost(prisma: PrismaService, companyId: string, year: number) {
+  const assets = await prisma.asset.findMany({
+    where: { companyId, anschaffungsDatum: { gte: dayStart(year, 0, 1), lte: dayEnd(year, 11, 31) } },
+    select: { id: true, bezeichnung: true, anschaffungsDatum: true, anschaffungsKosten: true, bilanzKonto: true },
+    orderBy: { anschaffungsDatum: 'asc' },
+  })
+  if (!assets.length) return []
+  const DAY = 24 * 60 * 60 * 1000
+  const bills = (await prisma.expense.findMany({
+    where: {
+      companyId,
+      status: { in: ['booked', 'deductible'] },
+      relatedAssetId: null,
+      invoiceDate: { gte: new Date(dayStart(year, 0, 1).getTime() - 120 * DAY), lte: new Date(dayEnd(year, 11, 31).getTime() + 120 * DAY) },
+      netAmount: { in: [...new Set(assets.map((a) => Number(a.anschaffungsKosten)))] },
+    },
+    select: { id: true, invoiceDate: true, description: true, accountNumber: true, netAmount: true, grossAmount: true },
+    orderBy: { invoiceDate: 'asc' },
+  })).filter((e) => !isAssetPurchase(e.accountNumber) && Number(e.grossAmount) > 0)
+  const used = new Set<string>()
+  const out: Array<{ assetId: string; asset: string; account: string; expenseId: string; date: string; description: string; net: number }> = []
+  for (const a of assets) {
+    const bill = bills.find((e) => !used.has(e.id)
+      && Math.abs(Number(e.netAmount) - Number(a.anschaffungsKosten)) < 0.01
+      && Math.abs(e.invoiceDate.getTime() - a.anschaffungsDatum.getTime()) <= 120 * DAY)
+    if (!bill) continue
+    used.add(bill.id)
+    out.push({
+      assetId: a.id, asset: a.bezeichnung, account: a.bilanzKonto || '0400',
+      expenseId: bill.id, date: businessDayIso(bill.invoiceDate), description: bill.description, net: r2(Number(bill.netAmount)),
+    })
+  }
+  return out
 }

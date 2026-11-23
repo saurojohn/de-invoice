@@ -4713,7 +4713,10 @@
     "formWarning": "Ein manueller Beleg auf einem Aufwands- oder Erlöskonto zählt in GuV, BWA und Bilanz, in der EÜR nur mit einer Zeile auf Kasse oder Bank. Seine Umsatz- und Vorsteuer zählt keine Voranmeldung. Eine Rechnung, Ausgabe oder Kassenbuchung erfassen Sie besser dort — sonst zählt sie doppelt.",
     "assetsTitle": "Anschaffungen ohne Anlage im Anlagenverzeichnis",
     "assetsHint": "Eine Ausgabe auf einem Anlagekonto (0…) ist die Anschaffung eines Wirtschaftsguts: Sie mindert den Gewinn nicht selbst, sondern über die AfA. Ohne die Anlage im Anlagenverzeichnis gibt es keine AfA — die Kosten fehlen in jeder Auswertung.",
-    "toAssets": "zum Anlagenverzeichnis"
+    "toAssets": "zum Anlagenverzeichnis",
+    "costAssetsTitle": "Anlagen, deren Kauf als Aufwand gebucht ist",
+    "costAssetsHint": "Diese Anlagen stehen im Anlagenverzeichnis, ihre Eingangsrechnung ist aber als Aufwand gebucht. So mindern sie den Gewinn doppelt: voll als Aufwand und noch einmal über die AfA (§ 6 Abs. 1 Nr. 1, § 7 EStG: die Anschaffungskosten nur über die AfA).",
+    "bookAsAsset": "Als Anlagenkauf buchen (Konto {account})"
   },
   "help": {
     "title": "Kurzanleitung",
