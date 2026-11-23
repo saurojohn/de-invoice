@@ -344,7 +344,17 @@ export class PaymentService {
     const dunning = overage > 0.005 && (invoice.type === 'INV' || invoice.type === 'RCV')
       ? await this.settleDunning(invoice, payment, overage)
       : 0;
-    const credit = Math.round((overage - dunning) * 100) / 100;
+    // Tier 938: the customer's credit is kept in EUR (CustomerCreditTransaction)
+    // — the overage of a foreign-currency invoice is in its currency: converted
+    // at the payment's rate (eurAmount / amount), else the invoice's. Measured:
+    // 10 000 JPY over a JPY invoice became a credit of 10 000 €.
+    const currency = String((invoice as any).currency || 'EUR').toUpperCase();
+    const eurPerUnit = currency === 'EUR'
+      ? 1
+      : (payment as any).eurAmount != null && Number(payment.amount) > 0
+        ? Number((payment as any).eurAmount) / Number(payment.amount)
+        : Number((invoice as any).exchangeRate) > 0 ? 1 / Number((invoice as any).exchangeRate) : 1;
+    const credit = Math.round((overage - dunning) * eurPerUnit * 100) / 100;
     if (
       credit > 0.005 &&
       (invoice.type === 'INV' || invoice.type === 'RCV')

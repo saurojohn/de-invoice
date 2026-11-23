@@ -551,7 +551,19 @@ export class CreditBalanceService {
     if (open < 0.005) {
       throw new BadRequestException('Rechnung ist bereits vollständig bezahlt');
     }
-    const apply = Math.min(amount, open);
+    // Tier 938: the credit is in EUR; an invoice in another currency is paid
+    // in its own — the EUR applied converted at the invoice's rate (its EUR
+    // total), and the payment carries its EUR value. It booked the EUR
+    // figure as yen / dollars.
+    const currency = String(invoice.currency || 'EUR').toUpperCase();
+    const unitsPerEur = currency === 'EUR'
+      ? 1
+      : invoice.eurTotal != null && Number(invoice.eurTotal) > 0
+        ? Number(invoice.total) / Number(invoice.eurTotal)
+        : Number(invoice.exchangeRate) > 0 ? Number(invoice.exchangeRate) : 1;
+    const openEur = Math.round((open / unitsPerEur) * 100) / 100;
+    const apply = Math.min(amount, openEur);
+    const applyInCurrency = currency === 'EUR' ? apply : Math.min(open, Math.round(apply * unitsPerEur * 100) / 100);
 
     // Record the usage (this throws if credit balance < apply).
     const ledger = await this.recordUsage(companyId, customerId, {
@@ -571,7 +583,8 @@ export class CreditBalanceService {
     const paymentService = this.moduleRef.get(PaymentService, { strict: false });
     try {
       await paymentService.create(invoiceId, companyId, {
-        amount: apply,
+        amount: applyInCurrency,
+        ...(currency === 'EUR' ? {} : { eurAmount: apply }),
         // Tier 479: today's German day, not the instant (00:30 on 1 Oct
         // was stored as 30.09. — the previous month, on 1 Jan the previous year).
         paymentDate: businessTodayDate(),

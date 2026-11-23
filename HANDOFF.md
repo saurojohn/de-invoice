@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 938 — a customer's credit is in euros, whatever the invoice's currency
+
+Found by the bug-hunt team (three read-only finder agents, 23.11.2026 — payments / input tax / report consistency; 14 measured findings, fixed in Tiers 938 ff. one by one).
+- **Measured:** the credit ledger (`CustomerCreditTransaction`) is EUR. A JPY invoice (119 000 JPY = 743,75 €) paid with 129 000 JPY (806,25 €): the 10 000 JPY overpaid became a credit of 10 000 €; applied to a EUR invoice it settled 10 000 € of it (EÜR: 10 743,75 € received for 806,25 €), and it could have been paid out as 10 000 €.
+- `PaymentService`: the overage is converted at the payment's rate (`eurAmount / amount`), else the invoice's (`1 / exchangeRate`) — 62,50 €. `CreditBalanceService.applyToInvoice`: EUR credit applied to an invoice in another currency is converted at its rate (`total / eurTotal`) and the payment carries its EUR value (`eurAmount`) — it booked the euros as yen.
+- **Spec 626:** on the Tier 937b code 5 assertions fail. The credit / payout / currency specs and the guards pass (95).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 937b — CI green for Tiers 934–937, no flaky
 
 | Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |
