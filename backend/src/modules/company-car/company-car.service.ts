@@ -88,10 +88,12 @@ export class CompanyCarService {
     // and the new one; a new commute changes every month the car was used
     const today = businessTodayDate()
     const oldEnd = car.untilDate ?? today
-    if ('commuteKm' in data || 'commuteDays' in data) {
+    const commuteChanged = ('commuteKm' in data && Number(data.commuteKm ?? 0) !== Number(car.commuteKm ?? 0))
+      || ('commuteDays' in data && Number(data.commuteDays ?? 0) !== Number(car.commuteDays ?? 0))
+    if (commuteChanged) {
       await assertPeriodOpen(this.prisma, companyId, monthEnds(car.fromDate, oldEnd), 'das Ändern eines Firmenwagens')
     }
-    if ('untilDate' in data) {
+    if ('untilDate' in data && ((data.untilDate as Date | null)?.getTime() ?? null) !== (car.untilDate?.getTime() ?? null)) {
       const newEnd = (data.untilDate as Date | null) ?? today
       const [a, b] = oldEnd < newEnd ? [oldEnd, newEnd] : [newEnd, oldEnd]
       await assertPeriodOpen(this.prisma, companyId, monthEnds(a, b), 'das Ändern des Endes eines Firmenwagens')
