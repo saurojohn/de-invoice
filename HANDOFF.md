@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 951 — the Skonto after a credit note
+
+- **Measured:** 1 190 € invoice, 2 % Skonto within 14 days, 595 € credited (goods returned), 583,10 € paid (595 less 2 %): the invoice stayed open with 11,90 € and was dunned — the Skonto was taken on the invoice's total (23,80 €). A payment of 571,20 € (595 less 23,80 €) was settled as Skonto although the customer is owed the discount on 595 € only.
+- `settleSkonto`: the discount on the invoice less its issued credit notes. Also: spec 87 made deterministic (Tier 950b); full local suite 633 ok before the push of 942–950b.
+- **Spec 638:** on the Tier 950b code 3 assertions fail; the Skonto specs and the guards pass (51).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 949 / 950 — what the review of Tiers 943 / 944 found
 
 - Review workflow (3 reviewers, every medium / high finding re-checked by a skeptic; all 8 confirmed), second round over the fixes.

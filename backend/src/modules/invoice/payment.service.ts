@@ -514,7 +514,16 @@ export class PaymentService {
     // 'Gutschrift' payment), so the open balance is total − payments.
     const paid = await this.prisma.payment.aggregate({ where: { invoiceId: invoice.id }, _sum: { amount: true } });
     const open = Math.round((total - Number(paid._sum.amount ?? 0)) * 100) / 100;
-    const discount = Math.round(total * pct) / 100;
+    // Tier 951: the discount is on what the customer owes — the invoice less
+    // its credit notes (a return of goods, a price reduction). It was on the
+    // invoice's total: 1 190 € with 595 € credited, 583,10 € paid (595 less
+    // 2 %) — 11,90 € stayed open and were dunned (23,80 € expected).
+    const credited = await this.prisma.invoice.aggregate({
+      where: { companyId, type: 'CN', referenceInvoiceId: invoice.id, status: { notIn: ['draft', 'cancelled'] } },
+      _sum: { total: true },
+    });
+    const base = Math.max(0, total - Math.abs(Number(credited._sum.total ?? 0)));
+    const discount = Math.round(base * pct) / 100;
     if (open < 0.01 || Math.abs(open - discount) > 0.011) return null;
     const cn = await this.invoices.createCreditNote(invoice.id, companyId, {
       amount: open,
