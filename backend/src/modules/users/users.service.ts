@@ -42,7 +42,9 @@ export type Role = (typeof ROLES)[keyof typeof ROLES];
 const VALID_ROLES = new Set<string>([ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.VIEWER, ROLES.BERATER, ROLES.AUDITOR]);
 
 /** Tier 744: reading that is no business of a tax auditor */
-const AUDITOR_CANNOT_READ = new Set(['users.read', 'admin.read', 'berater.note.read']);
+// Tier 963: nor the owner's private income-tax annexes — § 147 Abs. 6 AO opens
+// the records of § 147 Abs. 1 AO, not his children, salary and pensions
+const AUDITOR_CANNOT_READ = new Set(['users.read', 'admin.read', 'berater.note.read', 'privat.read']);
 /** Tier 744: an auditor's access is given for a time: at most this long */
 const AUDITOR_MAX_DAYS = 366;
 
@@ -110,6 +112,13 @@ const PERMISSIONS: Record<string, Role> = {
   'reports.read': ROLES.VIEWER,
   'reports.write': ROLES.ACCOUNTANT,
   'ustva.read': ROLES.ACCOUNTANT,
+  // Tier 963: the owner's private income-tax annexes (Anlage N, R, Kind, KAP,
+  // V, AUS, SO) and the Berater-Paket that carries them with the UStJA —
+  // they were 'accounting.read' (viewer): an employee with viewer access read
+  // the owner's children, salary and pensions, and got the UStJA his role is
+  // refused (Art. 5 Abs. 1 lit. c DSGVO; GoBD Rz. 100 ff., the access rights
+  // as the internal control system)
+  'privat.read': ROLES.ACCOUNTANT,
   'ustva.submit': ROLES.ADMIN,
   // Tier 79: Berater Document Exchange.
   //   - read: everyone with access (Berater +

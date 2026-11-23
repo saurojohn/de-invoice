@@ -677,7 +677,7 @@ export class AccountingController {
    * Defaults: previous calendar year. Year
    * validation matches /euer.
    */
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-v')
   @UseGuards(HeaderAuthGuard)
   async getAnlageV(
@@ -694,7 +694,7 @@ export class AccountingController {
     return this.anlageV.compute(companyId, year)
   }
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-v.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -732,7 +732,7 @@ export class AccountingController {
   // the purpose field are tentatively classified
   // as Kapitalerträge. The user adjusts in
   // their ELSTER submission.
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-kap')
   @UseGuards(HeaderAuthGuard)
   async getAnlageKAP(
@@ -779,7 +779,7 @@ export class AccountingController {
     })
   }
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-kap.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -881,7 +881,7 @@ export class AccountingController {
   // income (e.g. pure Freelancer with no
   // side job), the section is empty + the
   // Berater packager skips it.
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-n')
   @UseGuards(HeaderAuthGuard)
   async getAnlageN(
@@ -898,7 +898,7 @@ export class AccountingController {
     return this.anlageN.compute(companyId, year)
   }
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-n.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1065,7 +1065,7 @@ export class AccountingController {
   // year. Ertragsanteil for private Rente
   // simplified to 50% (the post-2012 default).
   // Data from Company.settings.renten[year].
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-r')
   @UseGuards(HeaderAuthGuard)
   async getAnlageR(
@@ -1082,7 +1082,7 @@ export class AccountingController {
     return this.anlageR.compute(companyId, year)
   }
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-r.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1187,7 +1187,7 @@ export class AccountingController {
   // kindergeldEligible }. The service counts
   // them + applies the standard Freibetrag +
   // Kindergeld per year (2024 rates as default).
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-kind')
   @UseGuards(HeaderAuthGuard)
   async getAnlageKind(
@@ -1204,7 +1204,7 @@ export class AccountingController {
     return this.anlageKind.compute(companyId, year)
   }
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-kind.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1294,7 +1294,7 @@ export class AccountingController {
   // UStJA block in the Berater packager.
   // =============================================================
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-so')
   @UseGuards(HeaderAuthGuard)
   async getAnlageSo(
@@ -1311,7 +1311,7 @@ export class AccountingController {
     return this.anlageSo.compute(companyId, year)
   }
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-so.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1407,7 +1407,7 @@ export class AccountingController {
   // and the UStJA block in the Berater packager.
   // =============================================================
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-aus')
   @UseGuards(HeaderAuthGuard)
   async getAnlageAus(
@@ -1424,7 +1424,7 @@ export class AccountingController {
     return this.anlageAus.compute(companyId, year)
   }
 
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('anlage-aus.pdf')
   @UseGuards(HeaderAuthGuard)
   @Header('Content-Type', 'application/pdf')
@@ -1982,7 +1982,7 @@ export class AccountingController {
    * (a stand-in for `res` that captures bytes
    * instead of writing to HTTP).
    */
-  @Require('accounting.read')
+  @Require('privat.read') // Tier 963
   @Get('berater-packager')
   @UseGuards(HeaderAuthGuard)
   async getBeraterPackager(
