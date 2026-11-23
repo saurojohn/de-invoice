@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 955 — the home office and the closed books
+
+- **Measured:** the home-office Pauschale is a cost of its year (EÜR Zeile 5410). After the books were closed to 31.12.2025 the 2025 Pauschale could be changed or deleted (the closed EÜR 2025's costs 600 → 0 €).
+- `set` / `remove` meet the closed books with the year's last day. Looked at and left: the Hebesatz and the joint assessment by year feed the returns (KSt 1, Anlage G), not the books; the settings by year (Besteuerungsart, OSS, Kleinunternehmer, Gewinnermittlung) were locked already.
+- **Spec 642:** on the Tier 954 code 3 assertions fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 954 — VAT payments and the closed books
 
 - **Measured:** the EÜR counts what was paid to / refunded by the tax office on its day (Zeilen 18 / 58). After the books were closed to 31.12.2025, a VAT payment of 10.12.2025 could be entered, one of 10.11.2025 deleted (the closed EÜR 2025's costs 300 → 200 €) and December's return marked paid on 28.12.2025.

@@ -5,6 +5,7 @@ import { Require } from '../../auth/roles.decorator'
 import { PrismaService } from '../../prisma/prisma.service'
 import { isKapitalgesellschaft, resolveRechtsform } from '../company/rechtsform'
 import { HOME_OFFICE_METHODS, homeOfficeAmount, MAX_TAGE } from './home-office'
+import { assertBooksOpen } from '../reports/filed-period'
 
 /** Tier 504: PUT /home-office/:year */
 export class SetHomeOfficeDto {
@@ -42,6 +43,8 @@ export class HomeOfficeService {
       )
     }
     if (dto.method === 'tagespauschale' && dto.days == null) throw new BadRequestException('Anzahl der Homeoffice-Tage angeben.')
+    // Tier 955: the Pauschale is a cost of its year (EÜR Zeile 5410) — not of a closed one
+    await assertBooksOpen(this.prisma, companyId, [`${year}-12-31`], 'das Ändern der Homeoffice-Pauschale')
     const data = {
       method: dto.method,
       days: dto.method === 'tagespauschale' ? dto.days! : null,
@@ -58,6 +61,7 @@ export class HomeOfficeService {
   async remove(companyId: string, year: number) {
     const row = await this.prisma.homeOffice.findUnique({ where: { companyId_year: { companyId, year } } })
     if (!row) throw new NotFoundException('Kein Homeoffice für dieses Jahr erfasst')
+    await assertBooksOpen(this.prisma, companyId, [`${year}-12-31`], 'das Löschen der Homeoffice-Pauschale') // Tier 955
     await this.prisma.homeOffice.delete({ where: { id: row.id } })
     return { ok: true }
   }
