@@ -156,6 +156,15 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
       # Aliyun-style locale for date formatting
       LANG: en_US.UTF-8
+    # Tier 947: pg_dump reads every sequence in one transaction and holds a
+    # lock on each until it ends; the lock table has room for
+    # max_locks_per_transaction × max_connections — 64 × 100 = 6 400 by
+    # default. The invoice numbers are a sequence per company, document type
+    # and year (invoice-number.ts): some 600 companies numbering by year fill
+    # it, and the nightly backup fails („out of shared memory — increase
+    # max_locks_per_transaction“; measured on the test database with 14 372
+    # sequences). 1 024 × 100 ≈ 100 000 relations, some 28 MB of shared memory.
+    command: ["postgres", "-c", "max_locks_per_transaction=1024"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Init script: enables citext, uuid-ossp extensions if
