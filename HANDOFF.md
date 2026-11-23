@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 939 — a payment dated before a credit note, entered after it
+
+- **Measured (team):** Ist-Versteuerung; an invoice of 1 190 €, a credit note of 595 € today, then the bank payment of 1 190 € dated a week ago, entered afterwards (a late statement). `euerInflows` walked the payments by date: the bank payment took the whole invoice, the credit note's settlement ('Gutschrift', 595) nothing — and the 595 € the payment brought beyond the reduced invoice became the customer's credit as well. Kz 81 1 000 / 190 for the invoice; with the credit applied to the next invoice 1 500 / 285; EÜR 1 785 € received for 1 190 €.
+- A credit note lowers the invoice whatever its date: its settlement is taken first, then the money by date (as when the payment is entered in order — the control run gave 500 / 95).
+- **Spec 627:** on the Tier 938 code 3 assertions fail. The EÜR / Ist / credit-note / Anlage specs and the guards pass (142).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 938 — a customer's credit is in euros, whatever the invoice's currency
 
 Found by the bug-hunt team (three read-only finder agents, 23.11.2026 — payments / input tax / report consistency; 14 measured findings, fixed in Tiers 938 ff. one by one).

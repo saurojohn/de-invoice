@@ -108,7 +108,16 @@ export async function euerInflows(prisma: PrismaService, companyId: string, star
     const share = invoiceNetRevenue(inv) / total
     let open = total
     let counted = 0
-    for (const p of inv.payments) {
+    // Tier 939: a credit note lowers the invoice whatever its date — its
+    // settlement ('Gutschrift') first, then the money by date. A payment
+    // entered later but dated before the credit note took the whole invoice
+    // and the credit note's share counted again as the customer's credit
+    // (measured: 1 785 € received for 1 190 €).
+    const ordered = [
+      ...inv.payments.filter((p) => p.paymentMethod === 'Gutschrift'),
+      ...inv.payments.filter((p) => p.paymentMethod !== 'Gutschrift'),
+    ]
+    for (const p of ordered) {
       // Tier 475: a refund (negative payment — an advance paid back) is
       // negative income in its period, up to what had been received.
       const part = Number(p.amount) < 0
