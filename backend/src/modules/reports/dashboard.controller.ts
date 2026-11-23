@@ -1,6 +1,7 @@
 import { nonDeductibleGiftIds } from '../accounting/gifts'
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period'
 import { NOT_AFA_BOOKING, afaOfYear } from '../accounting/booked-afa'
+import { assetDisposals, sumRestbuchwert } from '../assets/disposals'
 import { expenseCost, isIncomeTax } from '../accounting/expense-cost'
 import { manualJournalLines } from '../accounting/manual-journal'
 import { cashBookings } from '../cashbook/cash-bookings'
@@ -79,6 +80,10 @@ export class DashboardController {
     const monthEnd = new Date(end.getFullYear(), end.getMonth() + 1, 0, 23, 59, 59, 999)
     const afa = await afaOfYear(this.prisma, companyId, start.getFullYear())
     cents -= Math.round(afa.cost(start, monthEnd, end.getMonth() + 1) * 100)
+    // Tier 945: the Restbuchwert of an asset sold or retired this year — a cost
+    // in the GuV, the EÜR and the BWA (disposals.ts); the year's result left it
+    // out (measured: a machine of 6 000 € retired: GuV −6 000, dashboard −600).
+    cents -= Math.round(sumRestbuchwert(await assetDisposals(this.prisma, companyId, start, end)) * 100)
     for (const c of await cashBookings(this.prisma, companyId, start, end)) {
       const v = Math.round((kleinunternehmer(c.date) ? c.gross : c.net) * 100)
       cents += c.direction === 'in' ? v : -v
@@ -194,8 +199,19 @@ export class DashboardController {
     // were the open bills of this year only: on 1 January every unpaid bill of
     // December dropped out (measured on a clock at 31.12.2026: 238 € open at
     // 23:37, 0 € at 00:06), and a bill of an earlier year was never in it.
+    // Tier 945: what is still owed — as the balance sheet counts it
+    // (bilanz.service.ts: booked / deductible, not paid). Every bill of status
+    // 'booked' counted, paid or not (measured: a bill paid by card on its day,
+    // 238 € „offen“), and a 'deductible' one never.
     const openPay = await this.prisma.expense.aggregate({
-      where: { companyId, status: 'booked', ...NOT_AFA_BOOKING },
+      where: {
+        companyId,
+        status: { in: ['booked', 'deductible'] },
+        invoiceDate: { lte: todayEnd },
+        // a SEPA batch sets the day it is to be carried out — owed until then
+        OR: [{ paidAt: null }, { paidAt: { gt: todayEnd } }],
+        ...NOT_AFA_BOOKING,
+      },
       _sum: { grossAmount: true },
     })
     const openPayables = cents(openPay._sum.grossAmount) / 100
