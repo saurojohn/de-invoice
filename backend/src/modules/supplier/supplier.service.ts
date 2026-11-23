@@ -22,6 +22,12 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { VatValidationService } from '../vat-validation/vat-validation.service';
 import { WebhookService } from '../webhook/webhook.service';
+import { normaliseCountry } from '../invoice/ust-behandlung-detector';
+import { booksClosedUntilOf, filedPeriodOf } from '../reports/filed-period';
+import { businessDayIso } from '../../common/business-date';
+
+/** Tier 952: the EU member states (as UstvaService.isEUCountry) */
+const EU_SEATS = new Set(['DE', 'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'])
 
 @Injectable()
 export class SupplierService {
@@ -120,11 +126,43 @@ export class SupplierService {
     return created;
   }
 
+  /**
+   * Tier 952 — a § 13b bill's line in the UStVA follows its supplier's seat:
+   * Kz 46 / 47 for a supplier in another EU country, Kz 84 / 85 otherwise. It
+   * is read from the supplier as it is now: moved from Ireland to the US, the
+   * supplier's bills of a submitted October went from Kz 46 to Kz 84 (measured).
+   * A move across that line is refused while such bills are in a submitted
+   * return or in closed books — a supplier with a new seat is a new supplier.
+   */
+  private async assertCountryKeepsReturns(companyId: string, existing: { id: string; name: string; address: unknown }, address: any) {
+    const was = normaliseCountry((existing.address as any)?.country) || ''
+    const now = normaliseCountry(address?.country) || ''
+    const euSeat = (c: string) => !!c && c !== 'DE' && EU_SEATS.has(c)
+    if (euSeat(was) === euSeat(now)) return
+    const bills = await this.prisma.expense.findMany({
+      where: { companyId, supplierId: existing.id, isReverseCharge: true, isIntraEU: false },
+      select: { invoiceDate: true },
+    })
+    if (!bills.length) return
+    const closed = await booksClosedUntilOf(this.prisma, companyId)
+    for (const b of bills) {
+      const filed = await filedPeriodOf(this.prisma, companyId, b.invoiceDate)
+      if (filed || (closed && businessDayIso(b.invoiceDate) <= closed)) {
+        throw new BadRequestException(
+          `${existing.name} hat Rechnungen nach § 13b UStG in ${filed ? `der übermittelten Voranmeldung ${filed.periodLabel}` : 'abgeschlossenen Büchern'} — ` +
+            `dort stehen sie nach seinem Sitz (${euSeat(was) ? 'Kz 46 / 47: im übrigen Gemeinschaftsgebiet' : 'Kz 84 / 85'}). ` +
+            'Ein Sitz in einem anderen Land würde sie verschieben. Legen Sie für den neuen Sitz einen neuen Lieferanten an.',
+        )
+      }
+    }
+  }
+
   async update(id: string, companyId: string, data: any) {
     const existing = await this.prisma.supplier.findFirst({ where: { id, companyId } });
     if (!existing) throw new NotFoundException('Lieferant nicht gefunden');
     data = withCheckedVatId(data); // Tier 490
     assertIban(data.bankInfo?.iban); // Tier 527 — the IBAN the SEPA transfer goes to
+    if (data.address) await this.assertCountryKeepsReturns(companyId, existing, data.address); // Tier 952
     const updated = await this.prisma.supplier.update({
       where: { id },
       data: {
