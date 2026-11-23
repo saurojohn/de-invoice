@@ -37,6 +37,14 @@ export const CLAIM_TYPES = ['INV', 'RCV']
 export const NON_CASH_PAYMENT_METHODS = ['Gutschrift', 'Guthaben', 'Anzahlung']
 
 /**
+ * Tier 946 — what is no receipt for the tax owed on receipt (Mindest-Ist,
+ * § 13 Abs. 1 Nr. 1 a Satz 4 UStG): a credit note's settlement and the advance
+ * a final invoice deducts. An applied credit ('Guthaben') is — a set-off is a
+ * receipt (UStAE 13.6 Abs. 1); the payment lock treats it so, the returns did not.
+ */
+export const NOT_RECEIVED_METHODS = ['Gutschrift', 'Anzahlung']
+
+/**
  * Tier 610 — documents that are no invoices: a quote (QU, „Angebot“, numbered
  * AN-…) and a delivery note (DN, „Lieferschein“, LS-…). They live in the same
  * table and share the editor and the PDF, and that is all: no claim, no VAT,

@@ -881,7 +881,7 @@ export class CustomerService {
     } catch (e) {
       // All or nothing, as before: take back what was booked.
       for (const id of created.reverse()) {
-        await payments.delete(id, companyId).catch(() => undefined)
+        await payments.delete(id, companyId, { resettleCreditNotes: false }).catch(() => undefined) // Tier 948: an undo
       }
       throw e
     }

@@ -17,7 +17,7 @@ import { istPaidDocuments } from './ustva-ist';
 import { ART_SELECT, artOn, wechselOf } from '../../common/besteuerungsart-period';
 import { taxedAbroad } from './oss-scope';
 import { SUPPLY_SELECT, creditNoteDay, isVorausrechnung, supplyPeriodWhere, ustvaDay, within } from './supply-period';
-import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope';
+import { NOT_RECEIVED_METHODS } from '../invoice/document-scope';
 import { AS_ISSUED_SELECT, asIssued } from '../invoice/customer-as-issued';
 import { OSS_SELECT, ossOn } from '../../common/oss-period';
 import { advancePayments, advanceSettlements } from '../accounting/euer-zufluss';
@@ -187,7 +187,7 @@ export class UstvaService {
     const rows = await this.prisma.payment.findMany({
       where: {
         paymentDate: { gte: start, lte: end },
-        paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
+        paymentMethod: { notIn: NOT_RECEIVED_METHODS },
         invoice: {
           companyId,
           type: { in: ['INV', 'RCV'] },
@@ -300,7 +300,7 @@ export class UstvaService {
     if (vorauIds.length) {
       const sums = await this.prisma.payment.groupBy({
         by: ['invoiceId'],
-        where: { invoiceId: { in: vorauIds }, paymentDate: { lt: start }, paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS } },
+        where: { invoiceId: { in: vorauIds }, paymentDate: { lt: start }, paymentMethod: { notIn: NOT_RECEIVED_METHODS } },
         _sum: { amount: true },
       });
       for (const r of sums) paidBefore.set(r.invoiceId, Number(r._sum.amount ?? 0));
@@ -333,7 +333,7 @@ export class UstvaService {
       ? await this.prisma.payment.findMany({
         where: {
           invoiceId: { in: preSupply.map((cn) => cn.referenceInvoiceId!) },
-          paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
+          paymentMethod: { notIn: NOT_RECEIVED_METHODS },
         },
         select: { invoiceId: true, amount: true, paymentDate: true },
       })
@@ -1465,7 +1465,7 @@ export class UstvaService {
       data: {
         companyId,
         supplierId,
-        invoiceNumber: data.invoiceNumber,
+        invoiceNumber: data.invoiceNumber?.trim() || null, // Tier 949: as the duplicate check and the final invoice compare it
         description: data.description,
         invoiceDate: data.invoiceDate,
         netAmount: data.netAmount,

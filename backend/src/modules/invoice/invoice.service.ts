@@ -1,7 +1,10 @@
 import { KU_SELECT, kuOn } from '../../common/kleinunternehmer-period';
 import { refreshOpenStatus } from './open-status'
 import { KleinunternehmerService } from '../accounting/kleinunternehmer.service';
-import { assertPeriodOpen, invoiceLockDates } from '../reports/filed-period';
+import { assertBooksOpen, assertPeriodOpen, invoiceLockDates } from '../reports/filed-period';
+import { besteuerungsartOn } from '../reports/ustva-ist';
+import { paidSoFar } from './paid-so-far';
+import { eurOfInvoiceAmount } from './eur-of-invoice';
 import { storedPaymentMethod } from './payment-method'
 import { withKeyLock } from '../../common/key-lock';
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
@@ -1930,6 +1933,20 @@ export class InvoiceService {
         await assertPeriodOpen(this.prisma, companyId, await invoiceLockDates(this.prisma, companyId, before), 'das Stornieren einer Rechnung'); // Tier 914
       }
     }
+    // Tier 946: "paid" set or taken back by hand — the part no payment covers
+    // counts on the issue date in the EÜR and under Ist-Versteuerung
+    // (euer-zufluss.ts). The status went past a submitted month and closed
+    // books. (Set by the payments themselves it covers nothing.)
+    if ((status === 'paid') !== (before.status === 'paid') && CLAIM_TYPES.includes(before.type)
+      && !['draft', 'cancelled'].includes(before.status) && !['draft', 'cancelled'].includes(status)
+      && (await paidSoFar(this.prisma, before.id)) < Number(before.total) - 0.005) {
+      const what = 'das Ändern des Status „bezahlt“ einer Rechnung, deren Zahlung nicht erfasst ist'
+      if ((await besteuerungsartOn(this.prisma, companyId))(before.issueDate) === 'ist') {
+        await assertPeriodOpen(this.prisma, companyId, [before.issueDate], what)
+      } else {
+        await assertBooksOpen(this.prisma, companyId, [before.issueDate], what)
+      }
+    }
     // Tier 511: a draft credit note is issued — against an issued invoice,
     // within what it has left to credit, and settled against it below.
     const creditedOriginal = issuing && before.type === 'CN'
@@ -2156,11 +2173,14 @@ export class InvoiceService {
    */
   private async settleIssuedCreditNote(
     cn: { id: string; invoiceNumber: string; total: unknown },
-    original: { id: string; customerId: string; invoiceNumber: string; total: unknown; status: string; currency?: string | null; payments: Array<{ amount: unknown }> },
+    original: { id: string; customerId: string; invoiceNumber: string; total: unknown; status: string; currency?: string | null; eurTotal?: unknown; exchangeRate?: unknown; payments: Array<{ amount: unknown }> },
     companyId: string,
   ) {
     const paid = original.payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-    const open = Math.max(0, Number(original.total) - paid);
+    // Tier 946: an invoice set "paid" by hand is paid — nothing open to settle
+    // (the credit note is the customer's credit); it ate the part counted on
+    // the issue date (EÜR, Ist) behind a submitted month
+    const open = original.status === 'paid' ? 0 : Math.max(0, Number(original.total) - paid);
     const cnAmount = Math.abs(Number(cn.total));
     const synthetic = Math.round(Math.min(cnAmount, open) * 100) / 100;
     await this.prisma.payment.create({
@@ -2179,7 +2199,7 @@ export class InvoiceService {
     }
     const overage = Math.round((cnAmount - synthetic) * 100) / 100;
     if (overage > 0.005) {
-      await this.creditBalance.recordGutschriftOverage(companyId, original.customerId, cn.id, overage, original.invoiceNumber);
+      await this.creditBalance.recordGutschriftOverage(companyId, original.customerId, cn.id, eurOfInvoiceAmount(original, overage), original.invoiceNumber); // Tier 948: in euros
     }
     await this.afterCreditNote(original.id, companyId); // Tier 694
   }
@@ -2595,7 +2615,8 @@ export class InvoiceService {
         (s, p) => s.plus(p.amount ?? new Prisma.Decimal(0)),
         new Prisma.Decimal(0),
       ).toNumber()
-      const originalRemaining = Math.max(
+      // Tier 946: an invoice set "paid" by hand is paid — nothing open
+      const originalRemaining = original.status === 'paid' ? 0 : Math.max(
         0,
         Number(original.total) - originalPaid,
       )
@@ -2662,7 +2683,7 @@ export class InvoiceService {
           companyId,
           original.customerId,
           cn.id,
-          overage,
+          eurOfInvoiceAmount(original, overage), // Tier 948: the ledger is in euros
           original.invoiceNumber,
         )
       } catch (err: any) {

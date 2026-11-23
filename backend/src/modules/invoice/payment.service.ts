@@ -1,5 +1,7 @@
 import { ModuleRef } from '@nestjs/core';
 import { besteuerungsartOn } from '../reports/ustva-ist';
+import { paidSoFar } from './paid-so-far';
+import { eurOfInvoiceAmount } from './eur-of-invoice';
 import { taxedOnReceipt } from '../reports/supply-period';
 import { assertBooksOpen, assertPeriodOpen } from '../reports/filed-period';
 import { withKeyLock } from '../../common/key-lock';
@@ -21,7 +23,7 @@ import { ReminderService } from '../reminder/reminder.service';
 import { CreditBalanceService } from '../customer/credit-balance.service';
 import { syncInstallments } from '../installment-plan/installment-sync';
 import { refreshOpenStatus } from './open-status';
-import { businessDayIso, businessTodayIso } from '../../common/business-date';
+import { businessDayIso, businessTodayDate, businessTodayIso } from '../../common/business-date';
 
 /** Tier 854: the reason ReminderService gives a Mahnung it voids because its invoice was paid */
 const PAID_MAHNUNG_REASON = 'invoice paid'
@@ -182,20 +184,34 @@ export class PaymentService {
         'Gutschriften können nicht direkt bezahlt werden — sie werden mit dem offenen Saldo der Originalrechnung verrechnet.'
       );
     }
+    // Tier 946: an invoice set "paid" by hand counts the part no payment
+    // covers on its issue date (EÜR, Ist-Versteuerung: euer-zufluss.ts); a
+    // payment recorded later takes that part to its own day — out of the issue
+    // date's period. Measured (Ist): set "paid" in October, October submitted,
+    // the bank payment entered with 12.11.: October's Kz 81 1 000 € → 0.
+    const uncoveredOnIssue = invoice.status === 'paid' && CLAIM_TYPES.includes(invoice.type)
+      && (await paidSoFar(this.prisma, invoiceId)) < Number(invoice.total) - 0.005
+    const touched = [data.paymentDate, uncoveredOnIssue ? invoice.issueDate : null]
+    const what = uncoveredOnIssue
+      ? 'das Buchen einer Zahlung auf eine als bezahlt markierte Rechnung (ihr Betrag steht bisher am Rechnungsdatum)'
+      : 'das Buchen einer Zahlung'
     // Tier 537: a payment moves VAT into its own period only where the tax is
     // owed on receipt — a company with Ist-Versteuerung (§ 20 UStG), and the
     // advance on a Proforma (§ 13 Abs. 1 Nr. 1 a Satz 4). A credit note
-    // settling its invoice / applied credit is no receipt.
-    if (!['Gutschrift', 'Guthaben', ADVANCE_SETTLEMENT_METHOD].includes(data.paymentMethod)
+    // settling its invoice is no receipt. Tier 946: an applied credit is — the
+    // overpayment counts when the credit pays an invoice (euer-zufluss.ts).
+    const istOnIssue = (await besteuerungsartOn(this.prisma, companyId))(invoice.issueDate) === 'ist'
+    if (!['Gutschrift', ADVANCE_SETTLEMENT_METHOD].includes(data.paymentMethod)
       && (invoice.type === 'PI' || (Number(invoice.totalVat) > 0 && !invoice.reverseCharge && taxedOnReceipt(invoice, data.paymentDate)) // Tier 921: before the supply (Mindest-Ist), where it carries VAT
-        || (await besteuerungsartOn(this.prisma, companyId))(invoice.issueDate) === 'ist')) { // Tier 908: taxed on receipt
-      await assertPeriodOpen(this.prisma, companyId, [data.paymentDate], 'das Buchen einer Zahlung');
+        || istOnIssue)) { // Tier 908: taxed on receipt
+      // the issue date is in a return only under Ist (a Soll return counts payment rows alone)
+      await assertPeriodOpen(this.prisma, companyId, istOnIssue ? touched : [data.paymentDate], what);
     }
     // Tier 609: closed books take no cash booking, whatever the taxation —
     // a receipt is a booking of its day. (A credit note settling its invoice
-    // and an applied credit are no receipts.)
-    if (!['Gutschrift', 'Guthaben', ADVANCE_SETTLEMENT_METHOD].includes(data.paymentMethod)) {
-      await assertBooksOpen(this.prisma, companyId, [data.paymentDate], 'das Buchen einer Zahlung');
+    // is no receipt; Tier 946: an applied credit is.)
+    if (!['Gutschrift', ADVANCE_SETTLEMENT_METHOD].includes(data.paymentMethod)) {
+      await assertBooksOpen(this.prisma, companyId, touched, what);
     }
     // Tier 462: only an issued document takes a payment. A cancelled invoice
     // turned "paid" (the Storno undone, back in the UStVA), a draft went
@@ -595,10 +611,14 @@ export class PaymentService {
     });
   }
 
-  async delete(paymentId: string, companyId: string) {
+  /**
+   * opts.resettleCreditNotes: false for the undo of an operation that failed
+   * half-way (Tier 948 — it is no deletion the user asked for).
+   */
+  async delete(paymentId: string, companyId: string, opts: { resettleCreditNotes?: boolean } = {}) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { invoice: { select: { companyId: true, total: true, type: true, customerId: true, invoiceNumber: true, issueDate: true, deliveryDate: true, servicePeriodEnd: true, euTransaction: true, totalVat: true, reverseCharge: true } } },
+      include: { invoice: { select: { companyId: true, total: true, type: true, customerId: true, invoiceNumber: true, issueDate: true, deliveryDate: true, servicePeriodEnd: true, euTransaction: true, totalVat: true, reverseCharge: true, status: true, currency: true } } },
     });
     if (!payment || payment.invoice.companyId !== companyId) {
       throw new NotFoundException('Zahlung nicht gefunden');
@@ -635,18 +655,41 @@ export class PaymentService {
         );
       }
     }
-    if (!['Gutschrift', 'Guthaben'].includes(payment.paymentMethod)
+    // Tier 946: a payment of an invoice set "paid" by hand — deleted, the
+    // status goes back to open and the part no payment covered leaves the issue
+    // date (EÜR, Ist). Measured: 500 € paid on 03.11. of a 1 190 € invoice set
+    // paid on 10.10., October submitted, the payment deleted: October's
+    // receipts 690 € → 0.
+    if (payment.invoice.status === 'paid' && CLAIM_TYPES.includes(payment.invoice.type)
+      && (await paidSoFar(this.prisma, payment.invoiceId)) < Number(payment.invoice.total) - 0.005) {
+      const what = 'das Löschen einer Zahlung auf eine als bezahlt markierte Rechnung (ihr offener Teil steht am Rechnungsdatum)'
+      if ((await besteuerungsartOn(this.prisma, companyId))(payment.invoice.issueDate) === 'ist') {
+        await assertPeriodOpen(this.prisma, companyId, [payment.invoice.issueDate], what)
+      } else {
+        await assertBooksOpen(this.prisma, companyId, [payment.invoice.issueDate], what)
+      }
+    }
+    // Tier 946: an applied credit ('Guthaben') too — it is income of its day
+    // (euer-zufluss.ts). Its deletion went past a submitted month and closed
+    // books (measured: October's Kz 81 lowered by 260,50 € after October was
+    // submitted).
+    if (payment.paymentMethod !== 'Gutschrift'
       && (payment.invoice.type === 'PI' || (Number(payment.invoice.totalVat) > 0 && !payment.invoice.reverseCharge && taxedOnReceipt(payment.invoice, payment.paymentDate)) // Tier 921
         || (await besteuerungsartOn(this.prisma, companyId))(payment.invoice.issueDate) === 'ist')) { // Tier 908
       await assertPeriodOpen(this.prisma, companyId, [payment.paymentDate], 'das Löschen einer Zahlung'); // Tier 537
     }
-    if (!['Gutschrift', 'Guthaben'].includes(payment.paymentMethod)) {
+    if (payment.paymentMethod !== 'Gutschrift') {
       await assertBooksOpen(this.prisma, companyId, [payment.paymentDate], 'das Löschen einer Zahlung'); // Tier 609
     }
     // Tier 460: what the payment caused goes with it — its overpayment credit
     // (refused if already used), a credit it applied, its Skonto credit note.
     const credit = await this.creditBalance.paymentDeletion(companyId, payment);
     await credit.check();
+    // Tier 948: worked out before the payment goes (the periods it touches)
+    const resettle = opts.resettleCreditNotes !== false && CLAIM_TYPES.includes(payment.invoice.type)
+      && !['Guthaben', 'Gutschrift'].includes(payment.paymentMethod)
+      ? await this.resettlementPlan(companyId, payment)
+      : null;
     await this.prisma.payment.delete({ where: { id: paymentId } });
     await credit.apply();
     await this.cancelSkontoOf(payment, companyId);
@@ -672,7 +715,106 @@ export class PaymentService {
     await syncInstallments(this.prisma, payment.invoiceId);
     // Tier 711: past its due date it is „überfällig“ again, not „versendet“
     await refreshOpenStatus(this.prisma, companyId, payment.invoiceId);
-    return { ok: true };
+    // Tier 948: a credit note issued while the invoice was paid became the
+    // customer's credit (its overage, Tier 58) instead of settling it. The
+    // payment gone, the invoice stood open for its whole amount while the
+    // credit stayed (measured: 1 190 € open and dunned, 595 € credit, for
+    // 595 € owed). The credit note now settles it after all — its 'Gutschrift'
+    // settlement grows and the credit it left goes: no receipt, and the credit
+    // note's refund part shrinks on its own date (checked above).
+    const creditSettled = resettle ? await this.applyResettlement(companyId, payment.invoiceId, payment.invoice.customerId, resettle) : 0
+    return { ok: true, ...(creditSettled > 0 ? { creditSettled } : {}) };
+  }
+
+  /**
+   * Tier 948 — what the invoice's credit notes left with the customer as
+   * credit, to settle the invoice with now that a payment goes: per credit
+   * note the credit it left less what was moved back before, capped by the
+   * customer's balance and by what will be open. Null when nothing is to do,
+   * or when the credit note's own period is closed (the credit then stays).
+   */
+  private async resettlementPlan(
+    companyId: string,
+    payment: { id: string; amount: unknown; invoiceId: string; invoice: { customerId: string; type: string; total: unknown; currency?: string | null; issueDate: Date } },
+  ): Promise<Array<{ cnId: string; cnNumber: string; inInvoiceCurrency: number; eur: number }> | null> {
+    const creditNotes = await this.prisma.invoice.findMany({
+      where: { companyId, type: 'CN', referenceInvoiceId: payment.invoiceId, status: { notIn: ['draft', 'cancelled'] } },
+      select: { id: true, invoiceNumber: true, issueDate: true },
+      orderBy: { issueDate: 'asc' },
+    });
+    if (!creditNotes.length) return null;
+    const customerId = payment.invoice.customerId;
+    const inv = await this.prisma.invoice.findFirst({ where: { id: payment.invoiceId, companyId }, select: { currency: true, total: true, eurTotal: true, exchangeRate: true } });
+    if (!inv) return null;
+    const eurOf = (units: number) => eurOfInvoiceAmount(inv, units);
+    const unitsOf = (eur: number) => { const per = eurOf(1); return per > 0 ? Math.round((eur / per) * 100) / 100 : eur };
+    let open = Math.round((Number(inv.total) - ((await paidSoFar(this.prisma, payment.invoiceId)) - Number(payment.amount))) * 100) / 100;
+    const balance = await this.prisma.customerCreditTransaction.aggregate({ where: { companyId, customerId }, _sum: { amount: true } });
+    let left = Number(balance._sum.amount ?? 0);
+    const plan: Array<{ cnId: string; cnNumber: string; inInvoiceCurrency: number; eur: number }> = [];
+    const ist = await besteuerungsartOn(this.prisma, companyId);
+    for (const cn of creditNotes) {
+      if (open <= 0.005 || left <= 0.005) break;
+      const [given, movedBack] = await Promise.all([
+        this.prisma.customerCreditTransaction.aggregate({ where: { companyId, customerId, type: 'gutschrift', referenceType: 'Invoice', referenceId: cn.id }, _sum: { amount: true } }),
+        this.prisma.customerCreditTransaction.aggregate({ where: { companyId, customerId, type: 'apply', referenceType: 'CreditNote', referenceId: cn.id }, _sum: { amount: true } }),
+      ]);
+      const avail = Number(given._sum.amount ?? 0) + Number(movedBack._sum.amount ?? 0); // usages are negative
+      const eur = Math.round(Math.min(avail, left, eurOf(open)) * 100) / 100;
+      if (eur <= 0.005) continue;
+      // its refund part shrinks on its date (EÜR; Ist: the return)
+      const what = 'das Verrechnen einer Gutschrift mit ihrer wieder offenen Rechnung'
+      try {
+        if (ist(payment.invoice.issueDate) === 'ist') await assertPeriodOpen(this.prisma, companyId, [cn.issueDate], what);
+        else await assertBooksOpen(this.prisma, companyId, [cn.issueDate], what);
+      } catch {
+        continue; // its period is closed: the credit stays with the customer
+      }
+      const units = Math.min(open, unitsOf(eur));
+      plan.push({ cnId: cn.id, cnNumber: cn.invoiceNumber, inInvoiceCurrency: units, eur });
+      open = Math.round((open - units) * 100) / 100;
+      left = Math.round((left - eur) * 100) / 100;
+    }
+    return plan.length ? plan : null;
+  }
+
+  private async applyResettlement(
+    companyId: string,
+    invoiceId: string,
+    customerId: string,
+    plan: Array<{ cnId: string; cnNumber: string; inInvoiceCurrency: number; eur: number }>,
+  ): Promise<number> {
+    let settled = 0;
+    for (const step of plan) {
+      const done = await this.creditBalance.settleCreditNoteAgain(companyId, customerId, step.cnId, step.cnNumber, step.eur);
+      if (!done) continue;
+      const existing = await this.prisma.payment.findFirst({ where: { invoiceId, paymentMethod: 'Gutschrift', reference: `CN ${step.cnNumber}` }, select: { id: true, amount: true } });
+      if (existing) {
+        await this.prisma.payment.update({ where: { id: existing.id }, data: { amount: Math.round((Number(existing.amount) + step.inInvoiceCurrency) * 100) / 100 } });
+      } else {
+        const inv = await this.prisma.invoice.findFirst({ where: { id: invoiceId, companyId }, select: { currency: true } });
+        await this.prisma.payment.create({
+          data: {
+            invoiceId,
+            currency: String(inv?.currency || 'EUR').toUpperCase(),
+            amount: step.inInvoiceCurrency,
+            paymentDate: businessTodayDate(),
+            paymentMethod: 'Gutschrift',
+            reference: `CN ${step.cnNumber}`,
+            notes: `Auto-verrechnet aus Gutschrift ${step.cnNumber}`,
+          },
+        });
+      }
+      settled = Math.round((settled + step.eur) * 100) / 100;
+    }
+    if (settled > 0) {
+      const inv = await this.prisma.invoice.findFirst({ where: { id: invoiceId, companyId }, select: { total: true } });
+      if (inv && (await paidSoFar(this.prisma, invoiceId)) >= Number(inv.total) - 0.005) {
+        await this.prisma.invoice.update({ where: { id: invoiceId }, data: { status: 'paid' } });
+      }
+      await refreshOpenStatus(this.prisma, companyId, invoiceId);
+    }
+    return settled;
   }
 
   /**

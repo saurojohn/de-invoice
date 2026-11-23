@@ -300,6 +300,27 @@ export class CreditBalanceService {
   }
 
   /**
+   * Tier 948 — a credit note's credit moved back onto its invoice (the
+   * invoice is open again: a payment of it was deleted). A usage row tied to
+   * the credit note ('CreditNote', its id), so that what is left of its credit
+   * can be told. False when the customer no longer has that much.
+   */
+  async settleCreditNoteAgain(companyId: string, customerId: string, cnId: string, cnNumber: string, amountEur: number): Promise<boolean> {
+    try {
+      await this.recordUsage(companyId, customerId, {
+        type: 'apply',
+        amount: amountEur,
+        referenceType: 'CreditNote',
+        referenceId: cnId,
+        description: `Gutschrift ${cnNumber} mit ihrer Rechnung verrechnet (Zahlung gelöscht)`,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Record a Gutschrift overage. Called from
    * InvoiceService.createCreditNote() when the CN amount exceeds
    * the original invoice's remaining open balance. The overage

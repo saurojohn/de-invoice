@@ -8,7 +8,7 @@ import { invoiceEurFactor } from '../invoice/tax-breakdown'
 import { businessTodayIso } from '../../common/business-date'
 import { ossOn } from '../../common/oss-period'
 import { creditNoteDay, isVorausrechnung, supplyDay, supplyPeriodWhere, ustvaDay, within } from './supply-period'
-import { NON_CASH_PAYMENT_METHODS } from '../invoice/document-scope'
+import { NOT_RECEIVED_METHODS } from '../invoice/document-scope'
 import { asIssued } from '../invoice/customer-as-issued'
 
 /**
@@ -320,14 +320,14 @@ export class OssService {
     if (vorauIds.length) {
       for (const r of await this.prisma.payment.groupBy({
         by: ['invoiceId'],
-        where: { invoiceId: { in: vorauIds }, paymentDate: { lt: start }, paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS } },
+        where: { invoiceId: { in: vorauIds }, paymentDate: { lt: start }, paymentMethod: { notIn: NOT_RECEIVED_METHODS } },
         _sum: { amount: true },
       })) paidBefore.set(r.invoiceId, Number(r._sum.amount ?? 0))
     }
     const prepaidRows = await this.prisma.payment.findMany({
       where: {
         paymentDate: { gte: start, lte: end },
-        paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS },
+        paymentMethod: { notIn: NOT_RECEIVED_METHODS },
         invoice: {
           companyId, type: { in: ['INV', 'RCV'] }, status: { in: ['paid', 'sent', 'overdue'] }, euTransaction: false,
           OR: [{ deliveryDate: { gt: end } }, { servicePeriodEnd: { gt: end } }],
@@ -473,7 +473,7 @@ export class OssService {
     const preSupply = creditNotes.filter((cn) => creditNoteDay(cn).getTime() > cn.issueDate.getTime() && cn.referenceInvoiceId)
     const refPayments = preSupply.length
       ? await this.prisma.payment.findMany({
-        where: { invoiceId: { in: preSupply.map((cn) => cn.referenceInvoiceId!) }, paymentMethod: { notIn: NON_CASH_PAYMENT_METHODS } },
+        where: { invoiceId: { in: preSupply.map((cn) => cn.referenceInvoiceId!) }, paymentMethod: { notIn: NOT_RECEIVED_METHODS } },
         select: { invoiceId: true, amount: true, paymentDate: true },
         orderBy: { paymentDate: 'asc' },
       })
