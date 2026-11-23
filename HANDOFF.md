@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 934 — an invoice of time entries states when the hours were worked
+
+- **Measured:** the open hours of a customer become an invoice draft (`POST /time-entries/bill`, Tier 611). It had no Leistungsdatum: the PDF stated the day of the invoice (Tier 492) and the UStVA took it in that month (Tier 912). Hours of the 10th and the 20th of last month, billed today: Leistungsdatum today, Kz 81 in this month (200), last month 0.
+- § 14 Abs. 4 Nr. 6 UStG — the time of the supply: `TimeEntryService.bill` gives the draft the entries' first to last day as its Leistungszeitraum (sorted by date), or the one day as its Leistungsdatum. The draft can still be edited before it is issued.
+- **Spec 622:** on the Tier 933b code 3 assertions fail. The time-tracking specs and the guards pass; Playwright (time pages) 13 passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 933b — CI green for Tiers 932–933, no flaky
 
 | Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |

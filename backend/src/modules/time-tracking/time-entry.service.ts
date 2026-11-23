@@ -426,10 +426,20 @@ export class TimeEntryService {
         throw new BadRequestException('Für diesen Kunden gibt es keine offenen, abrechenbaren Zeiten mit Stundensatz.')
       }
       const day = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('.')
+      // Tier 934: the hours were the supply — the invoice states when (§ 14
+      // Abs. 4 Nr. 6 UStG) and the UStVA takes it in that period (Tier 912).
+      // It stated the day of the invoice: October's hours billed in November
+      // were November's. The entries' first to last day (sorted by date), or
+      // that one day.
+      const iso = (d: Date) => d.toISOString().slice(0, 10)
+      const first = iso(entries[0].date)
+      const last = iso(entries[entries.length - 1].date)
+      const supply = first === last ? { deliveryDate: first } : { servicePeriodStart: first, servicePeriodEnd: last }
       const invoice = (await this.invoices.create(companyId, {
         type: 'INV',
         customerId,
         issueDate: businessTodayIso(),
+        ...supply,
         items: entries.map((e) => ({
           description: `${day(e.date)} ${e.project ? `${e.project.name}: ` : ''}${e.description}`.slice(0, 500),
           quantity: hoursOf(e.minutes),
