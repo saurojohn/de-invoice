@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 940 — a gift over the 50 € limit: the input tax is corrected in the period the limit is passed
+
+- **Measured:** the limit is judged per recipient over the year (Tier 503); the UStVA took that judgement into every period. A second gift in November that took the recipient over 50 € removed the input tax of his October gift — from October's return, submitted (Kz 66 7,60 € → 0).
+- § 15 Abs. 1a UStG with § 17 Abs. 2 Nr. 5 UStG (UStAE 15.6 Abs. 5): `giftInputTaxOfPeriod` (accounting/gifts.ts) — in a period the gifts of a recipient whose gifts up to its end are above the limit give no input tax; in the period the limit is passed, the input tax of his earlier gifts of the year is taken back (by rate). The months before keep theirs. The income-tax side (EÜR, Anlage G / S, KSt 1) judges the year as before.
+- **Spec 628:** on the Tier 939 code 2 assertions fail (October 0, November 0). It skips in January (last month is last year).
+- Spec 289 (Tier 503) expected March's gift to lose its input tax in March although the limit is only passed in November → March 5,70, November −5,70. The gift / UStVA / UStJA specs and the guards pass (112).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 939 — a payment dated before a credit note, entered after it
 
 - **Measured (team):** Ist-Versteuerung; an invoice of 1 190 €, a credit note of 595 € today, then the bank payment of 1 190 € dated a week ago, entered afterwards (a late statement). `euerInflows` walked the payments by date: the bank payment took the whole invoice, the credit note's settlement ('Gutschrift', 595) nothing — and the 595 € the payment brought beyond the reduced invoice became the customer's credit as well. Kz 81 1 000 / 190 for the invoice; with the credit applied to the next invoice 1 500 / 285; EÜR 1 785 € received for 1 190 €.

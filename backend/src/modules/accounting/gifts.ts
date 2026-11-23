@@ -97,3 +97,67 @@ export function nichtAbziehbareGeschenke(
   const sum = expenses.reduce((s, e) => s + (e.id && bad.has(e.id) ? Number(e.grossAmount ?? 0) : 0), 0)
   return Math.round(sum * 100) / 100
 }
+
+/**
+ * Tier 940 — the input tax of gifts in a UStVA period (§ 15 Abs. 1a UStG).
+ *
+ * The 50 € limit is judged per recipient over the year (above). The UStVA
+ * applied that judgement to every period of the year: a December gift that
+ * took a recipient over the limit removed the input tax of his gift of
+ * October — from October's return, already submitted. Measured: Kz 66
+ * October 7,60 € → 0 after a second gift in November. The deduction is
+ * corrected in the period in which the limit is passed (§ 17 Abs. 2 Nr. 5
+ * UStG, UStAE 15.6 Abs. 5); the periods before keep theirs.
+ *
+ * Returns the gifts of [start, end] that give no input tax (the recipient's
+ * gifts up to `end` are above the limit; a gift without a recipient above
+ * the Streuartikel limit), and the input tax of the recipient's earlier gifts
+ * of the year, by rate, to take back in this period — where the limit is
+ * passed in it.
+ */
+export async function giftInputTaxOfPeriod(
+  prisma: any,
+  companyId: string,
+  start: Date,
+  end: Date,
+): Promise<{ notDeductible: Set<string>; takeBack: Map<number, number> }> {
+  const year = end.getFullYear()
+  const gifts: Array<GiftRow & { vatRate: unknown; vatAmount: unknown }> = await prisma.expense.findMany({
+    where: {
+      companyId,
+      status: { in: ['booked', 'deductible'] },
+      category: { startsWith: 'Geschenk', mode: 'insensitive' },
+      invoiceDate: { gte: new Date(year, 0, 1), lte: end },
+    },
+    select: { id: true, invoiceDate: true, netAmount: true, grossAmount: true, giftRecipient: true, vatRate: true, vatAmount: true },
+    orderBy: { invoiceDate: 'asc' },
+  })
+  const notDeductible = new Set<string>()
+  const takeBack = new Map<number, number>()
+  const inPeriod = (g: { invoiceDate: Date }) => new Date(g.invoiceDate).getTime() >= start.getTime()
+  const byRecipient = new Map<string, typeof gifts>()
+  for (const g of gifts) {
+    const who = norm(g.giftRecipient)
+    if (!who) {
+      if (inPeriod(g) && expenseCost(g as any, false) > STREUARTIKEL_LIMIT) notDeductible.add(g.id)
+      continue
+    }
+    byRecipient.set(who, [...(byRecipient.get(who) ?? []), g])
+  }
+  const limit = giftLimitFor(year) + 1e-9
+  for (const list of byRecipient.values()) {
+    const upToEnd = list.reduce((s, g) => s + expenseCost(g as any, false), 0)
+    if (upToEnd <= limit) continue
+    const earlier = list.filter((g) => !inPeriod(g))
+    const before = earlier.reduce((s, g) => s + expenseCost(g as any, false), 0)
+    for (const g of list) if (inPeriod(g)) notDeductible.add(g.id)
+    if (before <= limit) {
+      // passed in this period: the input tax claimed before comes back now
+      for (const g of earlier) {
+        const r = Number(g.vatRate)
+        takeBack.set(r, (takeBack.get(r) ?? 0) + Number(g.vatAmount ?? 0))
+      }
+    }
+  }
+  return { notDeductible, takeBack }
+}

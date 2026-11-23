@@ -25,7 +25,7 @@ import { normalizeVatId, vatIdFormatProblem } from '../../common/vat-id';
 import { expenseLockReason, expenseLockReasons } from '../expense/expense-lock';
 import { formYearNotice, KzEntry, ustvaKennzahlen } from './ust-kennzahlen';
 import { privateCarUse } from '../company-car/private-use';
-import { nonDeductibleGiftIds } from '../accounting/gifts';
+import { giftInputTaxOfPeriod } from '../accounting/gifts';
 import { assertNotFuture, businessDayIso } from '../../common/business-date';
 import { assertExpenseAmounts } from '../expense/amounts';
 import { assertInputTaxRate } from '../expense/input-tax-rate';
@@ -597,7 +597,10 @@ export class UstvaService {
     let expenseCount = expenses.length;
     // Tier 503: no input tax on a gift above the 50 € limit (§ 15 Abs. 1a
     // UStG), judged against the recipient's gifts of the whole year.
-    const badGifts = await nonDeductibleGiftIds(this.prisma, companyId, expenses, false);
+    // Tier 940: by the period — the gifts of the period above the limit, and
+    // the earlier input tax taken back in the period the limit is passed
+    const giftTax = await giftInputTaxOfPeriod(this.prisma, companyId, start, end);
+    const badGifts = giftTax.notDeductible;
 
     for (const exp of expenses) {
       if (badGifts.has(exp.id)) continue;
@@ -654,6 +657,16 @@ export class UstvaService {
             // 0% (e.g. Kleinunternehmer supplier) — no input tax
           }
         }
+      }
+    }
+
+    // Tier 940: the input tax of the recipient's earlier gifts, taken back
+    // (a correction of this period, § 17 Abs. 2 Nr. 5 UStG) — not under § 19
+    if (!kuOnDay(end)) {
+      for (const [r, vat] of giftTax.takeBack) {
+        if (Math.abs(r - 0.19) < 1e-6) vorsteuer19 -= vat;
+        else if (Math.abs(r - 0.07) < 1e-6) vorsteuer7 -= vat;
+        else if (r > 0) vorsteuerOther -= vat;
       }
     }
 

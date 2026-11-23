@@ -49,7 +49,10 @@ gift 2025-08-01 20
 
 note "=== UStVA: no input tax on a gift over the limit ==="
 vst() { AS GET "/api/v1/ustva/compute?companyId=$C&year=2025&month=$1"; P "float(d['vorsteuer']['from19'])"; }
-assert_eq "March: Frau Meier's 30 € (her year total 55 €) — no input tax (was 5,70)" "$(vst 3)" "0.0"
+# Tier 940: the limit is passed in November — March keeps its deduction,
+# November takes it back (§ 17 Abs. 2 Nr. 5 UStG); before Tier 940 March lost it
+assert_eq "March: Frau Meier's 30 € (30 € so far) — input tax 5,70" "$(vst 3)" "5.7"
+assert_eq "November: her 25 € take her to 55 € — no input tax for it, March's 5,70 taken back" "$(vst 11)" "-5.7"
 assert_eq "June: Herr Kurz 45 € — input tax 8,55" "$(vst 6)" "8.55"
 assert_eq "July: a Streuartikel of 8 € — 1,52" "$(vst 7)" "1.52"
 assert_eq "August: 20 € without a recipient — none" "$(vst 8)" "0.0"
