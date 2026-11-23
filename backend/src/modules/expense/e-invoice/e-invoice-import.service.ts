@@ -358,6 +358,93 @@ export class EInvoiceImportService {
         ...(lines.length > 1 ? { taxLines: lines } : {}),
       })
     }
+    // Tier 943: a final invoice after advance invoices (§ 14 Abs. 5 Satz 2
+    // UStG) shows the whole supply and its tax and deducts the advances paid
+    // with their tax (BT-113; BT-25 names the advance invoice). The advance
+    // invoice was booked with its input tax (§ 15 Abs. 1 Satz 1 Nr. 1 Satz 3
+    // UStG) — booked whole, the final invoice deducted it a second time
+    // (measured: 570 € in October after 190 € in September, for a supply taxed
+    // with 570 €; 3 570 € owed for 2 380 € due). The advance invoices it names
+    // that are in the books come off, rate by rate; one that does not fit keeps
+    // the invoice from being imported — the rest would be a guess.
+    let advanceNote: string | null = null
+    const prepaid = inv.totals.prepaid ?? 0
+    if (!inv.creditNote && inv.typeCode !== '386' && Math.round(prepaid * 100) > 0) {
+      const named = [...new Set(inv.precedingInvoices)]
+      const found = supplier && named.length
+        ? await this.prisma.expense.findMany({
+            where: { companyId, supplierId: supplier.id, invoiceNumber: { in: named }, reversesExpenseId: null, status: { in: ['booked', 'deductible'] } },
+            select: {
+              id: true, invoiceNumber: true, netAmount: true, vatAmount: true, vatRate: true, isReverseCharge: true, isIntraEU: true,
+              taxLines: { select: { vatRate: true, netAmount: true, vatAmount: true } },
+            },
+            orderBy: { invoiceDate: 'asc' },
+          })
+        : []
+      const reversed = new Set(
+        found.length
+          ? (await this.prisma.expense.findMany({ where: { companyId, reversesExpenseId: { in: found.map((a) => a.id) } }, select: { reversesExpenseId: true } })).map((r) => r.reversesExpenseId)
+          : [],
+      )
+      const advances = found.filter((a) => !reversed.has(a.id))
+      const target = planned.find((p) => p.taxCategory === 'S')
+      if (!advances.length) {
+        warnings.push(
+          `Laut Rechnung sind ${eur(toEur(prepaid))} € angezahlt${named.length ? ` (${named.join(', ')})` : ''}; eine Anzahlungsrechnung dazu ist nicht erfasst — gebucht wird die ganze Rechnung. ` +
+            'Ist die Vorsteuer der Anzahlung schon abgezogen, die Ausgabe um die Anzahlung und ihre Steuer kürzen (§ 14 Abs. 5 UStG).',
+        )
+      } else {
+        const off = new Map<number, { net: number; vat: number }>()
+        for (const a of advances) {
+          const ls = a.taxLines.length ? a.taxLines : [{ vatRate: a.vatRate, netAmount: a.netAmount, vatAmount: a.vatAmount }]
+          for (const l of ls) {
+            const r = Math.round(Number(l.vatRate) * 10000) / 10000
+            const m = off.get(r) ?? { net: 0, vat: 0 }
+            off.set(r, { net: round2(m.net + Number(l.netAmount)), vat: round2(m.vat + Number(l.vatAmount)) })
+          }
+        }
+        const lines = target ? (target.taxLines ?? [{ vatRate: target.vatRate, netAmount: target.netAmount, vatAmount: target.vatAmount }]).map((l) => ({ ...l })) : []
+        let fits = !!target && advances.every((a) => !a.isReverseCharge && !a.isIntraEU)
+        for (const [r, m] of off) {
+          const l = lines.find((x) => Math.round(x.vatRate * 10000) / 10000 === r)
+          if (!l || m.net > l.netAmount + 0.005 || m.vat > l.vatAmount + 0.005) {
+            fits = false
+            break
+          }
+          l.netAmount = round2(l.netAmount - m.net)
+          l.vatAmount = round2(l.vatAmount - m.vat)
+        }
+        const kept = lines.filter((l) => l.netAmount !== 0 || l.vatAmount !== 0)
+        const nums = advances.map((a) => a.invoiceNumber).join(', ')
+        if (!fits || !target) {
+          blocking.push(
+            `Die Schlussrechnung zieht Anzahlungen ab; die erfasste Anzahlungsrechnung ${nums} passt nicht zu ihr (Steuersatz oder Betrag). ` +
+              'Bitte von Hand erfassen: die Schlussrechnung abzüglich der Anzahlung und ihrer Steuer (§ 14 Abs. 5 UStG).',
+          )
+        } else if (!kept.length) {
+          blocking.push(`Die Anzahlungsrechnung ${nums} deckt die ganze Schlussrechnung — es bleibt nichts zu buchen.`)
+        } else {
+          const net = round2(kept.reduce((sum, l) => sum + l.netAmount, 0))
+          const vat = round2(kept.reduce((sum, l) => sum + l.vatAmount, 0))
+          const offNet = round2([...off.values()].reduce((sum, m) => sum + m.net, 0))
+          const offVat = round2([...off.values()].reduce((sum, m) => sum + m.vat, 0))
+          target.netAmount = net
+          target.vatAmount = vat
+          target.grossAmount = round2(net + vat)
+          if (kept.length > 1) target.taxLines = kept
+          else {
+            delete target.taxLines
+            target.vatRate = kept[0].vatRate
+          }
+          advanceNote = `Schlussrechnung: Anzahlungsrechnung ${nums} abgezogen (${eur(offNet)} € netto, ${eur(offVat)} € USt; § 14 Abs. 5 UStG)`
+          warnings.push(`${advanceNote} — gebucht wird der Rest: ${eur(net)} € netto, ${eur(vat)} € Umsatzsteuer.`)
+          if (Math.round((offNet + offVat) * 100) !== Math.round(toEur(prepaid) * 100)) {
+            warnings.push(`Die erfassten Anzahlungsrechnungen (${eur(round2(offNet + offVat))} €) weichen von der Anzahlung laut Rechnung (${eur(toEur(prepaid))} €) ab — bitte prüfen.`)
+          }
+        }
+      }
+    }
+
     // What ExpenseService.create would refuse is said here already, so that the
     // preview does not promise an import that then fails.
     if (inv.issueDate) {
@@ -394,6 +481,8 @@ export class EInvoiceImportService {
       blocking,
       warnings,
       importable: blocking.length === 0,
+      /** Tier 943: the advance invoices taken off a final invoice */
+      advanceNote,
     }
   }
 
@@ -456,7 +545,7 @@ export class EInvoiceImportService {
       supplierCreated = true
     }
 
-    const notes = noteFor(inv, read, opts.exchangeRate, plan.en16931)
+    const notes = [noteFor(inv, read, opts.exchangeRate, plan.en16931), plan.advanceNote].filter(Boolean).join(' · ').slice(0, 2000) // Tier 943
     const created: { id: string }[] = []
     try {
       for (const p of plan.expenses) {

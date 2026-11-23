@@ -78,6 +78,8 @@ export interface ParsedEInvoice {
   buyerReference: string | null
   orderReference: string | null
   precedingInvoice: string | null
+  /** Tier 943: every invoice it names (BT-25 repeats: a final invoice names its advance invoices) */
+  precedingInvoices: string[]
   notes: string[]
   seller: EInvoiceParty
   buyer: EInvoiceParty
@@ -250,6 +252,7 @@ function parseUbl(root: XmlElement, creditNoteDoc: boolean): ParsedEInvoice {
     buyerReference: clip(textAt(root, 'BuyerReference'), 100),
     orderReference: clip(textAt(root, 'OrderReference', 'ID'), 100),
     precedingInvoice: clip(textAt(root, 'BillingReference', 'InvoiceDocumentReference', 'ID'), 50),
+    precedingInvoices: children(root, 'BillingReference').map((b) => clip(textAt(b, 'InvoiceDocumentReference', 'ID'), 50)).filter((n): n is string => !!n),
     notes: children(root, 'Note').map((n) => clip(n.text, 1000)).filter((n): n is string => !!n),
     seller: ublParty(at(root, 'AccountingSupplierParty', 'Party')),
     buyer: ublParty(at(root, 'AccountingCustomerParty', 'Party')),
@@ -360,6 +363,7 @@ function parseCii(root: XmlElement): ParsedEInvoice {
     buyerReference: clip(textAt(agreement, 'BuyerReference'), 100),
     orderReference: clip(textAt(agreement, 'BuyerOrderReferencedDocument', 'IssuerAssignedID'), 100),
     precedingInvoice: clip(textAt(settlement, 'InvoiceReferencedDocument', 'IssuerAssignedID'), 50),
+    precedingInvoices: children(settlement, 'InvoiceReferencedDocument').map((r) => clip(textAt(r, 'IssuerAssignedID'), 50)).filter((n): n is string => !!n),
     notes: children(doc, 'IncludedNote').map((n) => clip(textAt(n, 'Content'), 1000)).filter((n): n is string => !!n),
     seller: ciiParty(child(agreement, 'SellerTradeParty')),
     buyer: ciiParty(child(agreement, 'BuyerTradeParty')),
@@ -472,7 +476,13 @@ function finish(inv: ParsedEInvoice): ParsedEInvoice {
   }
   if (inv.typeCode === '389') warnings.push('Gutschrift im Abrechnungsverfahren (Typ 389, § 14 Abs. 2 Satz 5 UStG).')
   if (inv.typeCode === '384') warnings.push('Rechnungskorrektur (Typ 384)' + (inv.precedingInvoice ? ` zu ${inv.precedingInvoice}.` : '.'))
-  if (inv.typeCode === '386') warnings.push('Anzahlungsrechnung (Typ 386).')
+  // Tier 943: what an advance invoice means for the input tax
+  if (inv.typeCode === '386') {
+    warnings.push(
+      'Anzahlungsrechnung (Typ 386): ihre Vorsteuer ist erst abziehbar, wenn die Anzahlung gezahlt ist (§ 15 Abs. 1 Satz 1 Nr. 1 Satz 3 UStG); ' +
+        'gebucht wird sie zum Rechnungsdatum — erst nach der Zahlung einlesen. Die Schlussrechnung, die sie nennt, wird beim Einlesen um sie gekürzt.',
+    )
+  }
   if (inv.creditNote) warnings.push('Das ist eine Gutschrift / Rechnungskorrektur des Lieferanten: sie mindert Aufwand und Vorsteuer.')
   if (inv.taxGroups.some((g) => g.category === 'AE')) {
     warnings.push('Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG): die Steuer schulden Sie selbst. Sie wird mit 19 % angenommen; gilt 7 %, den Satz in der Ausgabe ändern.')
