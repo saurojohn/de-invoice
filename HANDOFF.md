@@ -2673,11 +2673,22 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 937b — CI green for Tiers 934–937, no flaky
+
+| Run | Tiers | Commit | Backend (passed / failed / skipped) | Playwright |
+|---|---|---|---|---|
+| 45124498546 | 934 | 5471a0d7 | **621 / 0 / 1** | **1182 passed (37.2 m)** |
+| 45129668711 | 935 | 88f8b873 | **622 / 0 / 1** | **1182 passed (48.1 m)** |
+| 45135890302 | 936–937 | dc94873d | **624 / 0 / 1** | **1182 passed (34.2 m)** |
+
+- Every run: 0 flaky, no retry, the dependency audit passed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 937 — a Proforma's advance in the Übergangsgewinn
 
 - **Measured:** Tier 919 subtracts, at a change from the EÜR to the Bilanz, what was paid in advance on an *invoice* whose supply comes after the change. An advance on a *Proforma* was left out: the EÜR counted it when received, the Bilanz counted the whole delivery again with the final invoice. A Proforma of 1 000 + 190 paid this year (EÜR), books from next year, supplied on 05.01.: EÜR this year 1 190, Anlage G next year 810 — 2 000 for a sale of 1 000.
 - `uebergangsgewinn`: `anzahlungen` also holds the Proforma payments received before the change less the settlements of final invoices supplied before it (net). The other way (Bilanz → EÜR) the same amount is added: the EÜR never sees an advance received in a Bilanz year.
 - **Spec 625:** on the Tier 936 code it fails (anzahlungen 0, 1 190 + 810).
+- Noted, not built: the OSS return takes invoices and receipts only — an advance on a *Proforma* from a consumer abroad is not declared when received (Mindest-Ist) but with the final invoice's whole delivery in its supply quarter (late by the advance's part; the total is right). The UStVA routes such an advance to the OSS bucket (Tier 470 + oss-scope), so nothing is in the German return either. Rare (a Proforma to a consumer in another member state).
 
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 936 — at the year's end an advance is settled with the supply
 
