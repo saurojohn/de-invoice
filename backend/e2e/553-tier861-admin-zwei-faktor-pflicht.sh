@@ -88,6 +88,8 @@ AS "$U" GET "/api/v1/customers?companyId=$C"
 assert_eq "with 2FA the administrator works again" "$STATUS" "200"
 AS "$U" PUT /api/v1/auth/2fa/policy '{"requireAdmin2fa":false}'
 assert_eq "…and may turn the rule off" "$STATUS $(field requireAdmin2fa)" "200 False"
+# by value, not by createdAt: the two changes can fall into one second (the column
+# is cut to the second — CI run 45160915403 got them the other way round)
 assert_eq "both changes are in the audit log, before and after" \
-  "$(sql "select string_agg((\"newData\"->>'before') || '>' || (\"newData\"->>'after'), ' ' order by \"createdAt\") from \"AuditLog\" where \"companyId\"='$C' and action='admin_2fa_policy_changed'")" "false>true true>false"
+  "$(sql "select string_agg((\"newData\"->>'before') || '>' || (\"newData\"->>'after'), ' ' order by \"newData\"->>'before') from \"AuditLog\" where \"companyId\"='$C' and action='admin_2fa_policy_changed'")" "false>true true>false"
 summary

@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 941b — two specs compared audit rows by createdAt
+
+- CI run 45160915403 (Tiers 938–939): backend **625 passed, 1 failed** — spec 553 (Tier 861): „both changes are in the audit log, before and after" expected `false>true true>false`, got the reverse. The two policy changes fell into one second; `AuditLog.createdAt` is cut to the second (memory: audit-createdat-cut-to-second), so `order by "createdAt"` has no order. Not caused by 938 / 939.
+- Spec 553 orders by the value (`newData->>'before'`); spec 503 (Tier 802) asked for the first row by createdAt — it now asks whether a row with the old value empty and the new one true exists. A sweep of the other AuditLog reads by createdAt: equal values or one row per entity, or an id tie-break (170) — left.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 941 — a non-deductible gift in DATEV, GuV, KSt 1 and the dashboard
 
 - **Measured (team):** a gift of 80 € + 15,20 € VAT over the limit: the UStVA rightly drops the input tax; DATEV booked it with the input-tax key 9 (the adviser's DATEV deducts it), the GuV counted 80 € (the 15,20 € VAT is cost — § 15 Abs. 1a UStG, § 9b EStG by analogy), KSt 1 Kz 80 added back 80, the dashboard counted 15,20 € Vorsteuer.

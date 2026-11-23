@@ -75,8 +75,9 @@ if [[ "$ANN_BERATER" != "-" ]]; then
 fi
 AS PUT "/api/v1/ustva/filing-settings?companyId=$C" '{"jahreserklaerungDurchBerater":"vielleicht"}'
 assert_eq "a Berater flag that is no boolean is refused" "$STATUS" "400"
+# (not the first row by createdAt — rows of one second have no order)
 assert_eq "the audit row carries the old value of the Berater flag too" \
-  "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select \"oldData\"->>'jahreserklaerungDurchBerater' is null, \"newData\"->>'jahreserklaerungDurchBerater' from \"AuditLog\" where \"companyId\"='$C' and action='company.ustva_settings.updated' order by \"createdAt\" limit 1")" "t|true"
+  "$(docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "select bool_or((\"oldData\"->>'jahreserklaerungDurchBerater') is null and \"newData\"->>'jahreserklaerungDurchBerater' = 'true') from \"AuditLog\" where \"companyId\"='$C' and action='company.ustva_settings.updated'")" "t"
 
 # ── the Sondervorauszahlung, and the Dauerfrist application ──────────────
 # a sale of the year the Sondervorauszahlung is reckoned on: 1 100 € + 209 € USt → 1/11 = 19 €
