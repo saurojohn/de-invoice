@@ -38,7 +38,7 @@
  * applies to — the layout of DATEV's sample.
  */
 
-import { nonDeductibleGiftIds } from '../accounting/gifts'
+import { isGeschenk, nonDeductibleGiftIds } from '../accounting/gifts'
 import { asIssued } from '../invoice/customer-as-issued'
 import { KU_SELECT, kuDayOf, kuOn } from '../../common/kleinunternehmer-period';
 import { inferExpenseAccount } from './datev-sachkonto-inference'
@@ -110,6 +110,9 @@ export interface DatevAccountMap {
   inputVatIgE: string
   inputVatReverseCharge: string
   expenseDefault: string
+  /** Tier 942: gifts to business friends — § 4 Abs. 7 EStG wants them apart from the other costs */
+  giftDeductible: string
+  giftNonDeductible: string
   /** Tier 808: the taxes paid from the bank — USt-Vorauszahlungen, Gewerbesteuer, Körperschaftsteuer */
   ustPrepayment: string
   tradeTax: string
@@ -160,6 +163,8 @@ export const SKR03_DEFAULTS: DatevAccountMap = {
   inputVatIgE: '1574',          // abziehbare Vorsteuer aus igE 19 %
   inputVatReverseCharge: '1577', // abziehbare Vorsteuer nach § 13b 19 %
   expenseDefault: '4900',       // sonstige betriebliche Aufwendungen
+  giftDeductible: '4630',       // Tier 942: Geschenke abzugsfähig ohne § 37b EStG
+  giftNonDeductible: '4635',    // Tier 942: Geschenke nicht abzugsfähig ohne § 37b EStG
   ustPrepayment: '1780',        // Tier 808: Umsatzsteuer-Vorauszahlungen (also the Sondervorauszahlung and the Abschlusszahlung)
   tradeTax: '4320',             // Tier 808: Gewerbesteuer
   corporateTax: '2200',         // Tier 808: Körperschaftsteuer (with the Solidaritätszuschlag)
@@ -805,8 +810,17 @@ export async function buildBuchungenFromDb(
   // Tier 832: a company that set its own account for bills without one
   // (DATEV-Konten → „Aufwand ohne eigenes Konto") keeps it — no inference.
   const ownDefault = a.expenseDefault !== SKR03_DEFAULTS.expenseDefault
+  // Tier 942: a gift without its own account goes to the gift account —
+  // § 4 Abs. 7 EStG: gifts are recorded one by one, apart from the other
+  // costs (R 4.11 EStR), or even those within the 50 € limit lose the
+  // deduction. They went to 4900 among the rest. A company with its own
+  // default account and the SKR03 gift accounts unchanged keeps its default
+  // (Tier 832: 4630 / 4635 need not exist in its chart).
+  const giftAccount = (k: 'giftDeductible' | 'giftNonDeductible') =>
+    ownDefault && a[k] === SKR03_DEFAULTS[k] ? a.expenseDefault : a[k]
   const expenseAccount = (accountNumber: string | null | undefined, category: string | null | undefined, text: string | null | undefined) => {
     if (accountNumber) return accountNumber
+    if (isGeschenk({ category })) return giftAccount('giftDeductible')
     if (ownDefault) return a.expenseDefault
     const inferred = inferExpenseAccount(`${category ?? ''} ${text ?? ''}`)
     return inferred.confidence > 0 ? inferred.accountNumber : a.expenseDefault
@@ -814,9 +828,10 @@ export async function buildBuchungenFromDb(
 
   // Tier 941: a gift above the 50 € limit gives no input tax (§ 15 Abs. 1a
   // UStG) — booked gross without a tax key on 4635 „Geschenke nicht
-  // abzugsfähig" (SKR03), unless the bill has its own account. It went with
-  // the input-tax key: the adviser's DATEV deducted what the UStVA does not.
-  const badGiftIds = await nonDeductibleGiftIds(prisma, companyId, expenses, false)
+  // abzugsfähig" (SKR03; Tier 942: the company's own gift account), unless
+  // the bill has its own account. It went with the input-tax key: the
+  // adviser's DATEV deducted what the UStVA does not.
+  const badGiftIds = await nonDeductibleGiftIds(prisma, companyId, expenses, kuOnDay) // Tier 942: § 19 — the limit gross
 
   for (const exp of expenses) {
     if (badGiftIds.has(exp.id)) {
@@ -824,7 +839,7 @@ export async function buildBuchungenFromDb(
         belegdatum: exp.invoiceDate,
         belegfeld1: exp.invoiceNumber || `EXP-${exp.id.substring(0, 8)}`,
         konto: kreditor(exp.supplierId),
-        gegenkonto: exp.accountNumber || '4635',
+        gegenkonto: exp.accountNumber || giftAccount('giftNonDeductible'),
         shVz: 'H' as const,
         buchungstext: exp.description.substring(0, 60),
         kost1: (exp as any).costCenter ?? undefined,

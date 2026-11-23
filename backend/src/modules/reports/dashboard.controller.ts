@@ -61,13 +61,16 @@ export class DashboardController {
     const kleinunternehmer = kuOn(company)
     const rows = await this.prisma.expense.findMany({
       where: { companyId, invoiceDate: { gte: start, lte: end }, status: { in: ['booked', 'deductible'] } },
-      select: { netAmount: true, grossAmount: true, category: true, accountNumber: true, relatedAssetId: true, invoiceDate: true },
+      select: { id: true, netAmount: true, grossAmount: true, category: true, accountNumber: true, relatedAssetId: true, invoiceDate: true },
     })
+    // Tier 942: a gift above the 50 € limit costs its gross amount, as in the
+    // GuV (Tier 941) — the year's result counted it net, its VAT too high
+    const badGiftIds = await nonDeductibleGiftIds(this.prisma, companyId, rows, kleinunternehmer)
     let cents = 0
     for (const e of rows) {
       if (isIncomeTax(e.category)) continue
       if (e.relatedAssetId != null) continue // the AfA, below
-      cents -= Math.round(expenseCost(e, kleinunternehmer) * 100)
+      cents -= Math.round((badGiftIds.has(e.id) ? Number(e.grossAmount) : expenseCost(e, kleinunternehmer)) * 100)
     }
     // Tier 824: the AfA by the rule of the BWA (booked-afa.ts afaOfYear) —
     // January to the end of this month, as the BWA's year column. It took
@@ -141,7 +144,10 @@ export class DashboardController {
       }),
     ])
     // Tier 941: a gift above the 50 € limit gives no input tax — its tax is cost
-    const badGiftIds = await nonDeductibleGiftIds(this.prisma, companyId, expRows, false)
+    // (Tier 942: § 19 by the bill's date — the limit is gross then)
+    const kuCompany = await this.prisma.company.findUnique({ where: { id: companyId }, select: KU_SELECT })
+    const kuExp = kuOn(kuCompany)
+    const badGiftIds = await nonDeductibleGiftIds(this.prisma, companyId, expRows, kuExp)
     const cents = (v: unknown) => Math.round(Number(v ?? 0) * 100)
     const aggregateInvoices = (start: Date, end: Date) => {
       let total = 0, vat = 0, count = 0
@@ -161,7 +167,10 @@ export class DashboardController {
       let net = 0, vat = 0, count = 0
       for (const r of expRows) {
         if (r.invoiceDate < start || r.invoiceDate > end) continue
-        if (badGiftIds.has(r.id)) { net += cents(r.netAmount) + cents(r.vatAmount); count++; continue } // Tier 941
+        // Tier 941: a gift above the limit; Tier 942: a bill under § 19 UStG —
+        // no input tax (§ 19 Abs. 1 Satz 4), the VAT is cost. A Kleinunternehmer's
+        // dashboard showed the VAT of every bill as Vorsteuer.
+        if (badGiftIds.has(r.id) || kuExp(r.invoiceDate)) { net += cents(r.netAmount) + cents(r.vatAmount); count++; continue }
         net += cents(r.netAmount); vat += cents(r.vatAmount); count++
       }
       return { expenses: net / 100, vorsteuer: vat / 100, count }

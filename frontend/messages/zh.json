@@ -1946,6 +1946,8 @@
     "datevAccount_ustPrepayment": "增值税预缴 (1780)",
     "datevAccount_tradeTax": "营业税 (4320)",
     "datevAccount_corporateTax": "企业所得税 (2200)",
+    "datevAccount_giftDeductible": "礼品（可抵扣）(4630)",
+    "datevAccount_giftNonDeductible": "礼品（不可抵扣）(4635)",
     "unsavedChanges": "公司信息已修改，尚未保存。点此“保存”即可保存；各卡片（催款、DATEV 等）自己的按钮只保存该卡片。",
     "gewinnermittlungAb": "生效年份",
     "gewinnermittlungAbHelp": "之前的年份保持原来的利润计算方式。依 § 141 AO 负有记账义务者，选择税务局通知之后的那一年。新方式的第一年，Anlage G 会计入过渡利润（R 4.6 EStR）。选择第一笔记账之前的年份，则整体更改此设置（更正）。"

@@ -677,6 +677,8 @@ const ACCOUNT_USAGE: [string, string][] = [
   ['inputVatIgE', 'Vorsteuer igE'],
   ['inputVatReverseCharge', 'Vorsteuer § 13b'],
   ['expenseDefault', 'Aufwand ohne eigenes Konto'],
+  ['giftDeductible', 'Geschenke an Geschäftsfreunde, abzugsfähig'], // Tier 942
+  ['giftNonDeductible', 'Geschenke an Geschäftsfreunde, nicht abzugsfähig'],
 ]
 
 const SKR03_NAMES: Record<string, string> = {
@@ -708,6 +710,8 @@ const SKR03_NAMES: Record<string, string> = {
   '8337': 'Erlöse aus Leistungen nach § 13b UStG',
   '8338': 'Erlöse aus im Drittland steuerbaren Leistungen',
   '4900': 'Sonstige betriebliche Aufwendungen',
+  '4630': 'Geschenke abzugsfähig ohne § 37b EStG', // Tier 942
+  '4635': 'Geschenke nicht abzugsfähig ohne § 37b EStG',
   '8400': 'Erlöse 19% USt',
   '8300': 'Erlöse 7% USt',
   '8125': 'Erlöse 0% USt (innergemeinschaftliche Lieferung)',

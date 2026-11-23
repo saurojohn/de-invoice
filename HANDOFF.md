@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 942 — gifts on accounts of their own; the dashboard's result and a Kleinunternehmer's Vorsteuer
+
+- **Measured** (a GmbH, today: Frau Lang 30 € + 25 €, Herr Kurz 40 €; a Kleinunternehmer: 45 € to Herr Weiß, 100 € Bürobedarf): Herr Kurz's deductible gift went to DATEV 4900 among the other costs; with the company's own default account (6300) Frau Lang's gifts still went to SKR03's 4635; the Kleinunternehmer's gift (45 € net, 53,55 € gross) was judged against the limit net in DATEV and on the dashboard; the dashboard's result for the year counted the gifts net (−95,00 instead of −105,45); a Kleinunternehmer's dashboard showed the VAT of every bill as Vorsteuer (27,55 €).
+- § 4 Abs. 7 EStG: gifts are recorded one by one and apart from the other costs (R 4.11 EStR: on accounts of their own) — otherwise even those within the limit lose the deduction. Two new DATEV accounts, overridable like the others: `giftDeductible` 4630 / `giftNonDeductible` 4635 (SKR03, „ohne § 37b EStG"); a gift without its own account goes there. A company with its own default account and the gift accounts unchanged keeps its default (Tier 832 — in SKR04 46xx are revenue accounts). Kontenplan names, UI labels (de / en / zh).
+- DATEV and dashboard judge the limit with the company's § 19 status (gross); the dashboard's result takes a non-deductible gift gross (as the GuV since Tier 941); a bill under § 19 has no Vorsteuer on the dashboard, its VAT is cost.
+- **Spec 629** covers Tier 941 too (DATEV gross without a key, GuV 8, KSt 1 Kz 80, the dashboard's Vorsteuer): on the Tier 941 code 8 assertions fail.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 941b — two specs compared audit rows by createdAt
 
 - CI run 45160915403 (Tiers 938–939): backend **625 passed, 1 failed** — spec 553 (Tier 861): „both changes are in the audit log, before and after" expected `false>true true>false`, got the reverse. The two policy changes fell into one second; `AuditLog.createdAt` is cut to the second (memory: audit-createdat-cut-to-second), so `order by "createdAt"` has no order. Not caused by 938 / 939.

@@ -1946,6 +1946,8 @@
     "datevAccount_ustPrepayment": "VAT prepayments (1780)",
     "datevAccount_tradeTax": "Trade tax (4320)",
     "datevAccount_corporateTax": "Corporate income tax (2200)",
+    "datevAccount_giftDeductible": "Gifts, deductible (4630)",
+    "datevAccount_giftNonDeductible": "Gifts, non-deductible (4635)",
     "unsavedChanges": "Company details changed — not saved yet. This “Save” stores them; the buttons of the single cards (dunning, DATEV, …) save only their card.",
     "gewinnermittlungAb": "Applies from (year)",
     "gewinnermittlungAbHelp": "The years before keep their profit determination. Who must keep books under § 141 AO chooses the year after the tax office's notice. In the first year of the new method Anlage G includes the transition profit (R 4.6 EStR). A year before the first booking changes the setting as a whole (a correction)."
