@@ -57,7 +57,10 @@ assert_eq "…and to a customer without a USt-IdNr. it names that too" \
 
 note "=== domestic invoices keep the Steuernummer ==="
 issue "$DE" ',"reverseCharge":true'
-assert_eq "domestic § 13b (Bauleistung): issued" "$STATUS" "200"
+assert_eq "domestic § 13b, the customer with neither USt-IdNr. nor register number: refused (Tier 986, BR-AE-02)" "$STATUS/$(P "'BR-AE-02' in d['message']")" "400/True"
+AS PUT "/api/v1/customers/$DE?companyId=$C" '{"registrationId":"HRB 4711"}'
+issue "$DE" ',"reverseCharge":true'
+assert_eq "domestic § 13b (Bauleistung), the customer's register number given: issued" "$STATUS" "200"
 AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$DE\",\"issueDate\":\"2026-10-02\",\"items\":[{\"description\":\"Ware\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":1000,\"vatRate\":0.19}]}"
 AS PUT "/api/v1/invoices/$(json_field "$BODY" id)/status?companyId=$C" '{"status":"sent"}'
 assert_eq "domestic 19 %: issued" "$STATUS" "200"

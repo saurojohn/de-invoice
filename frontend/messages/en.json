@@ -744,6 +744,8 @@
     "name": "Company Name",
     "noVatId": "no VAT ID",
     "vatId": "VAT ID",
+    "registrationId": "Commercial register or tax number",
+    "registrationIdHint": "Only needed without a VAT ID: the e-invoice of a reverse-charge supply (§ 13b UStG) identifies the customer by one of them.",
     "vatCheckTitle": "VAT-ID check (VIES)",
     "vatCheckNow": "Check now",
     "vatChecking": "Checking…",

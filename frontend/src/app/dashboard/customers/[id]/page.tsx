@@ -57,6 +57,7 @@ interface CustomerSummary {
     customerNumber: string | null
     type: string
     vatId: string | null
+    registrationId?: string | null
     taxExempt: boolean
     address: Record<string, any>
     contact: Record<string, any>
@@ -830,6 +831,9 @@ export default function CustomerDetailPage() {
             {customer.paymentTerms != null ? customer.paymentTerms : t("customer.companyDefault")}
             {customer.vatId && (
               <span className="ml-3 font-mono">USt-ID: {customer.vatId}</span>
+            )}
+            {customer.registrationId && (
+              <span className="ml-3">{t("customer.registrationId")}: <span className="font-mono">{customer.registrationId}</span></span>
             )}
             {customer.taxExempt && (
               <span className="ml-3 text-orange-700">{L("⚠ Steuerbefreit")}</span>

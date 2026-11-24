@@ -52,7 +52,7 @@ export function missingInvoiceDetails(
     deliveryDate?: Date | string | null; servicePeriodStart?: Date | string | null; servicePeriodEnd?: Date | string | null
   },
   company: { name?: string | null; legalName?: string | null; address?: unknown; taxId?: string | null; vatId?: string | null } & KuCompany,
-  customer: { name?: string | null; address?: unknown; vatId?: string | null; type?: string | null } | null | undefined,
+  customer: { name?: string | null; address?: unknown; vatId?: string | null; type?: string | null; registrationId?: string | null } | null | undefined,
 ): string[] {
   const missing: string[] = []
   const gross = Math.abs(Number(invoice.eurTotal ?? invoice.total ?? 0))
@@ -111,6 +111,14 @@ export function missingInvoiceDetails(
       'ein Kunde, der Unternehmer ist — die Steuerschuldnerschaft des Leistungsempfängers (§ 13b Abs. 5 UStG) ' +
       'gilt nicht gegenüber einer Privatperson; für sie schulden Sie die Umsatzsteuer selbst (Kundentyp prüfen)',
     )
+  }
+  // Tier 986 — the e-invoice of a reverse-charge supply names the buyer by
+  // USt-IdNr. (BT-48) or Handelsregister-/Steuernummer (BT-47), EN 16931
+  // BR-AE-02 (§ 14 Abs. 1 Satz 3 UStG). Measured: a Bauleistung to a customer
+  // with neither was issued and its XRechnung rejected by KoSIT. (An EU
+  // customer's USt-IdNr. is asked below, Tier 498.)
+  if ((ground === 'reverseChargeDomestic' || ground === 'notTaxableAbroad') && !filled(customer?.vatId) && !filled(customer?.registrationId)) {
+    missing.push('USt-IdNr. oder Handelsregister-/Steuernummer des Kunden (E-Rechnung bei Steuerschuldnerschaft des Leistungsempfängers, EN 16931 BR-AE-02)')
   }
   if (kleinbetrag) return missing
 

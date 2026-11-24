@@ -40,6 +40,7 @@ assert_eq "a § 13b invoice to a private person: refused (was 200, Kz 60)" "$STA
 AS GET "/api/v1/invoices/$I?companyId=$C"
 assert_eq "…it stays a draft" "$(json_field "$BODY" status)" "draft"
 cust business "Bau GmbH"
+AS PUT "/api/v1/customers/$K?companyId=$C" '{"registrationId":"HRB 4711"}' # Tier 986: a § 13b e-invoice names the buyer (BR-AE-02)
 rc "$K"
 assert_eq "the same invoice to a business: issued" "$STATUS" "200"
 AS GET "/api/v1/ustva/compute?companyId=$C&year=${D:0:4}&month=$((10#${D:5:2}))"

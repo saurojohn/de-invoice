@@ -439,6 +439,7 @@ export class CustomerService {
         customerNumber: customer.customerNumber,
         type: customer.type,
         vatId: customer.vatId,
+        registrationId: customer.registrationId, // Tier 986
         taxExempt: customer.taxExempt,
         address: customer.address,
         contact: customer.contact,

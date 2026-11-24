@@ -23,6 +23,7 @@ P() { echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(
 AS PUT "/api/v1/companies/$C?companyId=$C" '{"vatId":"DE123456789","taxId":"12/345/67890","email":"info@t690.example","address":{"street":"Hauptstr. 1","city":"Berlin","postalCode":"10115","country":"DE"},"bankInfo":{"iban":"DE89370400440532013000","bic":"COBADEFFXXX"}}'
 cust() { AS POST "/api/v1/customers?companyId=$C" "{\"name\":\"$1\",\"type\":\"business\"${3:+,\"vatId\":\"$3\"},\"address\":{\"street\":\"Weg 2\",\"city\":\"Stadt\",\"postalCode\":\"12345\",\"country\":\"$2\"},\"contact\":{\"email\":\"k-$1@example.test\"}}"; P "d['id']"; }
 DE=$(cust Schule DE); CH=$(cust Schweiz CH CHE-123.456.789); FR=$(cust France FR FR12345678901)
+AS PUT "/api/v1/customers/$DE?companyId=$C" '{"registrationId":"HRB 4711"}' # Tier 986: a § 13b e-invoice names the buyer (BR-AE-02)
 TODAY=$(TZ=Europe/Berlin date +%F)
 draft() { # customer price rate [extra json]
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$1\",\"issueDate\":\"$TODAY\",${4:-}\"items\":[{\"description\":\"Kurs\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":$2,\"vatRate\":$3}]}"; P "d['id']"

@@ -404,6 +404,9 @@ function generateBuyerParty(c: XRechnungData['customer']): string {
   const endpoint = buyerElectronicAddress(c);
   return `<ram:BuyerTradeParty>
         <ram:Name>${escapeXml(c.name)}</ram:Name>
+        ${c.registrationId ? `<ram:SpecifiedLegalOrganization>
+          <ram:ID>${escapeXml(c.registrationId)}</ram:ID>
+        </ram:SpecifiedLegalOrganization>` : ''}
         ${postalAddress(c.address)}
         ${endpoint ? `<ram:URIUniversalCommunication>
           <ram:URIID schemeID="${endpoint.scheme}">${escapeXml(endpoint.id)}</ram:URIID>

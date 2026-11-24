@@ -22,6 +22,7 @@ interface Customer {
   id: string
   name: string
   vatId?: string | null
+  registrationId?: string | null // Tier 986
   taxExempt?: boolean
   creditLimit?: number | null
   defaultHourlyRate?: number | string | null // Tier 616
@@ -230,6 +231,7 @@ export default function CustomersPage() {
   const [form, setForm] = useState({
     name: "",
     vatId: "",
+    registrationId: "",
     type: "business",
     street: "",
     city: "",
@@ -285,6 +287,7 @@ export default function CustomersPage() {
       setForm({
         name: customer.name,
         vatId: customer.vatId || "",
+        registrationId: customer.registrationId || "",
         type: customer.type,
         street: customer.address?.street || "",
         city: customer.address?.city || "",
@@ -308,6 +311,7 @@ export default function CustomersPage() {
       setForm({
         name: "",
         vatId: "",
+        registrationId: "",
         type: "business",
         street: "",
         city: "",
@@ -374,6 +378,7 @@ export default function CustomersPage() {
       name: form.name,
       type: form.type,
       vatId: form.vatId || null,
+      registrationId: form.registrationId.trim() || null, // Tier 986: BT-47
       taxExempt: form.taxExempt,
       address: {
         street: form.street,
@@ -1207,6 +1212,20 @@ export default function CustomersPage() {
                     </select>
                   </div>
                 </div>
+                {/* Tier 986: BT-47 — the e-invoice of a § 13b supply names the buyer by it when there is no USt-IdNr. */}
+                {form.type === "business" && (
+                  <div>
+                    <label htmlFor="customer-registration-id" className="block text-sm font-medium mb-1">{t("customer.registrationId")}</label>
+                    <Input
+                      id="customer-registration-id"
+                      value={form.registrationId}
+                      onChange={(e) => setForm({ ...form, registrationId: e.target.value })}
+                      placeholder="HRB 12345"
+                      maxLength={100}
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("customer.registrationIdHint")}</p>
+                  </div>
+                )}
                 {/* VIES VAT-ID verification panel.
                     Only shown in EDIT mode because the
                     API needs the customer's id (verify

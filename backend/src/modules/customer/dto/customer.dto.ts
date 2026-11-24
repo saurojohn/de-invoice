@@ -113,6 +113,12 @@ export class CreateCustomerDto {
   @MaxLength(CUSTOMER_VAT_ID_MAX)
   vatId?: string;
 
+  // Tier 986: Handelsregister- oder Steuernummer (BT-47 of the e-invoice)
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  registrationId?: string;
+
   @StrictBoolean()
 
   @IsBoolean()
@@ -185,6 +191,10 @@ export class UpdateCustomerDto {
 
   @IsString() @IsOptional() @MaxLength(20)
   vatId?: string
+
+  // Tier 986: Handelsregister- oder Steuernummer (BT-47); null clears it
+  @IsString() @IsOptional() @MaxLength(100)
+  registrationId?: string | null
 
   @StrictBoolean() @IsBoolean() @IsOptional()
   taxExempt?: boolean

@@ -744,6 +744,8 @@
     "name": "Firmenname",
     "noVatId": "keine USt-ID",
     "vatId": "USt-IdNr.",
+    "registrationId": "Handelsregister- oder Steuernummer",
+    "registrationIdHint": "Nur nötig ohne USt-IdNr.: die E-Rechnung einer Leistung mit Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG) nennt den Kunden mit einer der beiden.",
     "vatCheckTitle": "USt-ID-Prüfung (VIES)",
     "vatCheckNow": "Jetzt prüfen",
     "vatChecking": "Prüfe…",

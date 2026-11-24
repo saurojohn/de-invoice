@@ -744,6 +744,8 @@
     "name": "公司名称",
     "noVatId": "无税号",
     "vatId": "VAT号",
+    "registrationId": "商业登记号或税号",
+    "registrationIdHint": "仅在没有增值税号时需要：反向征税（§ 13b UStG）业务的电子发票须用其中之一标识客户。",
     "vatCheckTitle": "增值税号校验 (VIES)",
     "vatCheckNow": "立即校验",
     "vatChecking": "校验中…",

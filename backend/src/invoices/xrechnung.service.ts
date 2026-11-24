@@ -83,6 +83,8 @@ export interface XRechnungCustomer {
     country?: string
   }
   vatId?: string
+  /** Tier 986: Handelsregister- oder Steuernummer — BT-47 (BR-AE-02) */
+  registrationId?: string
   email?: string
   /** BuyerReference (e.g. Leitweg-ID for B2G, internal purchase order ref) */
   buyerReference?: string
@@ -454,6 +456,7 @@ function generateCustomerParty(c: XRechnungCustomer): string {
       <!-- BR-07: Buyer name (BT-44). Tier 412. -->
       <cac:PartyLegalEntity>
         <cbc:RegistrationName>${escapeXml(c.name)}</cbc:RegistrationName>
+        ${c.registrationId ? `<cbc:CompanyID>${escapeXml(c.registrationId)}</cbc:CompanyID>` : ''}
       </cac:PartyLegalEntity>
     </cac:Party>
   </cac:AccountingCustomerParty>`
@@ -895,6 +898,17 @@ export function validateXRechnung(data: XRechnungData): XRechnungValidation {
   const errors: XRechnungValidationIssue[] = []
   const warnings: XRechnungValidationIssue[] = []
 
+  // Tier 986 — BR-AE-02: reverse charge (category AE) names the buyer by
+  // VAT id (BT-48) or legal registration id (BT-47); KoSIT rejected such an
+  // invoice while this check said valid
+  if (data.reverseCharge && !data.euTransaction && !data.customer?.vatId && !data.customer?.registrationId) {
+    errors.push({
+      rule: 'BR-AE-02',
+      severity: 'error',
+      message: 'Steuerschuldnerschaft des Leistungsempfängers: USt-IdNr. oder Handelsregister-/Steuernummer des Kunden fehlt (BR-AE-02)',
+      location: 'cac:AccountingCustomerParty',
+    })
+  }
   // BR-01: invoice number must be present
   if (!data.invoiceNumber || !data.invoiceNumber.trim()) {
     errors.push({
@@ -1135,6 +1149,7 @@ export function transformToXRechnungData(
     customer: {
       name: string
       vatId?: string | null
+      registrationId?: string | null
       address: any
       contact?: any
     }
@@ -1259,6 +1274,7 @@ export function transformToXRechnungData(
       name: invoice.customer?.name || '',
       address: invoice.customer?.address || {},
       vatId: invoice.customer?.vatId || undefined,
+      registrationId: invoice.customer?.registrationId || undefined, // Tier 986
       // Tier 719b: BT-49 is where the invoice is delivered — the address for invoices, else the contact's
       email: invoiceRecipientOf(invoice.customer) || undefined,
       leitwegId: customerAddress.leitwegId || undefined,

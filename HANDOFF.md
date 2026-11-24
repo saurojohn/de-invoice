@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 986 — a § 13b e-invoice names the buyer (BT-48 or BT-47)
+
+- **Measured (team round 4):** EN 16931 BR-AE-02 — an invoice with VAT category AE carries the buyer's VAT id (BT-48) or legal registration id (BT-47). A domestic § 13b recipient often has only a Steuernummer / Handelsregisternummer, and the customer had no field for it: a Bauleistung to „Bau Ohne UStId GmbH“ was issued, its XRechnung REJECTED by KoSIT while the built-in check said valid, and the rejected file kept as the archived original (§ 14 Abs. 1 Satz 3 UStG). § 14a Abs. 5 UStG asks no USt-IdNr. of a domestic recipient, so the USt-IdNr. is not required — one of the two is.
+- **New column** `Customer.registrationId` (migration `20261124000001_customer_registration_id`; applied to tmp-ci-pg by psql, **not to the dev DB** — that waits for the owner, as before). DTO (create / update), the customer form (business customers, „Handelsregister- oder Steuernummer“, de/en/zh) and the customer page; UBL `PartyLegalEntity/CompanyID`, CII `SpecifiedLegalOrganization/ID`; the in-process check reports BR-AE-02; issuing a reverse-charge invoice (domestic, or a service to a business outside the EU) to a customer with neither is refused.
+- Specs 284, 414, 665 issued domestic § 13b invoices to customers with neither: they give a register number (284 checks the refusal first).
+- **Spec 673:** on the Tier 985 code 5 assertions fail; KoSIT reports no BR-AE-02 once the number is given; the reverse-charge / e-invoice specs and the guards pass (147), the customer and tax-treatment Playwright specs pass but for customer-tag-filter-tier148, whose seed customer a backend spec had renamed in the local DB (CI seeds fresh).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 985 — the XRechnung's payment terms say what the invoice says
 
 - **Measured (team round 4):** BT-20 was „Zahlbar innerhalb von 30 Tagen“ whenever no Skonto was set — beside a DueDate (BT-9) 14 days out and a PDF saying „Zahlbar bis zum 24.11.2026 ohne Abzug“; a credit note (money owed to the customer) carried the same sentence. A receiver's AP software reads BT-20.

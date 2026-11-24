@@ -406,6 +406,9 @@ model Customer {
   customerNumber String?
   datevAccount   Int?
   vatId          String?
+  /// Tier 986: Handelsregister- oder Steuernummer — BT-47 of the e-invoice,
+  /// where a § 13b recipient has no USt-IdNr. (EN 16931 BR-AE-02)
+  registrationId String?
   taxExempt      Boolean  @default(false)
   address        Json
   contact        Json?
