@@ -1,3 +1,4 @@
+import { cashBookings } from './cash-bookings'
 import { assertBooksOpen, assertPeriodOpen } from '../reports/filed-period';
 import { withKeyLock } from '../../common/key-lock';
 import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
@@ -1206,21 +1207,24 @@ export class KassenbuchService {
       where: { companyId, businessDate: { gte: start, lte: end } },
     })
     let einnahmen = 0, ausgaben = 0, umbuchungen = 0
-    const vatByRate = new Map<number, { rate: number; net: number; vat: number }>()
     for (const r of rows) {
       const a = Number(r.amount)
       if (r.type === 'einnahme') einnahmen += a
       else if (r.type === 'ausgabe') ausgaben += a
       else if (r.type === 'umbuchung') umbuchungen += a
-      if (r.vatRate) {
-        const rate = Number(r.vatRate)
-        const net = a / (1 + rate)
-        const vat = a - net
-        const cur = vatByRate.get(rate) || { rate, net: 0, vat: 0 }
-        cur.net += net
-        cur.vat += vat
-        vatByRate.set(rate, cur)
-      }
+    }
+    // Tier 991: output tax (sales) and input tax (purchases) apart, and only
+    // what the UStVA takes from the cash book (cash-bookings.ts). A sale and a
+    // purchase of 119 € at 19 % were one line „MwSt 38“ for a month whose
+    // UStVA owes nothing; entries paying an invoice or a bill went in as well.
+    const vatByRate = new Map<string, { direction: 'in' | 'out'; rate: number; net: number; vat: number }>()
+    for (const b of await cashBookings(this.prisma, companyId, start, end)) {
+      if (b.kassendifferenz || b.rate <= 0) continue
+      const key = `${b.direction}:${b.rate}`
+      const cur = vatByRate.get(key) || { direction: b.direction, rate: b.rate, net: 0, vat: 0 }
+      cur.net += b.net
+      cur.vat += b.vat
+      vatByRate.set(key, cur)
     }
     return {
       year, month,
@@ -1229,6 +1233,7 @@ export class KassenbuchService {
       umbuchungen: Math.round(umbuchungen * 100) / 100,
       entryCount: rows.length,
       vatBreakdown: Array.from(vatByRate.values()).map((v) => ({
+        direction: v.direction,
         rate: v.rate,
         net: Math.round(v.net * 100) / 100,
         vat: Math.round(v.vat * 100) / 100,

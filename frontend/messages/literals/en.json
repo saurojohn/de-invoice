@@ -294,5 +294,8 @@
  "⚠ Steuerbefreit": "⚠ Tax-exempt",
  "✓ Speichern": "✓ Save",
  "📥 Kunden aus CSV importieren": "📥 Import customers from CSV",
- "der letzte Lauf ist gescheitert": "the last run failed"
+ "der letzte Lauf ist gescheitert": "the last run failed",
+ "Art": "Type",
+ "Vorsteuer (Einkauf)": "Input tax (purchases)",
+ "Umsatzsteuer (Verkauf)": "Output tax (sales)"
 }

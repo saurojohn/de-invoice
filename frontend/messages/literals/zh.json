@@ -294,5 +294,8 @@
  "⚠ Steuerbefreit": "⚠ 免税",
  "✓ Speichern": "✓ 保存",
  "📥 Kunden aus CSV importieren": "📥 从 CSV 导入客户",
- "der letzte Lauf ist gescheitert": "最近一次运行失败"
+ "der letzte Lauf ist gescheitert": "最近一次运行失败",
+ "Art": "类型",
+ "Vorsteuer (Einkauf)": "进项税（采购）",
+ "Umsatzsteuer (Verkauf)": "销项税（销售）"
 }

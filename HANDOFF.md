@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 991 — the cash book's month: output tax and input tax apart
+
+- **Measured (team round 4):** a cash sale of 119 € at 19 % and a cash purchase of 119 € at 19 % in one month: /cashbook/month said „19 %: Netto 200, MwSt 38, Brutto 238“ — the UStVA of that month owes nothing (Kz 81 100 / Kz 66 19). Every entry with a rate went in, whatever its kind; entries paying an invoice or a bill (counted through the invoice / bill) as well.
+- `monthSummary`: the breakdown comes from `cashBookings` (what the UStVA takes from the cash book), per direction and rate (`direction: 'in' | 'out'`), without a Kassendifferenz. The cash-book page names each line Umsatzsteuer (Verkauf) / Vorsteuer (Einkauf) (literals en/zh).
+- **Spec 678:** on the Tier 990 code it fails (one line 200 / 38); the cash specs, the guards and the cash-book Playwright specs (12) pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 990 — a FinTS sync that brings nothing new makes no statement
 
 - **Measured (team round 4):** demo connection, TAN, then three more syncs with nothing new: four BankStatement rows (3, 0, 0, 0 transactions), all listed. The 4-hour cron (`autoSyncAllActive`) takes the same path: about six empty „Kontoauszüge“ per account per day in the list the user and the Prüfer work through.

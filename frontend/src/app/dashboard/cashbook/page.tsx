@@ -80,7 +80,7 @@ interface MonthSummary {
   ausgaben: number
   umbuchungen: number
   entryCount: number
-  vatBreakdown: { rate: number; net: number; vat: number; gross: number }[]
+  vatBreakdown: { direction?: "in" | "out"; rate: number; net: number; vat: number; gross: number }[]
 }
 
 const fmtMoney = (n: number) =>
@@ -597,7 +597,8 @@ export default function CashbookPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-gray-500 dark:text-gray-400 text-xs border-b">
-                      <th className="py-2">MwSt %</th>
+                      <th className="py-2">{L("Art")}</th>
+                      <th>MwSt %</th>
                       <th className="text-right">Netto</th>
                       <th className="text-right">MwSt</th>
                       <th className="text-right">Brutto</th>
@@ -606,7 +607,9 @@ export default function CashbookPage() {
                   <tbody>
                     {monthSummary.vatBreakdown.map((v, i) => (
                       <tr key={i} className="border-b">
-                        <td className="py-2 font-mono">{(v.rate * 100).toFixed(0)}%</td>
+                        {/* Tier 991: output tax and input tax apart */}
+                        <td className="py-2">{v.direction === "out" ? L("Vorsteuer (Einkauf)") : L("Umsatzsteuer (Verkauf)")}</td>
+                        <td className="font-mono">{(v.rate * 100).toFixed(0)}%</td>
                         <td className="text-right font-mono">€ {fmtMoney(v.net)}</td>
                         <td className="text-right font-mono">€ {fmtMoney(v.vat)}</td>
                         <td className="text-right font-mono">€ {fmtMoney(v.gross)}</td>
