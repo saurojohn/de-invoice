@@ -2673,6 +2673,11 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 965 / 966 — team round 3: an overpayment entered after the year end; the DATEV opening balances
+
+- **965:** the balance sheet's customer credit (4500) took the credit ledger by the moment a row was typed in. 1 190 € invoiced, 1 400 € received on 20.12.2025 and entered in 2026: 4500 at 31.12.2025 was 0 (the money in the bank, the equity 210 € too high; § 252 Abs. 1 Nr. 3 HGB). An overpayment row now counts from its payment's day, a credit note's overage from the credit note's; the other rows (a credit applied, a payout, a deletion's counter-row) by their own day. **Spec 652.**
+- **966:** the opening balances (EB-Werte on 9000) went into every DATEV export — each later year's again (DATEV's Jahresübernahme brings that year's own: the adviser's Kasse twice) and into an April batch with a row of 1 January. They are written only into the batch that starts on 1 January of their year: `settings.datev.openingBalancesYear`, else the first year with an invoice or a bill (`openingBalancesYearOf`; export, bundle, monthly, GoBD archive). (The year cannot be entered on the page yet.) **Spec 653.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 963 / 964 — team round 3: who reads the owner's private annexes; a portal link's end
 
 - **963:** Anlage N / R / Kind / KAP / V / AUS / SO (and their PDFs) and the Berater-Paket were `accounting.read` (viewer): an employee with viewer access read the owner's children, salary and pensions, the time-limited auditor access too, and the package gave a viewer the UStJA his role is refused (measured: anlage-kind 200 with the child's name; ustva/ustja 403, the package's UStJA 200). New right `privat.read` (accountant and up; in AUDITOR_CANNOT_READ — § 147 Abs. 6 AO opens the records of § 147 Abs. 1 AO). Anlage S / G stay business records. **Spec 650:** on the Tier 962 code 9 assertions fail.

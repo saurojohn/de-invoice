@@ -368,10 +368,31 @@ export class BilanzService {
     // since been used is no liability. Only the positive rows were summed, so
     // a credit granted and spent stayed on the balance sheet forever. Per
     // customer, because one customer's debt does not pay another's credit.
-    const creditLedger = await this.prisma.customerCreditTransaction.findMany({
-      where: { companyId, createdAt: { lte: snapshot } },
-      select: { customerId: true, amount: true },
+    // Tier 965: by the day of what made the row — an overpayment by its
+    // payment's day, a credit note's overage by the credit note's — not by the
+    // moment it was typed in. A payment of 20.12.2025 entered in 2026 made
+    // its 210 € overage a debt of 31.12.2026 only (the 1 400 € were in the
+    // bank at 31.12.2025, the equity 210 € too high; § 252 Abs. 1 Nr. 3 HGB).
+    const ledgerRows = await this.prisma.customerCreditTransaction.findMany({
+      where: { companyId },
+      select: { customerId: true, amount: true, createdAt: true, type: true, referenceType: true, referenceId: true },
     })
+    const byRef = (type: string) => [...new Set(ledgerRows.filter((r) => r.referenceType === type && r.referenceId).map((r) => r.referenceId as string))]
+    const paymentDays = new Map(
+      (await this.prisma.payment.findMany({ where: { id: { in: byRef('Payment') }, invoice: { companyId } }, select: { id: true, paymentDate: true } }))
+        .map((p) => [p.id, p.paymentDate]),
+    )
+    const documentDays = new Map(
+      (await this.prisma.invoice.findMany({ where: { id: { in: byRef('Invoice') }, companyId }, select: { id: true, issueDate: true } }))
+        .map((d) => [d.id, d.issueDate]),
+    )
+    // (only the rows that a payment or a credit note made — a credit applied
+    // to an invoice, a payout, a deletion's counter-row are of their own day)
+    const dayOfRow = (r: (typeof ledgerRows)[number]): Date =>
+      (r.type === 'overpayment' && r.referenceType === 'Payment' ? paymentDays.get(r.referenceId ?? '')
+        : r.type === 'gutschrift' && r.referenceType === 'Invoice' ? documentDays.get(r.referenceId ?? '')
+        : undefined) ?? r.createdAt
+    const creditLedger = ledgerRows.filter((r) => dayOfRow(r).getTime() <= snapshot.getTime())
     const perCustomer = new Map<string, number>()
     for (const t of creditLedger) {
       perCustomer.set(t.customerId, (perCustomer.get(t.customerId) || 0) + Number(t.amount))
