@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 980 — the XRechnung and the PDF state the agreed unit price
+
+- **Measured (team round 4):** UBL wrote quantity (BT-129) and unit price (BT-146) with two decimals: 1 000 kWh × 0,1234 € = 123,40 € went out as 1000.00 × 0.12, 0,125 h × 80 € as 0.13 × 80 — KoSIT REJECT (PEPPOL-EN16931-R120) while the basic check said valid; the CII carried four decimals. The PDF printed „0,12 €“ per kWh.
+- `xrechnung.service.ts` `formatDecimal`: up to four decimals, at least two (values with two or fewer print as before). PDF: the unit price with up to four (`formatMoney(…, 4)`).
+- **Spec 667.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 979 — the GoBD export keeps a deleted invoice number traceable
 
 - **Measured (team round 4):** an issued invoice deleted before it went out (Tier 733 keeps its number and copy in `RetiredInvoiceNumber`) appeared nowhere in the export — no file of the unpacked archive named it; the audit CSV said `invoice.deleted,Invoice,<id>` without number, amount or customer, because oldData / newData were not written for any row. The kept XRechnung files (Tier 686) were not in the archive either.

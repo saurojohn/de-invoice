@@ -567,6 +567,8 @@ export async function generateInvoicePDF(
     const paidOtherwise = paymentMethodLabel((invoice as any).paymentMethod)
     const noGiroCode = noPayment || docType === "OC" || docType === "CN" || paidOtherwise != null // Tier 887: CN
     const money = (n: number) => (hidePrices ? "" : formatCurrency(n))
+    // Tier 980: the unit price as agreed — 0,1234 € per kWh was printed 0,12 €
+    const unitMoney = (n: number) => (hidePrices ? "" : formatMoney(n, invoice.currency, 4))
     const titleOffsetY = 42  // 3 rows down
     const titleY = middleRowY + titleOffsetY
     doc.fontSize(20).font(fontFor('bold')).text(invoiceTitle, leftMargin, titleY, { width: rightBlockWidth, align: "right", lineBreak: false })
@@ -848,7 +850,7 @@ export async function generateInvoicePDF(
         doc.font(fontFor('regular')).fontSize(9)
           .text(item.description, leftMargin + compactColWidths.sku, y + 5, { width: compactColWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, cQtyX, y + 5, { width: cQtyW, align: "center", lineBreak: false })
-        doc.text(money(toFloat(item.unitPrice)), cPriceX, y + 5, { width: cPriceW, align: "center", lineBreak: false })
+        doc.text(unitMoney(toFloat(item.unitPrice)), cPriceX, y + 5, { width: cPriceW, align: "center", lineBreak: false })
         y += rowHeight
       })
     } else {
@@ -917,7 +919,7 @@ export async function generateInvoicePDF(
         doc.font(fontFor('regular')).fontSize(10)
           .text(item.description, leftMargin + colWidths.sku, y + 7, { width: colWidths.desc - 10, lineBreak: false })
         doc.text(`${formatNumber(toFloat(item.quantity))} ${item.unit || ''}`, sQtyX, y + 7, { width: sQtyW, align: "center", lineBreak: false })
-        doc.text(money(toFloat(item.unitPrice)), sPriceX, y + 7, { width: sPriceW, align: "center", lineBreak: false })
+        doc.text(unitMoney(toFloat(item.unitPrice)), sPriceX, y + 7, { width: sPriceW, align: "center", lineBreak: false })
         doc.text(hidePrices ? "" : formatVatRate(toFloat(item.vatRate)), sVatX, y + 7, { width: sVatW, align: "center", lineBreak: false })
         // Per-line total right edge = rightMargin, so it aligns vertically with totals below
         doc.text(money(toFloat(item.netAmount)), sNetX, y + 7, { width: sNetW, align: "right", lineBreak: false })
@@ -1379,8 +1381,8 @@ function formatNumber(val: number): string {
 
 // German currency format: € 1.234,56 (with space after € sign); another
 // currency by its code, after the amount: 1.234,56 USD (Tier 653).
-export function formatMoney(val: number, currency?: string | null): string {
-  const amount = val.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+export function formatMoney(val: number, currency?: string | null, maxDigits = 2): string {
+  const amount = val.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: maxDigits })
   const code = String(currency || "EUR").toUpperCase()
   // Tier 726: the amount first, as a German invoice writes it — „1.071,00 €“
   // (it was „€ 1.071,00“; the pages write it so since Tier 704)

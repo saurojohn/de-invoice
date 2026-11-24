@@ -856,8 +856,15 @@ function formatXRechnungDate(date: string | Date): string {
   return d.toISOString().split('T')[0]
 }
 
+/**
+ * Tier 980 — quantity (BT-129) and unit price (BT-146) as stored: up to four
+ * decimals, at least two. Rounded to two, 1 000 kWh × 0,1234 € went out as
+ * 1000.00 × 0.12 against a line net of 123,40 — KoSIT rejected it
+ * (PEPPOL-EN16931-R120); the CII already carried four.
+ */
 function formatDecimal(value: number): string {
-  return value.toFixed(2)
+  const [whole, frac = ''] = Number(value).toFixed(4).split('.')
+  return `${whole}.${frac.replace(/0+$/, '').padEnd(2, '0')}`
 }
 
 function formatPercent(rate: number): string {
