@@ -169,7 +169,12 @@ export class HeaderAuthGuard implements CanActivate {
     // the authenticated user rather than whatever the client put in a header.
     const auditCtx = getRequestContext()
     if (auditCtx) {
-      auditCtx.userId = user.id
+      // Tier 970: a tax auditor writes nothing (Tier 744). What a read of his
+      // makes the system write — the DATEV Personenkonto a customer gets on
+      // the first export, a default template — is the system's: it was
+      // logged as customer.updated by the auditor (§ 147 Abs. 6 AO: his access
+      // is read-only; GoBD Rz. 107 ff.).
+      auditCtx.userId = access.role === 'auditor' ? null : user.id
       auditCtx.companyId = companyId
     }
 

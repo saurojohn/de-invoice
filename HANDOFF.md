@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 970 — what a tax auditor's read makes the system write
+
+- **Measured (team round 3):** the auditor's GET of the DATEV export gave a customer its DATEV Personenkonto (assigned on the first export) — logged as customer.updated by the auditor; his GET sweep also seeded default templates and a signing key under his name.
+- HeaderAuthGuard: for an auditor's request the audit context has no user — such writes are the system's (§ 147 Abs. 6 AO: his access is read-only). His own access is in the trail as before (login, Tier 744).
+- Spec 192 failed once in the batch („the run is visible to the admin dashboard“) — green alone, as before (a timing spec).
+- **Spec 657:** on the Tier 969 code it fails; the auditor / session / audit specs and the guards pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 969 — giving and taking access: the inviter's standing, the audit trail
 
 - **Measured (team round 3):** an admin deactivated left his open invitations valid — one he had sent as admin still made its holder an admin (who then read GET /users). Inviting, resending, cancelling, deactivating and reactivating a member left no audit row (only role changes, through UserCompany); the accepted membership had no actor.
