@@ -783,6 +783,15 @@ export class BankImportService {
     if (recon.invoice.type === 'CN') {
       throw new BadRequestException('Gutschriften können nicht direkt bezahlt werden');
     }
+    // Tier 973: an entry booked otherwise (as a tax payment / refund, an
+    // expense, a private booking — BankTransaction.voucherId) pays no invoice
+    // as well. Those bookings refuse an entry with a match; this way round
+    // nothing refused: a refund of 119 € booked to the UStJA and then matched
+    // to an invoice of 119 € — two vouchers for one credit, the bank 119 €
+    // above the statement.
+    if (recon.bankTransaction.voucherId) {
+      throw new BadRequestException('Diese Bankbuchung ist bereits anders gebucht (Steuer, Aufwand oder Privat) — sie bezahlt keine Rechnung mehr. Nehmen Sie die Buchung zuerst zurück.');
+    }
 
     // Applied amount: min(transaction, invoice). For
     // partial payments the user would have to set
@@ -1317,6 +1326,9 @@ export class BankImportService {
       where: { id: bankTransactionId, companyId },
     });
     if (!txn) throw new NotFoundException('Transaktion nicht gefunden');
+    if (txn.voucherId) { // Tier 973
+      throw new BadRequestException('Diese Bankbuchung ist bereits anders gebucht (Steuer, Aufwand oder Privat) — sie bezahlt keine Rechnung mehr. Nehmen Sie die Buchung zuerst zurück.');
+    }
 
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: invoiceId, companyId },

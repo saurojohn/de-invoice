@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 973 — one bank entry, one booking
+
+- **Measured (team round 4):** a credit booked as a VAT refund (book-tax) could then be matched to an invoice of the same amount — two vouchers for one credit, the invoice paid with the tax office's money.
+- `confirmMatchLocked` / `manualMatchLocked` refuse a transaction that already carries a voucher.
+- **Spec 660.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 972 — a cash entry and its Storno stand as a pair
 
 - **Measured (team round 4):** a reversed sale of 119 € was changed to 357 € while marked storniert (UStVA Kz 81 200 €), its Storno set to 0 and deleted on its own — the original live again.
