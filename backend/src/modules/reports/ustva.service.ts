@@ -525,8 +525,14 @@ export class UstvaService {
       // Tier 472: the final invoice above declares the whole delivery; the
       // advance it deducts was declared when received, so it comes off here
       // (Tier 935: in the period of the final invoice's supply, where it declares the delivery).
-      for (const { proforma, fraction } of await advanceSettlements(this.prisma, companyId, start, end, { bySupply: true })) { // Tier 935
-        const f = eurFactor(proforma)
+      for (const { proforma, finalInvoice, fraction } of await advanceSettlements(this.prisma, companyId, start, end, { bySupply: true })) { // Tier 935
+        // Tier 968: at the final invoice's rate — the part of ITS amount that
+        // the advance covers. The advance was taxed and converted when it was
+        // received (§ 13 Abs. 1 Nr. 1 a Satz 4, § 16 Abs. 6 UStG); at the
+        // supply only the rest is still to be taxed, at the supply's rate.
+        // Taken off at the Proforma's rate, a USD advance received at 1,25
+        // and a final invoice at 1,10 over-declared 545,45 € (Kz 81) / 103,63 €.
+        const f = eurFactor(finalInvoice as any)
         for (const bucket of invoiceTaxBreakdown(proforma).byRate) {
           if (bucket.rate > 0) addTaxed(proforma, bucket.rate, -bucket.net * f * fraction, -bucket.vat * f * fraction)
         }

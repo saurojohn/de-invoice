@@ -249,6 +249,7 @@ export async function advanceSettlements(prisma: PrismaService, companyId: strin
       invoice: {
         select: {
           id: true, invoiceNumber: true, customerId: true, advanceInvoice: { include: { items: true, customer: true } },
+          subtotal: true, eurSubtotal: true, // Tier 968: the final invoice's rate (UStVA)
           ...SUPPLY_SELECT,
         },
       },

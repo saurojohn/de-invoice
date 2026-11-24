@@ -2673,6 +2673,12 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 968 — a foreign-currency final invoice in the UStVA
+
+- **Measured (team round 3):** Soll; a USD Proforma of 10 000 + 19 % at 1,25, 5 950 USD received (UStVA September 4 000 / 760 €); the final invoice at 1,10. The UStVA declared the whole delivery at 1,10 (9 090,91 €) and took the advance off at the Proforma's 1,25 (4 000 €): November 5 090,91 €, 545,45 € / 103,63 € too much; the EÜR (4 000 + 4 545,45) disagreed.
+- The advance comes off the final invoice at the final invoice's rate — the part of its amount the advance covers (§ 13 Abs. 1 Nr. 1 a Satz 4, § 16 Abs. 6 UStG: the advance taxed and converted when received, the rest at the supply). `advanceSettlements` selects the final invoice's subtotal / eurSubtotal. EUR invoices are unchanged.
+- **Spec 655** (the final invoice takes the rate of its day — the expectation is read from it): on the Tier 967 code it fails; the Proforma / final-invoice / foreign-currency specs and the guards pass (43).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 967 — the DATEV preview and AfA not booked
 
 - **Measured (team round 3):** the Buchungsstapel carries the AfA only once „AfA buchen“ booked it; GuV, balance sheet and EÜR take the computed AfA. A laptop of 3 000 € in the register, AfA not booked: DATEV's result 2 400 €, the GuV 1 483,33 €; the preview's issues named only the missing Berater-Nr.
