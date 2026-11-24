@@ -39,6 +39,7 @@ import { invoiceTaxBreakdown } from '../modules/invoice/tax-breakdown'
 import { invoiceRecipientOf } from '../modules/customer/invoice-recipient'
 import { sellerLegalInformation } from '../common/business-letter'
 import { storedPaymentMethod } from '../modules/invoice/payment-method'
+import { paymentTermsLine } from './invoice-pdf.service'
 
 export interface XRechnungSupplier {
   name: string
@@ -540,7 +541,10 @@ function generatePaymentTerms(data: XRechnungData): string {
   if (!note && data.skonto) {
     note = `Zahlbar innerhalb von ${data.skonto.days ?? 14} Tagen mit ${formatPercent(data.skonto.percent)}% Skonto`
   } else if (!note) {
-    note = 'Zahlbar innerhalb von 30 Tagen'
+    // Tier 985: none rather than an invented one. „Zahlbar innerhalb von 30
+    // Tagen“ stood beside a DueDate 14 days out and on credit notes; the due
+    // date (BT-9) answers BR-CO-25.
+    return ''
   }
   // Tier 412: Skonto is a payment term, not an allowance. It used to be a
   // document-level AllowanceCharge that did not reduce the totals (BR-CO-11,
@@ -1285,6 +1289,9 @@ export function transformToXRechnungData(
     total: amt(invoice.total),
     notes: invoice.notes || undefined,
     skonto,
+    // Tier 985: the sentence the PDF prints („Zahlbar bis zum … ohne Abzug.“);
+    // none for a credit note
+    paymentTermsNote: paymentTermsLine(invoice, null, String(invoice.type || 'INV'), !!skonto) ?? undefined,
     // Tier 412
     euTransaction: invoice.euTransaction === true,
     reverseCharge: invoice.reverseCharge === true,

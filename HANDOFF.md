@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 985 — the XRechnung's payment terms say what the invoice says
+
+- **Measured (team round 4):** BT-20 was „Zahlbar innerhalb von 30 Tagen“ whenever no Skonto was set — beside a DueDate (BT-9) 14 days out and a PDF saying „Zahlbar bis zum 24.11.2026 ohne Abzug“; a credit note (money owed to the customer) carried the same sentence. A receiver's AP software reads BT-20.
+- `transformToXRechnungData` sets `paymentTermsNote` to the PDF's sentence (`paymentTermsLine`, none for a credit note); without one and without Skonto no `PaymentTerms` is written (the due date answers BR-CO-25). The CII takes the same note.
+- **Spec 672:** on the Tier 984 code 2 assertions fail; the e-invoice specs and the guards pass (83).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 984 — BLZ/Kontonummer and IBAN are the same account
 
 - **Measured (team round 4):** MT940 `:25:` named the account `37040044/0532013000` (Sparkassen / Volksbanken send it so), camt.053 the IBAN `DE89370400440532013000`. The duplicate check compared the two strings: the same receipt of 119 € (day, EndToEndId, purpose, payer) was imported twice — two rows to match or book (GoBD Rz. 44), for every overlap when a business moves from MT940 to CAMT (the DK retires MT940).
