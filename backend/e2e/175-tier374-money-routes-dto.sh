@@ -148,11 +148,15 @@ api_post "/api/v1/cashbook/reopen-day?companyId=$COMPANY_ID" '{"date":"abc"}';  
 assert_eq "closes on $DAY after invalid posts" "$(sql "SELECT count(*) FROM \"CashBookDailyClose\" WHERE \"companyId\" = '$COMPANY_ID' AND \"businessDate\" = '$DAY';")" "0"
 
 note "=== 3. cleanup ==="
-# The day is open again (reopen-day above). Storno first, then the originals.
-for id in "$E4" "$E3" "$E2" "$E1"; do
+# The day is open again (reopen-day above). Tier 972: an entry and its Storno
+# stand as a pair (§ 146 Abs. 4 AO) — neither is deleted; the others are.
+api_delete "/api/v1/cashbook/entries/$E4?companyId=$COMPANY_ID"; assert_status 400 "the Storno is not deleted"
+api_delete "/api/v1/cashbook/entries/$E3?companyId=$COMPANY_ID"; assert_status 400 "…nor the entry it reverses"
+for id in "$E2" "$E1"; do
   [[ -n "$id" ]] && api_delete "/api/v1/cashbook/entries/$id?companyId=$COMPANY_ID"
 done
-assert_eq "e2e-175 cash book entries left" "$(entry_count)" "0"
+assert_eq "e2e-175 cash book entries left, but for Storno pairs (they net to 0)" \
+  "$(sql "SELECT count(*) FROM \"CashBookEntry\" e WHERE e.\"companyId\" = '$COMPANY_ID' AND e.\"businessDate\" = '$DAY' AND e.\"reversesId\" IS NULL AND NOT EXISTS (SELECT 1 FROM \"CashBookEntry\" r WHERE r.\"reversesId\" = e.id)")" "0"
 
 summary
 exit $?

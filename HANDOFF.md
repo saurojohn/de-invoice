@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 972 — a cash entry and its Storno stand as a pair
+
+- **Measured (team round 4):** a reversed sale of 119 € was changed to 357 € while marked storniert (UStVA Kz 81 200 €), its Storno set to 0 and deleted on its own — the original live again.
+- `assertNotInStornoPair` in update and delete: neither a Storno nor the entry it reverses is changed or deleted (§ 146 Abs. 4 AO, GoBD Rz. 58-60); a PUT of amount 0 is refused as on create.
+- Spec 175 deleted its Storno pair in its cleanup: it now checks that both deletions are refused and that nothing but Storno pairs (net 0) is left on its day.
+- **Spec 659.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 971 — MT940: RC and RD are reversals
 
 - **Measured (team round 4):** SWIFT MT940 `:61:` mark RC (reversal of a credit: money out) was read as a credit and RD (reversal of a debit: money in) as a debit. Opening 1 000, C 200, RC 200, D 50, RD 50, closing 1 000: credits 400, debits 100, „mismatch“; a returned transfer was a second receipt to match an invoice with.

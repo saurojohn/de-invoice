@@ -113,6 +113,24 @@ function assertNotKassendifferenz(entry: { kind: string | null }) {
 /** Cash effect of an entry type: into the till (+1) or out of it (−1). */
 const cashSign = (type: string) => (type === 'ausgabe' || type === 'umbuchung' ? -1 : 1);
 
+/**
+ * Tier 972 — a reversed entry and its Storno stand as a pair: neither is
+ * changed or deleted on its own (§ 146 Abs. 4 AO; GoBD Rz. 58-60 — a
+ * correction keeps the original recognisable, a Storno cancels exactly what
+ * it reverses). Measured: the reversed sale changed from 119 to 357 € while
+ * marked storniert (UStVA Kz 81 200 €), the Storno set to 0 and then deleted
+ * alone — the original live again with no Storno left.
+ */
+async function assertNotInStornoPair(prisma: PrismaService, entry: { id: string; reversesId: string | null }, what: string) {
+  if (entry.reversesId) {
+    throw new BadRequestException(`Eine Storno-Buchung bleibt, wie sie ist — ${what} ist nicht möglich. Ist die Stornierung falsch, buchen Sie die Originalbuchung neu.`)
+  }
+  const reversal = await prisma.cashBookEntry.findFirst({ where: { reversesId: entry.id }, select: { id: true } })
+  if (reversal) {
+    throw new BadRequestException(`Die Buchung ist storniert — ${what} ist nicht möglich. Buchen Sie den richtigen Betrag neu.`)
+  }
+}
+
 @Injectable()
 export class KassenbuchService {
   private readonly logger = new Logger(KassenbuchService.name);
@@ -647,6 +665,9 @@ export class KassenbuchService {
     }
     if (!existing) throw new NotFoundException('Entry not found')
     assertNotKassendifferenz(existing)
+    await assertNotInStornoPair(this.prisma, existing, 'eine Änderung') // Tier 972
+    // Tier 972: an amount above 0, as on create — a Storno set to 0 cancelled nothing
+    if (patch.amount !== undefined && !(Number(patch.amount) > 0)) throw new BadRequestException('Der Betrag muss größer als 0 sein.')
     await this.assertDaysOpen(companyId, [existing.businessDate])
     if (patch.vatRate != null && !existing.invoiceId && !existing.expenseId) {
       // Tier 900: a rate German law has
@@ -687,6 +708,7 @@ export class KassenbuchService {
     }
     if (!existing) throw new NotFoundException('Entry not found')
     assertNotKassendifferenz(existing)
+    await assertNotInStornoPair(this.prisma, existing, 'das Löschen') // Tier 972
     await this.assertDaysOpen(companyId, [existing.businessDate])
     await this.assertCashNotNegative(companyId, existing.businessDate, -cashSign(existing.type) * Number(existing.amount))
     await this.unlink(companyId, existing)
