@@ -628,7 +628,7 @@ export class KassenbuchService {
   /** Tier 425: undo what a linked entry did outside the cash book. */
   private async unlink(companyId: string, entry: { paymentId: string | null; expenseId: string | null; businessDate: Date }) {
     if (entry.paymentId) {
-      await this.payments.delete(entry.paymentId, companyId)
+      await this.payments.delete(entry.paymentId, companyId, { viaCashBook: true }) // Tier 974
     }
     if (entry.expenseId) {
       await this.prisma.expense.updateMany({

@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 974 — a cash payment leaves with its cash entry
+
+- **Measured (team round 4):** a payment booked from the Kassenbuch could be deleted on the invoice page — the cash entry stayed, the Kasse held money the invoice no longer showed as received.
+- `PaymentService.delete` refuses a payment linked to a `CashBookEntry` unless it comes from the cash book (`viaCashBook`); the Kassenbuch's unlink passes it.
+- **Spec 661.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 973 — one bank entry, one booking
 
 - **Measured (team round 4):** a credit booked as a VAT refund (book-tax) could then be matched to an invoice of the same amount — two vouchers for one credit, the invoice paid with the tax office's money.

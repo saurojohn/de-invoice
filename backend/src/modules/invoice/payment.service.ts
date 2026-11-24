@@ -624,13 +624,23 @@ export class PaymentService {
    * opts.resettleCreditNotes: false for the undo of an operation that failed
    * half-way (Tier 948 — it is no deletion the user asked for).
    */
-  async delete(paymentId: string, companyId: string, opts: { resettleCreditNotes?: boolean } = {}) {
+  async delete(paymentId: string, companyId: string, opts: { resettleCreditNotes?: boolean; viaCashBook?: boolean } = {}) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: { invoice: { select: { companyId: true, total: true, type: true, customerId: true, invoiceNumber: true, issueDate: true, deliveryDate: true, servicePeriodEnd: true, euTransaction: true, totalVat: true, reverseCharge: true, status: true, currency: true } } },
     });
     if (!payment || payment.invoice.companyId !== companyId) {
       throw new NotFoundException('Zahlung nicht gefunden');
+    }
+    // Tier 974: a payment the cash book recorded goes with its cash entry. It
+    // was deleted here alone: the invoice open (and dunned) again, the 119 € still
+    // in the till and in no report (the entry belongs to the invoice); a second
+    // cash receipt then put 238 € in the till for one invoice of 119 €
+    if (!opts.viaCashBook) {
+      const cash = await this.prisma.cashBookEntry.findFirst({ where: { paymentId, companyId }, select: { id: true } });
+      if (cash) {
+        throw new BadRequestException('Die Zahlung ist im Kassenbuch erfasst — stornieren Sie dort die Kassenbuchung, sie nimmt die Zahlung mit.');
+      }
     }
     // Tier 472: the advance settled by a final invoice stays settled — the
     // final invoice states the deduction; a correction is a credit note.
