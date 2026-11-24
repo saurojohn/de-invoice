@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 994 — the 10 000 € threshold of § 3c UStG is shown
+
+- **Measured (team round 4):** a company outside the OSS sold to a consumer in Paris for 5 000 € net three times in the year at 19 % (German tax): 15 000 € — the OSS report said invoiceCount 0 / excludedGermanRate 3, no sum, no threshold; the deadlines showed nothing (the „oss-check“ note only when the quarter had sales at another state's rate). § 3c Abs. 4 UStG: German tax on such sales holds while they stayed at or below 10 000 € in the previous year and have not passed it in this one.
+- `OssService.threshold`: the net sales (in euros, credit notes off) to consumers in other member states in the report's year and the year before; the report carries `threshold {limit, previousYear, currentYear, exceeded}`, the OSS tab shows a note when it is passed and the company is outside the scheme; the deadline list's OSS item appears with note `oss-threshold` (de/en/zh).
+- **A note, not a refusal:** the threshold applies to goods sent abroad and TBE services; other services to consumers stay taxable in Germany (§ 3a Abs. 1 UStG) — the program cannot tell them apart.
+- **Open — OSS rates per member state (team round 4, medium):** a sale to a French consumer at 19 % or 33 % is accepted and reported. A rate table needs an authoritative, maintained source (EU TEDB / the Commission's table): the third-party tables found on 25.11.2026 disagree (Romania 19 / 21 %, Finland's reduced 13,5 / 14 %, Malta, Austria's parking rate) — not hard-coded from them.
+- **Spec 681:** on the Tier 993 code it fails (no threshold); the OSS / deadline specs and the guards pass (40), the OSS / deadline / UI-walk Playwright specs pass (32).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 993 — a consumer owes Verzugszinsen from the reminder on, not from the due date
 
 - **Measured (team round 4):** the Zahlungserinnerung to a private customer (1 190 €, due 15.06.) asked 34,31 € interest from the due date; the later levels counted from the due date as well. A consumer is in default through a Mahnung (§ 286 Abs. 1 BGB): a due date the invoice sets on its own is no agreed calendar date (Abs. 2 Nr. 1), and the invoices carry no notice of Abs. 3 Satz 1 Hs. 2. (The service's own Tier 682 comment already said the first reminder is what puts the customer in default.)

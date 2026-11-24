@@ -179,6 +179,15 @@ export interface OssResult {
   }
   /** Tier 649: the company's setting */
   ossVerfahren: boolean
+  /**
+   * Tier 994 — § 3c Abs. 4 UStG: German tax on sales to consumers in other
+   * member states holds while they stayed at or below 10 000 € (net) in the
+   * previous year and have not passed it in this one. The report's year and
+   * the one before, every rate, credit notes off. Whether the sales are goods
+   * sent abroad / TBE services (to which the threshold applies) the program
+   * does not know — `exceeded` asks for a check, it changes no figure.
+   */
+  threshold: { limit: number; previousYear: number; currentYear: number; exceeded: boolean }
   generatedAt: string
   disclaimer: string
 }
@@ -198,6 +207,35 @@ interface CountryItem {
 @Injectable()
 export class OssService {
   constructor(private prisma: PrismaService, private rates: ExchangeRateService) {}
+
+  /** Tier 994 — the § 3c threshold: sales to consumers abroad in `year` and the year before, net in euros. */
+  async threshold(companyId: string, year: number, homeCountry = 'DE'): Promise<OssResult['threshold']> {
+    const limit = 10000
+    const previousYear = await this.consumerAbroadNet(companyId, year - 1, homeCountry)
+    const currentYear = await this.consumerAbroadNet(companyId, year, homeCountry)
+    return { limit, previousYear, currentYear, exceeded: previousYear > limit || currentYear > limit }
+  }
+
+  private async consumerAbroadNet(companyId: string, year: number, homeCountry: string): Promise<number> {
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { in: ['paid', 'sent', 'overdue'] },
+        type: { in: ['INV', 'RCV', 'CN'] },
+        issueDate: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) },
+      },
+      select: {
+        id: true, total: true, totalVat: true, eurTotal: true, customerCountry: true, customerVatId: true,
+        customer: { select: { vatId: true, address: true } },
+      },
+    })
+    let cents = 0
+    for (const inv of rows.map(asIssued)) {
+      if (!consumerAbroad(inv.customer, homeCountry)) continue
+      cents += Math.round((Number(inv.total) - Number(inv.totalVat)) * invoiceEurFactor(inv as any) * 100)
+    }
+    return cents / 100
+  }
 
   /**
    * The ECB's rate of the last day of a quarter; if none was fixed on that
@@ -660,6 +698,7 @@ export class OssService {
         excludedGermanRate: germanRate.size,
       },
       ossVerfahren: inOss,
+      threshold: await this.threshold(companyId, year, homeCountry),
       generatedAt: new Date().toISOString(),
       disclaimer:
         'Diese Vorschau wurde automatisch aus EU-B2C-Rechnungen generiert. ' +

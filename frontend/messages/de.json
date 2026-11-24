@@ -2970,6 +2970,7 @@
   "oss": {
     "settingOn": "OSS-Verfahren: angemeldet (Einstellungen → Unternehmen). Alle steuerpflichtigen Verkäufe an Verbraucher in anderen EU-Staaten stehen hier und nicht in der Umsatzsteuer-Voranmeldung.",
     "settingOff": "OSS-Verfahren: nicht angemeldet (Einstellungen → Unternehmen). Hier stehen nur Verkäufe zum Steuersatz des anderen Staates; {count} Rechnung(en) zu 19 % / 7 % an EU-Verbraucher zählen als deutsche Umsatzsteuer und stehen in der Voranmeldung.",
+    "thresholdExceeded": "Lieferschwelle überschritten: Verkäufe an Verbraucher im EU-Ausland {previous} € im Vorjahr, {current} € in diesem Jahr (netto, mehr als 10.000 €). Waren und TBE-Leistungen sind ab dem Verkauf, der die Schwelle überschreitet, im Bestimmungsland zu versteuern (§ 3c Abs. 4 UStG) — OSS-Verfahren anmelden oder dort registrieren; andere Dienstleistungen bleiben in Deutschland steuerbar.",
     "correctionsTitle": "Berichtigungen früherer Quartale",
     "correctedPeriod": "Berichtigter Zeitraum",
     "vatDue": "Zu zahlen (Quartal und Berichtigungen)",
@@ -4638,6 +4639,7 @@
       "zm-monthly": "Innergemeinschaftliche Warenlieferungen über 50.000 € im laufenden Quartal oder in einem der vier davor — die ZM ist monatlich abzugeben (§ 18a Abs. 1 UStG).",
       "oss-nil": "Im OSS-Verfahren ist auch ohne Umsätze eine Nullmeldung abzugeben.",
       "oss-check": "Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10.000 €, § 3c UStG).",
+      "oss-threshold": "Verkäufe an Verbraucher im EU-Ausland über 10.000 € im Jahr oder im Vorjahr — Waren und TBE-Leistungen sind ab dem Überschreiten im Bestimmungsland zu versteuern (§ 3c Abs. 4 UStG): OSS-Verfahren oder Registrierung dort prüfen.",
       "annual-self": "Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — ohne Steuerberater.",
       "annual-berater": "Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — durch den Steuerberater (§ 149 Abs. 3 AO).",
       "annual-ku": "Einkommen- und Gewerbesteuererklärung; als Kleinunternehmer seit 2024 keine Umsatzsteuererklärung, wenn das Finanzamt sie nicht anfordert (§ 19 Abs. 1 Satz 4 UStG).",

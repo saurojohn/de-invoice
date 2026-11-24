@@ -57,6 +57,8 @@ interface OssResult {
   }
   // Tier 649
   ossVerfahren?: boolean
+  // Tier 994: § 3c Abs. 4 UStG
+  threshold?: { limit: number; previousYear: number; currentYear: number; exceeded: boolean }
   generatedAt: string
   disclaimer: string
 }
@@ -453,6 +455,16 @@ export function OssTab() {
           <p className="text-sm rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-3 py-2 text-blue-900 dark:text-blue-200" data-testid="oss-setting-note">
             {tRef.current(data.ossVerfahren ? "oss.settingOn" : "oss.settingOff", { count: data.counts.excludedGermanRate ?? 0 })}
           </p>
+
+          {/* Tier 994: the § 3c threshold, for a company outside the scheme */}
+          {!data.ossVerfahren && data.threshold?.exceeded && (
+            <p className="text-sm rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-amber-900 dark:text-amber-200" data-testid="oss-threshold-note">
+              {tRef.current("oss.thresholdExceeded", {
+                previous: data.threshold.previousYear.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                current: data.threshold.currentYear.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+              })}
+            </p>
+          )}
 
           {/* Disclaimer */}
           <p className="text-xs text-gray-500 dark:text-gray-400 italic" data-testid="oss-disclaimer">

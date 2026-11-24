@@ -55,6 +55,8 @@ export const NOTES = {
   'zm-monthly-first': `In diesem Monat wurden ${ZM_MONTHLY_THRESHOLD.toLocaleString('de-DE')} € innergemeinschaftliche Warenlieferungen im Quartal überschritten: diese ZM umfasst auch die bereits abgelaufenen Monate des Quartals, ab jetzt ist sie monatlich abzugeben (§ 18a Abs. 1 Satz 3 UStG).`,
   'oss-nil': 'Im OSS-Verfahren ist auch ohne Umsätze eine Nullmeldung abzugeben.',
   'oss-check': 'Verkäufe an Verbraucher im EU-Ausland — prüfen, ob die OSS-Meldung nötig ist (Lieferschwelle 10 000 €, § 3c UStG).',
+  // Tier 994
+  'oss-threshold': 'Verkäufe an Verbraucher im EU-Ausland über 10 000 € im Jahr oder im Vorjahr — Waren und TBE-Leistungen sind ab dem Überschreiten im Bestimmungsland zu versteuern (§ 3c Abs. 4 UStG): OSS-Verfahren oder Registrierung dort prüfen.',
   'annual-self': 'Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — ohne Steuerberater.',
   'annual-berater': 'Umsatzsteuer-, Einkommen- bzw. Körperschaftsteuer- und Gewerbesteuererklärung — durch den Steuerberater (§ 149 Abs. 3 AO).',
   'annual-ku': 'Einkommen- und Gewerbesteuererklärung; als Kleinunternehmer seit 2024 keine Umsatzsteuererklärung, wenn das Finanzamt sie nicht anfordert (§ 19 Abs. 1 Satz 4 UStG).',
@@ -238,13 +240,17 @@ export class FilingDeadlinesService {
     const ossDue = ossDeadline(ossPeriod)
     if (ossDue >= today) {
       let show = st.ossVerfahren
+      let overThreshold = false
       if (!show) {
         const r = await this.oss.compute(companyId, ossPeriod.year, ossPeriod.quarter!)
-        show = r.totals.invoiceCount > 0
+        // Tier 994: and when the year's sales to consumers abroad passed 10 000 € (§ 3c Abs. 4 UStG) —
+        // at a German rate they were not in the report's count at all
+        overThreshold = r.threshold.exceeded
+        show = r.totals.invoiceCount > 0 || overThreshold
       }
       // Tier 807: marked as filed on the dashboard
       const ossStatus: DeadlineStatus = filedSet.has(filedKey('oss', ossPeriod)) ? 'filed' : 'open'
-      if (show) out.push(item('oss', ossPeriod, endOf(ossPeriod), ossDue, ossStatus, st.ossVerfahren ? 'oss-nil' : 'oss-check'))
+      if (show) out.push(item('oss', ossPeriod, endOf(ossPeriod), ossDue, ossStatus, st.ossVerfahren ? 'oss-nil' : overThreshold ? 'oss-threshold' : 'oss-check'))
     }
 
     // Tier 802: the annual returns of the ended years whose deadline is ahead.
