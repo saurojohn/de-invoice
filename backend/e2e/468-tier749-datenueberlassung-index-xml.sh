@@ -130,7 +130,7 @@ assert_eq "the DOCTYPE names the DTD" "$(J "d['doctype']")" "True"
 assert_eq "DataSet: Version, DataSupplier, Media" "$(J "d['root']")" "['DataSet', ['Version', 'DataSupplier', 'Media']]"
 assert_eq "DataSupplier: Name, Location, Comment" "$(J "d['supplier']")" "['Name', 'Location', 'Comment']"
 assert_eq "Media starts with its Name" "$(J "d['media_first']")" "Name"
-assert_eq "eleven tables (Tier 988: the Anlagen)" "$(J "d['tables']")" "11"
+assert_eq "fourteen tables (Tier 988: Anlagen; Tier 996: Bankumsaetze, Kassenabschluesse, Steuerzahlungen)" "$(J "d['tables']")" "14"
 assert_eq "no problem: order, columns, keys, numbers, dates, line ends" "$(J "d['problems']")" "[]"
 assert_eq "the manifest has index.xml" "$(J "d['manifest']")" "True"
 

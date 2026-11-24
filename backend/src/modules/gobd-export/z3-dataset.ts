@@ -146,6 +146,14 @@ export async function z3Tables(prisma: PrismaService, companyId: string, from: D
   // `to` read in Berlin is already 1 January — the laptop got a 13th month
   const [sy, sm, sd] = to.toISOString().slice(0, 10).split('-').map(Number)
   const snapshotDay = new Date(sy, sm - 1, sd, 12)
+  // Tier 996: the bank transactions, the signed daily cash closes and the tax payments of the period
+  const bankTx = await prisma.bankTransaction.findMany({
+    where: { companyId, valueDate: inPeriod },
+    orderBy: [{ valueDate: 'asc' }, { id: 'asc' }],
+    include: { statement: { select: { accountIban: true } } },
+  })
+  const cashCloses = await prisma.cashBookDailyClose.findMany({ where: { companyId, businessDate: inPeriod }, orderBy: { businessDate: 'asc' } })
+  const taxPayments = await prisma.ustPayment.findMany({ where: { companyId, paidAt: inPeriod }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }] })
   // Tier 988: held in the period — bought by its end, not gone before its start
   const assets = await prisma.asset.findMany({
     where: { companyId, anschaffungsDatum: { lte: to }, OR: [{ verkauftAm: null }, { verkauftAm: { gte: from } }] },
@@ -285,6 +293,46 @@ export async function z3Tables(prisma: PrismaService, companyId: string, from: D
       keys: [text('Eintrag_ID', 'Interne Kennung')],
       columns: [date('Geschaeftstag'), text('Art'), text('Beschreibung'), money('Betrag'), num4('Steuersatz', 'Als Bruchteil'), text('Gegenpartei'), text('Belegnummer'), text('Storno_von', 'Kennung des stornierten Eintrags')],
       rows: cash.map((c) => [c.id, c.businessDate, c.type, c.description, c.amount, c.vatRate, c.counterparty, c.belegNumber, c.reversesId]),
+    },
+    {
+      // Tier 996: what the bank statements imported say
+      file: 'bankumsaetze.csv',
+      name: 'Bankumsaetze',
+      description: 'Umsätze der eingelesenen Kontoauszüge (MT940, CAMT, FinTS) im Zeitraum; Gutschriften positiv, Belastungen negativ',
+      keys: [text('Umsatz_ID', 'Interne Kennung')],
+      columns: [
+        text('Kontoauszug_ID'), text('Konto', 'IBAN des eigenen Kontos'), date('Valuta'), date('Buchungstag'), money('Betrag'), text('Waehrung'),
+        text('Gegenpartei'), text('Gegenpartei_IBAN'), text('Verwendungszweck'), text('EndToEndId'), text('Beleg_ID', 'Kennung des Buchungsbelegs, auf den der Umsatz gebucht ist'),
+      ],
+      rows: bankTx.map((t) => [
+        t.id, t.statementId, t.statement?.accountIban, t.valueDate, t.entryDate, t.amount, t.currency,
+        t.counterpartyName, t.counterpartyIban, t.purpose, t.endToEndId, t.voucherId,
+      ]),
+    },
+    {
+      // Tier 996: the Kassensturz of each closed day (§ 146 Abs. 1 AO)
+      file: 'kassenabschluesse.csv',
+      name: 'Kassenabschluesse',
+      description: 'Tagesabschlüsse des Kassenbuchs: Sollbestand, gezählter Bestand, Differenz und ihre Begründung, Signatur',
+      keys: [text('Abschluss_ID', 'Interne Kennung')],
+      columns: [
+        date('Geschaeftstag'), money('Anfangsbestand'), money('Einnahmen'), money('Ausgaben'), money('Umbuchungen'), money('Endbestand', 'Sollbestand laut Kassenbuch'),
+        money('Gezaehlt', 'Gezählter Bestand (Kassensturz)'), money('Differenz'), text('Begruendung', 'Begründung der Differenz'),
+        text('Abgeschlossen_am', 'Zeitpunkt des Abschlusses (UTC)'), text('Signatur', 'Prüfsumme des Abschlusses'),
+      ],
+      rows: cashCloses.map((c) => [
+        c.id, c.businessDate, c.anfangsbestand, c.einnahmenSum, c.ausgabenSum, c.umbuchungenSum, c.endbestand,
+        c.physicalCount, c.differenz, c.differenzNote, c.closedAt.toISOString(), c.signatureHash,
+      ]),
+    },
+    {
+      // Tier 996: what was paid to (or refunded by) the Finanzamt for VAT
+      file: 'steuerzahlungen.csv',
+      name: 'Steuerzahlungen',
+      description: 'Zahlungen an das Finanzamt und Erstattungen zur Umsatzsteuer (Vorauszahlungen, Sondervorauszahlung, Jahreserklärung)',
+      keys: [text('Zahlung_ID', 'Interne Kennung')],
+      columns: [text('Art'), text('Jahr'), date('Gezahlt_am'), money('Betrag'), text('Notiz')],
+      rows: taxPayments.map((t) => [t.id, t.kind, String(t.year), t.paidAt, t.amount, t.note]),
     },
     {
       // Tier 988: the Anlagenverzeichnis (§ 4 Abs. 3 Satz 5 EStG, § 284 HGB) —

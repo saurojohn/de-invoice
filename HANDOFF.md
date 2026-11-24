@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 996 — the Z3 data set carries the bank statements, the cash closes and the tax payments
+
+- **Measured (team round 4, named with the Anlagenverzeichnis, Tier 988):** the Datenüberlassung held bookings, invoices, expenses and the cash book — not the imported bank transactions, the signed daily cash closes (count, difference, its reason) nor the VAT payments to the Finanzamt. All three are records the auditor's data access covers (§ 147 Abs. 6 AO, GoBD Rz. 158 ff.; the Kassensturz: § 146 Abs. 1 AO).
+- `z3-dataset.ts`: tables „Bankumsaetze“ (by value date: account, amounts, counterparty, purpose, EndToEndId, the voucher it is booked on), „Kassenabschluesse“ (Soll, counted, difference, reason, time, signature) and „Steuerzahlungen“ (kind, year, day, amount, note). Spec 468 counts fourteen tables and checks every number, date and key of them.
+- **Spec 683:** on the Tier 995 code 3 assertions fail; the GoBD / Z3 / asset specs and the guards pass (101).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 995 — a direct-debit batch collects today at the earliest
 
 - **Measured:** as the credit-transfer batch before Tier 982 (left open there): a pain.008 dated 30 days back was accepted — the file asked the bank to collect in the past (ReqdColltnDt), the pre-notification deadline lay before the batch was made.
