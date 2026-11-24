@@ -166,6 +166,7 @@ assert_eq "both days are imported — three transactions, the first opening and 
 note "=== 4. two accounts in one file ==="
 sed -e 's/TAG2/TAG3/' -e '/^:20:TAG3/,$ s#10020030/1234567#10020030/7654321#' "$TMP/two-days.sta" > "$TMP/two-accounts.sta"
 upload import "$TMP/two-accounts.sta" text/plain
+# Tier 984: BLZ/Kontonummer is named as the IBAN it is
 assert_eq "refused, naming both (was: the first account imported, the other dropped)" \
-  "$STATUS $(echo "$BODY" | grep -c 'von 2 Konten (10020030/1234567, 10020030/7654321)')" "400 1"
+  "$STATUS $(echo "$BODY" | grep -c 'von 2 Konten (DE73100200300001234567, DE89100200300007654321)')" "400 1"
 summary

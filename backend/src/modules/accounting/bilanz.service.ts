@@ -1,3 +1,4 @@
+import { germanIbanOf } from '../../common/iban'
 import { flowFromLeft } from '../../common/pdf-flow'
 import { NOT_AFA_BOOKING } from './booked-afa'
 import { Injectable } from '@nestjs/common'
@@ -320,7 +321,8 @@ export class BilanzService {
     })
     const latestPerAccount = new Map<string, number>()
     for (const st of statements) {
-      latestPerAccount.set(st.accountIban || '', Number(st.closingBalance))
+      // Tier 984: an account named by BLZ/Kontonummer (MT940) and by IBAN (CAMT) is one
+      latestPerAccount.set(germanIbanOf(st.accountIban) ?? (st.accountIban || ''), Number(st.closingBalance))
     }
     const bankGuthaben = statements.length
       ? [...latestPerAccount.values()].reduce((s, v) => s + v, 0)

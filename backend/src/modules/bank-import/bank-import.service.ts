@@ -1,3 +1,4 @@
+import { accountForms } from '../../common/iban'
 /**
  * Bank statement import service. Wraps the parsers,
  * persists the result, and runs the candidate matching
@@ -151,7 +152,8 @@ export class BankImportService {
       ? await this.prisma.bankTransaction.findMany({
         where: {
           companyId,
-          statement: { accountIban: stmt.accountIban ?? null },
+          // Tier 984: one account, whether named by IBAN or BLZ/Kontonummer
+          statement: { accountIban: stmt.accountIban ? { in: accountForms(stmt.accountIban) } : null },
           valueDate: {
             gte: new Date(Math.min(...stmt.transactions.map((t) => new Date(t.valueDate).getTime())) - 86_400_000),
             lte: new Date(Math.max(...stmt.transactions.map((t) => new Date(t.valueDate).getTime())) + 86_400_000),

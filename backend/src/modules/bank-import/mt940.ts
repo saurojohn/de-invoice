@@ -1,3 +1,4 @@
+import { germanIbanOf } from '../../common/iban'
 /**
  * MT940 SWIFT customer statement message parser.
  *
@@ -304,6 +305,9 @@ export function parseMt940(text: string): ParsedStatement[] {
     if (acc25) {
       // Strip a leading 4!a bank code if present
       accountIban = acc25.replace(/^[A-Z]{4}/, '').replace(/\s+/g, '')
+      // Tier 984: BLZ/Kontonummer as the IBAN it is — a CAMT of the same
+      // account names the IBAN, and the duplicate check compares the two
+      accountIban = germanIbanOf(accountIban) ?? accountIban
       // Some banks have the bank name on the next line —
       // we don't use it for matching, skip.
     }

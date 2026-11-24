@@ -30,3 +30,36 @@ export function assertIban(iban: string | null | undefined): void {
   const problem = ibanProblem(iban)
   if (problem) throw new BadRequestException(problem)
 }
+
+/**
+ * Tier 984 — a German account given as BLZ/Kontonummer (MT940 `:25:` of
+ * Sparkassen and Volksbanken, e.g. `37040044/0532013000`, a currency code may
+ * follow) as its IBAN: DE, check digits (MOD 97-10), BLZ, Kontonummer to ten
+ * digits. Null for anything else.
+ */
+export function germanIbanOf(account: string | null | undefined): string | null {
+  const m = String(account ?? '').replace(/\s+/g, '').toUpperCase().match(/^(\d{8})\/(\d{1,10})(?:[A-Z]{3})?$/)
+  if (!m) return null
+  const bban = m[1] + m[2].padStart(10, '0')
+  let rem = 0
+  for (const d of bban + '131400') rem = (rem * 10 + Number(d)) % 97 // D = 13, E = 14, check digits 00
+  return `DE${String(98 - rem).padStart(2, '0')}${bban}`
+}
+
+/**
+ * Tier 984 — the forms one account may be stored under: its IBAN and, for a
+ * German one, BLZ/Kontonummer (with and without leading zeros) as statements
+ * imported before were kept.
+ */
+export function accountForms(account: string): string[] {
+  const raw = account.replace(/\s+/g, '').toUpperCase()
+  const iban = germanIbanOf(raw) ?? raw
+  const forms = new Set([account, raw, iban])
+  if (/^DE\d{20}$/.test(iban)) {
+    const blz = iban.slice(4, 12)
+    const kto = iban.slice(12)
+    forms.add(`${blz}/${kto}`)
+    forms.add(`${blz}/${kto.replace(/^0+/, '')}`)
+  }
+  return [...forms]
+}

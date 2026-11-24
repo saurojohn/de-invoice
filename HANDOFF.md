@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 984 — BLZ/Kontonummer and IBAN are the same account
+
+- **Measured (team round 4):** MT940 `:25:` named the account `37040044/0532013000` (Sparkassen / Volksbanken send it so), camt.053 the IBAN `DE89370400440532013000`. The duplicate check compared the two strings: the same receipt of 119 € (day, EndToEndId, purpose, payer) was imported twice — two rows to match or book (GoBD Rz. 44), for every overlap when a business moves from MT940 to CAMT (the DK retires MT940).
+- `common/iban.ts` `germanIbanOf` (BLZ/Kontonummer → DE IBAN, MOD 97-10) and `accountForms`. The MT940 parser stores the IBAN; the duplicate search looks under every form (statements imported before keep BLZ/Kontonummer); the Bilanz takes the latest closing balance per account under its IBAN, so one account is not counted twice.
+- Spec 379 named the accounts of a two-account file as BLZ/Kontonummer: it now reads the IBANs.
+- **Spec 671:** on the Tier 983 code 3 assertions fail; the bank / Bilanz / FinTS specs and the guards pass (124).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 983 — a counted till holds no negative cash
 
 - **Measured (team round 4):** the Kassensturz took a negative count: opening 100 €, counted −50 € — 201, Endbestand −50, a „Kassenfehlbetrag“ of 150 € booked, the balance −50, signed into the close's hash. A Kassenminusbestand is what Tier 435 refuses on every other path (§ 146 Abs. 1, § 158 AO).
