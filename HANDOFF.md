@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 989 — after a Storno of the opening balance, the right one can be booked
+
+- **Measured (team round 4):** opening balance 5 000 € (a typo), reversed: the new opening balance of 500 € was refused — „Es existiert bereits ein Eröffnungs-Eintrag. Für eine Korrektur buchen Sie eine Storno-Buchung.“ — the Storno it asks for had been booked. The right Anfangsbestand could only go in as an Einnahme.
+- `assertEroeffnung`: only a live opening balance (neither reversed nor a Storno) counts; the „bookings before it“ check (Tier 524) skips Storno pairs, which net to nothing. A second live opening balance is refused as before.
+- **Spec 676:** on the Tier 988 code 2 assertions fail; the cash-book specs and the guards pass (110, spec 16 skipped as always).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 988 — the Z3 data set carries the Anlagenverzeichnis
 
 - **Measured (team round 4):** a laptop bought for 3 000 € (36 months) gave the EÜR its AfA; the Datenüberlassung listed ten tables and no file of the archive named the laptop — the AfA claimed could not be traced (§ 147 Abs. 6 AO, GoBD Rz. 158 ff.; the register: § 4 Abs. 3 Satz 5 EStG, § 284 HGB).

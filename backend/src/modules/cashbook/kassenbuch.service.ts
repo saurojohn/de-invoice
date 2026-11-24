@@ -218,8 +218,11 @@ export class KassenbuchService {
    * the Anfangsbestand.
    */
   private async assertEroeffnung(companyId: string, date: Date) {
+    // Tier 989: a reversed opening balance and its Storno do not count — the
+    // message names the Storno as the way to correct it, and after one the
+    // right Anfangsbestand was refused all the same
     const existing = await this.prisma.cashBookEntry.count({
-      where: { companyId, type: 'eroeffnung' },
+      where: { companyId, type: 'eroeffnung', reversesId: null, reversedBy: null },
     })
     if (existing > 0) {
       throw new BadRequestException(
@@ -229,7 +232,8 @@ export class KassenbuchService {
     }
     // Tier 524: the Anfangsbestand is what the till held when the book began.
     const before = await this.prisma.cashBookEntry.findFirst({
-      where: { companyId, businessDate: { lt: date } },
+      // Tier 989: a Storno pair nets to nothing — not a booking the book began with
+      where: { companyId, businessDate: { lt: date }, reversesId: null, reversedBy: null },
       orderBy: { businessDate: 'asc' },
       select: { businessDate: true },
     })
