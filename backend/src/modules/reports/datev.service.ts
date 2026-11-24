@@ -209,6 +209,8 @@ export interface DatevExportInput {
   buchungsLaufNr?: number
   // Eröffnungsbuchungen (EB-Werte), prepended to the bookings.
   openingBalances?: OpeningBuchungsSatz[]
+  /** Tier 966: the fiscal year the opening balances open (see openingBalancesYearOf) */
+  openingBalancesYear?: number | null
   // Wirtschaftsjahr-Beginn; defaults to 1 January of the start year.
   fiscalYearStart?: Date
 }
@@ -306,7 +308,15 @@ export function generateDatevBuchungsstapel(input: DatevExportInput): string {
   const laufNr = buchungsLaufNr ?? 1
 
   const EB_GEGENKONTO = '9000' // SKR03 Saldenvorträge Sachkonten
-  const openingRows: BuchungsSatz[] = (openingBalances || []).map((eb) => ({
+  // Tier 966: the opening balances open ONE fiscal year — the batch that
+  // starts on its 1 January carries them. They went into every export: each
+  // later year's again (DATEV's Jahresübernahme brings that year's own; the
+  // adviser's SuSa had the Kasse twice), and into an April batch with a row
+  // of 1 January, outside the batch's period.
+  const startsYear = startDate.getUTCMonth() === 0 && startDate.getUTCDate() === 1
+  const ebYear = input.openingBalancesYear
+  const writeEb = startsYear && (ebYear == null || ebYear === startDate.getUTCFullYear())
+  const openingRows: BuchungsSatz[] = (writeEb ? openingBalances || [] : []).map((eb) => ({
     belegdatum: new Date(Date.UTC(startDate.getUTCFullYear(), 0, 1)),
     belegfeld1: `EB-${eb.konto}`,
     konto: eb.konto,
@@ -1493,4 +1503,20 @@ export async function collectBelegbilder(
   }
 
   return out
+}
+
+/**
+ * Tier 966 — the fiscal year the DATEV opening balances open: the year saved
+ * with them (settings.datev.openingBalancesYear), else the first year with an
+ * invoice or a bill — the year they were entered to start the books with.
+ */
+export async function openingBalancesYearOf(prisma: any, companyId: string, settings: any): Promise<number | null> {
+  const saved = Number(settings?.datev?.openingBalancesYear)
+  if (Number.isInteger(saved) && saved > 1999) return saved
+  const [inv, exp] = await Promise.all([
+    prisma.invoice.findFirst({ where: { companyId, status: { not: 'draft' } }, orderBy: { issueDate: 'asc' }, select: { issueDate: true } }),
+    prisma.expense.findFirst({ where: { companyId }, orderBy: { invoiceDate: 'asc' }, select: { invoiceDate: true } }),
+  ])
+  const years = [inv?.issueDate, exp?.invoiceDate].filter(Boolean).map((d: Date) => new Date(d).getUTCFullYear())
+  return years.length ? Math.min(...years) : null
 }

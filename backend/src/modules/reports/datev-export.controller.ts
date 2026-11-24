@@ -50,6 +50,7 @@ import {
   collectBelegbilder,
   generateDatevBuchungsstapel,
   encodeDatevCsv,
+  openingBalancesYearOf,
 } from './datev.service';
 
 /**
@@ -158,6 +159,7 @@ export class DatevExportController {
       // Saldenliste from the previous year hasn't
       // been entered in DATEV yet.
       openingBalances: (company as any).settings?.datev?.openingBalances || [],
+      openingBalancesYear: await openingBalancesYearOf(this.prisma, company.id, (company as any).settings), // Tier 966
     });
 
     // Filename pattern: EXTF_Buchungsstapel_<date>_<laufNr>.csv
@@ -279,6 +281,7 @@ export class DatevExportController {
       buchungen,
       buchungsLaufNr: (company as any).settings?.datev?.laufNr?.[startDate.getFullYear()] || 1,
       openingBalances: (company as any).settings?.datev?.openingBalances || [],
+      openingBalancesYear: await openingBalancesYearOf(this.prisma, company.id, (company as any).settings), // Tier 966
     });
 
     // Collect the PDFs that go alongside the CSV.
@@ -470,6 +473,7 @@ export class DatevExportController {
     const beraterNr = settings?.beraterNr || '00000'
     const mandantenNr = settings?.mandantenNr || '00001'
     const openingBalances = settings?.openingBalances || []
+    const ebYear = await openingBalancesYearOf(this.prisma, company.id, (company as any).settings) // Tier 966
 
     // Walk every month in [firstMonth, lastMonthEnd].
     // For each: build Buchungen, generate CSV, collect
@@ -525,6 +529,7 @@ export class DatevExportController {
         // opening balances would double-count across
         // months.
         openingBalances: monthIdx === 0 ? openingBalances : [],
+        openingBalancesYear: ebYear, // Tier 966
       })
       // 3) Belegbilder for this month.
       await ensureIssuedCopies(this.prisma, companyId, { gte: monthStart, lte: monthEnd }); // Tier 684

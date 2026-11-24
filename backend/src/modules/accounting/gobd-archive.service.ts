@@ -3,7 +3,7 @@ import { INVOICE_DOCUMENT_INCLUDE, keepIssuedCopy, renderInvoiceDocument } from 
 import { Response } from 'express'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorageService } from '../storage/storage.service'
-import { generateDatevBuchungsstapel, buildBuchungenFromDb, encodeDatevCsv } from '../reports/datev.service'
+import { generateDatevBuchungsstapel, buildBuchungenFromDb, encodeDatevCsv, openingBalancesYearOf } from '../reports/datev.service'
 import * as archiver from 'archiver'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -565,6 +565,7 @@ export class GobdArchiveService {
       buchungsLaufNr:
         (company as any).settings?.datev?.laufNr?.[yearStart.getFullYear()] || 1,
       openingBalances: (company as any).settings?.datev?.openingBalances || [],
+      openingBalancesYear: await openingBalancesYearOf(this.prisma, company.id, (company as any).settings), // Tier 966
     })
   }
 
