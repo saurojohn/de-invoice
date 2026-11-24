@@ -998,7 +998,15 @@ export class RecurringService {
       // the run was skipped. Kept, underscored, rather than deleted: the
       // variable is the only remaining trace of the intended behaviour.
       let _skipRunId: string | null = null
-      if (tpl.endDate && tpl.nextRunAt > new Date(tpl.endDate)) {
+      // Tier 977: the end date ends the time billed, not the run dates. Billed
+      // in arrears ('previous'), the run on the 1st bills the month before —
+      // compared with the run date, the run after the last day was skipped and
+      // the last period never billed (one month, 01.–30.11., run on 01.12.:
+      // switched off, no invoice).
+      const billedFrom = tpl.servicePeriod === 'previous'
+        ? this.advanceTo(periodStart, tpl.interval as RecurringInterval, -tpl.intervalCount, tpl.dayOfMonth)
+        : periodStart
+      if (tpl.endDate && billedFrom > new Date(tpl.endDate)) {
         await tx.recurringInvoice.update({
           where: { id: templateId },
           data: { isActive: false },

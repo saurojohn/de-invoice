@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 977 — a template billed in arrears bills its last period
+
+- **Measured (team round 4):** billed in arrears („previous“), the run on the 1st bills the month before, but the end date was compared with the run date: a one-month template (01.–30.11.) ran on 01.12., was past its end, skipped and switched off — the month never billed; every template in arrears lost its last period.
+- `runOne`: the end date is compared with the start of the period the run bills.
+- **Open (team round 4, medium):** billed in advance, the last period runs past an end date inside it (no pro rata); changing the billing day can move `nextRunAt` back into a billed period.
+- **Spec 664.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 976 — pain.001.001.09 as the bank's schema check reads it
 
 - **Measured (team round 4):** the credit-transfer file carried `E2E-<uuid>` (40 characters; Max35Text), `<BIC>` (in .001.09 `<BICFI>`), a bare date in `<ReqdExctnDt>` (in .09 a `<Dt>` inside) and names in full (Max70Text) — the bank rejects the whole file while the bills were marked paid on the execution day.
