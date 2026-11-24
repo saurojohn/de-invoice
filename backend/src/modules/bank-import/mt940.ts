@@ -129,10 +129,15 @@ function parseStatementLine(line: string): ParsedTransaction | null {
   const amountAbs = Number(amountStr)
   if (!Number.isFinite(amountAbs)) return null
   cursor += amountMatch[0].length
-  // Sign: a leading "C" or "RC" (reversal of credit)
-  // means incoming (positive); "D" or "RD" means
-  // outgoing (negative).
-  const isCredit = markMatch[0].startsWith('C') || markMatch[0].startsWith('RC')
+  // Sign (SWIFT MT940 :61: subfield 3): C credit, D debit; RC is the
+  // reversal of a credit (Storno Haben — the money goes out), RD the reversal
+  // of a debit (Storno Soll — it comes back). Tier 971: RC was read as a
+  // credit and RD as a debit — a returned transfer a second receipt (to match
+  // an open invoice with), a Rücklastschrift a second payment; a statement of
+  // C 200, RC 200, D 50, RD 50 summed to +300 instead of 0.
+  const mark = markMatch[0].toUpperCase()
+  // (EC / ED: an expected credit / debit, MT942)
+  const isCredit = mark === 'C' || mark === 'CD' || mark === 'RD' || mark === 'EC'
   const amount = (isCredit ? 1 : -1) * amountAbs
   // MT940 does NOT embed currency in :61: — the
   // currency is in the statement header (:60F:/:62F:).

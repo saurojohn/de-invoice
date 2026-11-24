@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 971 — MT940: RC and RD are reversals
+
+- **Measured (team round 4):** SWIFT MT940 `:61:` mark RC (reversal of a credit: money out) was read as a credit and RD (reversal of a debit: money in) as a debit. Opening 1 000, C 200, RC 200, D 50, RD 50, closing 1 000: credits 400, debits 100, „mismatch“; a returned transfer was a second receipt to match an invoice with.
+- `mt940.ts`: credit for C, CD, RD, EC.
+- **Spec 658.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 738b — the import preview no longer waits for the validator; CI for Tiers 737–738
 
 Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped** (456, 457, 458 among them); Playwright 1106 passed, **1 failed**: `e-invoice-import-tier573.spec.ts` „an XML picked through Scan hochladen is read as an invoice" — `einvoice-gross` not there within 5 s, three times. Tier 738 had the preview run the KoSIT validator before answering: a Java process of a few seconds locally, longer on the CI runner — and on a small server, for every file a user drops. The page showed „Wird gelesen …" for that long.
