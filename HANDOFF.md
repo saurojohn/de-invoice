@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 995 — a direct-debit batch collects today at the earliest
+
+- **Measured:** as the credit-transfer batch before Tier 982 (left open there): a pain.008 dated 30 days back was accepted — the file asked the bank to collect in the past (ReqdColltnDt), the pre-notification deadline lay before the batch was made.
+- `DirectDebitService` (batch creation): a collection date before today (Berlin) is refused.
+- Spec 137 was built on fixed summer dates (01.08., 25.07. with the B2B deadline 24.07., 15.08.): they are now 20 / 10 / 30 days ahead, the B2B deadline computed from its date.
+- **Spec 682:** on the Tier 994 code 3 assertions fail; the direct-debit / mandate specs, the guards and the direct-debit Playwright spec (10) pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 994 — the 10 000 € threshold of § 3c UStG is shown
 
 - **Measured (team round 4):** a company outside the OSS sold to a consumer in Paris for 5 000 € net three times in the year at 19 % (German tax): 15 000 € — the OSS report said invoiceCount 0 / excludedGermanRate 3, no sum, no threshold; the deadlines showed nothing (the „oss-check“ note only when the quarter had sales at another state's rate). § 3c Abs. 4 UStG: German tax on such sales holds while they stayed at or below 10 000 € in the previous year and have not passed it in this one.

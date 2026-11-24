@@ -1,3 +1,4 @@
+import { businessTodayIso } from '../../common/business-date'
 import { sepaEndToEndId } from './sepa-text'
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
 import { withKeyLock } from '../../common/key-lock'
@@ -280,6 +281,14 @@ export class DirectDebitService {
     }
     if (!params.executionDate || !/^\d{4}-\d{2}-\d{2}$/.test(params.executionDate)) {
       throw new BadRequestException('executionDate ist ungültig (YYYY-MM-DD)')
+    }
+    // Tier 995: today at the earliest — as a credit transfer (Tier 982). A
+    // pain.008 dated weeks back asked the bank to collect in the past, its
+    // pre-notification deadline before the batch was made.
+    if (params.executionDate < businessTodayIso()) {
+      throw new BadRequestException(
+        'Das Fälligkeitsdatum der Lastschrift liegt in der Vergangenheit — die Bank zieht frühestens heute ein (bei CORE nach Vorabankündigung). Bitte ein späteres Datum wählen.',
+      )
     }
 
     const company = await this.prisma.company.findUnique({

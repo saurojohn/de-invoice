@@ -283,7 +283,9 @@ MANDATE_ID=$(json_field "$BODY" "id")
 # ───── 5. Batch generation ─────
 echo
 note "=== 5. Batch generation (CORE, 2 invoices) ==="
-EXEC_DATE="2026-08-01"
+EXEC_DATE=$(python3 -c "import datetime;print((datetime.date.today()+datetime.timedelta(days=20)).isoformat())") # Tier 995: today at the earliest
+B2B_EXEC=$(python3 -c "import datetime;print((datetime.date.today()+datetime.timedelta(days=10)).isoformat())")
+LATER_EXEC=$(python3 -c "import datetime;print((datetime.date.today()+datetime.timedelta(days=30)).isoformat())")
 COLLECTIONS=$(python3 -c "
 import json
 print(json.dumps([
@@ -462,7 +464,7 @@ api_post "/api/v1/payments/direct-debit/batches" \
   "{
     \"companyId\": \"$COMPANY_ID\",
     \"collections\": [{\"invoiceId\":\"$B2B_INV_ID\",\"mandateId\":\"$B2B_MANDATE_ID\"}],
-    \"executionDate\": \"2026-07-25\",
+    \"executionDate\": \"$B2B_EXEC\",
     \"type\": \"B2B\",
     \"notes\": \"$PREFIX B2B batch\"
   }"
@@ -487,7 +489,7 @@ assert_eq "B2B batch XML LclInstrm" "$B2B_LCL" "B2B"
 # Verify the B2B collection's pre-notification deadline is executionDate - 1 day
 DEADLINE_B2B=$(docker exec -i "$PG_CONTAINER" psql -U de_invoice -d de_invoice -t -A -c \
   "SELECT \"preNotificationDeadline\"::date FROM \"SepaDirectDebitCollection\" WHERE \"batchId\" = '$B2B_BATCH_ID' LIMIT 1")
-EXPECTED_B2B_DEADLINE="2026-07-24"  # 2026-07-25 - 1 day
+EXPECTED_B2B_DEADLINE=$(python3 -c "import datetime,sys;print(datetime.date.fromisoformat(sys.argv[1])-datetime.timedelta(days=1))" "$B2B_EXEC")  # execDate - 1 day
 assert_eq "B2B pre-notif deadline (execDate - 1)" "$DEADLINE_B2B" "$EXPECTED_B2B_DEADLINE"
 
 # ───── 9. Validation errors ─────
@@ -632,7 +634,7 @@ api_post "/api/v1/payments/direct-debit/batches" \
   "{
     \"companyId\": \"$COMPANY_ID\",
     \"collections\": [{\"invoiceId\":\"$REV_INV_ID\",\"mandateId\":\"$REVOKED_MANDATE_ID\"}],
-    \"executionDate\": \"2026-08-15\"
+    \"executionDate\": \"$LATER_EXEC\"
   }"
 assert_status "400" "revoked mandate → 400"
 
@@ -667,7 +669,7 @@ api_post "/api/v1/payments/direct-debit/batches" \
   "{
     \"companyId\": \"$COMPANY_ID\",
     \"collections\": [{\"invoiceId\":\"$REV_INV_ID\",\"mandateId\":\"$K2_MANDATE_ID\"}],
-    \"executionDate\": \"2026-08-15\"
+    \"executionDate\": \"$LATER_EXEC\"
   }"
 assert_status "400" "mismatched mandate → 400"
 
