@@ -69,6 +69,9 @@ assert_eq "totalDue = 690 + 5 + interest" "$(P "'%.2f' % d['totalDue']")" "$(pyt
 
 note "=== 2. a consumer: Basiszinssatz + 5 ==="
 I=$(overdue individual)
+# Tier 993: a consumer is in default from the first reminder (§ 286 Abs. 1 BGB) —
+# here one went out on the due date, so the interest runs from the day after it
+docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -qAtc "insert into \"Mahnung\" (id, \"companyId\", \"invoiceId\", level, \"daysOverdue\", \"neueFrist\", \"totalDue\", \"recipientEmail\", \"sentAt\", \"createdAt\") values (gen_random_uuid()::text, '$C', '$I', 'first', 0, '$DUE', 0, 'individual-$TAG@example.test', '$DUE', '$DUE')" >/dev/null
 AS GET "/api/v1/reminders/mahnungen/fees-preview?companyId=$C&invoiceId=$I&level=second"
 IFS='|' read -r EXP_I RATE_I <<<"$(expected 5)"
 assert_eq "rate = Basiszinssatz + 5 (§ 288 Abs. 1; was a flat 9)" "$(P "'%.2f' % d['verzugszinsPct']")" "$RATE_I"

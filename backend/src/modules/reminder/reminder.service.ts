@@ -960,12 +960,23 @@ Mit freundlichen Grüßen,
     const surcharge = consumer
       ? Math.min(cfg.verzugszinsPct as number, 5)
       : (cfg.verzugszinsPct as number);
-    const paid = invoiceId && dueDate
+    // Tier 993: a consumer is in default through a reminder (§ 286 Abs. 1
+    // BGB) — the due date an invoice sets on its own is no agreed calendar
+    // date (Abs. 2 Nr. 1), and the invoices carry no notice of Abs. 3 Satz 1
+    // Hs. 2. Interest runs from the day after the first reminder went out;
+    // the Zahlungserinnerung itself asks none. Measured: 34,31 € on the first
+    // reminder to a private customer, counted from the due date.
+    let interestFrom: Date | null = dueDate ? new Date(dueDate) : null
+    if (consumer && invoiceId && interestFrom) {
+      const reminded = await this.prisma.mahnung.findFirst({ where: { invoiceId }, orderBy: { sentAt: 'asc' }, select: { sentAt: true } })
+      interestFrom = reminded ? (reminded.sentAt > interestFrom ? new Date(reminded.sentAt) : interestFrom) : null
+    }
+    const paid = invoiceId && interestFrom
       ? (await this.prisma.payment.findMany({ where: { invoiceId }, select: { paymentDate: true, amount: true } }))
           .map((p) => ({ date: p.paymentDate, amount: Number(p.amount) }))
       : []
-    const interest = dueDate
-      ? verzugszinsen(principalGross, new Date(dueDate), new Date(), surcharge, paid)
+    const interest = interestFrom
+      ? verzugszinsen(principalGross, interestFrom, new Date(), surcharge, paid)
       : { amount: 0, currentRate: 0, currentBasiszinssatz: 0, days: 0 };
     const verzugszins = interest.amount;
     const mahngebuehrRounded = Math.round(mahngebuehr * 100) / 100;

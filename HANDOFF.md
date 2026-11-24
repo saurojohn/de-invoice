@@ -2662,6 +2662,15 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 993 — a consumer owes Verzugszinsen from the reminder on, not from the due date
+
+- **Measured (team round 4):** the Zahlungserinnerung to a private customer (1 190 €, due 15.06.) asked 34,31 € interest from the due date; the later levels counted from the due date as well. A consumer is in default through a Mahnung (§ 286 Abs. 1 BGB): a due date the invoice sets on its own is no agreed calendar date (Abs. 2 Nr. 1), and the invoices carry no notice of Abs. 3 Satz 1 Hs. 2. (The service's own Tier 682 comment already said the first reminder is what puts the customer in default.)
+- `computeFees`: for a consumer, interest runs from the day after the first reminder sent for the invoice; without one there is none (the Zahlungserinnerung asks none).
+- Spec 210 checked the consumer rate on an invoice never reminded: it now records a reminder sent on the due date first.
+- **Open (accounting):** a business customer is still charged from the due date. § 286 Abs. 3 BGB puts it in default 30 days after due date and receipt at the latest, earlier only by reminder or an agreed date — whether the company's terms agree the due date is not known to the program; left as it is.
+- Local note: spec 65 leaves the seed company's Mahngebühr at 2,50 / 3 €, which fails Playwright mahnung-fees-preview-tier164 when run locally after it (CI seeds fresh); reset with PUT fees-config 0 / 5 / 10.
+- **Spec 680:** on the Tier 992 code 3 assertions fail; the dunning specs and the guards pass (91), the dunning Playwright specs pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 992 — Verzugszinsen accrue on what was owed each day
 
 - **Measured (team round 4):** the interest was computed on today's open balance for the whole time since the due date: 11 900 €, overdue since June, 10 000 € paid on 20.11. — the preview asked the interest on 1 900 € for all 162 days (88,52 €) and dropped the 454,36 € the 10 000 € had accrued before they were paid (§ 288 BGB: the interest runs on the debt as it stands each day).
