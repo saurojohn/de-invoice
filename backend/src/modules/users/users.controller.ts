@@ -160,6 +160,7 @@ export class UsersController {
       console.error(`Failed to email invitation to ${inv.email}: ${(err as Error).message}`);
     }
 
+    await this.users.auditAccess(companyId, req.user.id, 'invitation.created', inv.id, { email: inv.email, role: inv.role }); // Tier 969
     return {
       id: inv.id,
       email: inv.email,
@@ -196,6 +197,7 @@ export class UsersController {
       await this.users.restoreInvitationToken(inv.id, inv.previous);
       throw new BadGatewayException(`Die Einladung konnte nicht versendet werden (${(err as Error).message}) — der bisherige Link gilt weiter.`);
     }
+    await this.users.auditAccess(companyId, req.user?.id ?? null, 'invitation.resent', inv.id, { email: inv.email, role: inv.role }); // Tier 969
     return { id: inv.id, email: inv.email, role: inv.role, expiresAt: inv.expiresAt };
   }
 
@@ -251,6 +253,7 @@ export class UsersController {
     if (!companyId) throw new BadRequestException('companyId is required');
     UsersService.requireRole(req.user?.role, 'users.invite');
     await this.users.cancelInvitation(companyId, id);
+    await this.users.auditAccess(companyId, req.user?.id ?? null, 'invitation.cancelled', id, {}); // Tier 969
     return { ok: true };
   }
 
@@ -304,7 +307,10 @@ export class UsersController {
     if (body.status !== 'active' && body.status !== 'inactive') {
       throw new BadRequestException('status muss "active" oder "inactive" sein');
     }
-    return this.users.setStatus(companyId, id, body.status);
+    const user = await this.users.setStatus(companyId, id, body.status);
+    // Tier 969: deactivated / reactivated, by whom
+    await this.users.auditAccess(companyId, req.user?.id ?? null, body.status === 'inactive' ? 'user.deactivated' : 'user.reactivated', id, { email: user.email });
+    return user;
   }
 }
 
@@ -352,6 +358,8 @@ export class InvitationsController {
       throw new BadRequestException('token und password sind erforderlich');
     }
     const result = await this.users.acceptInvitation(body.token, body.password);
+    // Tier 969: the membership's row had no actor — the new member let himself in with the link
+    await this.users.auditAccess(result.companyId, result.user.id, 'invitation.accepted', result.user.id, { email: result.user.email, role: result.user.role });
     // Tier 401: accepting an invitation auto-logs the member in, so it mints a
     // session too — the same reasoning as /auth/register.
     const session = await this.sessions.issue(res, result.user.id, req);

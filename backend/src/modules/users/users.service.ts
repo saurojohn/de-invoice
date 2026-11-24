@@ -594,6 +594,11 @@ export class UsersService {
       include: { company: { select: { id: true, name: true, closedAt: true } } },
     });
     if (!c || c.acceptedAt || c.expiresAt <= new Date() || c.company?.closedAt) return null;
+    // Tier 969: only while the one who sent it may still invite — an admin
+    // deactivated or demoted left his invitations open, and an admin
+    // invitation sent before the removal still made its holder an admin
+    // (GoBD Rz. 100 ff.: the access rights as the internal control system)
+    if (!(await this.issuerMayInvite(c.companyId, c.createdById))) return null;
     return {
       id: c.id,
       email: c.email,
@@ -603,6 +608,28 @@ export class UsersService {
       expiresAt: c.expiresAt,
       accessUntil: c.accessUntil, // Tier 744
     };
+  }
+
+  /** Tier 969: the invitation's sender is active and still has the right to invite in its company. */
+  private async issuerMayInvite(companyId: string, issuerId: string | null): Promise<boolean> {
+    if (!issuerId) return false;
+    const [user, membership] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: issuerId }, select: { status: true, role: true, companyId: true } }),
+      this.prisma.userCompany.findUnique({ where: { userId_companyId: { userId: issuerId, companyId } }, select: { role: true } }),
+    ]);
+    if (!user || user.status !== 'active') return false;
+    const role = membership?.role ?? (user.companyId === companyId ? user.role : null);
+    return UsersService.can(role, 'users.invite');
+  }
+
+  /**
+   * Tier 969 — who let whom in or out: written to the company's audit trail
+   * with the acting user. Inviting, resending (a new link), cancelling,
+   * deactivating and reactivating a member left no row (only role changes,
+   * through UserCompany); nobody could say later who gave or took access.
+   */
+  async auditAccess(companyId: string, actorId: string | null, action: string, entityId: string, metadata: Record<string, unknown>) {
+    await this.audit.writeActivity({ companyId, userId: actorId, action, entityType: 'UserAccess', entityId, metadata });
   }
 
   /**

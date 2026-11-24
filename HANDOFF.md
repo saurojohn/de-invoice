@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 969 — giving and taking access: the inviter's standing, the audit trail
+
+- **Measured (team round 3):** an admin deactivated left his open invitations valid — one he had sent as admin still made its holder an admin (who then read GET /users). Inviting, resending, cancelling, deactivating and reactivating a member left no audit row (only role changes, through UserCompany); the accepted membership had no actor.
+- `verifyInvitationToken` (used by verify and accept): the invitation holds only while its sender is active and may still invite in its company (`issuerMayInvite`). `auditAccess` writes `invitation.created / resent / cancelled / accepted`, `user.deactivated / reactivated` (entityType `UserAccess`) with the acting user.
+- **Open, waits for the owner:** a tax adviser's login for several Mandanten — an invitation to an address that has an account is refused („existiert bereits“); `/users/me/switch-company` has no way to a second company. Whether one login per adviser for many Mandanten is wanted (then: inviting an existing account adds a membership he accepts after login) is a product decision.
+- **Spec 656:** on the Tier 968 code 2 assertions fail; the user / invitation / audit specs and the guards pass (85).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 968 — a foreign-currency final invoice in the UStVA
 
 - **Measured (team round 3):** Soll; a USD Proforma of 10 000 + 19 % at 1,25, 5 950 USD received (UStVA September 4 000 / 760 €); the final invoice at 1,10. The UStVA declared the whole delivery at 1,10 (9 090,91 €) and took the advance off at the Proforma's 1,25 (4 000 €): November 5 090,91 €, 545,45 € / 103,63 € too much; the EÜR (4 000 + 4 545,45) disagreed.
