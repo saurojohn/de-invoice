@@ -1713,7 +1713,8 @@
     "customerLabel": "Customer",
     "nameLabel": "Name",
     "startDateLabel": "Start date",
-    "unbilledNotice": "This template does not bill the time from {from} to {until} — its first invoice is made on {first}. Please invoice earlier periods separately, with their service period."
+    "unbilledNotice": "This template does not bill the time from {from} to {until} — its first invoice is made on {first}. Please invoice earlier periods separately, with their service period.",
+    "unbilledGapNotice": "After this change the template does not bill {from} to {until} — the time before is already billed; the next invoice is made on {first}. Please invoice these days separately, with their service period."
   },
   "reminder": {
     "ofInvoiceTotal": "of {total} invoiced",

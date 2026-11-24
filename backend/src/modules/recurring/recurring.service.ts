@@ -646,6 +646,24 @@ export class RecurringService {
       ) // Tier 535, Tier 800
     }
 
+    // Tier 981: a new schedule continues after what was billed. Recomputed
+    // from the start date and today only, a billing day moved from the 24th
+    // to the 1st billed 01.12.–31.12. after 24.11.–23.12. had been billed (23
+    // days on two invoices, § 14c Abs. 1 UStG); switched from in advance to
+    // in arrears, the next run billed the month just billed once more. The
+    // next run is the first whose period begins after the last one billed —
+    // the days between, if any, are named in the answer (`unbilled`).
+    const servicePeriod = patch.servicePeriod ?? existing.servicePeriod
+    let unbilled: { from: string; until: string; firstRun: string } | null = null
+    if (nextRunAt || (patch.servicePeriod && patch.servicePeriod !== existing.servicePeriod)) {
+      const base = nextRunAt ?? new Date(existing.nextRunAt)
+      const after = await this.afterLastBilled(id, { servicePeriod, interval, intervalCount, dayOfMonth }, base)
+      if (after) {
+        if (after.next.getTime() !== new Date(existing.nextRunAt).getTime() || nextRunAt) nextRunAt = after.next
+        unbilled = after.gap
+      }
+    }
+
     // Tier 519: switched on again, or a running pause lifted early — the
     // dates that passed meanwhile are not billed afterwards; the next run is
     // the first one from today on.
@@ -692,7 +710,44 @@ export class RecurringService {
         } : undefined,
       },
       include: { items: true, customer: { select: { id: true, name: true } } },
-    }).then((r) => ({ ...r, status: deriveRecurringStatus(r) }))
+    }).then((r) => ({ ...r, status: deriveRecurringStatus(r), unbilled }))
+  }
+
+  /**
+   * Tier 981 — the first run on the schedule `tpl`, from `next` on, whose
+   * period begins after the last period this template billed (the service
+   * period of its last run's invoice; without one, the run's period). Null
+   * when nothing was billed yet. `gap`: the days between, when the new
+   * schedule leaves some.
+   */
+  private async afterLastBilled(
+    templateId: string,
+    tpl: { servicePeriod?: string | null; interval: RecurringInterval; intervalCount: number; dayOfMonth: number },
+    next: Date,
+  ): Promise<{ next: Date; gap: { from: string; until: string; firstRun: string } | null } | null> {
+    const last = await this.prisma.recurringRun.findFirst({
+      where: { recurringInvoiceId: templateId, status: 'success' },
+      orderBy: { periodStart: 'desc' },
+      select: { periodEnd: true, invoice: { select: { servicePeriodEnd: true } } },
+    })
+    if (!last) return null
+    const day = 86400000
+    const billedUntil = last.invoice?.servicePeriodEnd
+      ? new Date(last.invoice.servicePeriodEnd)
+      : new Date(new Date(last.periodEnd).getTime() - day)
+    billedUntil.setUTCHours(0, 0, 0, 0)
+    const billedFrom = (d: Date) =>
+      this.servicePeriodFor(tpl, d, this.advanceTo(d, tpl.interval, tpl.intervalCount, tpl.dayOfMonth)).servicePeriodStart ?? d
+    let d = new Date(next)
+    for (let i = 0; i < 400 && billedFrom(d).getTime() <= billedUntil.getTime(); i++) {
+      d = this.advanceTo(d, tpl.interval, tpl.intervalCount, tpl.dayOfMonth)
+    }
+    const from = billedFrom(d)
+    const iso = (x: Date) => x.toISOString().slice(0, 10)
+    const gap = from.getTime() - billedUntil.getTime() > day
+      ? { from: iso(new Date(billedUntil.getTime() + day)), until: iso(new Date(from.getTime() - day)), firstRun: iso(d) }
+      : null
+    return { next: d, gap }
   }
 
   async delete(companyId: string, id: string) {

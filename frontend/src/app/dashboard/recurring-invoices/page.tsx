@@ -476,7 +476,20 @@ export default function RecurringInvoicesPage() {
         items,
       }
       if (editing) {
-        await apiPut(`/api/v1/recurring-invoices/${editing.id}?companyId=${companyId}`, body)
+        const saved = await apiPut<{ unbilled?: { from: string; until: string; firstRun: string } | null }>(
+          `/api/v1/recurring-invoices/${editing.id}?companyId=${companyId}`,
+          body,
+        )
+        // Tier 981: a new schedule continues after what was billed — days it skips are named
+        if (saved?.unbilled) {
+          toast.warn(
+            t("recurring.unbilledGapNotice")
+              .replace("{from}", fmtDate(saved.unbilled.from, getDateLocale()))
+              .replace("{until}", fmtDate(saved.unbilled.until, getDateLocale()))
+              .replace("{first}", fmtDate(saved.unbilled.firstRun, getDateLocale())),
+            20_000,
+          )
+        }
       } else {
         const created = await apiPost<{ unbilled?: { from: string; until: string; firstRun: string } | null }>(
           `/api/v1/recurring-invoices?companyId=${companyId}`,

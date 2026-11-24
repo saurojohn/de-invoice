@@ -1713,7 +1713,8 @@
     "customerLabel": "客户",
     "nameLabel": "名称",
     "startDateLabel": "开始日期",
-    "unbilledNotice": "此模板不会为 {from} 至 {until} 这段时间开票——第一张发票在 {first} 生成。之前的期间请单独开票并注明服务期间。"
+    "unbilledNotice": "此模板不会为 {from} 至 {until} 这段时间开票——第一张发票在 {first} 生成。之前的期间请单独开票并注明服务期间。",
+    "unbilledGapNotice": "修改后，此模板不会为 {from} 至 {until} 开票——此前的期间已开过票；下一张发票在 {first} 生成。请为这几天单独开票并注明服务期间。"
   },
   "reminder": {
     "ofInvoiceTotal": "发票金额 {total}",

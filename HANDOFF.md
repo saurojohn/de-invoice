@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 981 — a new billing day continues after what was billed
+
+- **Measured (team round 4):** changing a template's billing day, start, interval or service period recomputed the next run from the start date and today only. Monthly, in advance, on the 24th: 24.11.–23.12. billed; the billing day set to the 1st made the next run 01.12. for 01.12.–31.12. — 23 days on two invoices (§ 14c Abs. 1 UStG). Switched from in advance to in arrears, the next run billed the month just billed once more. The edit form sends every field, so any save of such a template moved the date.
+- `update()`: the next run is the first on the new schedule whose billed period begins after the last one billed (`afterLastBilled`: the last successful run's invoice service period, else the run's period). Days the new schedule leaves out come back as `unbilled` {from, until, firstRun}; the form shows them (`recurring.unbilledGapNotice`, de/en/zh), as for a start in the past (Tier 881).
+- **Open (team round 4, medium):** billed in advance, the last period runs past an end date inside it (no pro rata) — whether to bill the part period pro rata is the owner's pricing decision.
+- **Spec 668:** on the Tier 980 code 3 assertions fail; the recurring specs (59) and the recurring Playwright specs (41) pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 980 — the XRechnung and the PDF state the agreed unit price
 
 - **Measured (team round 4):** UBL wrote quantity (BT-129) and unit price (BT-146) with two decimals: 1 000 kWh × 0,1234 € = 123,40 € went out as 1000.00 × 0.12, 0,125 h × 80 € as 0.13 × 80 — KoSIT REJECT (PEPPOL-EN16931-R120) while the basic check said valid; the CII carried four decimals. The PDF printed „0,12 €“ per kWh.

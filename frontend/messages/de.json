@@ -1713,7 +1713,8 @@
     "customerLabel": "Kunde",
     "nameLabel": "Name",
     "startDateLabel": "Startdatum",
-    "unbilledNotice": "Die Zeit vom {from} bis {until} wird von dieser Vorlage nicht berechnet — die erste Rechnung entsteht am {first}. Frühere Zeiträume bitte als eigene Rechnung mit Leistungszeitraum erstellen."
+    "unbilledNotice": "Die Zeit vom {from} bis {until} wird von dieser Vorlage nicht berechnet — die erste Rechnung entsteht am {first}. Frühere Zeiträume bitte als eigene Rechnung mit Leistungszeitraum erstellen.",
+    "unbilledGapNotice": "Nach der Änderung berechnet die Vorlage die Zeit vom {from} bis {until} nicht — was davor lag, ist schon berechnet; die nächste Rechnung entsteht am {first}. Diese Tage bitte als eigene Rechnung mit Leistungszeitraum erstellen."
   },
   "reminder": {
     "ofInvoiceTotal": "von {total} Rechnungsbetrag",
