@@ -140,6 +140,18 @@ export async function z3Tables(prisma: PrismaService, companyId: string, from: D
     include: { invoice: { select: { invoiceNumber: true } } },
   })
   const cash = await prisma.cashBookEntry.findMany({ where: { companyId, businessDate: inPeriod }, orderBy: [{ businessDate: 'asc' }, { createdAt: 'asc' }] })
+  // Tier 987: what the Rechnungen table names beside the stored figures
+  const customerName = new Map(customers.map((c) => [c.id, c.name]))
+  const refIds = [...new Set(invoices.map((i) => i.referenceInvoiceId).filter((x): x is string => !!x))]
+  const referenceNumber = new Map(
+    (refIds.length ? await prisma.invoice.findMany({ where: { companyId, id: { in: refIds } }, select: { id: true, invoiceNumber: true } }) : [])
+      .map((r) => [r.id, r.invoiceNumber]),
+  )
+  const discountOf = (i: { subtotal: unknown; discountAmount?: unknown; discountPercent?: unknown }) => {
+    if (i.discountAmount != null && Number(i.discountAmount) !== 0) return Math.round(Number(i.discountAmount) * 100) / 100
+    const pct = Number(i.discountPercent ?? 0)
+    return pct ? Math.round(Number(i.subtotal) * pct) / 100 : 0
+  }
   const address = (a: unknown) => {
     const x = (a ?? {}) as { street?: string; postalCode?: string; city?: string; country?: string }
     return [x.street, [x.postalCode, x.city].filter(Boolean).join(' '), x.country].filter(Boolean).join(', ')
@@ -189,14 +201,27 @@ export async function z3Tables(prisma: PrismaService, companyId: string, from: D
       name: 'Rechnungen',
       description: 'Ausgestellte Dokumente des Zeitraums: Rechnungen, Gutschriften und andere Belegarten',
       keys: [text('Rechnungsnummer')],
+      // Tier 987: appended — the discount and the Entgelt after it (Netto_nach_Rabatt
+      // + Umsatzsteuer = Brutto; „Netto“ is the sum of the lines, before the
+      // discount), the date / period of supply (§ 14 Abs. 4 Nr. 6 UStG) and the
+      // invoice a credit note corrects; a credit note's Kunde was empty
       columns: [
         text('Belegart'), text('Status'), date('Rechnungsdatum'), date('Faellig'), text('Kunden_ID'), text('Kunde'),
-        money('Netto'), money('Umsatzsteuer'), money('Brutto'), text('Waehrung'), num4('Kurs', 'Umrechnungskurs'),
+        money('Netto', 'Summe der Positionen vor Rabatt'), money('Umsatzsteuer'), money('Brutto'), text('Waehrung'), num4('Kurs', 'Umrechnungskurs'),
+        money('Rabatt', 'Rabatt auf die Rechnung'), money('Netto_nach_Rabatt', 'Entgelt (§ 10 UStG): Netto abzüglich Rabatt'),
+        date('Leistungsdatum'), date('Leistung_von', 'Leistungszeitraum Beginn'), date('Leistung_bis', 'Leistungszeitraum Ende'),
+        text('Bezugsrechnung', 'Rechnung, die eine Gutschrift oder Stornorechnung korrigiert'),
       ],
-      rows: invoices.map((i) => [
-        i.invoiceNumber, i.type, i.status, i.issueDate, i.dueDate, i.customerId, i.customerName,
-        i.subtotal, i.totalVat, i.total, i.currency, i.exchangeRate,
-      ]),
+      rows: invoices.map((i) => {
+        const discount = discountOf(i)
+        return [
+          i.invoiceNumber, i.type, i.status, i.issueDate, i.dueDate, i.customerId, i.customerName || customerName.get(i.customerId) || '',
+          i.subtotal, i.totalVat, i.total, i.currency, i.exchangeRate,
+          discount, Math.round((Number(i.subtotal) - discount) * 100) / 100,
+          i.deliveryDate, i.servicePeriodStart, i.servicePeriodEnd,
+          i.referenceInvoiceId ? referenceNumber.get(i.referenceInvoiceId) ?? '' : '',
+        ]
+      }),
     },
     {
       file: 'rechnungspositionen.csv',

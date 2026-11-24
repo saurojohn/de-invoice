@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 987 — the Z3 table „Rechnungen“ lets the auditor reproduce the tax base
+
+- **Measured (team round 4):** an invoice with 10 % discount (100 € at 19 % + 50 € at 7 %): rechnungen.csv said Netto 150,00 / USt 20,25 / Brutto 155,25 — 150 + 20,25 ≠ 155,25, the 15,00 discount and the Entgelt of 135,00 (§ 10 UStG) in no column; a credit note's Kunde was empty (`customerName` is not set on credit notes); no date of supply (§ 14 Abs. 4 Nr. 6 UStG) and no reference of a credit note to its invoice. § 147 Abs. 6 AO, GoBD Rz. 158 ff.
+- `z3-dataset.ts`: columns appended (those before keep their place): Rabatt, Netto_nach_Rabatt, Leistungsdatum, Leistung_von, Leistung_bis, Bezugsrechnung; Kunde falls back to the customer's name; „Netto“ is described as the sum of the lines before the discount.
+- **Spec 674:** on the Tier 986 code 3 assertions fail; the GoBD / Z3 specs and the guards pass (62).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 986 — a § 13b e-invoice names the buyer (BT-48 or BT-47)
 
 - **Measured (team round 4):** EN 16931 BR-AE-02 — an invoice with VAT category AE carries the buyer's VAT id (BT-48) or legal registration id (BT-47). A domestic § 13b recipient often has only a Steuernummer / Handelsregisternummer, and the customer had no field for it: a Bauleistung to „Bau Ohne UStId GmbH“ was issued, its XRechnung REJECTED by KoSIT while the built-in check said valid, and the rejected file kept as the archived original (§ 14 Abs. 1 Satz 3 UStG). § 14a Abs. 5 UStG asks no USt-IdNr. of a domestic recipient, so the USt-IdNr. is not required — one of the two is.
