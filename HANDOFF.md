@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 990 — a FinTS sync that brings nothing new makes no statement
+
+- **Measured (team round 4):** demo connection, TAN, then three more syncs with nothing new: four BankStatement rows (3, 0, 0, 0 transactions), all listed. The 4-hour cron (`autoSyncAllActive`) takes the same path: about six empty „Kontoauszüge“ per account per day in the list the user and the Prüfer work through.
+- `persistTransactions`: the transactions already there (by EndToEndId, as before) are sorted out first; with nothing new no statement is created.
+- Spec 677 deletes its demo connection on exit — spec 32 counts every active connection (a probe's leftover broke it once).
+- **Spec 677:** on the Tier 989 code it fails (4 statements); the FinTS / bank specs and the guards pass (76).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 989 — after a Storno of the opening balance, the right one can be booked
 
 - **Measured (team round 4):** opening balance 5 000 € (a typo), reversed: the new opening balance of 500 € was refused — „Es existiert bereits ein Eröffnungs-Eintrag. Für eine Korrektur buchen Sie eine Storno-Buchung.“ — the Storno it asks for had been booked. The right Anfangsbestand could only go in as an Einnahme.

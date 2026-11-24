@@ -733,6 +733,17 @@ export class FinTsService {
       ? `FinTS-Bank ${conn.blz}` // Real banks set the actual name in rawContent
       : `Mock-Bank ${conn.blz}`
 
+    // Tier 990: only what is new — a sync that brought nothing new made an
+    // empty statement each time (the 4-hour cron: six a day per account)
+    const fresh: typeof txs = []
+    for (const tx of txs) {
+      const endToEndId = (tx as any).endToEndId ?? null
+      if (endToEndId && (await this.prisma.bankTransaction.findFirst({ where: { companyId: conn.companyId, endToEndId }, select: { id: true } }))) continue
+      fresh.push(tx)
+    }
+    if (!fresh.length) return 0
+    txs = fresh
+
     const stmt = await this.prisma.bankStatement.create({
       data: {
         companyId: conn.companyId,
