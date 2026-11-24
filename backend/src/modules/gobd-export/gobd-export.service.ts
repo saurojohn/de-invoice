@@ -1,4 +1,4 @@
-import { ensureIssuedCopies } from '../invoice/invoice-document'
+import { ensureIssuedCopies, xrechnungPathOf } from '../invoice/invoice-document'
 import { businessTodayIso } from '../../common/business-date'
 import { NON_FISCAL_TYPES } from '../invoice/document-scope'
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
@@ -474,6 +474,13 @@ export class GobdExportService {
           { isSigned, signedBy, certFingerprint: certFp },
         )
       }
+      // Tier 979: the XRechnung kept with it (invoice-document.ts, Tier 686) —
+      // for an e-invoice the XML is the original (§ 14 Abs. 1 Satz 3 UStG,
+      // GoBD Rz. 131); the archive held the PDF only.
+      if (inv.pdfPath) {
+        const xml = await this.storageService.getFile(xrechnungPathOf(inv.pdfPath)).catch(() => null)
+        if (xml?.buffer) await appendFile(`${subdir}/${baseName}.xrechnung.xml`, xml.buffer, 'application/xml', { isSigned: false })
+      }
 
       // Meta JSON (always — even if the PDF
       // is missing, the Prüfer needs to see
@@ -507,6 +514,64 @@ export class GobdExportService {
         `${subdir}/${baseName}.meta.json`,
         Buffer.from(JSON.stringify(meta, null, 2), 'utf-8'),
         'application/json',
+        { isSigned: false },
+      )
+    }
+
+    // 1b. Tier 979: the numbers that left the series. An issued invoice
+    //     deleted before it went out (invoice.service.ts, Tier 733) left a
+    //     gap in the fortlaufende Nummer (§ 14 Abs. 4 Nr. 4 UStG) and no trace
+    //     in the archive — measured: INV-…-000002 printed, deleted, and no
+    //     file of the unpacked export named it, though its copy was kept.
+    //     § 146 Abs. 4 AO: its content stays ascertainable. A list of the
+    //     retired numbers, what the deletion's log row says of each, and the
+    //     kept copy.
+    const retired = await this.prisma.retiredInvoiceNumber.findMany({
+      where: { companyId: opts.companyId, createdAt: { gte: yearStart, lt: yearEnd } },
+      orderBy: { invoiceNumber: 'asc' },
+    })
+    if (retired.length) {
+      const deletedRow = new Map<string, { data: Record<string, unknown>; auditId: string }>()
+      for (const l of auditLogRows) {
+        const o = l.oldData as Record<string, unknown> | null
+        if (l.action === 'invoice.deleted' && o && typeof o === 'object' && typeof o.invoiceNumber === 'string') {
+          deletedRow.set(o.invoiceNumber, { data: o, auditId: l.id })
+        }
+      }
+      const cell = (v: unknown) => {
+        const t = v === null || v === undefined ? '' : String(v)
+        return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
+      }
+      const lines = ['Rechnungsnummer;Grund;Ausgeschieden am;Rechnungsdatum;Kunde;Brutto;Waehrung;Aufbewahrte Kopie;Protokoll-ID']
+      for (const r of retired) {
+        const row = deletedRow.get(r.invoiceNumber)
+        let copy = ''
+        if (r.pdfPath) {
+          const file = await this.storageService.getInvoicePdf(r.pdfPath).catch(() => null)
+          if (file?.buffer) {
+            copy = `invoices/geloescht/${r.invoiceNumber.replace(/[^\w.-]/g, '_')}.pdf`
+            await appendFile(copy, file.buffer, 'application/pdf', { isSigned: false })
+            const xml = await this.storageService.getFile(xrechnungPathOf(r.pdfPath)).catch(() => null)
+            if (xml?.buffer) await appendFile(copy.replace(/\.pdf$/, '.xrechnung.xml'), xml.buffer, 'application/xml', { isSigned: false })
+          }
+        }
+        const d = row?.data ?? {}
+        lines.push([
+          r.invoiceNumber,
+          r.reason === 'deleted' ? 'geloescht (ausgestellt, nicht versandt)' : 'nach Wiederherstellung einer Sicherung nicht mehr vorhanden',
+          r.createdAt.toISOString(),
+          typeof d.issueDate === 'string' ? d.issueDate.slice(0, 10) : '',
+          d.customerName ?? '',
+          d.total ?? '',
+          d.currency ?? '',
+          copy,
+          row?.auditId ?? '',
+        ].map(cell).join(';'))
+      }
+      await appendFile(
+        'invoices/geloeschte-rechnungsnummern.csv',
+        Buffer.from('﻿' + lines.join('\n') + '\n', 'utf-8'),
+        'text/csv; charset=utf-8',
         { isSigned: false },
       )
     }
@@ -871,6 +936,10 @@ function buildAuditCsv(
     userAgent: string | null
     oldData: any
     newData: any
+    seq?: bigint | number | null
+    hash?: string | null
+    previousHash?: string | null
+    hashAlgorithm?: string | null
     user?: { email: string | null } | null
   }>,
 ): string {
@@ -883,6 +952,15 @@ function buildAuditCsv(
     'entityId',
     'ipAddress',
     'userAgent',
+    // Tier 979: what a change changed, and the hash chain — the CSV said
+    // "invoice.deleted" and not which invoice, number or amount
+    // (§ 146 Abs. 4 AO, GoBD Rz. 107-110). Appended: the columns before stay.
+    'oldData',
+    'newData',
+    'seq',
+    'previousHash',
+    'hash',
+    'hashAlgorithm',
   ]
   const escape = (v: any): string => {
     if (v === null || v === undefined) return ''
@@ -904,6 +982,12 @@ function buildAuditCsv(
         escape(r.entityId ?? ''),
         escape(r.ipAddress ?? ''),
         escape(r.userAgent ?? ''),
+        escape(r.oldData == null ? '' : JSON.stringify(r.oldData)),
+        escape(r.newData == null ? '' : JSON.stringify(r.newData)),
+        escape(r.seq == null ? '' : String(r.seq)),
+        escape(r.previousHash ?? ''),
+        escape(r.hash ?? ''),
+        escape(r.hashAlgorithm ?? ''),
       ].join(','),
     )
   }

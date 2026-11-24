@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 979 — the GoBD export keeps a deleted invoice number traceable
+
+- **Measured (team round 4):** an issued invoice deleted before it went out (Tier 733 keeps its number and copy in `RetiredInvoiceNumber`) appeared nowhere in the export — no file of the unpacked archive named it; the audit CSV said `invoice.deleted,Invoice,<id>` without number, amount or customer, because oldData / newData were not written for any row. The kept XRechnung files (Tier 686) were not in the archive either.
+- The export writes `invoices/geloeschte-rechnungsnummern.csv` (number, reason, date, issue date / customer / gross from the deletion's log row, the kept copy, the log row's id) and the kept PDF / XRechnung under `invoices/geloescht/`; each invoice's kept `.xrechnung.xml` beside its PDF; the audit CSV appends `oldData, newData, seq, previousHash, hash, hashAlgorithm` (columns before unchanged). § 146 Abs. 4 AO, § 14 Abs. 4 Nr. 4 UStG, GoBD Rz. 107-110.
+- **Spec 666.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 978 — § 13b UStG shifts the tax only to an Unternehmer
 
 - **Measured (team round 4):** a 5 000 € Bauleistung marked „Steuerschuldnerschaft des Leistungsempfängers“ to a customer entered as a private person was issued at 0 % and declared in Kz 60; the 950 € the supplier owes (§ 13a Abs. 1 Nr. 1 UStG) were in no Kennzahl.
