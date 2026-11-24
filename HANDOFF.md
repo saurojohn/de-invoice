@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 976 — pain.001.001.09 as the bank's schema check reads it
+
+- **Measured (team round 4):** the credit-transfer file carried `E2E-<uuid>` (40 characters; Max35Text), `<BIC>` (in .001.09 `<BICFI>`), a bare date in `<ReqdExctnDt>` (in .09 a `<Dt>` inside) and names in full (Max70Text) — the bank rejects the whole file while the bills were marked paid on the execution day.
+- `payments/sepa-text.ts`: `sepaEndToEndId` (E2E + id without dashes, 35) — also for direct debits — and `sepaName` (70). Spec 134 reads `<ReqdExctnDt><Dt>` and `<BICFI>`.
+- **Spec 663.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 975 — a cash payment of a received invoice: open, and in full
 
 - **Measured (team round 4):** a Kassenbuch expense linked to a received invoice that was already paid (by bank, or in a SEPA batch) was booked — the bill paid twice; one of 50 € against a bill of 119 € marked it paid in full.

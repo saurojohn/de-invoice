@@ -1,3 +1,4 @@
+import { sepaEndToEndId } from './sepa-text'
 import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
 import { withKeyLock } from '../../common/key-lock'
 import { Prisma } from '@prisma/client'
@@ -411,7 +412,7 @@ export class DirectDebitService {
       notes: params.notes,
       transactions: invMandatePairs.map(({ inv, mandate }) => ({
         collectionId: `C-${inv.id}`,
-        endToEndId: `E2E-${inv.id}`,
+        endToEndId: sepaEndToEndId(inv.id), // Tier 976: Max35Text
         invoiceNumber: inv.invoiceNumber,
         amount: openToCollect(inv),
         currency: inv.currency,

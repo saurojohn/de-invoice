@@ -327,7 +327,7 @@ assert_eq "paidAt = executionDate for all 3" "$PAID_AT_OK" "true"
 # ===== 19. XML <ReqdExctnDt> matches the executionDate =====
 echo
 note "=== 19. XML <ReqdExctnDt> matches ==="
-REQ_DATE=$(grep -oE '<ReqdExctnDt>[^<]+' /tmp/pain001-$TS.xml | head -1 | sed 's/.*>//')
+REQ_DATE=$(grep -oE '<ReqdExctnDt><Dt>[^<]+' /tmp/pain001-$TS.xml | head -1 | sed 's/.*>//') # Tier 976: pain.001.001.09 — a <Dt> inside
 assert_eq "ReqdExctnDt in XML" "$REQ_DATE" "$EXEC_DATE"
 
 # ===== 20. XML has 3 distinct CdtTrfTxInf blocks (one per expense) =====
@@ -353,7 +353,7 @@ assert_eq "EndToEndId count" "$E2E_COUNT" "3"
 # ===== 23. XML has the BIC (COBADEFFXXX) =====
 echo
 note "=== 23. XML has the BIC ==="
-BIC_COUNT=$(grep -c '<BIC>COBADEFFXXX</BIC>' /tmp/pain001-$TS.xml || echo 0)
+BIC_COUNT=$(grep -o '<BICFI>COBADEFFXXX</BICFI>' /tmp/pain001-$TS.xml | wc -l | tr -d ' ') # Tier 976: BICFI in .001.09
 test "$BIC_COUNT" -ge 3 && pass "BIC appears $BIC_COUNT times (≥ 3)" || fail "BIC count = $BIC_COUNT (expected ≥ 3)"
 
 # ===== 24. Notes from the POST are persisted in SepaBatch =====

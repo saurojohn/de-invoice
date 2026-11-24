@@ -1,3 +1,4 @@
+import { sepaEndToEndId, sepaName } from './sepa-text'
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -199,7 +200,9 @@ export class PaymentsService {
         const recipientName = (typeof holder === 'string' && holder.trim()) || e.supplier!.name
         return {
           paymentId: e.id,
-          endToEndId: `E2E-${e.id}`,
+          // Tier 976: Max35Text — `E2E-<uuid>` had 40 characters; the bank's schema
+          // check rejects the whole file (DFÜ-Abkommen Anlage 3)
+          endToEndId: sepaEndToEndId(e.id),
           amount: Number(e.grossAmount),
           currency: 'EUR',
           creditorIban: iban,
@@ -292,10 +295,10 @@ export class PaymentsService {
         <InstdAmt Ccy="${this.escapeXml(p.currency)}">${p.amount.toFixed(2)}</InstdAmt>
       </Amt>
       <CdtrAgt>
-        <FinInstnId>${p.creditorBic ? `<BIC>${this.escapeXml(p.creditorBic)}</BIC>` : '<Othr><Id>NOTPROVIDED</Id></Othr>'}</FinInstnId>
+        <FinInstnId>${p.creditorBic ? `<BICFI>${this.escapeXml(p.creditorBic)}</BICFI>` : '<Othr><Id>NOTPROVIDED</Id></Othr>'}</FinInstnId>
       </CdtrAgt>
       <Cdtr>
-        <Nm>${this.escapeXml(p.creditorName)}</Nm>
+        <Nm>${this.escapeXml(sepaName(p.creditorName))}</Nm>
       </Cdtr>
       <CdtrAcct>
         <Id>
@@ -318,7 +321,7 @@ export class PaymentsService {
       <NbOfTxs>${nbOfTxs}</NbOfTxs>
       <CtrlSum>${ctrlSum.toFixed(2)}</CtrlSum>
       <InitgPty>
-        <Nm>${this.escapeXml(input.companyName)}</Nm>
+        <Nm>${this.escapeXml(sepaName(input.companyName))}</Nm>
       </InitgPty>
     </GrpHdr>
     <PmtInf>
@@ -331,9 +334,9 @@ export class PaymentsService {
           <Cd>SEPA</Cd>
         </SvcLvl>
       </PmtTpInf>
-      <ReqdExctnDt>${input.executionDate}</ReqdExctnDt>
+      <ReqdExctnDt><Dt>${input.executionDate}</Dt></ReqdExctnDt>
       <Dbtr>
-        <Nm>${this.escapeXml(input.companyName)}</Nm>
+        <Nm>${this.escapeXml(sepaName(input.companyName))}</Nm>
       </Dbtr>
       <DbtrAcct>
         <Id>
@@ -341,7 +344,7 @@ export class PaymentsService {
         </Id>
       </DbtrAcct>
       <DbtrAgt>
-        <FinInstnId>${input.debtorBic ? `<BIC>${this.escapeXml(input.debtorBic)}</BIC>` : '<Othr><Id>NOTPROVIDED</Id></Othr>'}</FinInstnId>
+        <FinInstnId>${input.debtorBic ? `<BICFI>${this.escapeXml(input.debtorBic)}</BICFI>` : '<Othr><Id>NOTPROVIDED</Id></Othr>'}</FinInstnId>
       </DbtrAgt>${txBlock}
     </PmtInf>
   </CstmrCdtTrfInitn>
