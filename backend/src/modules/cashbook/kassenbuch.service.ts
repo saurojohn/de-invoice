@@ -568,8 +568,18 @@ export class KassenbuchService {
       }
     }
     if (data.expenseId) {
-      const exp = await this.prisma.expense.findFirst({ where: { id: data.expenseId, companyId }, select: { id: true, grossAmount: true } })
+      const exp = await this.prisma.expense.findFirst({ where: { id: data.expenseId, companyId }, select: { id: true, grossAmount: true, paidAt: true, paidBySepaBatchId: true, invoiceNumber: true } })
       if (!exp) throw new BadRequestException('Ausgabe nicht gefunden')
+      // Tier 975: the bill's own amount, once. Any amount was taken, and as
+      // often as asked: 1 000 € and 119 € out of the till for a bill of 119 € —
+      // the bill „paid“ once, 1 000 € gone without a Beleg (GoBD Rz. 77;
+      // § 146 Abs. 1 AO: Kassensoll = Kassenist, a Schätzung at risk)
+      if (exp.paidAt || exp.paidBySepaBatchId) {
+        throw new BadRequestException(`Die Eingangsrechnung ${exp.invoiceNumber ?? ''} ist bereits bezahlt — sie wird nicht noch einmal aus der Kasse bezahlt.`.replace('  ', ' '))
+      }
+      if (Number(exp.grossAmount) > 0 && Math.round(Number(data.amount) * 100) !== Math.round(Number(exp.grossAmount) * 100)) {
+        throw new BadRequestException(`Die Kassenausgabe muss den Betrag der Eingangsrechnung haben (${Number(exp.grossAmount).toFixed(2).replace('.', ',')} €). Ein anderer Betrag ist eine eigene Ausgabe.`)
+      }
       // Tier 442: a supplier credit note is owed TO the company — no cash
       // leaves the till for it.
       if (Number(exp.grossAmount) < 0) {

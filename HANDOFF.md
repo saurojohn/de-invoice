@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 975 — a cash payment of a received invoice: open, and in full
+
+- **Measured (team round 4):** a Kassenbuch expense linked to a received invoice that was already paid (by bank, or in a SEPA batch) was booked — the bill paid twice; one of 50 € against a bill of 119 € marked it paid in full.
+- `createEntryLocked` with `expenseId`: refused when the bill has `paidAt` or `paidBySepaBatchId`, or when the amount is not its gross amount.
+- **Spec 662:** on the Tier 974 code it fails; the cash-book / expense specs and the guards pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 974 — a cash payment leaves with its cash entry
 
 - **Measured (team round 4):** a payment booked from the Kassenbuch could be deleted on the invoice page — the cash entry stayed, the Kasse held money the invoice no longer showed as received.
