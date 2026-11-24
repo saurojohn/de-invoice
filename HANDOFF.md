@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 988 — the Z3 data set carries the Anlagenverzeichnis
+
+- **Measured (team round 4):** a laptop bought for 3 000 € (36 months) gave the EÜR its AfA; the Datenüberlassung listed ten tables and no file of the archive named the laptop — the AfA claimed could not be traced (§ 147 Abs. 6 AO, GoBD Rz. 158 ff.; the register: § 4 Abs. 3 Satz 5 EStG, § 284 HGB).
+- `z3-dataset.ts`: table „Anlagen“ (`anlagen.csv`): the assets held in the period — bought by its end, not gone before its start — with cost, useful life, method, Restwert, AfA of the year up to the period's end, AfA accumulated, Buchwert, disposal and sale price, account (`computeAfaSummary`). The snapshot is the period's last **UTC** day as a local date: the export's periods are UTC days, `afa.ts` counts local calendar months, and `to` read in Berlin is already 1 January (measured on the first run: a 13th month, Buchwert 1 916,67 instead of 2 000).
+- Spec 468 counted ten tables: eleven now.
+- **Open:** bank transactions, daily cash closes and VAT payments are not in the data set either (named by the same finding, not probed).
+- **Spec 675:** on the Tier 987 code 2 assertions fail; the GoBD / Z3 / asset specs and the guards pass (100).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 987 — the Z3 table „Rechnungen“ lets the auditor reproduce the tax base
 
 - **Measured (team round 4):** an invoice with 10 % discount (100 € at 19 % + 50 € at 7 %): rechnungen.csv said Netto 150,00 / USt 20,25 / Brutto 155,25 — 150 + 20,25 ≠ 155,25, the 15,00 discount and the Entgelt of 135,00 (§ 10 UStG) in no column; a credit note's Kunde was empty (`customerName` is not set on credit notes); no date of supply (§ 14 Abs. 4 Nr. 6 UStG) and no reference of a credit note to its invoice. § 147 Abs. 6 AO, GoBD Rz. 158 ff.

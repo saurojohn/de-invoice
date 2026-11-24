@@ -3,6 +3,7 @@ import * as path from 'path'
 import { PrismaService } from '../../prisma/prisma.service'
 import { buildBuchungenFromDb } from '../reports/datev.service'
 import { businessDayIso } from '../../common/business-date'
+import { computeAfaSummary } from '../assets/afa'
 
 /**
  * Tier 749 — the data handed over to the tax office, described (Z3).
@@ -140,6 +141,16 @@ export async function z3Tables(prisma: PrismaService, companyId: string, from: D
     include: { invoice: { select: { invoiceNumber: true } } },
   })
   const cash = await prisma.cashBookEntry.findMany({ where: { companyId, businessDate: inPeriod }, orderBy: [{ businessDate: 'asc' }, { createdAt: 'asc' }] })
+  // Tier 988: the AfA as of the period's last day. The export's periods are
+  // UTC days (gobd-export.service.ts); afa.ts counts local calendar months, and
+  // `to` read in Berlin is already 1 January — the laptop got a 13th month
+  const [sy, sm, sd] = to.toISOString().slice(0, 10).split('-').map(Number)
+  const snapshotDay = new Date(sy, sm - 1, sd, 12)
+  // Tier 988: held in the period — bought by its end, not gone before its start
+  const assets = await prisma.asset.findMany({
+    where: { companyId, anschaffungsDatum: { lte: to }, OR: [{ verkauftAm: null }, { verkauftAm: { gte: from } }] },
+    orderBy: [{ anschaffungsDatum: 'asc' }, { id: 'asc' }],
+  })
   // Tier 987: what the Rechnungen table names beside the stored figures
   const customerName = new Map(customers.map((c) => [c.id, c.name]))
   const refIds = [...new Set(invoices.map((i) => i.referenceInvoiceId).filter((x): x is string => !!x))]
@@ -274,6 +285,28 @@ export async function z3Tables(prisma: PrismaService, companyId: string, from: D
       keys: [text('Eintrag_ID', 'Interne Kennung')],
       columns: [date('Geschaeftstag'), text('Art'), text('Beschreibung'), money('Betrag'), num4('Steuersatz', 'Als Bruchteil'), text('Gegenpartei'), text('Belegnummer'), text('Storno_von', 'Kennung des stornierten Eintrags')],
       rows: cash.map((c) => [c.id, c.businessDate, c.type, c.description, c.amount, c.vatRate, c.counterparty, c.belegNumber, c.reversesId]),
+    },
+    {
+      // Tier 988: the Anlagenverzeichnis (§ 4 Abs. 3 Satz 5 EStG, § 284 HGB) —
+      // the AfA the EÜR / GuV claim could not be traced in the export
+      file: 'anlagen.csv',
+      name: 'Anlagen',
+      description: 'Anlagenverzeichnis: die im Zeitraum gehaltenen Wirtschaftsgüter mit AfA und Buchwert zum Ende des Zeitraums',
+      keys: [text('Anlage_ID', 'Interne Kennung')],
+      columns: [
+        text('Bezeichnung'), text('Art'), date('Anschaffungsdatum'), money('Anschaffungskosten'), text('Nutzungsdauer_Monate'),
+        text('AfA_Methode'), money('Restwert', 'Erinnerungs- oder Restwert'), money('AfA_Zeitraum', 'AfA des Jahres bis zum Ende des Zeitraums'),
+        money('AfA_kumuliert', 'AfA seit Anschaffung bis zum Ende des Zeitraums'), money('Buchwert', 'Buchwert zum Ende des Zeitraums'),
+        date('Abgang_am'), money('Verkaufspreis'), text('Konto', 'Bilanzkonto'),
+      ],
+      rows: assets.map((a) => {
+        const afa = computeAfaSummary(a, snapshotDay)
+        return [
+          a.id, a.bezeichnung, a.type, a.anschaffungsDatum, a.anschaffungsKosten, String(a.nutzungsdauerMonate),
+          a.afaMethode, a.restwert, afa.annualAfA, afa.accumulatedAfA, afa.buchwert,
+          a.verkauftAm, a.verkaufsPreis, a.bilanzKonto,
+        ]
+      }),
     },
   ]
 }
