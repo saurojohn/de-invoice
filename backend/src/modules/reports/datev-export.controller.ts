@@ -44,6 +44,8 @@ import type { Response } from 'express';
 
 import { Auth, Require } from '../../auth/roles.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { computeAfaSummary } from '../assets/afa';
+import { LIVE_AFA } from '../accounting/booked-afa';
 import { StorageService } from '../storage/storage.service';
 import {
   buildBuchungenFromDb,
@@ -746,6 +748,29 @@ export class DatevExportController {
     // Tier 818: without them the adviser's DATEV refuses the file (Beraternummer
     // 1001–9999999, Mandantennummer 1–99999 in the EXTF header) — a new company
     // has none, and the preview said nothing
+    // Tier 967: the AfA of a year that ends inside the export, not booked —
+    // GuV, balance sheet and EÜR take the computed AfA, the Buchungsstapel
+    // only booked AfA rows. Measured: a laptop of 3 000 € in the register,
+    // „AfA buchen“ not clicked — DATEV's result 2 400 €, the app's GuV
+    // 1 483,33 €, and the preview said nothing.
+    for (let y = startDate.getFullYear(); y <= endDate.getFullYear(); y++) {
+      const yearEnd = new Date(y, 11, 31, 23, 59, 59, 999)
+      if (businessDayIso(endDate) < `${y}-12-31`) continue // the export ends before the year does
+      const [assets, booked] = await Promise.all([
+        this.prisma.asset.findMany({ where: { companyId } }),
+        this.prisma.expense.findMany({ where: { companyId, afaYear: y, relatedAssetId: { not: null }, ...LIVE_AFA }, select: { relatedAssetId: true, grossAmount: true } }),
+      ])
+      const bookedBy = new Map<string, number>()
+      for (const b of booked) bookedBy.set(b.relatedAssetId!, (bookedBy.get(b.relatedAssetId!) ?? 0) + Math.abs(Number(b.grossAmount)))
+      const open = Math.round(assets.reduce((sum, a) => sum + Math.max(0, computeAfaSummary(a as any, yearEnd).annualAfA - (bookedBy.get(a.id) ?? 0)), 0) * 100) / 100
+      if (open > 0.005) {
+        issues.push({
+          severity: 'warning',
+          message: `AfA ${y} nicht gebucht: ${open.toFixed(2).replace('.', ',')} € — GuV, Bilanz und EÜR rechnen sie, der Buchungsstapel enthält sie erst nach „AfA buchen“ im Anlagenverzeichnis.`,
+        })
+      }
+    }
+
     if (!settings?.beraterNr || !settings?.mandantenNr) {
       issues.push({
         severity: 'warning',

@@ -2673,6 +2673,13 @@ Run 40959218063 (commit 4b2e2fce): backend **457 passed / 0 failed / 1 skipped**
 
 Run 42876374317 (Tier 828, 5d492bc7): six jobs, backend **525 passed / 0 failed / 1 skipped** (526 among them), Playwright **1154 passed (43.1 m)**; 0 flaky, no retry, no Traceback, no `REFUSED`, no ✗ / ✘. The „Docker images" workflow of the same push (42876374416) built both images with the new build args.
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 967 — the DATEV preview and AfA not booked
+
+- **Measured (team round 3):** the Buchungsstapel carries the AfA only once „AfA buchen“ booked it; GuV, balance sheet and EÜR take the computed AfA. A laptop of 3 000 € in the register, AfA not booked: DATEV's result 2 400 €, the GuV 1 483,33 €; the preview's issues named only the missing Berater-Nr.
+- datev-preview: for every year that ends inside the export, the computed AfA less what is booked; above 0 a warning „AfA <Jahr> nicht gebucht: … €“. (The export itself is unchanged — booking stays the user's step.)
+- CI runs: 958 (644 / 0 / 1), 959–962 (648 / 0 / 1), 963–964 (650 / 0 / 1) — Playwright 1182, 0 flaky each.
+- **Spec 654:** on the Tier 966 code the first assertion fails; the DATEV / asset specs and the guards pass (66).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 965 / 966 — team round 3: an overpayment entered after the year end; the DATEV opening balances
 
 - **965:** the balance sheet's customer credit (4500) took the credit ledger by the moment a row was typed in. 1 190 € invoiced, 1 400 € received on 20.12.2025 and entered in 2026: 4500 at 31.12.2025 was 0 (the money in the bank, the equity 210 € too high; § 252 Abs. 1 Nr. 3 HGB). An overpayment row now counts from its payment's day, a credit note's overage from the credit note's; the other rows (a credit applied, a payout, a deletion's counter-row) by their own day. **Spec 652.**
