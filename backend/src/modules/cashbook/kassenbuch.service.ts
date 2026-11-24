@@ -833,6 +833,13 @@ export class KassenbuchService {
 
   private async closeDayLocked(companyId: string, businessDate: Date, physicalCount: number, closedById?: string, differenzNote?: string) {
     assertNotFuture(businessDate, 'Der Tag des Kassenabschlusses')
+    // Tier 983: a till holds no negative cash. Counted −50 €, the day closed
+    // with Endbestand −50 and a Fehlbetrag booked — the Kassenminusbestand
+    // Tier 435 refuses on every other path (§ 146 Abs. 1, § 158 AO), signed
+    // into the close's hash.
+    if (!(Number(physicalCount) >= 0)) {
+      throw new BadRequestException('Der gezählte Kassenbestand kann nicht negativ sein — in einer Kasse liegt kein Minusbetrag (§ 146 Abs. 1 AO). Bitte das gezählte Bargeld eingeben.')
+    }
     const bd = new Date(businessDate)
     bd.setUTCHours(0, 0, 0, 0)
     // Already closed? Refuse — the user has to delete

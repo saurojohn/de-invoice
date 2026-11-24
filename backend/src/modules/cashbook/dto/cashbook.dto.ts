@@ -100,8 +100,8 @@ export class ReverseCashBookEntryDto {
 /**
  * Tier 374 — POST /cashbook/close-day. Measured before: date "abc" → 500
  * (Invalid Date reached Prisma). physicalCount is bounded by the
- * Decimal(12,4) columns it lands in; it may be negative in principle only
- * through a counting error, so the range is symmetric.
+ * Decimal(12,4) columns it lands in. Tier 983: a negative count is refused by
+ * the service (with its reason), so the range here stays symmetric.
  */
 export class CloseCashBookDayDto {
   @IsDateString({ strict: true }, { message: `date ${DATE_MESSAGE}` })

@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 983 — a counted till holds no negative cash
+
+- **Measured (team round 4):** the Kassensturz took a negative count: opening 100 €, counted −50 € — 201, Endbestand −50, a „Kassenfehlbetrag“ of 150 € booked, the balance −50, signed into the close's hash. A Kassenminusbestand is what Tier 435 refuses on every other path (§ 146 Abs. 1, § 158 AO).
+- `closeDayLocked`: a count below 0 is refused with its reason (the DTO's range stays symmetric so the service's message reaches the user).
+- **Spec 670:** on the Tier 982 code 3 assertions fail; the cash-book specs and the guards pass (110).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 982 — a credit-transfer batch is executed today at the earliest
 
 - **Measured (team round 4):** a SEPA credit-transfer batch dated 45 days back was accepted: both bills got `paidAt` on that day and the file asked for execution in the past. The bank executes on the next business day at the earliest; the outflow is when the order reaches it (§ 11 Abs. 2 EStG) — the EÜR took it in an earlier month (or year). The payments page already refused a past date; the API did not.
