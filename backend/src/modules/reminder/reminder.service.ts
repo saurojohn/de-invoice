@@ -1,3 +1,4 @@
+import { isConsumer } from '../customer/customer-type'
 import { computeNeueFrist } from './mahnung-pdf.service'
 import { businessTodayDate } from '../../common/business-date';
 import { greetingLine } from '../mail/templates/invoice-email.template' // Tier 705
@@ -1272,6 +1273,4 @@ Mit freundlichen Grüßen,
   }
 }
 /** Tier 421: § 288 Abs. 1 BGB applies when the debtor is a consumer. */
-export function isConsumer(type: string | null | undefined): boolean {
-  return ['individual', 'private', 'consumer', 'privat'].includes(String(type ?? '').toLowerCase());
-}
+export { isConsumer } // Tier 978: customer/customer-type.ts — the invoice's § 13b check asks it too

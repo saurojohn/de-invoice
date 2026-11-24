@@ -3,6 +3,7 @@ import { businessTodayIso } from '../../common/business-date'
 import { zeroRatedGround } from './zero-rated'
 import { BadRequestException } from '@nestjs/common'
 import { consumerAbroad, isGermanRate } from '../reports/oss-scope'
+import { isConsumer } from '../customer/customer-type'
 
 /**
  * Tier 494 — the mandatory details of an invoice (§ 14 Abs. 4 UStG), checked
@@ -51,7 +52,7 @@ export function missingInvoiceDetails(
     deliveryDate?: Date | string | null; servicePeriodStart?: Date | string | null; servicePeriodEnd?: Date | string | null
   },
   company: { name?: string | null; legalName?: string | null; address?: unknown; taxId?: string | null; vatId?: string | null } & KuCompany,
-  customer: { name?: string | null; address?: unknown; vatId?: string | null } | null | undefined,
+  customer: { name?: string | null; address?: unknown; vatId?: string | null; type?: string | null } | null | undefined,
 ): string[] {
   const missing: string[] = []
   const gross = Math.abs(Number(invoice.eurTotal ?? invoice.total ?? 0))
@@ -95,6 +96,20 @@ export function missingInvoiceDetails(
     missing.push(
       `ein Steuersatz, den das deutsche Umsatzsteuerrecht kennt — ${pct} gibt es nicht (19 % oder 7 %, § 12 UStG; ` +
       'ein anderer Satz nur beim Verkauf an einen Verbraucher in einem anderen EU-Staat)',
+    )
+  }
+  // Tier 978 — the recipient owes the tax only as an Unternehmer or a
+  // juristische Person (§ 13b Abs. 5 Satz 1 UStG; in another member state
+  // Art. 196 MwStSystRL). Measured: a 5 000 € Bauleistung to a customer
+  // entered as a private person was issued at 0 % and declared in Kz 60 —
+  // the 950 € the supplier owes (§ 13a Abs. 1 Nr. 1 UStG) nowhere.
+  const ground = invoice.reverseCharge
+    ? zeroRatedGround(invoice, (customer?.address as Address)?.country, customer?.vatId)
+    : null
+  if ((ground === 'reverseChargeDomestic' || ground === 'reverseChargeEu') && isConsumer(customer?.type)) {
+    missing.push(
+      'ein Kunde, der Unternehmer ist — die Steuerschuldnerschaft des Leistungsempfängers (§ 13b Abs. 5 UStG) ' +
+      'gilt nicht gegenüber einer Privatperson; für sie schulden Sie die Umsatzsteuer selbst (Kundentyp prüfen)',
     )
   }
   if (kleinbetrag) return missing

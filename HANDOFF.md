@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 978 — § 13b UStG shifts the tax only to an Unternehmer
+
+- **Measured (team round 4):** a 5 000 € Bauleistung marked „Steuerschuldnerschaft des Leistungsempfängers“ to a customer entered as a private person was issued at 0 % and declared in Kz 60; the 950 € the supplier owes (§ 13a Abs. 1 Nr. 1 UStG) were in no Kennzahl.
+- `missingInvoiceDetails`: a domestic or EU reverse-charge invoice to a customer of a consumer type (`isConsumer`, moved to `customer/customer-type.ts`, as the dunning uses it) is not issued (§ 13b Abs. 5 Satz 1 UStG). A service to a consumer outside the EU („notTaxableAbroad“) is not affected.
+- **Spec 665.**
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 977 — a template billed in arrears bills its last period
 
 - **Measured (team round 4):** billed in arrears („previous“), the run on the 1st bills the month before, but the end date was compared with the run date: a one-month template (01.–30.11.) ran on 01.12., was past its end, skipped and switched off — the month never billed; every template in arrears lost its last period.
