@@ -2662,6 +2662,12 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 992 — Verzugszinsen accrue on what was owed each day
+
+- **Measured (team round 4):** the interest was computed on today's open balance for the whole time since the due date: 11 900 €, overdue since June, 10 000 € paid on 20.11. — the preview asked the interest on 1 900 € for all 162 days (88,52 €) and dropped the 454,36 € the 10 000 € had accrued before they were paid (§ 288 BGB: the interest runs on the debt as it stands each day).
+- `verzugszinsen` takes the payments on the claim: up to and including its day a payment was still owed. `computeFees` loads the invoice's payments (preview and sending / bulk / auto-run, which share it).
+- **Spec 679:** on the Tier 991 code 2 assertions fail (paid today: 87,45 instead of 547,71); the dunning specs and the guards pass (90).
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 991 — the cash book's month: output tax and input tax apart
 
 - **Measured (team round 4):** a cash sale of 119 € at 19 % and a cash purchase of 119 € at 19 % in one month: /cashbook/month said „19 %: Netto 200, MwSt 38, Brutto 238“ — the UStVA of that month owes nothing (Kz 81 100 / Kz 66 19). Every entry with a rate went in, whatever its kind; entries paying an invoice or a bill (counted through the invoice / bill) as well.

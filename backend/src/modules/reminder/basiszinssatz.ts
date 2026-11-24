@@ -60,17 +60,33 @@ export interface InterestResult {
 /**
  * Interest on `principal` for every day after `dueDate` up to and including
  * `asOf`, at Basiszinssatz + `surcharge` percentage points on each day.
+ *
+ * Tier 992: `principal` is what is open today; `paid` are the payments on
+ * the claim. Up to and including its day a payment was still owed: the
+ * interest runs on the debt as it stood on each day (§ 288 BGB). Measured
+ * before: 10 000 € of 11 900 € paid after 158 days in default, and the
+ * interest of those days on the 10 000 € was gone.
  */
-export function verzugszinsen(principal: number, dueDate: Date, asOf: Date, surcharge: number): InterestResult {
-  const start = Date.UTC(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()) + 86_400_000
-  const end = Date.UTC(asOf.getFullYear(), asOf.getMonth(), asOf.getDate())
-  let pctDays = 0
+export function verzugszinsen(
+  principal: number,
+  dueDate: Date,
+  asOf: Date,
+  surcharge: number,
+  paid: Array<{ date: Date; amount: number }> = [],
+): InterestResult {
+  const dayOf = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
+  const start = dayOf(dueDate) + 86_400_000
+  const end = dayOf(asOf)
+  const later = paid.map((p) => ({ day: dayOf(new Date(p.date)), amount: Number(p.amount) || 0 })).filter((p) => p.day >= start)
+  let amountPctDays = 0
   let days = 0
   for (let t = start; t <= end; t += 86_400_000) {
-    pctDays += basiszinssatzAt(new Date(t)) + surcharge
+    const pct = basiszinssatzAt(new Date(t)) + surcharge
+    const owed = principal + later.reduce((sum, p) => (p.day >= t ? sum + p.amount : sum), 0)
+    amountPctDays += Math.max(0, owed) * pct
     days++
   }
-  const amount = Math.max(0, Math.round((principal * pctDays) / 365) / 100)
+  const amount = Math.max(0, Math.round(amountPctDays / 365) / 100)
   const current = basiszinssatzAt(new Date(end))
   return { amount, currentRate: Math.round((current + surcharge) * 100) / 100, currentBasiszinssatz: current, days }
 }

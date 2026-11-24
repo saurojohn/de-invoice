@@ -362,6 +362,7 @@ export class BulkReminderService {
       level,
       isConsumer((invoice.customer as any)?.type),
       fxOf(invoice as any).rate, // Tier 653
+      invoice.id, // Tier 992: the interest on the debt as it stood each day
     )
 
     // Tier 880: by post the Mahnung is recorded and its letter printed from

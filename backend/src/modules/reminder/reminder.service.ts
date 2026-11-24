@@ -948,6 +948,8 @@ Mit freundlichen Grüßen,
     /** Tier 653: 1 EUR = rate of the invoice's currency — the fee is set in
      *  euros and is demanded in the currency of the invoice, in one sum. */
     rate = 1,
+    /** Tier 992: the invoice — its payments date the debt day by day */
+    invoiceId?: string,
   ) {
     const cfg = await this.getFeeConfig(companyId);
     const mahngebuehr = (cfg.mahngebuehr[level] || 0) * (rate > 0 ? rate : 1);
@@ -958,8 +960,12 @@ Mit freundlichen Grüßen,
     const surcharge = consumer
       ? Math.min(cfg.verzugszinsPct as number, 5)
       : (cfg.verzugszinsPct as number);
+    const paid = invoiceId && dueDate
+      ? (await this.prisma.payment.findMany({ where: { invoiceId }, select: { paymentDate: true, amount: true } }))
+          .map((p) => ({ date: p.paymentDate, amount: Number(p.amount) }))
+      : []
     const interest = dueDate
-      ? verzugszinsen(principalGross, new Date(dueDate), new Date(), surcharge)
+      ? verzugszinsen(principalGross, new Date(dueDate), new Date(), surcharge, paid)
       : { amount: 0, currentRate: 0, currentBasiszinssatz: 0, days: 0 };
     const verzugszins = interest.amount;
     const mahngebuehrRounded = Math.round(mahngebuehr * 100) / 100;
@@ -1043,6 +1049,7 @@ Mit freundlichen Grüßen,
       level,
       isConsumer(invoice.customer?.type),
       fxOf(invoice).rate,
+      invoice.id, // Tier 992
     );
     return {
       invoiceId: invoice.id,
