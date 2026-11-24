@@ -120,7 +120,7 @@ note "  existing batches for prefix before: $BATCH_COUNT_BEFORE"
 # ===== 3. POST /payments/batches creates a new batch =====
 echo
 note "=== 3. POST /payments/batches creates new batch ==="
-EXEC_DATE="2026-07-30"
+EXEC_DATE=$(TZ=Europe/Berlin date -v+3d +%F 2>/dev/null || TZ=Europe/Berlin date -d '3 days' +%F) # Tier 982: today at the earliest
 api_post "/api/v1/payments/batches" \
   "{
     \"companyId\": \"$COMPANY_ID\",

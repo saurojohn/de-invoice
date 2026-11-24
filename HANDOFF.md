@@ -2662,6 +2662,14 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 982 — a credit-transfer batch is executed today at the earliest
+
+- **Measured (team round 4):** a SEPA credit-transfer batch dated 45 days back was accepted: both bills got `paidAt` on that day and the file asked for execution in the past. The bank executes on the next business day at the earliest; the outflow is when the order reaches it (§ 11 Abs. 2 EStG) — the EÜR took it in an earlier month (or year). The payments page already refused a past date; the API did not.
+- `generateBatch`: an execution date before today (Berlin) is refused, after the closed-books check (its message stays first for a closed year).
+- Specs 134, 233, 240 used fixed past dates: they now take a date two or three days ahead.
+- **Open:** a direct-debit batch (pain.008) takes a past collection date as well — not changed here (spec 137 and the B2B pre-notification checks are built on fixed dates).
+- **Spec 669:** on the Tier 981 code 3 assertions fail; the SEPA specs, the guards and the SEPA Playwright specs (10) pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 981 — a new billing day continues after what was billed
 
 - **Measured (team round 4):** changing a template's billing day, start, interval or service period recomputed the next run from the start date and today only. Monthly, in advance, on the 24th: 24.11.–23.12. billed; the billing day set to the 1st made the next run 01.12. for 01.12.–31.12. — 23 days on two invoices (§ 14c Abs. 1 UStG). Switched from in advance to in arrears, the next run billed the month just billed once more. The edit form sends every field, so any save of such a template moved the date.

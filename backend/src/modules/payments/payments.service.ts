@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ibanProblem } from '../../common/iban'
 import { assertBooksOpen } from '../reports/filed-period'
+import { businessTodayIso } from '../../common/business-date'
 
 /**
  * Tier 108: SEPA pain.001 batch payment generator.
@@ -121,6 +122,15 @@ export class PaymentsService {
     // Tier 950: the bills are paid on the day of execution — the EÜR of that
     // day's year (§ 11 EStG); a day in closed books was taken
     await assertBooksOpen(this.prisma, companyId, [params.executionDate], 'das Bezahlen von Eingangsrechnungen per SEPA')
+    // Tier 982: today at the earliest. A batch dated 45 days back marked its
+    // bills paid on that day — the bank executes on the next business day at
+    // the earliest, and the outflow is when the order reaches it (§ 11 Abs. 2
+    // EStG); the EÜR moved it into an earlier month or year.
+    if (params.executionDate < businessTodayIso()) {
+      throw new BadRequestException(
+        'Das Ausführungsdatum liegt in der Vergangenheit — die Bank führt eine Überweisung frühestens heute aus, und erst dann sind die Rechnungen bezahlt (§ 11 Abs. 2 EStG). Bitte heute oder ein späteres Datum wählen.',
+      )
+    }
 
     // Load the company for the debtor info.
     const company = await this.prisma.company.findUnique({

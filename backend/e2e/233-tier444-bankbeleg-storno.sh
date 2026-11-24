@@ -19,6 +19,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 TAG="e2e-233-$(date +%s%N | cut -c1-13)"
 Y=2026
+EXEC=$(TZ=Europe/Berlin date -v+2d +%F 2>/dev/null || TZ=Europe/Berlin date -d '2 days' +%F) # Tier 982: a SEPA batch is executed today at the earliest
 
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
   -d "{\"email\":\"$TAG@example.test\",\"password\":\"Tier444-e2e\",\"companyName\":\"$TAG GmbH\"}" \
@@ -103,7 +104,7 @@ assert_eq "owed unchanged" "$(owed)" "119"
 
 note "=== a payment made otherwise stays ==="
 E3=$(expense ER-SEPA)
-AS POST "/api/v1/payments/batches" '{"companyId":"'$C'","expenseIds":["'$E3'"],"executionDate":"'$Y'-06-05","debtorIban":"DE02120300000000202051","debtorName":"'$TAG' GmbH"}'
+AS POST "/api/v1/payments/batches" '{"companyId":"'$C'","expenseIds":["'$E3'"],"executionDate":"'$EXEC'","debtorIban":"DE02120300000000202051","debtorName":"'$TAG' GmbH"}'
 cat > "$MT" <<'EOF2'
 :1:F01BANKBICAXXX0000000000
 :20:ST444B
@@ -122,6 +123,6 @@ TXN3=$(echo "$UP" | python3 -c "import sys,json;d=json.load(sys.stdin);print([t[
 AS POST "/api/v1/bank-statements/$SID3/transactions/$TXN3/book-expense?companyId=$C" '{"expenseId":"'$E3'"}'
 V3=$(json_field "$BODY" voucherId)
 AS POST "/api/v1/accounting/vouchers/$V3/reversal?companyId=$C" '{"reason":"doppelt"}'
-assert_eq "Storno of the bank booking: the SEPA batch still pays ER-SEPA" "$STATUS/$(paid "$E3")" "201/$Y-06-05"
+assert_eq "Storno of the bank booking: the SEPA batch still pays ER-SEPA" "$STATUS/$(paid "$E3")" "201/$EXEC"
 
 summary

@@ -20,6 +20,7 @@ source "$SCRIPT_DIR/_lib.sh"
 login
 TAG="e2e-240-$(date +%s%N | cut -c1-13)"
 Y=2026
+EXEC=$(TZ=Europe/Berlin date -v+2d +%F 2>/dev/null || TZ=Europe/Berlin date -d '2 days' +%F) # Tier 982: a SEPA batch is executed today at the earliest
 TODAY=$(date +%F)
 
 read -r U C < <(curl -sS -X POST "$API/api/v1/auth/register" -H "Content-Type: application/json" \
@@ -48,7 +49,7 @@ GS=$(expense GS-1 100 cn)
 SEPA=$(expense ER-SEPA 100)
 AS POST "/api/v1/cashbook/entries?companyId=$C" '{"businessDate":"'$TODAY'","type":"eroeffnung","description":"Anfangsbestand","amount":500}'
 AS POST "/api/v1/cashbook/entries?companyId=$C" '{"businessDate":"'$TODAY'","type":"ausgabe","description":"bar","amount":119,"vatRate":0.19,"expenseId":"'$BAR'"}'
-AS POST "/api/v1/payments/batches" '{"companyId":"'$C'","expenseIds":["'$SEPA'"],"executionDate":"'$Y'-06-03","debtorIban":"DE02120300000000202051","debtorName":"'$TAG' GmbH"}'
+AS POST "/api/v1/payments/batches" '{"companyId":"'$C'","expenseIds":["'$SEPA'"],"executionDate":"'$EXEC'","debtorIban":"DE02120300000000202051","debtorName":"'$TAG' GmbH"}'
 
 # Six debits of 119,00.
 MT=/tmp/t451-$TAG.mt940
@@ -83,7 +84,7 @@ assert_eq "only the one accepted booking wrote a voucher" \
 note "=== the debit of a SEPA batch ==="
 book "${T[5]}" "$SEPA"
 assert_eq "accepted: it is the batch's execution" "$STATUS" "201"
-assert_eq "…paid as of the batch date" "$(paid "$SEPA")" "$Y-06-03"
+assert_eq "…paid as of the batch date" "$(paid "$SEPA")" "$EXEC"
 AS POST "/api/v1/bank-statements/$SID/transactions/${T[0]}/book-expense?companyId=$C" '{}'
 assert_eq "a refused debit can still be booked to an account" "$STATUS" "201"
 
