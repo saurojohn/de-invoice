@@ -1,4 +1,5 @@
 import { StrictNumber } from '../../../common/strict-number'
+import { StrictBoolean } from '../../../common/strict-boolean'
 /**
  * Request bodies for the reminder / Mahnung routes.
  *
@@ -23,6 +24,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEmail,
   IsIn,
@@ -117,6 +119,11 @@ export class FeeConfigDto {
 
   @unlessAbsent() @ValidateNested() @Type(() => ReminderFeesDto)
   mahngebuehr?: ReminderFeesDto
+
+  // Tier 998: the company's contracts agree the payment date (§ 286 Abs. 2 Nr. 1 BGB) —
+  // a business customer is then in default the day after it
+  @IsOptional() @StrictBoolean() @IsBoolean({ message: 'zahlungszielVereinbart muss true oder false sein' })
+  zahlungszielVereinbart?: boolean
 }
 
 export class ReminderTemplateDto {

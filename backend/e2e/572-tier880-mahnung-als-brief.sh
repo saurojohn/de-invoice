@@ -24,8 +24,10 @@ try: print(json.loads(sys.argv[1]).get(sys.argv[2]))
 except Exception: print('-')" "$BODY" "$1"; }
 q() { docker exec "$PG_CONTAINER" psql -U de_invoice -d de_invoice -Atc "$1"; }
 TODAY=$(TZ=Europe/Berlin date +%F)
-ISSUE=$(python3 -c "import datetime;print((datetime.date.fromisoformat('$TODAY')-datetime.timedelta(days=60)).isoformat())")
-DUE=$(python3 -c "import datetime;print((datetime.date.fromisoformat('$TODAY')-datetime.timedelta(days=30)).isoformat())")
+# Tier 998: a business is in default 30 days after the due date (§ 286 Abs. 3 BGB) — 60 days
+# past it there is interest to ask
+ISSUE=$(python3 -c "import datetime;print((datetime.date.fromisoformat('$TODAY')-datetime.timedelta(days=90)).isoformat())")
+DUE=$(python3 -c "import datetime;print((datetime.date.fromisoformat('$TODAY')-datetime.timedelta(days=60)).isoformat())")
 invoice_for() {
   AS POST "/api/v1/invoices?companyId=$C" "{\"customerId\":\"$1\",\"issueDate\":\"$ISSUE\",\"dueDate\":\"$DUE\",\"items\":[{\"description\":\"Montage\",\"quantity\":1,\"unit\":\"Stk\",\"unitPrice\":500,\"vatRate\":0.19}]}"
   I=$(field id)

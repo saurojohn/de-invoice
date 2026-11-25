@@ -24,6 +24,8 @@ import { signOut } from "@/lib/auth"
 interface FeeConfig {
   verzugszinsPct: number
   mahngebuehr: { first: number; second: number; final: number }
+  // Tier 998: § 286 Abs. 2 Nr. 1 BGB
+  zahlungszielVereinbart?: boolean
   isDefault: boolean
 }
 
@@ -77,6 +79,7 @@ export default function MahnungSettingsPage() {
             second: cfg.mahngebuehr.second,
             final: cfg.mahngebuehr.final,
           },
+          zahlungszielVereinbart: cfg.zahlungszielVereinbart === true,
         },
       )
       setCfg({ ...res.config, isDefault: false })
@@ -196,6 +199,24 @@ export default function MahnungSettingsPage() {
                   <span className="ml-2 text-xs text-gray-400">
                     {L("(BGB §288 Abs. 2: 9 % Standard für B2B)")}
                   </span>
+                </div>
+
+                {/* Tier 998: from when a business customer owes interest */}
+                <div>
+                  <label className="flex items-start gap-2 text-sm" htmlFor="zahlungsziel-vereinbart">
+                    <input
+                      id="zahlungsziel-vereinbart"
+                      type="checkbox"
+                      className="mt-1"
+                      checked={cfg.zahlungszielVereinbart === true}
+                      onChange={(e) => setCfg({ ...cfg, zahlungszielVereinbart: e.target.checked })}
+                      data-testid="mahnung-zahlungsziel-vereinbart"
+                    />
+                    <span>
+                      {t("mahnung.zahlungszielVereinbart")}
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">{t("mahnung.zahlungszielVereinbartHint")}</span>
+                    </span>
+                  </label>
                 </div>
 
                 {/* Mahngebühr per stage */}

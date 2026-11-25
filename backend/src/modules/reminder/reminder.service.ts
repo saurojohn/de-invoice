@@ -860,6 +860,8 @@ Mit freundlichen Grüßen,
         second: typeof cfg.mahngebuehr?.second === 'number' ? cfg.mahngebuehr.second : 5.0,
         final: typeof cfg.mahngebuehr?.final === 'number' ? cfg.mahngebuehr.final : 10.0,
       },
+      // Tier 998: § 286 Abs. 2 Nr. 1 BGB — off unless the company says so
+      zahlungszielVereinbart: cfg.zahlungszielVereinbart === true,
       isDefault: !cfg || Object.keys(cfg).length === 0,
     };
   }
@@ -879,6 +881,7 @@ Mit freundlichen Grüßen,
         second?: number;
         final?: number;
       };
+      zahlungszielVereinbart?: boolean;
     },
   ) {
     // Tier 795: read and written under the company's row lock (common/company-settings.ts)
@@ -913,6 +916,8 @@ Mit freundlichen Grüßen,
               ? clamp(data.mahngebuehr.final, 0, 1000) ?? cur.mahngebuehr?.final
               : cur.mahngebuehr?.final,
         },
+        zahlungszielVereinbart:
+          typeof data.zahlungszielVereinbart === 'boolean' ? data.zahlungszielVereinbart : cur.zahlungszielVereinbart === true,
       };
       const mergedBank = { ...bank, mahnungConfig: next };
       await tx.company.update({
@@ -970,6 +975,15 @@ Mit freundlichen Grüßen,
     if (consumer && invoiceId && interestFrom) {
       const reminded = await this.prisma.mahnung.findFirst({ where: { invoiceId }, orderBy: { sentAt: 'asc' }, select: { sentAt: true } })
       interestFrom = reminded ? (reminded.sentAt > interestFrom ? new Date(reminded.sentAt) : interestFrom) : null
+    } else if (!consumer && invoiceId && interestFrom && !cfg.zahlungszielVereinbart) {
+      // Tier 998: a business customer without an agreed payment date is in
+      // default 30 days after the due date and receipt (§ 286 Abs. 3 Satz 1
+      // BGB) — or earlier by a reminder after the due date. Interest was
+      // asked from the day after the due date.
+      const thirty = new Date(interestFrom.getTime() + 30 * 86_400_000)
+      const reminded = await this.prisma.mahnung.findFirst({ where: { invoiceId }, orderBy: { sentAt: 'asc' }, select: { sentAt: true } })
+      const byReminder = reminded && reminded.sentAt > interestFrom ? new Date(reminded.sentAt) : null
+      interestFrom = byReminder && byReminder < thirty ? byReminder : thirty
     }
     const paid = invoiceId && interestFrom
       ? (await this.prisma.payment.findMany({ where: { invoiceId }, select: { paymentDate: true, amount: true } }))

@@ -59,6 +59,9 @@ PY
 P() { python3 -c "import sys,json;d=json.loads(sys.argv[1]);print(eval(sys.argv[2]))" "$BODY" "$1"; }
 
 note "=== 1. a business: Basiszinssatz + 9, on the open 690 ==="
+# Tier 998: without an agreed payment date a business is in default 30 days after the
+# due date (§ 286 Abs. 3 BGB); this spec checks the rates from the due date — agreed here
+AS PUT "/api/v1/reminders/mahnungen/fees-config?companyId=$C" '{"zahlungszielVereinbart":true}'
 B=$(overdue business)
 AS GET "/api/v1/reminders/mahnungen/fees-preview?companyId=$C&invoiceId=$B&level=second"
 IFS='|' read -r EXP_B RATE_B <<<"$(expected 9)"

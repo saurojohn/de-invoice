@@ -2725,6 +2725,8 @@
     "settings": "Dunning fees & interest",
     "feesSubtitle": "Default interest (§ 288 BGB) and reminder fees per level. No fee is preset for the payment reminder: the cost of the reminder that first puts the customer in default cannot be claimed.",
     "verzugszinsPct": "Late interest rate (%)",
+    "zahlungszielVereinbart": "Payment dates are agreed with our business customers by contract",
+    "zahlungszielVereinbartHint": "Business customers are then in default the day after the due date (§ 286 (2) no. 1 BGB). Otherwise the statute applies: 30 days after the due date and receipt of the invoice, or from a reminder (§ 286 (3) BGB). Consumers are always in default only through a reminder.",
     "firstStage": "Level 1: Payment reminder",
     "secondStage": "Level 2: 1st dunning notice",
     "finalStage": "Level 3: Final dunning notice",

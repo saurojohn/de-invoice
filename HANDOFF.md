@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 998 — a business customer is in default 30 days after the due date, or by a reminder
+
+- **Decided as the accountant (owner's „继续“ on the proposal of 25.11.2026):** § 286 Abs. 3 Satz 1 BGB — without a reminder a business debtor is in default 30 days after the due date and receipt of the invoice; a due date the invoice sets on its own is no agreed calendar date (Abs. 2 Nr. 1). Interest was asked from the day after the due date (open since Tier 993).
+- `computeFees`: for a business customer interest runs from the earlier of the 31st day after the due date and the day after the first reminder sent after the due date. A company whose contracts agree the payment date ticks „Zahlungsziele sind … vertraglich vereinbart“ in the dunning settings (`mahnungConfig.zahlungszielVereinbart`, de/en/zh): then from the day after the due date, as before. Consumers: Tier 993 (only by a reminder).
+- Specs changed: 210 (checks the rates from the due date — sets the setting), 572 (a business 30 days past due is not yet in default: 60 days now), 387 (−0,0 compared as 0,0).
+- **Spec 685:** on the Tier 997 code 3 assertions fail; the dunning specs (93), the guards and the dunning Playwright specs (57) pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 997 — a FinTS address that resolves inside is refused
 
 - **Measured (solo, 25.11.2026):** the bank's FinTS URL was checked only by its text when the connection was saved (HTTPS, no private IP literal — Tier 12 / 391; the comment there said „any DNS name resolving to a private address“ was caught, it was not). `https://127.0.0.1.nip.io/fints` was saved (201); at the TAN step and at each real sync the server posted the dialog (PIN, TAN) to it, following any redirect. The webhooks resolve the name and refuse private addresses since Tier 391 / 863; the FinTS address did not (SSRF, OWASP A10).

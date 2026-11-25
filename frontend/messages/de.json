@@ -2725,6 +2725,8 @@
     "settings": "Mahngebühren & Zinsen",
     "feesSubtitle": "Verzugszins (§ 288 BGB) und Mahngebühren je Stufe. Für die Zahlungserinnerung ist keine Gebühr voreingestellt: die Kosten der Mahnung, die den Verzug erst begründet, können nicht verlangt werden.",
     "verzugszinsPct": "Verzugszinssatz (%)",
+    "zahlungszielVereinbart": "Zahlungsziele sind mit unseren Geschäftskunden vertraglich vereinbart",
+    "zahlungszielVereinbartHint": "Dann sind Geschäftskunden am Tag nach der Fälligkeit im Verzug (§ 286 Abs. 2 Nr. 1 BGB). Sonst gilt das Gesetz: 30 Tage nach Fälligkeit und Zugang der Rechnung oder ab einer Mahnung (§ 286 Abs. 3 BGB). Verbraucher sind immer erst durch eine Mahnung im Verzug.",
     "firstStage": "Stufe 1: Zahlungserinnerung",
     "secondStage": "Stufe 2: 1. Mahnung",
     "finalStage": "Stufe 3: Letzte Mahnung",

@@ -2725,6 +2725,8 @@
     "settings": "催收费与利息",
     "feesSubtitle": "逾期利息（§ 288 BGB）和各级催款费。付款提醒这一级默认不收费：使客户陷入迟延的那一次催告，其费用不能向客户收取。",
     "verzugszinsPct": "逾期利率 (%)",
+    "zahlungszielVereinbart": "与企业客户的付款期限已在合同中约定",
+    "zahlungszielVereinbartHint": "勾选后，企业客户在到期日次日即构成迟延（§ 286 Abs. 2 Nr. 1 BGB）。否则按法律规定：到期并收到发票 30 天后，或自收到催告起（§ 286 Abs. 3 BGB）。消费者始终只有在收到催告后才构成迟延。",
     "firstStage": "第 1 级：付款提醒",
     "secondStage": "第 2 级：第一次催款",
     "finalStage": "第 3 级：最后催款",

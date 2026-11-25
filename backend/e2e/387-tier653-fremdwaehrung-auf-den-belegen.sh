@@ -117,7 +117,7 @@ assert_eq "… and stay for an EUR invoice" "$(field "d['body']")" "Offen: € 1
 note "=== 4. the Mahnung ==="
 AS GET "/api/v1/reminders/mahnungen/fees-preview?companyId=$C&invoiceId=$I2&level=final"
 assert_eq "the fee of 10 € is asked for in dollars: 10,85 USD" "$(field "(d['currency'], d['mahngebuehr'], d['openBalance'])")" "('USD', 10.85, 2380)"
-assert_eq "one sum in one currency" "$(field "round(d['totalDue'] - d['openBalance'] - d['mahngebuehr'] - d['verzugszins'], 2)")" "0.0"
+assert_eq "one sum in one currency" "$(field "abs(round(d['totalDue'] - d['openBalance'] - d['mahngebuehr'] - d['verzugszins'], 2))")" "0.0"
 AS GET "/api/v1/reminders/mahnungen/fees-preview?companyId=$C&invoiceId=$I3&level=final"
 assert_eq "an EUR invoice: 10 €" "$(field "(d['currency'], d['mahngebuehr'])")" "('EUR', 10)"
 AS POST "/api/v1/reminders/send" '{"companyId":"'$C'","invoiceId":"'$I2'","level":"final"}'
