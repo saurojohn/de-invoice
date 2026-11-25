@@ -87,6 +87,11 @@ db_code() {
 }
 
 # ───── 1. Enable 2FA on the test user ─────
+# The steps below use the codes of the window before, the current and the next
+# one; the server accepts one window either side. Run 45515170681 crossed a
+# 30 s boundary between them and the earlier code fell out (KeyError 'enabled').
+# Start with at least 10 s left in the window.
+while (( $(date +%s) % 30 > 20 )); do sleep 1; done
 # Call the management API (HeaderAuthGuard) to set up + enable.
 SETUP=$(curl -sS -X POST "$API/api/v1/auth/2fa/setup" \
   -H "x-user-id: $TEST_USER_ID" -H "x-company-id: $COMPANY_ID")

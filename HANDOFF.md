@@ -2662,6 +2662,11 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 996b — spec 99 and the TOTP window
+
+- CI run 45515170681 (Tiers 994–996): backend 681 / 1 failed — spec 99 (2FA login flow), „KeyError: 'enabled'“: the enable step sends the previous window's code; generated in the last moments of a 30 s step, it reached the server in the next one, two steps old, and was refused. The later steps use the current and the next window's codes. Spec 24 had the same guard since Tier 855g; spec 99 had none.
+- Spec 99 waits until at least 10 s are left in the window before it starts. Green three times locally; no product code changed.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 996 — the Z3 data set carries the bank statements, the cash closes and the tax payments
 
 - **Measured (team round 4, named with the Anlagenverzeichnis, Tier 988):** the Datenüberlassung held bookings, invoices, expenses and the cash book — not the imported bank transactions, the signed daily cash closes (count, difference, its reason) nor the VAT payments to the Finanzamt. All three are records the auditor's data access covers (§ 147 Abs. 6 AO, GoBD Rz. 158 ff.; the Kassensturz: § 146 Abs. 1 AO).
