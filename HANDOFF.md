@@ -2662,6 +2662,13 @@ runs lint with zero tolerance. I had run lint *before* that move and only `tsc`
 after. Tier 401a run 35123583394 green: backend 189/0/1, Playwright **926**
 (+4 from session-cookie-tier401).
 
+### Read-only mode refuses every write; a re-verification is one company's (Tier 997 — a FinTS address that resolves inside is refused
+
+- **Measured (solo, 25.11.2026):** the bank's FinTS URL was checked only by its text when the connection was saved (HTTPS, no private IP literal — Tier 12 / 391; the comment there said „any DNS name resolving to a private address“ was caught, it was not). `https://127.0.0.1.nip.io/fints` was saved (201); at the TAN step and at each real sync the server posted the dialog (PIN, TAN) to it, following any redirect. The webhooks resolve the name and refuse private addresses since Tier 391 / 863; the FinTS address did not (SSRF, OWASP A10).
+- Saving: `assertHostResolvesPublic` (lenient on a name that does not resolve, as the webhooks). The real dialog's own `fetch`: the name checked again, `redirect: 'error'`. Each real sync (`runRealSync`): the name checked before the FinTS library connects.
+- **Residual:** the FinTS library makes its own requests — whether it follows a redirect, and a DNS answer that changes between the check and its connection (rebinding), are outside this check. Real FinTS is a documented stub so far (Code TODOs); when it is built, its client should take `publicOnlyLookup()` as the webhooks do.
+- **Spec 684:** on the Tier 996 code it fails (201); it runs its DNS case only where 127.0.0.1.nip.io resolves (as spec 50) and deletes what it made; the FinTS specs, spec 50 and the guards pass.
+
 ### Read-only mode refuses every write; a re-verification is one company's (Tier 996b — spec 99 and the TOTP window
 
 - CI run 45515170681 (Tiers 994–996): backend 681 / 1 failed — spec 99 (2FA login flow), „KeyError: 'enabled'“: the enable step sends the previous window's code; generated in the last moments of a 30 s step, it reached the server in the next one, two steps old, and was refused. The later steps use the current and the next window's codes. Spec 24 had the same guard since Tier 855g; spec 99 had none.

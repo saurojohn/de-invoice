@@ -18,7 +18,7 @@ import {
 import { Auth, Require } from '../../auth/roles.decorator'
 import { FinTsService } from './fints.service'
 import { FintsSyncScheduler } from './fints-sync.scheduler'
-import { assertPublicHttpUrl } from '../../common/ssrf-guard'
+import { assertHostResolvesPublic, assertPublicHttpUrl } from '../../common/ssrf-guard'
 
 interface CreateConnectionDto {
   companyId: string
@@ -170,6 +170,9 @@ export class FinTsController {
     // name resolving to a private address.
     if (body.endpointUrl) {
       assertPublicHttpUrl(body.endpointUrl, { requireHttps: true, label: 'endpointUrl' })
+      // Tier 997: and the name — one resolving to 127.0.0.1 or an address
+      // inside the network was saved, and the dialog (PIN, TAN) posted to it
+      await assertHostResolvesPublic(new URL(body.endpointUrl).hostname, 'endpointUrl', { allowUnresolved: true })
     }
     // Tier 568: the default is the demo bank only where the demo bank is
     // allowed (mock-mode.ts); asked for explicitly where it is not: 400.

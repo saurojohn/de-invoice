@@ -1,3 +1,4 @@
+import { assertHostResolvesPublic } from '../../common/ssrf-guard'
 import { businessTodayIso } from '../../common/business-date'
 import { PrismaService } from '../../prisma/prisma.service'
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common'
@@ -444,10 +445,14 @@ export class FinTsService {
         // wants a Web BodyInit. Convert via
         // Uint8Array to keep the wire bytes
         // intact.
+        // Tier 997: to a public address only, and no redirect (a 3xx to an
+        // address inside would have been followed, the dialog with it)
+        await assertHostResolvesPublic(new URL(conn.endpointUrl).hostname, 'FinTS-URL')
         const resp = await fetch(conn.endpointUrl, {
           method: 'POST',
           body: new Uint8Array(msg),
           headers: { 'Content-Type': 'application/octet-stream' },
+          redirect: 'error',
         })
         // Tier 356: result unused — FinTS real mode is a documented stub
       // (see backend/AGENTS.md and the HIRMG/HIRMS TODO below); only mock
@@ -528,6 +533,9 @@ export class FinTsService {
     })
     if (!conn) throw new Error('Connection vanished mid-sync')
 
+    // Tier 997: the bank's name resolves to a public address — checked again
+    // at each sync (a name may change what it points at after it was saved)
+    if (conn.endpointUrl) await assertHostResolvesPublic(new URL(conn.endpointUrl).hostname, 'FinTS-URL')
     const fintsReal = this.makeFintsReal(conn)
     const accountsRes = await fintsReal.listAccounts()
     if (accountsRes.status === 'failed') {
